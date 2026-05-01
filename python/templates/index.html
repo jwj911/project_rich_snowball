@@ -1,0 +1,1088 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>期货交流社区</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+            min-height: 100vh;
+            color: #c9d1d9;
+        }
+        .header {
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .header h1 {
+            font-size: 18px;
+            background: linear-gradient(90deg, #3fb950, #58a6ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-info select {
+            padding: 6px 12px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            background: #21262d;
+            color: #c9d1d9;
+            font-size: 13px;
+        }
+        .container {
+            display: flex;
+            height: calc(100vh - 52px);
+        }
+        .sidebar {
+            width: 120px;
+            background: #161b22;
+            border-right: 1px solid #30363d;
+            padding: 8px;
+            overflow-y: auto;
+        }
+        .sidebar h3 {
+            font-size: 10px;
+            color: #8b949e;
+            margin-bottom: 6px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #30363d;
+            text-align: center;
+        }
+        .category-tabs {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-bottom: 8px;
+        }
+        .category-tab {
+            padding: 5px 8px;
+            border: none;
+            border-radius: 4px;
+            background: transparent;
+            color: #8b949e;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        .category-tab:hover {
+            background: #30363d;
+            color: #c9d1d9;
+        }
+        .category-tab.active {
+            background: #58a6ff;
+            color: #fff;
+        }
+        .variety-list {
+            list-style: none;
+        }
+        .variety-item {
+            padding: 6px 8px;
+            margin-bottom: 2px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            color: #8b949e;
+        }
+        .variety-item:hover {
+            background: #30363d;
+            color: #c9d1d9;
+        }
+        .variety-item.active {
+            background: #58a6ff;
+            color: #fff;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .top-bar {
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 8px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .variety-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .variety-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .price-display {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .price-display.up { color: #3fb950; }
+        .price-display.down { color: #f85149; }
+        .change-info {
+            font-size: 13px;
+        }
+        .time-periods {
+            display: flex;
+            gap: 8px;
+        }
+        .period-btn {
+            padding: 5px 12px;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            background: #21262d;
+            color: #8b949e;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .period-btn.active {
+            background: #58a6ff;
+            color: #fff;
+            border-color: #58a6ff;
+        }
+        .chart-container {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        .chart-wrapper {
+            flex: 1;
+            background: #0d1117;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+            position: relative;
+            overflow: hidden;
+        }
+        .chart-y-axis {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 40px;
+            width: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 10px 5px;
+            font-size: 11px;
+            color: #8b949e;
+            text-align: right;
+        }
+        .chart-area {
+            margin-left: 60px;
+            height: calc(100% - 40px);
+            position: relative;
+        }
+        .support-resistance-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+        .level-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 1px;
+            opacity: 0.7;
+        }
+        .level-line.support {
+            background: #3fb950;
+        }
+        .level-line.resistance {
+            background: #f85149;
+        }
+        .level-label {
+            position: absolute;
+            right: 5px;
+            font-size: 10px;
+            padding: 2px 5px;
+            border-radius: 3px;
+            white-space: nowrap;
+        }
+        .level-label.support {
+            background: rgba(63, 185, 80, 0.2);
+            color: #3fb950;
+        }
+        .level-label.resistance {
+            background: rgba(248, 81, 73, 0.2);
+            color: #f85149;
+        }
+        .candlesticks {
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            height: 100%;
+            padding: 10px 0;
+        }
+        .candle {
+            flex: 1;
+            min-width: 15px;
+            border-radius: 2px;
+            position: relative;
+        }
+        .candle.up {
+            background: #3fb950;
+            box-shadow: 0 0 8px rgba(63, 185, 80, 0.4);
+        }
+        .candle.down {
+            background: #f85149;
+            box-shadow: 0 0 8px rgba(248, 81, 73, 0.4);
+        }
+        .candle .wick {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+        }
+        .candle.up .wick { background: #3fb950; }
+        .candle.down .wick { background: #f85149; }
+        .volume-bar {
+            height: 40px;
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            padding: 0 60px;
+            border-top: 1px solid #30363d;
+        }
+        .volume-item {
+            flex: 1;
+            background: rgba(88, 166, 255, 0.3);
+            border-radius: 2px 2px 0 0;
+        }
+        .bottom-panel {
+            display: flex;
+            border-top: 1px solid #30363d;
+            height: 220px;
+        }
+        .comment-section {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #30363d;
+        }
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+        .panel-section {
+            width: 50%;
+            padding: 10px;
+            border-bottom: 1px solid #30363d;
+            border-right: 1px solid #30363d;
+            overflow-y: auto;
+        }
+        .panel-section:nth-child(2n) {
+            border-right: none;
+        }
+        .panel-section:last-child {
+            border-bottom: none;
+            width: 100%;
+            border-right: none;
+        }
+        .panel-title {
+            font-size: 12px;
+            color: #8b949e;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .stats-ring {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .ring {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: conic-gradient(#3fb950 0deg, #3fb950 200deg, #f85149 200deg, #f85149 280deg, #8b949e 280deg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .ring-inner {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #0d1117;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .ring-percent {
+            font-size: 16px;
+            font-weight: 700;
+            color: #3fb950;
+        }
+        .ring-label {
+            font-size: 9px;
+            color: #8b949e;
+        }
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            font-size: 11px;
+        }
+        .stats-row .label { color: #8b949e; }
+        .stats-row .value.bullish { color: #3fb950; }
+        .stats-row .value.bearish { color: #f85149; }
+        .stats-row .value.neutral { color: #8b949e; }
+        .opinion-list {
+            list-style: none;
+        }
+        .opinion-item {
+            background: #21262d;
+            border-radius: 4px;
+            padding: 5px;
+            margin-bottom: 4px;
+            font-size: 10px;
+        }
+        .opinion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+        .opinion-user { color: #58a6ff; }
+        .opinion-type {
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-size: 9px;
+        }
+        .opinion-type.bullish { background: rgba(63, 185, 80, 0.2); color: #3fb950; }
+        .opinion-type.bearish { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+        .opinion-type.neutral { background: rgba(139, 148, 158, 0.2); color: #8b949e; }
+        .opinion-reason {
+            color: #c9d1d9;
+            margin-bottom: 3px;
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .opinion-targets {
+            display: flex;
+            gap: 6px;
+            font-size: 9px;
+            color: #8b949e;
+        }
+        .watch-form {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .watch-row {
+            display: flex;
+            gap: 5px;
+        }
+        .watch-input {
+            flex: 1;
+            padding: 4px;
+            border: 1px solid #30363d;
+            border-radius: 3px;
+            background: #21262d;
+            color: #c9d1d9;
+            font-size: 10px;
+        }
+        .watch-input:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .toggle-label { font-size: 10px; color: #8b949e; }
+        .toggle-switch {
+            width: 28px;
+            height: 16px;
+            background: #30363d;
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+        .toggle-switch.active { background: #3fb950; }
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: all 0.2s;
+        }
+        .toggle-switch.active::after { left: 14px; }
+        .save-btn {
+            padding: 3px;
+            border: none;
+            border-radius: 3px;
+            background: #58a6ff;
+            color: #fff;
+            font-size: 10px;
+            cursor: pointer;
+        }
+        .comment-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .comment-input-area {
+            padding: 10px;
+            border-bottom: 1px solid #30363d;
+        }
+        .comment-input {
+            display: flex;
+            gap: 8px;
+        }
+        .comment-input textarea {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            background: #21262d;
+            color: #c9d1d9;
+            font-size: 13px;
+            resize: none;
+            height: 40px;
+        }
+        .comment-input textarea:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        .comment-input button {
+            padding: 0 16px;
+            border: none;
+            border-radius: 6px;
+            background: #58a6ff;
+            color: #fff;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .comment-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            list-style: none;
+        }
+        .comment-item {
+            background: #21262d;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .comment-user { color: #58a6ff; font-size: 12px; }
+        .comment-time { color: #8b949e; font-size: 11px; }
+        .comment-content { color: #c9d1d9; font-size: 13px; line-height: 1.4; }
+        .empty-state {
+            text-align: center;
+            color: #8b949e;
+            padding: 20px;
+            font-size: 13px;
+        }
+        .quick-opinion {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        .opinion-btn {
+            flex: 1;
+            padding: 3px;
+            border: 1px solid #30363d;
+            border-radius: 3px;
+            background: #21262d;
+            color: #8b949e;
+            font-size: 9px;
+            cursor: pointer;
+        }
+        .opinion-btn.active.bullish {
+            border-color: #3fb950;
+            background: rgba(63, 185, 80, 0.2);
+            color: #3fb950;
+        }
+        .opinion-btn.active.bearish {
+            border-color: #f85149;
+            background: rgba(248, 81, 73, 0.2);
+            color: #f85149;
+        }
+        .opinion-btn.active.neutral {
+            border-color: #8b949e;
+            background: rgba(139, 148, 158, 0.2);
+            color: #8b949e;
+        }
+        .opinion-input {
+            width: 100%;
+            padding: 3px;
+            border: 1px solid #30363d;
+            border-radius: 3px;
+            background: #21262d;
+            color: #c9d1d9;
+            font-size: 10px;
+            resize: none;
+            height: 30px;
+            margin-bottom: 5px;
+        }
+        .target-row {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+        .target-input {
+            flex: 1;
+            padding: 3px;
+            border: 1px solid #30363d;
+            border-radius: 3px;
+            background: #21262d;
+            color: #c9d1d9;
+            font-size: 9px;
+        }
+        .submit-opinion-btn {
+            padding: 3px;
+            border: none;
+            border-radius: 3px;
+            background: #58a6ff;
+            color: #fff;
+            font-size: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>📈 期货交流社区</h1>
+        </div>
+        <div class="user-info">
+            <span>用户:</span>
+            <select id="userSelect">
+                <option value="user001">用户1</option>
+                <option value="user002">用户2</option>
+                <option value="user003">用户3</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="sidebar">
+            <h3>品种分类</h3>
+            <div class="category-tabs">
+                <button class="category-tab active" data-category="all">全部</button>
+                <button class="category-tab" data-category="金属">金属</button>
+                <button class="category-tab" data-category="贵金属">贵金属</button>
+                <button class="category-tab" data-category="建材">建材</button>
+                <button class="category-tab" data-category="能源化工">能源化工</button>
+                <button class="category-tab" data-category="农产品">农产品</button>
+            </div>
+            <h3>品种列表</h3>
+            <ul class="variety-list" id="varietyList"></ul>
+        </div>
+        
+        <div class="main-content">
+            <div class="top-bar">
+                <div class="variety-info">
+                    <div class="variety-title" id="varietyTitle">请选择品种</div>
+                    <div class="price-display" id="priceDisplay">-</div>
+                    <div class="change-info" id="changeInfo">-</div>
+                </div>
+                <div class="time-periods">
+                    <button class="period-btn active" data-period="1H">1小时</button>
+                    <button class="period-btn" data-period="4H">4小时</button>
+                    <button class="period-btn" data-period="1D">日线</button>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-wrapper">
+                    <div class="chart-y-axis" id="yAxis"></div>
+                    <div class="chart-area">
+                        <div class="support-resistance-lines" id="srLines"></div>
+                        <div class="candlesticks" id="candlesticks"></div>
+                    </div>
+                    <div class="volume-bar" id="volumeBar"></div>
+                </div>
+            </div>
+            
+            <div class="bottom-panel">
+                <div class="comment-section">
+                    <div class="comment-input-area">
+                        <div class="comment-input">
+                            <textarea id="commentInput" placeholder="发表你的看法..."></textarea>
+                            <button id="submitComment">发送</button>
+                        </div>
+                    </div>
+                    <ul class="comment-list" id="commentList"></ul>
+                </div>
+                
+                <div class="right-panel">
+                    <div class="panel-section">
+                        <div class="panel-title">📊 市场观点</div>
+                        <div class="stats-row">
+                            <span class="label">看多</span>
+                            <span class="value bullish" id="bullishCount">0</span>
+                        </div>
+                        <div class="stats-row">
+                            <span class="label">看空</span>
+                            <span class="value bearish" id="bearishCount">0</span>
+                        </div>
+                        <div class="stats-row">
+                            <span class="label">观望</span>
+                            <span class="value neutral" id="neutralCount">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-section">
+                        <div class="panel-title">💡 最新观点</div>
+                        <ul class="opinion-list" id="opinionList"></ul>
+                    </div>
+                    
+                    <div class="panel-section">
+                        <div class="panel-title">🎯 关注设置</div>
+                        <div class="watch-form">
+                            <div class="watch-row">
+                                <input type="number" class="watch-input" id="resistanceLevel" placeholder="阻力位">
+                                <input type="number" class="watch-input" id="supportLevel" placeholder="支撑位">
+                            </div>
+                            <div class="toggle-row">
+                                <span class="toggle-label">重点关注</span>
+                                <div class="toggle-switch" id="followToggle"></div>
+                            </div>
+                            <button class="save-btn" id="saveWatchBtn">保存</button>
+                            
+                            <div style="margin-top: 8px; border-top: 1px solid #30363d; padding-top: 8px;">
+                                <div class="quick-opinion">
+                                    <button class="opinion-btn" id="bullishBtn">看多</button>
+                                    <button class="opinion-btn" id="bearishBtn">看空</button>
+                                    <button class="opinion-btn" id="neutralBtn">观望</button>
+                                </div>
+                                <textarea class="opinion-input" id="opinionReason" placeholder="理由..."></textarea>
+                                <div class="target-row">
+                                    <input type="number" class="target-input" id="targetPrice" placeholder="目标价">
+                                    <input type="number" class="target-input" id="stopLoss" placeholder="止损价">
+                                </div>
+                                <button class="submit-opinion-btn" id="submitOpinion">发布</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api';
+        let currentVariety = null;
+        let currentUser = 'user001';
+        let currentOpinionType = null;
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            loadVarieties();
+            setupEventListeners();
+        });
+        
+        function setupEventListeners() {
+            document.getElementById('userSelect').addEventListener('change', (e) => {
+                currentUser = e.target.value;
+                if (currentVariety) {
+                    loadWatchlist(currentVariety);
+                }
+            });
+            
+            document.querySelectorAll('.category-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    filterVarieties(tab.dataset.category);
+                });
+            });
+            
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    if (currentVariety) {
+                        loadKlineData(currentVariety, btn.dataset.period);
+                    }
+                });
+            });
+            
+            document.getElementById('followToggle').addEventListener('click', toggleFollow);
+            document.getElementById('saveWatchBtn').addEventListener('click', saveWatchlist);
+            document.getElementById('submitComment').addEventListener('click', submitComment);
+            
+            document.getElementById('bullishBtn').addEventListener('click', () => setOpinionType('bullish'));
+            document.getElementById('bearishBtn').addEventListener('click', () => setOpinionType('bearish'));
+            document.getElementById('neutralBtn').addEventListener('click', () => setOpinionType('neutral'));
+            document.getElementById('submitOpinion').addEventListener('click', submitOpinion);
+        }
+        
+        function setOpinionType(type) {
+            currentOpinionType = type;
+            document.querySelectorAll('.opinion-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`${type}Btn`).classList.add('active');
+        }
+        
+        async function loadVarieties() {
+            const response = await fetch(`${API_BASE}/varieties`);
+            const varieties = await response.json();
+            renderVarietyList(varieties);
+            if (varieties.length > 0) {
+                selectVariety(varieties[0]);
+            }
+        }
+        
+        function renderVarietyList(varieties) {
+            const list = document.getElementById('varietyList');
+            list.innerHTML = varieties.map(v => `
+                <li class="variety-item" data-code="${v.code}" data-category="${v.category}">${v.name}</li>
+            `).join('');
+            
+            list.querySelectorAll('.variety-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const code = item.dataset.code;
+                    const variety = varieties.find(v => v.code === code);
+                    selectVariety(variety);
+                });
+            });
+        }
+        
+        function filterVarieties(category) {
+            document.querySelectorAll('.variety-item').forEach(item => {
+                if (category === 'all' || item.dataset.category === category) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+        
+        async function selectVariety(variety) {
+            currentVariety = variety.code;
+            document.getElementById('varietyTitle').textContent = `${variety.name} (${variety.code})`;
+            
+            document.querySelectorAll('.variety-item').forEach(item => item.classList.remove('active'));
+            document.querySelector(`[data-code="${variety.code}"]`).classList.add('active');
+            
+            await loadKlineData(variety.code, '1H');
+            await loadWatchlist(variety.code);
+            await loadComments(variety.code);
+            await loadOpinions(variety.code);
+            await loadOpinionStats(variety.code);
+        }
+        
+        async function loadKlineData(varietyCode, period) {
+            const response = await fetch(`${API_BASE}/kline/${varietyCode}?time_period=${period}`);
+            const data = await response.json();
+            
+            if (data.length === 0) {
+                document.getElementById('candlesticks').innerHTML = '<div class="empty-state">暂无数据</div>';
+                return;
+            }
+            
+            const latest = data[data.length - 1];
+            updatePriceDisplay(latest);
+            
+            const maxHigh = Math.max(...data.map(d => d.high_price));
+            const minLow = Math.min(...data.map(d => d.low_price));
+            const range = maxHigh - minLow || 1;
+            
+            renderYAxis(maxHigh, minLow);
+            renderCandlesticks(data, maxHigh, minLow, range);
+            renderVolume(data);
+        }
+        
+        function updatePriceDisplay(data) {
+            const price = data.close_price || '-';
+            const display = document.getElementById('priceDisplay');
+            display.textContent = typeof price === 'number' ? price.toLocaleString() : '-';
+            
+            if (data.open_price && data.close_price) {
+                const change = data.close_price - data.open_price;
+                const changePercent = ((change / data.open_price) * 100).toFixed(2);
+                document.getElementById('changeInfo').textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent}%)`;
+                display.className = `price-display ${change >= 0 ? 'up' : 'down'}`;
+            }
+        }
+        
+        function renderYAxis(max, min) {
+            const axis = document.getElementById('yAxis');
+            const levels = 5;
+            axis.innerHTML = Array.from({length: levels}, (_, i) => {
+                const price = max - ((max - min) * i / (levels - 1));
+                return `<div>${price.toFixed(price >= 1000 ? 0 : 2)}</div>`;
+            }).join('');
+        }
+        
+        function renderCandlesticks(data, maxHigh, minLow, range) {
+            const container = document.getElementById('candlesticks');
+            container.innerHTML = data.map(d => {
+                const isUp = d.close_price >= d.open_price;
+                const bodyHeight = Math.max(Math.abs(d.close_price - d.open_price) / range * 300, 2);
+                const bodyTop = ((maxHigh - Math.max(d.open_price, d.close_price)) / range) * 300;
+                const wickTop = ((maxHigh - d.high_price) / range) * 300;
+                const wickHeight = ((d.high_price - d.low_price) / range) * 300;
+                
+                return `
+                    <div class="candle ${isUp ? 'up' : 'down'}" style="height: ${bodyHeight}px; top: ${bodyTop}px;">
+                        <div class="wick" style="top: ${wickTop - bodyTop}px; height: ${wickHeight}px;"></div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function renderVolume(data) {
+            const container = document.getElementById('volumeBar');
+            const maxVolume = Math.max(...data.map(d => d.volume));
+            container.innerHTML = data.map(d => {
+                const height = (d.volume / maxVolume) * 35;
+                return `<div class="volume-item" style="height: ${height}px;"></div>`;
+            }).join('');
+        }
+        
+        async function loadWatchlist(varietyCode) {
+            const response = await fetch(`${API_BASE}/watchlist/${currentUser}`);
+            const watchlist = await response.json();
+            const item = watchlist.find(w => w.variety_code === varietyCode);
+            
+            if (item) {
+                document.getElementById('followToggle').classList.toggle('active', item.is_followed);
+                document.getElementById('resistanceLevel').value = item.resistance_level || '';
+                document.getElementById('supportLevel').value = item.support_level || '';
+                
+                renderSupportResistanceLines(item.resistance_level, item.support_level);
+            } else {
+                document.getElementById('followToggle').classList.remove('active');
+                document.getElementById('resistanceLevel').value = '';
+                document.getElementById('supportLevel').value = '';
+                document.getElementById('srLines').innerHTML = '';
+            }
+        }
+        
+        function renderSupportResistanceLines(resistance, support) {
+            const lines = document.getElementById('srLines');
+            lines.innerHTML = '';
+            
+            if (resistance) {
+                const response = fetch(`${API_BASE}/kline/${currentVariety}?time_period=1H`);
+                response.then(r => r.json()).then(data => {
+                    if (data.length > 0) {
+                        const maxHigh = Math.max(...data.map(d => d.high_price));
+                        const minLow = Math.min(...data.map(d => d.low_price));
+                        const range = maxHigh - minLow || 1;
+                        const top = ((maxHigh - resistance) / range) * 300;
+                        lines.innerHTML += `
+                            <div class="level-line resistance" style="top: ${top}px;">
+                                <div class="level-label resistance">阻力位: ${resistance}</div>
+                            </div>
+                        `;
+                    }
+                });
+            }
+            
+            if (support) {
+                const response = fetch(`${API_BASE}/kline/${currentVariety}?time_period=1H`);
+                response.then(r => r.json()).then(data => {
+                    if (data.length > 0) {
+                        const maxHigh = Math.max(...data.map(d => d.high_price));
+                        const minLow = Math.min(...data.map(d => d.low_price));
+                        const range = maxHigh - minLow || 1;
+                        const top = ((maxHigh - support) / range) * 300;
+                        lines.innerHTML += `
+                            <div class="level-line support" style="top: ${top}px;">
+                                <div class="level-label support">支撑位: ${support}</div>
+                            </div>
+                        `;
+                    }
+                });
+            }
+        }
+        
+        function toggleFollow() {
+            const toggle = document.getElementById('followToggle');
+            toggle.classList.toggle('active');
+        }
+        
+        async function saveWatchlist() {
+            if (!currentVariety) return;
+            
+            const data = {
+                is_followed: document.getElementById('followToggle').classList.contains('active'),
+                resistance_level: parseFloat(document.getElementById('resistanceLevel').value) || null,
+                support_level: parseFloat(document.getElementById('supportLevel').value) || null
+            };
+            
+            const response = await fetch(`${API_BASE}/watchlist/${currentUser}/${currentVariety}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            if (!response.ok) {
+                await fetch(`${API_BASE}/watchlist`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...data, user_id: currentUser, variety_code: currentVariety })
+                });
+            }
+            
+            renderSupportResistanceLines(data.resistance_level, data.support_level);
+            alert('保存成功！');
+        }
+        
+        async function loadComments(varietyCode) {
+            const response = await fetch(`${API_BASE}/comments/${varietyCode}`);
+            const comments = await response.json();
+            const list = document.getElementById('commentList');
+            
+            if (comments.length === 0) {
+                list.innerHTML = '<li class="empty-state">暂无评论，快来发表第一条评论吧！</li>';
+                return;
+            }
+            
+            list.innerHTML = comments.map(c => `
+                <li class="comment-item">
+                    <div class="comment-header">
+                        <span class="comment-user">${c.user_id}</span>
+                        <span class="comment-time">${formatTime(c.created_at)}</span>
+                    </div>
+                    <div class="comment-content">${c.content}</div>
+                </li>
+            `).join('');
+        }
+        
+        function formatTime(timeStr) {
+            const date = new Date(timeStr);
+            return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+        
+        async function submitComment() {
+            if (!currentVariety) return;
+            const content = document.getElementById('commentInput').value.trim();
+            if (!content) return;
+            
+            await fetch(`${API_BASE}/comments`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ variety_code: currentVariety, user_id: currentUser, content })
+            });
+            
+            document.getElementById('commentInput').value = '';
+            await loadComments(currentVariety);
+        }
+        
+        async function loadOpinions(varietyCode) {
+            const response = await fetch(`${API_BASE}/opinion/${varietyCode}`);
+            const opinions = await response.json();
+            const list = document.getElementById('opinionList');
+            
+            if (opinions.length === 0) {
+                list.innerHTML = '<li class="empty-state">暂无观点</li>';
+                return;
+            }
+            
+            list.innerHTML = opinions.slice(0, 3).map(o => `
+                <li class="opinion-item">
+                    <div class="opinion-header">
+                        <span class="opinion-user">${o.user_id}</span>
+                        <span class="opinion-type ${o.type}">${getTypeLabel(o.type)}</span>
+                    </div>
+                    <div class="opinion-reason">${o.reason || '-'}</div>
+                    <div class="opinion-targets">
+                        ${o.target_price ? `目标: ${o.target_price}` : ''}
+                        ${o.stop_loss ? `止损: ${o.stop_loss}` : ''}
+                    </div>
+                </li>
+            `).join('');
+        }
+        
+        function getTypeLabel(type) {
+            const labels = { bullish: '看多', bearish: '看空', neutral: '观望' };
+            return labels[type] || type;
+        }
+        
+        async function loadOpinionStats(varietyCode) {
+            const response = await fetch(`${API_BASE}/opinion/stats/${varietyCode}`);
+            const stats = await response.json();
+            
+            document.getElementById('bullishCount').textContent = stats.bullish;
+            document.getElementById('bearishCount').textContent = stats.bearish;
+            document.getElementById('neutralCount').textContent = stats.neutral;
+            
+            const total = stats.total || 1;
+            const bullishPercent = ((stats.bullish / total) * 100).toFixed(0);
+            document.getElementById('bullishPercent').textContent = `${bullishPercent}%`;
+        }
+        
+        async function submitOpinion() {
+            if (!currentVariety || !currentOpinionType) {
+                alert('请先选择观点类型！');
+                return;
+            }
+            
+            const data = {
+                variety_code: currentVariety,
+                user_id: currentUser,
+                type: currentOpinionType,
+                reason: document.getElementById('opinionReason').value.trim(),
+                target_price: parseFloat(document.getElementById('targetPrice').value) || null,
+                stop_loss: parseFloat(document.getElementById('stopLoss').value) || null
+            };
+            
+            await fetch(`${API_BASE}/opinion`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            document.getElementById('opinionReason').value = '';
+            document.getElementById('targetPrice').value = '';
+            document.getElementById('stopLoss').value = '';
+            document.querySelectorAll('.opinion-btn').forEach(b => b.classList.remove('active'));
+            currentOpinionType = null;
+            
+            await loadOpinions(currentVariety);
+            await loadOpinionStats(currentVariety);
+            alert('观点发布成功！');
+        }
+    </script>
+</body>
+</html>

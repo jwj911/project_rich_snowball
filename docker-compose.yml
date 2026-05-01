@@ -1,0 +1,55 @@
+version: "3.8"
+
+services:
+  # PostgreSQL 数据库（推荐用于生产/多用户场景）
+  # 如果暂时不想切 PG，可以注释掉这部分，继续用 SQLite
+  postgres:
+    image: postgres:16-alpine
+    container_name: futures_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: futures
+      POSTGRES_PASSWORD: futures123
+      POSTGRES_DB: futures_community
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # 如需初始化脚本，可挂载：
+      # - ./initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U futures -d futures_community"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 缓存（可选，用于实时行情缓存、会话存储）
+  # 短期可以不开，等数据量大/用户多后再启用
+  redis:
+    image: redis:7-alpine
+    container_name: futures_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  # FastAPI 后端服务（可选，等你把代码改好后再启用）
+  # backend:
+  #   build:
+  #     context: ./python
+  ices: ["postgres"]
+  #   environment:
+  #     - DATABASE_URL=postgresql://futures:futures123@postgres:5432/futures_community
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - ./python:/app
+  #   command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
+  redis_data:
