@@ -11,10 +11,15 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.getProducts().then(data => {
-      setProducts(data)
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    const load = () => {
+      api.getProducts().then(data => {
+        setProducts(data)
+        setLoading(false)
+      }).catch(() => setLoading(false))
+    }
+    load()
+    const interval = setInterval(load, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const hotProducts = products.slice(0, 6)

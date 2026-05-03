@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import KlineChart from '@/components/KlineChart'
-import { api, Product, Comment } from '@/lib/api'
+import { api, Product, Comment, KlineData, RealtimeQuote } from '@/lib/api'
 import { ArrowLeft, Send, TrendingUp, TrendingDown, DollarSign, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
 
 export default function ProductDetailPage({ params }: { params: { id: string } }) {
@@ -20,6 +20,9 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const [newSupport, setNewSupport] = useState('')
   const [newResistance, setNewResistance] = useState('')
 
+  const [klineData, setKlineData] = useState<KlineData[]>([])
+  const [realtime, setRealtime] = useState<RealtimeQuote | null>(null)
+
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -28,6 +31,14 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
         const data = await api.getProduct(parseInt(id))
         setProduct(data.product)
         setComments(data.comments)
+
+        if (data.product?.symbol) {
+          const kline = await api.getKline(data.product.symbol, '1h', 80)
+          setKlineData(kline)
+
+          const rt = await api.getRealtime(data.product.symbol)
+          setRealtime(rt)
+        }
       } catch (error) {
         console.error('Failed to load product:', error)
       } finally {
@@ -48,6 +59,21 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
     loadData()
     checkAuth()
+
+    // 实时行情轮询
+    const interval = setInterval(async () => {
+      try {
+        const data = await api.getProduct(parseInt(id))
+        if (data.product?.symbol) {
+          const rt = await api.getRealtime(data.product.symbol)
+          setRealtime(rt)
+        }
+      } catch (e) {
+        // 静默失败
+      }
+    }, 30000)
+
+    return () => clearInterval(interval)
   }, [id])
 
   const handleSubmitComment = async (e: React.FormEvent) => {
@@ -121,8 +147,10 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     )
   }
 
-  const isUp = (product.change_percent || 0) > 0
-  const marginCost = product.margin ? (product.current_price || 0) * product.margin / 100 : 0
+  const displayPrice = realtime?.current_price ?? product.current_price
+  const displayChange = realtime?.change_percent ?? product.change_percent
+  const isUp = (displayChange || 0) > 0
+  const marginCost = product.margin ? (displayPrice || 0) * product.margin / 100 : 0
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-white">
@@ -137,10 +165,10 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
             <div className="flex items-center gap-4">
               <span className="text-xl font-bold font-mono">{product.name} ({product.symbol})</span>
               <span className={`text-2xl font-bold font-mono ${isUp ? 'text-red-400' : 'text-green-400'}`}>
-                {product.current_price?.toLocaleString() || '--'}
+                {displayPrice?.toLocaleString() || '--'}
               </span>
               <span className={`text-lg font-mono ${isUp ? 'text-red-400' : 'text-green-400'}`}>
-                {isUp ? '+' : ''}{product.change_percent?.toFixed(2)}%
+                {isUp ? '+' : ''}{(displayChange || 0).toFixed(2)}%
               </span>
             </div>
           </div>
@@ -148,7 +176,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           <div className="flex-1 flex flex-col gap-4">
             <div className="flex-1">
               <KlineChart 
-                data={[]}
+                data={klineData}
                 symbol={product.symbol}
                 supportLevels={supportLevels}
                 resistanceLevels={resistanceLevels}

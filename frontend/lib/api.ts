@@ -37,6 +37,37 @@ export interface User {
   created_at: string
 }
 
+export interface RealtimeQuote {
+  symbol: string
+  current_price: number
+  change_percent: number
+  open_price: number | null
+  high: number | null
+  low: number | null
+  volume: number | null
+  updated_at: string
+}
+
+export interface KlineData {
+  time: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
+
+export interface Variety {
+  id: number
+  symbol: string
+  contract_code: string
+  name: string
+  exchange: string
+  category: string | null
+  margin_rate: number | null
+  commission: number | null
+}
+
 export interface AuthState {
   user: User | null
   token: string | null
@@ -137,6 +168,24 @@ class ApiService {
 
   async getUserComments(username: string): Promise<Comment[]> {
     return this.request<Comment[]>(`/api/comments/user/${username}`)
+  }
+
+  async getRealtime(symbol: string): Promise<RealtimeQuote> {
+    return this.request<RealtimeQuote>(`/api/realtime/${symbol}`)
+  }
+
+  async getKline(symbol: string, period: string = '1h', limit: number = 100): Promise<KlineData[]> {
+    return this.request<KlineData[]>(`/api/kline/${symbol}?period=${period}&limit=${limit}`)
+  }
+
+  async getVarieties(params?: { category?: string; search?: string; skip?: number; limit?: number }): Promise<Variety[]> {
+    const searchParams = new URLSearchParams()
+    if (params?.category) searchParams.append('category', params.category)
+    if (params?.search) searchParams.append('search', params.search)
+    if (params?.skip !== undefined) searchParams.append('skip', String(params.skip))
+    if (params?.limit !== undefined) searchParams.append('limit', String(params.limit))
+    const qs = searchParams.toString()
+    return this.request<Variety[]>(`/api/varieties${qs ? '?' + qs : ''}`)
   }
 
   logout() {

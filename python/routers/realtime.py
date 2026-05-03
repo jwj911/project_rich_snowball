@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from models import RealtimeQuoteDB, VarietyDB
 from schemas import RealtimeResponse
 from dependencies import get_db
+from services.cache import get_cached
 
 router = APIRouter(prefix="/api/realtime", tags=["实时行情"])
 
@@ -13,7 +14,11 @@ def get_realtime(symbol: str, db: Session = Depends(get_db)):
     if not variety:
         raise HTTPException(status_code=404, detail="品种不存在")
 
-    quote = db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).first()
+    def _fetch():
+        return db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).first()
+
+    quote = get_cached(f"realtime:{symbol}", _fetch)
+
     if not quote:
         raise HTTPException(status_code=404, detail="暂无实时行情数据")
 

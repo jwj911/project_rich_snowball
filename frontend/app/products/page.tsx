@@ -13,10 +13,15 @@ export default function ProductsPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
-    api.getProducts().then(data => {
-      setProducts(data)
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    const load = () => {
+      api.getProducts().then(data => {
+        setProducts(data)
+        setLoading(false)
+      }).catch(() => setLoading(false))
+    }
+    load()
+    const interval = setInterval(load, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const sortedProducts = [...products].sort((a, b) => {
