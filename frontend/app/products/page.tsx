@@ -85,7 +85,7 @@ export default function ProductsPage() {
               </thead>
               <tbody>
                 {sortedProducts.map(product => {
-                  const isUp = product.change_percent >= 0
+                  const isUp = (product.change_percent ?? 0) >= 0
                   return (
                     <tr
                       key={product.id}
@@ -99,14 +99,14 @@ export default function ProductsPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span className={`font-mono ${isUp ? 'up' : 'down'}`}>
-                          {product.current_price.toLocaleString()}
+                          {product.current_price?.toLocaleString() ?? '--'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className={`flex items-center justify-end gap-1 ${isUp ? 'up' : 'down'}`}>
                           {isUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
                           <span className="font-mono">
-                            {isUp ? '+' : ''}{product.change_percent.toFixed(2)}%
+                            {isUp ? '+' : ''}{(product.change_percent ?? 0).toFixed(2)}%
                           </span>
                         </div>
                       </td>

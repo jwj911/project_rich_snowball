@@ -56,16 +56,16 @@ class ApiService {
   }
 
   getToken(): string | null {
-    if (!this.token) {
+    if (!this.token && typeof window !== 'undefined') {
       this.token = localStorage.getItem('token')
     }
     return this.token
   }
 
   private async request<T>(url: string, options: RequestInit = {}): Promise<T> {
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(options.headers as Record<string, string> || {}),
     }
 
     const token = this.getToken()

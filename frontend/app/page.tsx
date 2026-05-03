@@ -63,7 +63,7 @@ export default function HomePage() {
 }
 
 function ProductCard({ product }: { product: Product }) {
-  const isUp = product.change_percent >= 0
+  const isUp = (product.change_percent ?? 0) >= 0
 
   return (
     <div className="bg-slate-800 rounded-xl p-5 border border-slate-700 hover:border-slate-600 transition-all hover:-translate-y-1 cursor-pointer">
@@ -81,7 +81,7 @@ function ProductCard({ product }: { product: Product }) {
 
       <div className="mb-3">
         <span className={`text-2xl font-bold font-mono ${isUp ? 'up' : 'down'}`}>
-          {product.current_price.toLocaleString()}
+          {product.current_price?.toLocaleString() ?? '--'}
         </span>
       </div>
 
@@ -89,7 +89,7 @@ function ProductCard({ product }: { product: Product }) {
         <div className={`flex items-center gap-1 ${isUp ? 'up' : 'down'}`}>
           {isUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
           <span className="font-mono text-sm">
-            {isUp ? '+' : ''}{product.change_percent.toFixed(2)}%
+            {isUp ? '+' : ''}{(product.change_percent ?? 0).toFixed(2)}%
           </span>
         </div>
 

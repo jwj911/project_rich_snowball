@@ -10,17 +10,21 @@ export default function MyCommentsPage() {
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<User | null>(null)
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null)
 
   useEffect(() => {
     const token = api.getToken()
     if (token) {
       api.getMe().then(u => {
         setUser(u)
+        setIsLoggedIn(true)
         return api.getUserComments(u.username)
       }).then(setComments).catch(() => {
         api.logout()
+        setIsLoggedIn(false)
       }).finally(() => setLoading(false))
     } else {
+      setIsLoggedIn(false)
       setLoading(false)
     }
   }, [])
@@ -36,7 +40,18 @@ export default function MyCommentsPage() {
     })
   }
 
-  if (!api.getToken()) {
+  if (isLoggedIn === null) {
+    return (
+      <div className="min-h-screen bg-slate-900">
+        <Navbar />
+        <main className="max-w-4xl mx-auto px-4 py-8 text-center text-slate-400">
+          加载中...
+        </main>
+      </div>
+    )
+  }
+
+  if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900">
         <Navbar />

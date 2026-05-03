@@ -22,17 +22,27 @@ interface KlineChartProps {
     onRemoveResistance?: (price: number) => void
 }
 
+// 伪随机数生成器（线性同余法），确保 SSR 和 CSR 输出一致
+function createSeededRandom(seed: number) {
+    let s = seed
+    return () => {
+        s = (s * 1664525 + 1013904223) % 4294967296
+        return s / 4294967296
+    }
+}
+
 const generateMockKline = (basePrice: number, count: number = 60): KlineData[] => {
     let price = basePrice
-    const now = Date.now()
+    const now = 1704067200000 // 固定时间戳，避免 SSR/CSR 差异
+    const rand = createSeededRandom(Math.floor(basePrice * 1000) + count)
     const data: KlineData[] = []
     for (let i = count - 1; i >= 0; i--) {
-        const change = (Math.random() - 0.5) * basePrice * 0.02
+        const change = (rand() - 0.5) * basePrice * 0.02
         const open = price
         const close = price + change
-        const high = Math.max(open, close) + Math.random() * basePrice * 0.01
-        const low = Math.min(open, close) - Math.random() * basePrice * 0.01
-        const volume = Math.floor(Math.random() * 100000) + 50000
+        const high = Math.max(open, close) + rand() * basePrice * 0.01
+        const low = Math.min(open, close) - rand() * basePrice * 0.01
+        const volume = Math.floor(rand() * 100000) + 50000
         data.push({
             time: new Date(now - i * 3600 * 1000).toLocaleString(),
             open,
