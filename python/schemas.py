@@ -1,13 +1,14 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, EmailStr
 from typing import List, Optional
 from datetime import datetime as dt
 import html
+import re
 
 
 class UserCreate(BaseModel):
-    username: str
-    email: str
-    password: str
+    username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_]+$")
+    email: EmailStr
+    password: str = Field(..., min_length=6, max_length=128)
 
 
 class UserResponse(BaseModel):
@@ -39,13 +40,15 @@ class ProductResponse(BaseModel):
 
 
 class CommentCreate(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     content: str = Field(..., min_length=1, max_length=2000)
 
-    @field_validator("content")
+    @field_validator("content", mode="before")
     @classmethod
     def sanitize_content(cls, v: str) -> str:
-        return html.escape(v.strip())
+        if isinstance(v, str):
+            v = v.strip()
+        return html.escape(v)
 
 
 class CommentResponse(BaseModel):

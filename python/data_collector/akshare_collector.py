@@ -1,7 +1,8 @@
-import time
 import logging
-from typing import List, Dict, Any
-from datetime import datetime
+import re
+import time
+from typing import Any, Dict, List
+
 from .base import BaseCollector
 
 logger = logging.getLogger("data.akshare")
@@ -11,6 +12,7 @@ class AkshareCollector(BaseCollector):
     def __init__(self):
         try:
             import akshare as ak
+
             self.ak = ak
         except ImportError:
             raise ImportError("akshare is not installed. Run: pip install akshare")
@@ -21,45 +23,66 @@ class AkshareCollector(BaseCollector):
                 return func()
             except Exception as e:
                 wait = 2 ** attempt
-                logger.warning(f"[retry {attempt+1}/{max_retries}] {e}, waiting {wait}s")
+                logger.warning("[retry %s/%s] %s, waiting %ss", attempt + 1, max_retries, e, wait)
                 if attempt < max_retries - 1:
                     time.sleep(wait)
                 else:
-                    logger.error(f"Max retries exceeded: {e}")
+                    logger.error("Max retries exceeded: %s", e)
                     raise
 
-    def fetch_realtime(self, symbol: str) -> Dict[str, Any]:
+    def fetch_realtime(self, symbol: str) -> Dict[str, Any] | None:
+        """Fetch one AkShare realtime quote row and leave field mapping to adapters."""
+
         def _do():
             df = self.ak.futures_zh_spot(symbol=symbol, market="CF")
-            if df.empty:
+            if df is None or df.empty:
                 return None
-            row = df.iloc[0]
-            return {
-                "symbol": symbol,
-                "current_price": float(row.get("最新价", 0)),
-                "change_percent": float(row.get("涨跌幅", 0)),
-                "open_price": float(row.get("开盘价", 0)),
-                "high": float(row.get("最高价", 0)),
-                "low": float(row.get("最低价", 0)),
-                "volume": int(row.get("成交量", 0)),
-                "open_interest": int(row.get("持仓量", 0)),
-                "updated_at": datetime.now(),
-            }
+            row = df.iloc[0].to_dict()
+            row["symbol"] = symbol
+            return row
+
         return self._retry(_do)
 
-    def fetch_kline(self, symbol: str, period: str, limit: int = 100) -> List[Dict[str, Any]]:
+    def fetch_kline(self, contract_code: str, period: str, limit: int = 100) -> List[Dict[str, Any]]:
+        """Fetch minute/day kline data for the given concrete contract code."""
+
         def _do():
-            period_map = {"1m": "1", "5m": "5", "15m": "15", "30m": "30", "60m": "60", "1d": "D"}
+            period_map = {
+                "1m": "1",
+                "5m": "5",
+                "15m": "15",
+                "30m": "30",
+                "1h": "60",
+                "60m": "60",
+                "1d": "D",
+            }
             ak_period = period_map.get(period, "1")
-            contract = f"{symbol}2506"
-            df = self.ak.futures_zh_minute_sina(symbol=contract, period=ak_period)
-            df = df.tail(limit)
-            return df.rename(columns={
-                "datetime": "trading_time",
-                "open": "open_price",
-                "high": "high_price",
-                "low": "low_price",
-                "close": "close_price",
-                "volume": "volume",
-            }).to_dict("records")
+            contract = _normalize_contract_code(contract_code)
+
+            if ak_period == "D" and hasattr(self.ak, "futures_zh_daily_sina"):
+                df = self.ak.futures_zh_daily_sina(symbol=contract)
+            else:
+                df = self.ak.futures_zh_minute_sina(symbol=contract, period=ak_period)
+
+            if df is None or df.empty:
+                return []
+
+            records = df.tail(limit).to_dict("records")
+            symbol = _symbol_from_contract(contract_code)
+            for row in records:
+                row["contract_code"] = contract_code
+                row["symbol"] = symbol
+                row["period"] = period
+            return records
+
         return self._retry(_do)
+
+
+def _normalize_contract_code(contract_code: str) -> str:
+    """AkShare/Sina futures endpoints usually expect lowercase concrete contracts."""
+    return contract_code.lower()
+
+
+def _symbol_from_contract(contract_code: str) -> str:
+    match = re.match(r"^([A-Za-z]+)", contract_code or "")
+    return match.group(1).upper() if match else contract_code

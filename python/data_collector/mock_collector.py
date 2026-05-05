@@ -34,19 +34,35 @@ class MockCollector(BaseCollector):
         price = self._next_price(symbol)
         base = self._get_base(symbol)
         change_percent = round((price - base) / base * 100, 2)
+        open_price = round(price * random.uniform(0.995, 1.005), 2)
+        high = round(max(open_price, price) * random.uniform(1.001, 1.01), 2)
+        low = round(min(open_price, price) * random.uniform(0.99, 0.999), 2)
         return {
             "symbol": symbol,
             "current_price": price,
             "change_percent": change_percent,
-            "open_price": round(price * random.uniform(0.995, 1.005), 2),
-            "high": round(price * random.uniform(1.001, 1.01), 2),
-            "low": round(price * random.uniform(0.99, 0.999), 2),
+            "open_price": open_price,
+            "high": high,
+            "low": low,
             "volume": random.randint(10000, 500000),
             "open_interest": random.randint(10000, 100000),
             "updated_at": datetime.now(),
         }
 
-    def fetch_kline(self, symbol: str, period: str, limit: int = 100) -> List[Dict[str, Any]]:
+    def _symbol_from_contract(self, contract_code: str) -> str:
+        """从合约代码提取品种代码（mock 简化映射）"""
+        # 取前2个大写字母，如 AU2406 -> AU
+        symbol = contract_code[:2].upper()
+        # 处理特殊情况：RB、SC、MA、CF 等也是2位
+        if symbol in self.BASE_PRICES:
+            return symbol
+        # 回退：尝试前1位（如 I2506 -> I）
+        if contract_code[:1].upper() in self.BASE_PRICES:
+            return contract_code[:1].upper()
+        return symbol
+
+    def fetch_kline(self, contract_code: str, period: str, limit: int = 100) -> List[Dict[str, Any]]:
+        symbol = self._symbol_from_contract(contract_code)
         base = self._get_base(symbol)
         results = []
         now = datetime.now()
@@ -61,6 +77,7 @@ class MockCollector(BaseCollector):
             high = max(open_p, close) * random.uniform(1.001, 1.008)
             low = min(open_p, close) * random.uniform(0.992, 0.999)
             results.append({
+                "contract_code": contract_code,
                 "symbol": symbol,
                 "trading_time": ts,
                 "open_price": round(open_p, 2),

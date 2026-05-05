@@ -1,71 +1,120 @@
+"""Validation and normalization for internal market-data rows."""
 import logging
-from datetime import datetime
-from typing import Dict, Any, List
+from datetime import datetime, timezone
+from typing import Any
 
-logger = logging.getLogger("data.cleaner")
+logger = logging.getLogger(__name__)
 
 
-def clean_realtime(raw: Dict[str, Any], symbol: str) -> Dict[str, Any]:
-    try:
-        current = float(raw.get("current_price") or 0)
-        open_p = float(raw.get("open_price") or 0)
-        high = float(raw.get("high") or 0)
-        low = float(raw.get("low") or 0)
-        volume = int(raw.get("volume") or 0)
-
-        if current <= 0 or high < low or volume < 0:
-            logger.warning(f"[skip] invalid realtime data for {symbol}: {raw}")
-            return None
-
-        return {
-            "symbol": symbol,
-            "current_price": round(current, 2),
-            "open_price": round(open_p, 2),
-            "high": round(high, 2),
-            "low": round(low, 2),
-            "volume": volume,
-            "change_percent": round(float(raw.get("change_percent") or 0), 2),
-            "open_interest": int(raw.get("open_interest") or 0),
-            "updated_at": raw.get("updated_at") or datetime.now(),
-        }
-    except Exception as e:
-        logger.error(f"clean_realtime failed for {symbol}: {e}")
+def clean_realtime(data: dict[str, Any], symbol: str) -> dict[str, Any] | None:
+    """Clean one realtime quote row. Return None when the row is unusable."""
+    if not data or not isinstance(data, dict):
         return None
 
+    required = ["current_price", "high", "low", "volume"]
+    if any(data.get(k) is None for k in required):
+        logger.debug("[%s] Missing realtime required fields: %s", symbol, data)
+        return None
 
-def clean_kline(raw_list: List[Dict[str, Any]], symbol: str) -> List[Dict[str, Any]]:
-    cleaned = []
+    current_price = data["current_price"]
+    if current_price <= 0:
+        logger.debug("[%s] Invalid price: %s", symbol, current_price)
+        return None
+
+    ohlc = {
+        "open_price": data.get("open_price", current_price),
+        "high_price": data["high"],
+        "low_price": data["low"],
+        "close_price": current_price,
+    }
+    if not _valid_ohlc(ohlc):
+        logger.warning("[%s] OHLC inconsistency: %s", symbol, data)
+        return None
+
+    change_percent = data.get("change_percent")
+    pre_settlement = data.get("pre_settlement")
+    if change_percent is None and pre_settlement and pre_settlement > 0:
+        change_percent = round((current_price - pre_settlement) / pre_settlement * 100, 4)
+
+    return {
+        "symbol": symbol,
+        "current_price": float(current_price),
+        "pre_settlement": float(pre_settlement) if pre_settlement is not None else None,
+        "change_percent": float(change_percent) if change_percent is not None else 0.0,
+        "open_price": float(ohlc["open_price"]),
+        "high": float(data["high"]),
+        "low": float(data["low"]),
+        "volume": int(data["volume"]),
+        "open_interest": int(data["open_interest"]) if data.get("open_interest") is not None else None,
+        "bid1": float(data["bid1"]) if data.get("bid1") is not None else None,
+        "ask1": float(data["ask1"]) if data.get("ask1") is not None else None,
+        "updated_at": data.get("updated_at") or datetime.now(timezone.utc),
+    }
+
+
+def clean_kline(rows: list[dict[str, Any]], contract_code: str) -> list[dict[str, Any]]:
+    """Clean kline rows, dedupe by time/period, and sort ascending."""
     seen = set()
-    for raw in raw_list:
-        try:
-            ts = raw.get("trading_time")
-            if isinstance(ts, str):
-                ts = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
-            key = (symbol, ts)
-            if key in seen:
-                continue
-            seen.add(key)
+    cleaned = []
 
-            open_p = float(raw.get("open_price", 0))
-            high = float(raw.get("high_price", 0))
-            low = float(raw.get("low_price", 0))
-            close = float(raw.get("close_price", 0))
-            volume = int(raw.get("volume", 0))
-
-            if high < low or close <= 0 or volume < 0:
-                continue
-
-            cleaned.append({
-                "symbol": symbol,
-                "trading_time": ts,
-                "open_price": round(open_p, 2),
-                "high_price": round(high, 2),
-                "low_price": round(low, 2),
-                "close_price": round(close, 2),
-                "volume": volume,
-                "open_interest": int(raw.get("open_interest") or 0),
-            })
-        except Exception as e:
-            logger.warning(f"skip invalid kline row: {e}")
+    for row in rows:
+        required = ["period", "trading_time", "volume"]
+        if any(row.get(k) is None for k in required):
+            logger.debug("[%s] Skipping kline row with missing fields: %s", contract_code, row)
             continue
+
+        if not _valid_ohlc(row):
+            logger.debug("[%s] Skipping invalid OHLC row: %s", contract_code, row)
+            continue
+
+        key = (row.get("trading_time"), row.get("period"))
+        if key in seen:
+            continue
+        seen.add(key)
+
+        cleaned.append(
+            {
+                "contract_code": contract_code,
+                "symbol": row.get("symbol"),
+                "period": row["period"],
+                "trading_time": row["trading_time"],
+                "open_price": float(row["open_price"]),
+                "high_price": float(row["high_price"]),
+                "low_price": float(row["low_price"]),
+                "close_price": float(row["close_price"]),
+                "volume": int(row["volume"]),
+                "open_interest": int(row["open_interest"]) if row.get("open_interest") is not None else None,
+            }
+        )
+
+    cleaned.sort(key=lambda x: x["trading_time"])
     return cleaned
+
+
+def _valid_ohlc(row: dict[str, Any]) -> bool:
+    open_p = row.get("open_price") if row.get("open_price") is not None else row.get("open")
+    high = row.get("high_price") if row.get("high_price") is not None else row.get("high")
+    low = row.get("low_price") if row.get("low_price") is not None else row.get("low")
+    close = row.get("close_price") if row.get("close_price") is not None else row.get("close")
+
+    if any(v is None for v in [open_p, high, low, close]):
+        return False
+
+    try:
+        open_p = float(open_p)
+        high = float(high)
+        low = float(low)
+        close = float(close)
+    except (TypeError, ValueError):
+        return False
+
+    if any(v < 0 for v in [open_p, high, low, close]):
+        return False
+    if high < low:
+        return False
+    if high < max(open_p, close):
+        return False
+    if low > min(open_p, close):
+        return False
+
+    return True

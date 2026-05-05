@@ -14,3 +14,15 @@ if not SECRET_KEY:
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+
+# 环境控制
+ENV = os.getenv("ENV", "development")
+ENABLE_SCHEDULER = os.getenv("ENABLE_SCHEDULER", "1") == "1"
+
+# SECRET_KEY 强度检查（必须在 ENV 定义之后）
+if ENV == "production" and len(SECRET_KEY) < 32:
+    raise ValueError("SECRET_KEY must be at least 32 characters in production")
+
+# 数据源配置
+DATA_SOURCE = os.getenv("DATA_SOURCE", "mock")
+TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN", "")

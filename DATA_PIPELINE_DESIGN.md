@@ -1,776 +1,487 @@
-# 期货交流社区 — 数据层端到端 Pipeline 设计方案
+# 期货交流社区 - 数据层 Pipeline 设计方案
 
-> 目标：打通「数据采集 → 清洗 → 入库 → 后端服务 → 前端展示」全链路，解决当前项目中数据模型分裂、K线数据缺失、价格静态化等核心问题。
-
----
-
-## 一、总体架构
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              数据层 Pipeline                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │
-│  │  数据采集层  │ → │  数据清洗层  │ → │  数据存储层  │ → │  数据服务层  │  │
-│  │  (Collector)│    │  (Cleaner)  │    │  (Storage)  │    │  (API/Cache)│  │
-│  └─────────────┘    └─────────────┘    └─────────────┘    └──────┬──────┘  │
-│         ↑                                                         │         │
-│         │  外部数据源                                               │         │
-│    (爬虫 / akshare / Tushare / 文件)                                ↓         │
-│                                                           ┌─────────────┐   │
-│                                                           │  前端展示层  │   │
-│                                                           │ (Next.js)   │   │
-│                                                           └─────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+> 版本：v2.0（执行校准版）  
+> 日期：2026-05-04  
+> 目标：在保留当前前端兼容层的前提下，打通「采集 → 映射 → 清洗 → 入库 → API/缓存 → 前端展示」全链路，并为后续合约维度、昨结算价、交易日历和 PostgreSQL 迁移预留空间。
 
 ---
 
-## 二、数据采集层（Collector）
+## 一、设计结论
 
-### 2.1 数据源选型建议
+当前项目已经存在：
 
-| 数据源 | 获取方式 | 适用场景 | 成本 | 推荐度 |
-|--------|----------|----------|------|--------|
-| **akshare** | Python pip 安装，直接调用 | 国内期货实时/历史行情 | 免费 | ⭐⭐⭐⭐⭐ |
-| **Tushare** | API Token 调用 | 期货日线/分钟线 | 积分制（部分免费） | ⭐⭐⭐⭐ |
-| **自建爬虫** | requests + BeautifulSoup / Playwright | 特定网站数据补充 | 自行维护 | ⭐⭐⭐ |
-| **本地文件** | CSV / JSON / Parquet 批量导入 | 已有历史数据迁移 | 免费 | ⭐⭐⭐⭐ |
+- `ProductDB`：旧前端兼容层，支撑 `/api/products`。
+- `VarietyDB` / `RealtimeQuoteDB` / `KlineDataDB`：新行情数据模型。
+- `MockCollector` / `AkshareCollector` / `cleaner.py` / `upsert.py` / `scheduler.py`：数据采集与入库雏形。
 
-**推荐组合**：
-- **实时行情**（最新价、涨跌幅）：`akshare.futures_zh_spot()` 或 `akshare.futures_zh_realtime()`，每 30~60 秒拉取一次
-- **历史 K 线**（1分钟/5分钟/日K）：`akshare.futures_zh_minute_sina()` / `akshare.futures_daily()`，每日收盘后批量补全
-- **品种元数据**（合约代码、交易所、乘数、保证金率）：`akshare.futures_contract_info()`，一次性抓取后定期更新
+因此本版 Pipeline 不再建议“删除旧 ProductDB”或“大规模重建模型”。正确路线是：
 
-### 2.2 采集器代码结构
+1. **保留 `ProductDB` 作为兼容层**，短期继续服务旧前端。
+2. **新数据主链路以 `varieties + realtime_quotes + kline_data` 为准**。
+3. **通过同步任务将 `realtime_quotes` 映射回 `products`**，保证旧接口不破坏。
+4. **所有 schema 变更走 Alembic**，包括 `pre_settlement`、资金精度字段、未来 `contract_code`。
+5. **scheduler 默认不随 Web 进程启动**，通过 `ENABLE_SCHEDULER=true` 或独立 worker 启动。
 
+---
+
+## 二、端到端数据流
+
+```text
+External Source
+  ├─ Akshare
+  ├─ File CSV/JSON/Parquet
+  └─ MockCollector
+        ↓
+Collector
+  只负责获取原始数据，不承担业务清洗
+        ↓
+Adapter / Mapper
+  将外部字段映射为内部标准字段
+        ↓
+Cleaner / Validator
+  类型转换、OHLC 校验、昨结算价、异常过滤、去重
+        ↓
+Storage / Upsert
+  批量写入 realtime_quotes / kline_data
+        ↓
+Compatibility Sync
+  realtime_quotes → products
+        ↓
+API / Cache
+  /api/varieties /api/realtime /api/kline /api/products
+        ↓
+Frontend
+  旧页面继续读 products，新页面逐步迁移到 varieties/realtime/kline
 ```
-python/
-├── data_collector/
-│   ├── __init__.py
-│   ├── base.py              # 采集器抽象基类
-│   ├── akshare_collector.py # akshare 适配器
-│   ├── file_collector.py    # 本地文件适配器
-│   └── scheduler.py         # 定时任务调度
+
+---
+
+## 三、数据源策略
+
+| 数据源 | 用途 | 阶段 | 说明 |
+|---|---|---|---|
+| `MockCollector` | 本地开发、测试兜底 | P0/P1 | 不应在生产默认启用 |
+| `akshare` | 实时行情、分钟/日 K | P1 | 免费但字段和稳定性需防腐层保护 |
+| 本地文件 | 历史数据回灌、回归测试 | P1/P2 | 可复现、适合 CI fixture |
+| Tushare | 可选补充源 | P3 | 需要 token 和积分，暂不作为执行依赖 |
+
+执行阶段先做：
+
+- P0：Mock 数据显式开关，禁止生产自动写弱口令用户。
+- P1：Akshare 字段映射集中化，修复合约硬编码。
+- P2：FileCollector 支持可复现历史数据导入。
+- P3：多数据源优先级和熔断降级。
+
+---
+
+## 四、模块结构
+
+```text
+python/data_collector/
+├── base.py                 # Collector 抽象接口
+├── mock_collector.py        # 本地 mock 数据，开发/测试使用
+├── akshare_collector.py     # Akshare 原始数据获取
+├── adapters.py              # 字段映射：外部 raw → 内部标准字段
+├── cleaner.py               # 类型转换、OHLC、异常过滤、去重
+├── upsert.py                # 批量 upsert / insert
+├── scheduler.py             # 调度入口，默认不自动启动
+└── pipeline.py              # P1/P2 引入：编排 extract → map → clean → load
 ```
 
-**核心采集器基类**（`base.py`）：
+### 4.1 Collector 职责
+
+Collector 只负责外部 I/O：
 
 ```python
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
 from datetime import datetime
+from typing import Any
 
 class BaseCollector(ABC):
-    """数据采集器抽象基类"""
+    @abstractmethod
+    def fetch_realtime(self, symbol: str) -> dict[str, Any] | None:
+        ...
 
     @abstractmethod
-    def fetch_varieties(self) -> List[Dict[str, Any]]:
-        """获取品种元数据列表"""
-        pass
-
-    @abstractmethod
-    def fetch_realtime(self, symbol: str) -> Dict[str, Any]:
-        """获取单个品种实时行情"""
-        pass
-
-    @abstractmethod
-    def fetch_kline(self, symbol: str, period: str, start: datetime, end: datetime) -> List[Dict[str, Any]]:
-        """
-        获取 K 线数据
-        :param symbol: 品种代码，如 "CU2506"
-        :param period: 周期，如 "1m", "5m", "1h", "1d"
-        :param start: 开始时间
-        :param end: 结束时间
-        """
-        pass
+    def fetch_kline(
+        self,
+        contract_code: str,
+        period: str,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        ...
 ```
 
-**akshare 适配器示例**（`akshare_collector.py`）：
+注意：K 线接口应优先接受 `contract_code`，而不是只接受品种 `symbol`。短期可由服务层把 `AU` 解析为当前主力 `AU2506`。
+
+### 4.2 Adapter 职责
+
+将不同外部源字段映射到内部标准字段。示例：
 
 ```python
-import akshare as ak
-from datetime import datetime
-from .base import BaseCollector
-
-class AkshareCollector(BaseCollector):
-    """基于 akshare 的国内期货数据采集器"""
-
-    def fetch_varieties(self):
-        """获取国内期货品种列表"""
-        df = ak.futures_contract_info()
-        # 按品种代码去重，取主力合约信息
-        varieties = df[["品种代码", "品种名称", "交易所", "合约乘数", "保证金率"]].drop_duplicates("品种代码")
-        return varieties.to_dict("records")
-
-    def fetch_realtime(self, symbol: str):
-        """获取实时行情（sina 源）"""
-        df = ak.futures_zh_spot(symbol=symbol, market="CF")
-        if df.empty:
-            return None
-        row = df.iloc[0]
-        return {
-            "symbol": symbol,
-            "current_price": float(row.get("最新价", 0)),
-            "change_percent": float(row.get("涨跌幅", 0)),
-            "open_price": float(row.get("开盘价", 0)),
-            "high": float(row.get("最高价", 0)),
-            "low": float(row.get("最低价", 0)),
-            "volume": int(row.get("成交量", 0)),
-            "open_interest": int(row.get("持仓量", 0)),
-            "bid1": float(row.get("买一价", 0)),
-            "ask1": float(row.get("卖一价", 0)),
-            "timestamp": datetime.now(),
-        }
-
-    def fetch_kline(self, symbol: str, period: str, start: datetime, end: datetime):
-        """获取历史 K 线"""
-        # akshare 周期映射
-        period_map = {"1m": "1", "5m": "5", "15m": "15", "30m": "30", "60m": "60", "1d": "D"}
-        ak_period = period_map.get(period, "1")
-        df = ak.futures_zh_minute_sina(symbol=symbol, period=ak_period)
-        # 过滤时间范围并标准化字段
-        df["datetime"] = pd.to_datetime(df["datetime"])
-        mask = (df["datetime"] >= start) & (df["datetime"] <= end)
-        df = df.loc[mask]
-        return df.rename(columns={
-            "datetime": "trading_time",
-            "open": "open_price",
-            "high": "high_price",
-            "low": "low_price",
-            "close": "close_price",
-            "volume": "volume",
-        }).to_dict("records")
+def map_akshare_realtime(row: dict, symbol: str) -> dict:
+    return {
+        "symbol": symbol,
+        "current_price": row.get("最新价"),
+        "pre_settlement": row.get("昨结算") or row.get("昨结算价"),
+        "open_price": row.get("开盘价"),
+        "high": row.get("最高价"),
+        "low": row.get("最低价"),
+        "volume": row.get("成交量"),
+        "open_interest": row.get("持仓量"),
+        "bid1": row.get("买一价"),
+        "ask1": row.get("卖一价"),
+    }
 ```
 
-### 2.3 定时采集策略
-
-| 任务 | 频率 | 内容 | 执行方式 |
-|------|------|------|----------|
-| 实时行情刷新 | 每 30~60 秒 | 拉取所有活跃品种的 `current_price`、`change_percent`、`volume`、`open_interest` | APScheduler `IntervalTrigger` |
-| 分钟 K 线补全 | 每 5 分钟 | 增量拉取本交易日分钟 K 线 | APScheduler `IntervalTrigger` |
-| 日 K 线补全 | 每日 16:00 | 拉取当日日 K 线 | APScheduler `CronTrigger(hour=16)` |
-| 品种元数据同步 | 每周一次 | 检查新上市/下市合约，更新品种表 | APScheduler `CronTrigger(day_of_week="sun", hour=2)` |
-
-**调度器配置**（`scheduler.py`）：
-
-```python
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.triggers.cron import CronTrigger
-
-scheduler = BackgroundScheduler()
-
-# 实时行情：每 30 秒
-scheduler.add_job(
-    refresh_realtime_quotes,
-    IntervalTrigger(seconds=30),
-    id="realtime",
-    replace_existing=True,
-)
-
-# 日 K 补全：每天 16:05
-scheduler.add_job(
-    sync_daily_kline,
-    CronTrigger(hour=16, minute=5),
-    id="daily_kline",
-    replace_existing=True,
-)
-
-scheduler.start()
-```
-
-> **依赖**：`pip install apscheduler pandas akshare`
+字段变更只改 Adapter，不改 cleaner/upsert/API。
 
 ---
 
-## 三、数据清洗与标准化（Cleaner）
+## 五、数据模型策略
 
-### 3.1 清洗流程
+### 5.1 保留兼容层
 
-```
-原始数据（Raw）
-    ↓
-┌─────────────────────────────────────────┐
-│ 1. 字段映射（Field Mapping）              │
-│    将不同数据源的字段名统一为标准命名       │
-│    如 sina 的 "最新价" → "current_price"  │
-├─────────────────────────────────────────┤
-│ 2. 类型转换（Type Casting）               │
-│    字符串 → float / int / datetime        │
-│    处理 "-"、""、None 等空值               │
-├─────────────────────────────────────────┤
-│ 3. 数值校验（Validation）                 │
-│    价格 > 0，high ≥ low，volume ≥ 0       │
-│    涨跌幅在 ±20% 范围内（异常值过滤）      │
-├─────────────────────────────────────────┤
-│ 4. 去重（Deduplication）                  │
-│    K线数据按 (symbol, trading_time) 去重  │
-│    实时行情保留最新一条                    │
-├─────────────────────────────────────────┤
-│ 5. 标准化输出（Normalization）            │
-│    统一时间戳格式（UTC / 北京时间）         │
-│    统一价格精度（保留 2 位或品种指定精度）  │
-└─────────────────────────────────────────┘
-    ↓
-清洗后数据（Clean）
-```
+短期保留：
 
-### 3.2 清洗器代码
+- `ProductDB`
+- `/api/products`
+- `/api/products/{id}`
+- `/api/comments` 当前基于 `product_id` 的评论结构
 
-```python
-# python/data_collector/cleaner.py
-from datetime import datetime
-from typing import Dict, Any, List
-import logging
+原因：
 
-logger = logging.getLogger("data.cleaner")
+- 前端当前仍依赖 products。
+- 删除 ProductDB 会扩大改动面。
+- 兼容层可以让数据 pipeline 和前端迁移解耦。
 
-def clean_realtime(raw: Dict[str, Any], symbol: str) -> Dict[str, Any]:
-    """清洗实时行情数据"""
-    try:
-        current = float(raw.get("current_price") or 0)
-        open_p = float(raw.get("open_price") or 0)
-        high = float(raw.get("high") or 0)
-        low = float(raw.get("low") or 0)
-        volume = int(raw.get("volume") or 0)
-        oi = int(raw.get("open_interest") or 0)
+### 5.2 新行情主模型
 
-        # 校验
-        if current <= 0 or high < low or volume < 0:
-            logger.warning(f"[skip] invalid data for {symbol}: {raw}")
-            return None
+新主链路继续使用：
 
-        return {
-            "symbol": symbol,
-            "current_price": round(current, 2),
-            "open_price": round(open_p, 2),
-            "high": round(high, 2),
-            "low": round(low, 2),
-            "volume": volume,
-            "open_interest": oi,
-            "change_percent": round(float(raw.get("change_percent") or 0), 2),
-            "updated_at": raw.get("timestamp") or datetime.now(),
-        }
-    except Exception as e:
-        logger.error(f"clean_realtime failed for {symbol}: {e}")
-        return None
+- `VarietyDB`：品种/当前主力合约元数据。
+- `RealtimeQuoteDB`：品种最新行情快照。
+- `KlineDataDB`：K 线数据。
 
-def clean_kline(raw_list: List[Dict[str, Any]], symbol: str) -> List[Dict[str, Any]]:
-    """清洗 K 线数据"""
-    cleaned = []
-    seen = set()
+P1 建议新增：
 
-    for raw in raw_list:
-        try:
-            ts = raw.get("trading_time")
-            if isinstance(ts, str):
-                ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+- `RealtimeQuoteDB.pre_settlement`：昨结算价。
+- `KlineDataDB.contract_code`：合约代码，短期可 nullable，迁移后逐步填充。
 
-            key = (symbol, ts)
-            if key in seen:
-                continue
-            seen.add(key)
+P2/P3 可考虑拆出：
 
-            open_p = float(raw.get("open_price", 0))
-            high = float(raw.get("high_price", 0))
-            low = float(raw.get("low_price", 0))
-            close = float(raw.get("close_price", 0))
-            volume = int(raw.get("volume", 0))
-            oi = int(raw.get("open_interest", 0)) if raw.get("open_interest") else None
+- `ContractDB`：独立合约维度。
+- `MainContractHistoryDB`：主力合约切换历史。
+- `DataIngestionRunDB`：采集批次/质量状态。
 
-            if high < low or close <= 0:
-                continue
+### 5.3 精度策略
 
-            cleaned.append({
-                "symbol": symbol,
-                "trading_time": ts,
-                "open_price": round(open_p, 2),
-                "high_price": round(high, 2),
-                "low_price": round(low, 2),
-                "close_price": round(close, 2),
-                "volume": volume,
-                "open_interest": oi,
-            })
-        except Exception as e:
-            logger.warning(f"skip invalid kline row: {e}")
-            continue
+不要一次性把所有行情展示字段改 Decimal。
 
-    return cleaned
-```
+执行策略：
+
+- P1：资金语义字段优先 `Numeric`，如 `margin`、`commission`、`target_price`、`stop_loss`。
+- P1：`pre_settlement` 如参与涨跌幅计算，使用 `Numeric(15, 4)`。
+- P2：评估 `current_price/open/high/low/close` 是否迁移 `Numeric`。
+- API 短期保持 number 输出，避免前端大面积改动。
 
 ---
 
-## 四、数据库 Schema 设计（Storage）
+## 六、入库与同步策略
 
-### 4.1 表结构设计
+### 6.1 Realtime Upsert
 
-基于你已有的 `main.py` 进行扩展，保留 `UserDB`、`CommentDB`，将 `ProductDB` 拆分为更专业的数据模型：
-
-```sql
--- 1. 品种元数据表（交易所、合约信息）
-CREATE TABLE varieties (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    symbol VARCHAR(20) UNIQUE NOT NULL,       -- 品种代码，如 "CU"
-    contract_code VARCHAR(30) UNIQUE NOT NULL, -- 合约代码，如 "CU2506"
-    name VARCHAR(50) NOT NULL,                -- 品种名称，如 "沪铜"
-    exchange VARCHAR(20) NOT NULL,            -- 交易所：SHFE / DCE / CZCE / INE / GFEX
-    category VARCHAR(20),                     -- 分类：金属 / 能源化工 / 农产品 / 黑色系 / 贵金属
-    contract_month VARCHAR(10),               -- 合约月份
-    tick_size DECIMAL(10,4),                  -- 最小变动价位
-    multiplier DECIMAL(10,2),                 -- 合约乘数
-    margin_rate DECIMAL(5,2),                 -- 保证金率 %
-    commission DECIMAL(10,2),                 -- 手续费
-    listing_date DATE,                        -- 上市日期
-    last_trading_date DATE,                   -- 最后交易日
-    is_active BOOLEAN DEFAULT 1,              -- 是否活跃（主力合约）
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 2. 实时行情快照表（最新价，高频更新）
-CREATE TABLE realtime_quotes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    variety_id INTEGER NOT NULL REFERENCES varieties(id),
-    current_price DECIMAL(15,4) NOT NULL,
-    change_percent DECIMAL(8,4),
-    open_price DECIMAL(15,4),
-    high DECIMAL(15,4),
-    low DECIMAL(15,4),
-    volume INTEGER,
-    open_interest INTEGER,                    -- 持仓量
-    bid1 DECIMAL(15,4),                       -- 买一价
-    ask1 DECIMAL(15,4),                       -- 卖一价
-    updated_at DATETIME NOT NULL,
-    UNIQUE(variety_id)
-);
-
--- 3. K 线数据表（按时间周期存储）
-CREATE TABLE kline_data (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    variety_id INTEGER NOT NULL REFERENCES varieties(id),
-    period VARCHAR(10) NOT NULL,              -- 1m / 5m / 15m / 30m / 1h / 1d / 1w
-    trading_time DATETIME NOT NULL,
-    open_price DECIMAL(15,4) NOT NULL,
-    high_price DECIMAL(15,4) NOT NULL,
-    low_price DECIMAL(15,4) NOT NULL,
-    close_price DECIMAL(15,4) NOT NULL,
-    volume INTEGER NOT NULL,
-    open_interest INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(variety_id, period, trading_time)  -- 防止重复入库
-);
-
--- 4. 用户自选股 / 关注列表
-CREATE TABLE watchlists (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    variety_id INTEGER NOT NULL REFERENCES varieties(id),
-    resistance_level DECIMAL(15,4),           -- 用户设定的阻力位
-    support_level DECIMAL(15,4),              -- 用户设定的支撑位
-    notes TEXT,
-    is_notified BOOLEAN DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, variety_id)
-);
-
--- 5. 用户观点 / 涨跌观点（看涨/看跌/中性）
-CREATE TABLE opinions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    variety_id INTEGER NOT NULL REFERENCES varieties(id),
-    type VARCHAR(10) NOT NULL CHECK(type IN ('bullish', 'bearish', 'neutral')),
-    reason TEXT,
-    target_price DECIMAL(15,4),
-    stop_loss DECIMAL(15,4),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 索引优化
-CREATE INDEX idx_kline_lookup ON kline_data(variety_id, period, trading_time);
-CREATE INDEX idx_realtime_time ON realtime_quotes(updated_at);
-CREATE INDEX idx_varieties_category ON varieties(category);
-CREATE INDEX idx_varieties_active ON varieties(is_active);
-```
-
-### 4.2 SQLAlchemy 模型定义（`models.py`）
-
-建议将模型从 `main.py` 中抽离，单独维护：
+实时行情以 `variety_id` 唯一：
 
 ```python
-# python/models.py
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, ForeignKey, Boolean, UniqueConstraint, Index
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
-import datetime
+def upsert_realtime(db: Session, data: dict) -> None:
+    variety = db.query(VarietyDB).filter(VarietyDB.symbol == data["symbol"]).first()
+    if not variety:
+        return
 
-Base = declarative_base()
-
-class VarietyDB(Base):
-    __tablename__ = "varieties"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    symbol = Column(String(20), unique=True, nullable=False, index=True)
-    contract_code = Column(String(30), unique=True, nullable=False)
-    name = Column(String(50), nullable=False)
-    exchange = Column(String(20), nullable=False)
-    category = Column(String(20), index=True)
-    contract_month = Column(String(10))
-    tick_size = Column(Float)
-    multiplier = Column(Float)
-    margin_rate = Column(Float)
-    commission = Column(Float)
-    listing_date = Column(DateTime)
-    last_trading_date = Column(DateTime)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.datetime.now)
-    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
-
-    realtime = relationship("RealtimeQuoteDB", back_populates="variety", uselist=False)
-    klines = relationship("KlineDataDB", back_populates="variety")
-    watchlists = relationship("WatchlistDB", back_populates="variety")
-    opinions = relationship("OpinionDB", back_populates="variety")
-
-class RealtimeQuoteDB(Base):
-    __tablename__ = "realtime_quotes"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    variety_id = Column(Integer, ForeignKey("varieties.id"), unique=True, nullable=False)
-    current_price = Column(Float, nullable=False)
-    change_percent = Column(Float)
-    open_price = Column(Float)
-    high = Column(Float)
-    low = Column(Float)
-    volume = Column(Integer)
-    open_interest = Column(Integer)
-    bid1 = Column(Float)
-    ask1 = Column(Float)
-    updated_at = Column(DateTime, nullable=False, default=datetime.datetime.now)
-
-    variety = relationship("VarietyDB", back_populates="realtime")
-
-class KlineDataDB(Base):
-    __tablename__ = "kline_data"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    variety_id = Column(Integer, ForeignKey("varieties.id"), nullable=False)
-    period = Column(String(10), nullable=False)
-    trading_time = Column(DateTime, nullable=False)
-    open_price = Column(Float, nullable=False)
-    high_price = Column(Float, nullable=False)
-    low_price = Column(Float, nullable=False)
-    close_price = Column(Float, nullable=False)
-    volume = Column(Integer, nullable=False)
-    open_interest = Column(Integer)
-    created_at = Column(DateTime, default=datetime.datetime.now)
-
-    variety = relationship("VarietyDB", back_populates="klines")
-
-    __table_args__ = (
-        UniqueConstraint("variety_id", "period", "trading_time", name="uix_kline"),
-        Index("idx_kline_lookup", "variety_id", "period", "trading_time"),
+    stmt = insert(RealtimeQuoteDB).values(
+        variety_id=variety.id,
+        current_price=data["current_price"],
+        pre_settlement=data.get("pre_settlement"),
+        change_percent=data.get("change_percent"),
+        open_price=data.get("open_price"),
+        high=data.get("high"),
+        low=data.get("low"),
+        volume=data.get("volume"),
+        open_interest=data.get("open_interest"),
+        updated_at=data["updated_at"],
     )
-
-# 保留原有用户/评论模型
-class UserDB(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String(50), unique=True, nullable=False)
-    email = Column(String(100), unique=True, nullable=False)
-    password_hash = Column(String(128), nullable=False)
-    created_at = Column(DateTime, default=datetime.datetime.now)
-    comments = relationship("CommentDB", back_populates="user")
-    watchlists = relationship("WatchlistDB", back_populates="user")
-    opinions = relationship("OpinionDB", back_populates="user")
-
-class CommentDB(Base):
-    __tablename__ = "comments"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    variety_id = Column(Integer, ForeignKey("varieties.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.datetime.now)
-    user = relationship("UserDB", back_populates="comments")
-
-class WatchlistDB(Base):
-    __tablename__ = "watchlists"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    variety_id = Column(Integer, ForeignKey("varieties.id"), nullable=False)
-    resistance_level = Column(Float)
-    support_level = Column(Float)
-    notes = Column(Text)
-    is_notified = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.datetime.now)
-    user = relationship("UserDB", back_populates="watchlists")
-    variety = relationship("VarietyDB", back_populates="watchlists")
-
-class OpinionDB(Base):
-    __tablename__ = "opinions"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    variety_id = Column(Integer, ForeignKey("varieties.id"), nullable=False)
-    type = Column(String(10), nullable=False)  # bullish / bearish / neutral
-    reason = Column(Text)
-    target_price = Column(Float)
-    stop_loss = Column(Float)
-    created_at = Column(DateTime, default=datetime.datetime.now)
-    user = relationship("UserDB", back_populates="opinions")
-    variety = relationship("VarietyDB", back_populates="opinions")
-```
-
-### 4.3 入库策略（Upsert）
-
-实时行情和 K 线都需要"存在则更新、不存在则插入"：
-
-```python
-from sqlalchemy.dialects.sqlite import insert
-
-def upsert_realtime(db: Session, data: dict):
-    """实时行情 upsert"""
-    stmt = insert(RealtimeQuoteDB).values(**data)
     stmt = stmt.on_conflict_do_update(
         index_elements=["variety_id"],
         set_={
             "current_price": data["current_price"],
-            "change_percent": data["change_percent"],
-            "high": data["high"],
-            "low": data["low"],
-            "volume": data["volume"],
+            "pre_settlement": data.get("pre_settlement"),
+            "change_percent": data.get("change_percent"),
+            "open_price": data.get("open_price"),
+            "high": data.get("high"),
+            "low": data.get("low"),
+            "volume": data.get("volume"),
+            "open_interest": data.get("open_interest"),
             "updated_at": data["updated_at"],
-        }
+        },
     )
     db.execute(stmt)
-    db.commit()
-
-def insert_kline_bulk(db: Session, rows: list):
-    """K 线批量插入（忽略重复）"""
-    stmt = insert(KlineDataDB).values(rows)
-    stmt = stmt.on_conflict_do_nothing(index_elements=["variety_id", "period", "trading_time"])
-    db.execute(stmt)
-    db.commit()
 ```
 
-> SQLite 3.24+ 支持 `ON CONFLICT`，确保你的 SQLite 版本 ≥ 3.24。
+注意：commit 边界由调用方控制，便于批量事务。
 
----
+### 6.2 K-line Bulk Insert
 
-## 五、后端数据服务层（API / Cache）
-
-### 5.1 新增 API 设计
-
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/api/varieties` | GET | 品种列表（关联实时行情） |
-| `/api/varieties/{symbol}` | GET | 品种详情（含最新行情） |
-| `/api/kline/{symbol}` | GET | K 线数据，`?period=1h&limit=100` |
-| `/api/realtime` | GET | 所有品种实时行情快照 |
-| `/api/realtime/{symbol}` | GET | 单个品种实时行情 |
-
-### 5.2 K 线 API 实现示例
+必须避免循环查 variety：
 
 ```python
-@app.get("/api/kline/{symbol}")
-def get_kline(
-    symbol: str,
-    period: str = Query("1h", regex="^(1m|5m|15m|30m|1h|1d|1w)$"),
-    limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db),
-):
-    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
-    if not variety:
-        raise HTTPException(404, "品种不存在")
+def insert_kline_bulk(db: Session, rows: list[dict], period: str) -> None:
+    symbols = {row["symbol"] for row in rows}
+    varieties = {
+        v.symbol: v.id
+        for v in db.query(VarietyDB).filter(VarietyDB.symbol.in_(symbols)).all()
+    }
 
-    klines = (
-        db.query(KlineDataDB)
-        .filter(KlineDataDB.variety_id == variety.id, KlineDataDB.period == period)
-        .order_by(KlineDataDB.trading_time.desc())
-        .limit(limit)
-        .all()
-    )
+    values = []
+    for row in rows:
+        variety_id = varieties.get(row["symbol"])
+        if not variety_id:
+            continue
+        values.append({
+            "variety_id": variety_id,
+            "contract_code": row.get("contract_code"),
+            "period": period,
+            "trading_time": row["trading_time"],
+            "open_price": row["open_price"],
+            "high_price": row["high_price"],
+            "low_price": row["low_price"],
+            "close_price": row["close_price"],
+            "volume": row["volume"],
+            "open_interest": row.get("open_interest"),
+        })
 
-    return [
-        {
-            "time": k.trading_time.isoformat(),
-            "open": k.open_price,
-            "high": k.high_price,
-            "low": k.low_price,
-            "close": k.close_price,
-            "volume": k.volume,
-            "open_interest": k.open_interest,
-        }
-        for k in reversed(klines)
-    ]
+    if values:
+        stmt = insert(KlineDataDB).values(values)
+        stmt = stmt.on_conflict_do_nothing(
+            index_elements=["variety_id", "period", "trading_time"]
+        )
+        db.execute(stmt)
 ```
 
-### 5.3 内存缓存策略
+长期如果 `contract_code` 加入唯一键，应改为：
 
-实时行情查询频繁，可用简单内存缓存减少数据库压力：
+```text
+UNIQUE(contract_code, period, trading_time)
+```
+
+### 6.3 Products 兼容同步
+
+`sync_prices_to_products()` 保留，但必须批量化：
 
 ```python
-from functools import lru_cache
-from datetime import datetime, timedelta
+quotes = db.query(RealtimeQuoteDB).options(
+    selectinload(RealtimeQuoteDB.variety)
+).all()
 
-# 品种元数据很少变化，可缓存
-@lru_cache(maxsize=128)
-def get_variety_by_symbol(symbol: str):
-    ...
-
-# 实时行情缓存 5 秒
-_realtime_cache = {}
-_realtime_cache_time = {}
-
-def get_cached_realtime(symbol: str, db: Session):
-    now = datetime.now()
-    if symbol in _realtime_cache:
-        if now - _realtime_cache_time[symbol] < timedelta(seconds=5):
-            return _realtime_cache[symbol]
-    data = db.query(RealtimeQuoteDB)...  # 查库
-    _realtime_cache[symbol] = data
-    _realtime_cache_time[symbol] = now
-    return data
-```
-
-> 如果后续用户量变大，可升级为 Redis 缓存。
-
----
-
-## 六、前端数据消费策略
-
-### 6.1 数据流设计
-
-```
-页面加载
-    ↓
-Server Component 预取品种列表（SSR）
-    ↓
-Client Component 挂载后启动轮询
-    ↓
-每 30s 调用 /api/realtime 刷新价格
-    ↓
-用户切换周期 → 调用 /api/kline/{symbol}?period=xxx
-```
-
-### 6.2 API 客户端扩展（`lib/api.ts`）
-
-```typescript
-// 新增 K 线接口
-async getKline(symbol: string, period: string = '1h', limit: number = 100): Promise<KlineData[]> {
-  return this.request<KlineData[]>(`/api/kline/${symbol}?period=${period}&limit=${limit}`)
+symbols = {quote.variety.symbol for quote in quotes if quote.variety}
+products = {
+    product.symbol: product
+    for product in db.query(ProductDB).filter(ProductDB.symbol.in_(symbols)).all()
 }
 
-// 新增实时行情接口
-async getRealtime(symbol: string): Promise<RealtimeQuote> {
-  return this.request<RealtimeQuote>(`/api/realtime/${symbol}`)
-}
-```
-
-### 6.3 K 线图数据绑定
-
-```typescript
-// products/[id]/page.tsx
-const [klineData, setKlineData] = useState<KlineData[]>([])
-const [period, setPeriod] = useState('1h')
-
-useEffect(() => {
-  api.getKline(product.symbol, period).then(setKlineData)
-}, [period, product.symbol])
-
-// KlineChart 传入真实数据
-<KlineChart data={klineData} symbol={product.symbol} ... />
-```
-
-### 6.4 实时价格轮询
-
-```typescript
-// 在品种列表页 / 详情页启用
-useEffect(() => {
-  const interval = setInterval(() => {
-    api.getRealtime(symbol).then(quote => {
-      setProduct(prev => ({ ...prev, current_price: quote.current_price, change_percent: quote.change_percent }))
-    })
-  }, 30000) // 30 秒轮询
-  return () => clearInterval(interval)
-}, [symbol])
+for quote in quotes:
+    if not quote.variety:
+        continue
+    product = products.get(quote.variety.symbol)
+    if product:
+        product.current_price = quote.current_price
+        product.change_percent = quote.change_percent
+        product.high = quote.high
+        product.low = quote.low
+        product.volume = quote.volume
+        product.updated_at = quote.updated_at
 ```
 
 ---
 
-## 七、SQLite vs PostgreSQL 选型建议
+## 七、清洗与业务校验
 
-| 维度 | SQLite | PostgreSQL |
-|------|--------|------------|
-| **部署复杂度** | 零配置，单文件 | 需安装服务 |
-| **并发写入** | 较差（写锁） | 优秀（MVCC） |
-| **数据量** | < 10GB 可用 | 无上限 |
-| **K线查询性能** | 10万条内可接受 | 百万级轻松 |
-| **时间序列扩展** | 无 | TimescaleDB |
-| **推荐阶段** | **开发 / 个人使用** | **生产 / 多用户** |
+Cleaner 必须覆盖：
 
-**建议**：
-- **现阶段**：继续使用 SQLite，数据量可控，部署简单
-- **迁移信号**：当同时在线用户 > 50，或 K 线数据 > 100 万条，或需要多实例部署时，迁移到 PostgreSQL + TimescaleDB
-- **迁移成本**：SQLAlchemy 模型基本无需改动，只需更换 `DATABASE_URL`
+- 类型转换：空值、`"-"`、`None`、字符串数字。
+- OHLC：`high >= max(open, close, low)`，`low <= min(open, close, high)`。
+- 价格：`current_price > 0`。
+- 成交量/持仓量：非负。
+- 去重：K 线按 `(symbol/contract_code, period, trading_time)`。
+- 昨结算价：缺失时不崩溃。
+- 涨跌幅：优先基于 `pre_settlement` 计算；数据源直接给出的 `change_percent` 可作为参考或 fallback。
 
----
+示例：
 
-## 八、实施 Checklist（按优先级）
-
-### 阶段 1：数据模型重建（1~2 天）
-- [ ] 新建 `python/models.py`，定义 `VarietyDB`、`RealtimeQuoteDB`、`KlineDataDB`、`WatchlistDB`、`OpinionDB`
-- [ ] 保留并迁移 `UserDB`、`CommentDB`
-- [ ] 删除旧的 `ProductDB`（或保留作为视图兼容层）
-- [ ] 初始化脚本自动建表并灌入品种元数据
-
-### 阶段 2：采集器开发（1~2 天）
-- [ ] 安装 `akshare`、`apscheduler`、`pandas`
-- [ ] 实现 `AkshareCollector` 适配器
-- [ ] 实现数据清洗器 `cleaner.py`
-- [ ] 配置定时任务（实时行情 30s、日 K 收盘后）
-
-### 阶段 3：后端 API 补全（1 天）
-- [ ] 新增 `/api/varieties`、`/api/kline/{symbol}`、`/api/realtime/{symbol}`
-- [ ] 修改 `/api/products` 兼容层（如前端暂不改动，可映射到 varieties + realtime join）
-- [ ] 增加内存缓存
-
-### 阶段 4：前端对接（1 天）
-- [ ] `api.ts` 增加 K 线、实时行情接口
-- [ ] 品种详情页 `KlineChart` 绑定真实数据
-- [ ] 增加价格自动轮询刷新
-- [ ] 统一涨跌幅颜色体系
-
----
-
-## 九、关键依赖清单
-
-```txt
-# python/requirements.txt 新增
-akshare>=1.14.0
-apscheduler>=3.10.0
-pandas>=2.0.0
-numpy>=1.24.0
-passlib[bcrypt]>=1.7.4      # 替换 SHA256
-python-dotenv>=1.0.0         # 环境变量管理
-```
-
-```bash
-# 前端无需新增依赖（使用原生 fetch + setInterval 即可）
-# 如需更优雅的数据管理，可选装：
-npm install swr          # 数据获取 + 缓存 + 轮询
+```python
+def calc_change_percent(current_price: float, pre_settlement: float | None) -> float | None:
+    if not pre_settlement or pre_settlement <= 0:
+        return None
+    return round((current_price - pre_settlement) / pre_settlement * 100, 4)
 ```
 
 ---
 
-## 十、风险与注意事项
+## 八、Scheduler 与执行模式
 
-1. **akshare 稳定性**：akshare 依赖新浪财经等数据源，可能在交易时段出现限流或字段变更。建议：
-   - 增加重试机制（最多 3 次，指数退避）
-   - 抓取失败时保留上一次有效数据
-   - 记录失败日志以便排查
+### 8.1 默认行为
 
-2. **SQLite 并发写入**：定时任务与后端 API 同时写库可能触发锁等待。建议：
-   - 采集器与后端使用同一个数据库连接池
-   - 或采集器独立写库文件，后端只读（复杂，不推荐）
-   - 短期可用，长期建议 PostgreSQL
+- Web 服务默认不启动 scheduler。
+- `.env` 显式设置 `ENABLE_SCHEDULER=true` 才启动。
+- 生产长期应改为独立 worker。
 
-3. **K 线数据膨胀**：分钟 K 线增长最快。建议：
-   - 只保留最近 3 个月的分钟 K 线
-   - 更早年份保留日 K 即可
-   - 定期归档冷数据到 CSV / Parquet
+### 8.2 任务规划
+
+| 任务 | 频率 | 阶段 | 说明 |
+---|---:|---|---|
+| `refresh_realtime_quotes` | 30-60 秒 | P0/P1 | 刷新实时行情 |
+| `sync_prices_to_products` | 30-60 秒 | P0/P1 | 兼容层同步 |
+| `sync_daily_kline` | 每日收盘后 | P1 | 日/小时 K 线补全 |
+| `sync_minute_kline` | 5 分钟 | P2 | 分钟 K 线增量 |
+| `sync_variety_metadata` | 每周 | P2/P3 | 合约元数据更新 |
+
+### 8.3 Job 保护
+
+P1 必须加入：
+
+```python
+scheduler = BackgroundScheduler(job_defaults={
+    "max_instances": 1,
+    "coalesce": True,
+    "misfire_grace_time": 30,
+})
+```
+
+---
+
+## 九、API 与前端迁移策略
+
+### 9.1 保持旧接口
+
+继续保证：
+
+- `GET /api/products`
+- `GET /api/products/{id}`
+- `POST /api/comments`
+- `GET /api/comments/user/{username}`
+
+### 9.2 新接口作为主链路
+
+逐步推动前端迁移到：
+
+- `GET /api/varieties`
+- `GET /api/varieties/{symbol}`
+- `GET /api/realtime/{symbol}`
+- `GET /api/kline/{symbol}?period=1h&limit=100`
+
+### 9.3 兼容注意事项
+
+- `/api/products` 添加分页时，短期仍返回数组，不引入 `{items,total}` 包裹。
+- Decimal 字段短期输出 number，避免前端类型断裂。
+- 时间统一 ISO 8601 字符串，K 线和 realtime/comment 保持一致。
+
+---
+
+## 十、数据质量与可观测性
+
+P1/P2 建议增加采集状态记录，最低限度先用日志，长期加表：
+
+```text
+data_ingestion_runs
+├─ id
+├─ job_name
+├─ source
+├─ started_at
+├─ finished_at
+├─ status
+├─ success_count
+├─ failed_count
+├─ skipped_count
+├─ error_message
+└─ metadata_json
+```
+
+关键指标：
+
+- 每次采集成功数 / 失败数 / 跳过数。
+- 最新行情更新时间。
+- K 线缺口数量。
+- 清洗失败率。
+- 外部数据源连续失败次数。
+- products 兼容同步成功数。
+
+---
+
+## 十一、SQLite 与 PostgreSQL 策略
+
+短期：
+
+- SQLite + timeout + WAL。
+- scheduler 显式启动。
+- 混合读写并发测试。
+
+迁移信号：
+
+- 同时在线用户 > 50。
+- K 线数据 > 100 万条。
+- 需要多实例部署。
+- scheduler 必须独立 worker 化。
+- SQLite 锁等待频繁出现。
+
+长期：
+
+- PostgreSQL。
+- 可选 TimescaleDB。
+- Redis 用于缓存/限流。
+
+---
+
+## 十二、执行阶段
+
+### Phase 0：与后端 P0 对齐
+
+- [ ] DB engine 条件化 + SQLite timeout/WAL。
+- [ ] mock data 显式开关。
+- [ ] scheduler 显式开关。
+- [ ] realtime 缓存不存 ORM。
+- [ ] 测试隔离。
+
+### Phase 1：数据链路正确性
+
+- [ ] `pre_settlement` Alembic 迁移。
+- [ ] cleaner 增加完整 OHLC 校验。
+- [ ] Akshare 合约硬编码修复。
+- [ ] `sync_prices_to_products` 批量化。
+- [ ] `insert_kline_bulk` 批量 variety lookup。
+- [ ] K 线 `contract_code` 方案确定。
+
+### Phase 2：数据质量与可观测性
+
+- [ ] 采集状态日志/表。
+- [ ] 文件数据导入器。
+- [ ] K 线缺口检测。
+- [ ] 外部源失败熔断/降级。
+- [ ] `/health` 展示 DB/cache/scheduler 基础状态。
+
+### Phase 3：前端迁移与生产化
+
+- [ ] 前端列表页迁移 `/api/varieties`。
+- [ ] 详情页使用 `/api/realtime/{symbol}` + `/api/kline/{symbol}`。
+- [ ] PostgreSQL 迁移验证。
+- [ ] Redis 缓存/限流。
+- [ ] SSE/WebSocket 实时行情推送。
+
+---
+
+## 十三、最终结论
+
+数据 Pipeline 的执行路线是：**不推倒重建，不删除兼容层，先修采集与缓存安全，再补业务字段与迁移，最后推进合约维度和前端新接口迁移**。
+
+这条路线能让后端数据获取能力逐步变强，同时不破坏当前前端页面和旧接口。

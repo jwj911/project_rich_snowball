@@ -110,8 +110,8 @@ class ApiService {
     })
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Request failed' }))
-      throw new Error(error.detail || 'Request failed')
+      const error = await response.json().catch(() => ({ message: 'Request failed' }))
+      throw new Error(error.message || error.detail || 'Request failed')
     }
 
     return response.json()
@@ -131,8 +131,8 @@ class ApiService {
     })
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Login failed' }))
-      throw new Error(error.detail || 'Login failed')
+      const error = await response.json().catch(() => ({ message: 'Login failed' }))
+      throw new Error(error.message || error.detail || 'Login failed')
     }
 
     const data = await response.json()

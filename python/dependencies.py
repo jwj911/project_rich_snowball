@@ -29,7 +29,7 @@ def get_current_user(token: str, db: Session) -> Optional[UserDB]:
     except PyJWTError as e:
         logger.warning(f"JWT decode failed: {e}")
         return None
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Unexpected error in get_current_user: {e}")
         return None
 

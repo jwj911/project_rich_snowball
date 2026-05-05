@@ -11,7 +11,11 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except (ValueError, TypeError):
+        # 防御：若 hash 格式异常（如 dummy hash），视为验证失败
+        return False
 
 
 def create_access_token(data: dict) -> str:

@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 from models import ProductDB, CommentDB
 from schemas import ProductResponse, ProductDetailResponse, CommentResponse
@@ -9,8 +9,12 @@ router = APIRouter(prefix="/api/products", tags=["品种(兼容)"])
 
 
 @router.get("", response_model=List[ProductResponse])
-def get_products(db: Session = Depends(get_db)):
-    products = db.query(ProductDB).all()
+def get_products(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(1000, ge=1, le=1000),
+    db: Session = Depends(get_db)
+):
+    products = db.query(ProductDB).offset(skip).limit(limit).all()
     return products
 
 
@@ -20,8 +24,14 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
     if not product:
         raise HTTPException(status_code=404, detail="品种不存在")
 
-    comments = db.query(CommentDB).filter(CommentDB.product_id == product_id)\
-        .order_by(CommentDB.created_at.desc()).all()
+    comments = (
+        db.query(CommentDB)
+        .options(joinedload(CommentDB.user))
+        .filter(CommentDB.product_id == product_id)
+        .order_by(CommentDB.created_at.desc())
+        .limit(100)
+        .all()
+    )
 
     return {
         "product": product,
