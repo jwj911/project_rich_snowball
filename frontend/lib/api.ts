@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8200'
 
 export interface Product {
   id: number
@@ -79,10 +79,12 @@ class ApiService {
 
   setToken(token: string | null) {
     this.token = token
-    if (token) {
-      localStorage.setItem('token', token)
-    } else {
-      localStorage.removeItem('token')
+    if (typeof window !== 'undefined') {
+      if (token) {
+        localStorage.setItem('token', token)
+      } else {
+        localStorage.removeItem('token')
+      }
     }
   }
 
@@ -111,6 +113,9 @@ class ApiService {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Request failed' }))
+      if (response.status === 401) {
+        this.setToken(null)
+      }
       throw new Error(error.message || error.detail || 'Request failed')
     }
 

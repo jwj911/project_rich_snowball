@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState, useMemo, useEffect, useRef } from 'react'
+import EmptyState from '@/components/ui/EmptyState'
+import { LineChart } from 'lucide-react'
 
 interface KlineData {
     time: string
@@ -22,38 +24,10 @@ interface KlineChartProps {
     onRemoveResistance?: (price: number) => void
 }
 
-// 伪随机数生成器（线性同余法），确保 SSR 和 CSR 输出一致
-function createSeededRandom(seed: number) {
-    let s = seed
-    return () => {
-        s = (s * 1664525 + 1013904223) % 4294967296
-        return s / 4294967296
-    }
-}
-
-const generateMockKline = (basePrice: number, count: number = 60): KlineData[] => {
-    let price = basePrice
-    const now = 1704067200000 // 固定时间戳，避免 SSR/CSR 差异
-    const rand = createSeededRandom(Math.floor(basePrice * 1000) + count)
-    const data: KlineData[] = []
-    for (let i = count - 1; i >= 0; i--) {
-        const change = (rand() - 0.5) * basePrice * 0.02
-        const open = price
-        const close = price + change
-        const high = Math.max(open, close) + rand() * basePrice * 0.01
-        const low = Math.min(open, close) - rand() * basePrice * 0.01
-        const volume = Math.floor(rand() * 100000) + 50000
-        data.push({
-            time: new Date(now - i * 3600 * 1000).toLocaleString(),
-            open,
-            high,
-            low,
-            close,
-            volume
-        })
-        price = close
-    }
-    return data
+interface AnnotationMenu {
+    x: number
+    y: number
+    price: number
 }
 
 export default function KlineChart({ 
@@ -69,8 +43,16 @@ export default function KlineChart({
     const containerRef = useRef<HTMLDivElement>(null)
     const chartRef = useRef<SVGSVGElement>(null)
     
-    const data = useMemo<KlineData[]>(() => externalData.length > 0 ? externalData : generateMockKline(450, 80), [externalData])
+    const data = useMemo<KlineData[]>(() => {
+        return externalData.filter((item) => {
+            return [item.open, item.high, item.low, item.close, item.volume].every(Number.isFinite)
+                && item.high >= item.low
+                && item.high >= Math.max(item.open, item.close)
+                && item.low <= Math.min(item.open, item.close)
+        })
+    }, [externalData])
     const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+    const [annotationMenu, setAnnotationMenu] = useState<AnnotationMenu | null>(null)
     const [width, setWidth] = useState(800)
     
     useEffect(() => {
@@ -83,13 +65,24 @@ export default function KlineChart({
     }, [])
     
     const { priceRange, minPrice, maxPrice, candleWidth, candleGap } = useMemo(() => {
+        if (data.length === 0) {
+            return {
+                priceRange: 1,
+                minPrice: 0,
+                maxPrice: 1,
+                candleWidth: 8,
+                candleGap: 2
+            }
+        }
+
         const prices = data.flatMap(d => [d.high, d.low])
         let minP = Math.min(...prices)
         let maxP = Math.max(...prices)
         
-        const range = maxP - minP
-        minP -= range * 0.05
-        maxP += range * 0.05
+        const rawRange = maxP - minP
+        const padding = rawRange > 0 ? rawRange * 0.05 : Math.max(Math.abs(maxP) * 0.01, 1)
+        minP -= padding
+        maxP += padding
         
         const w = Math.max(8, Math.floor((width - 80) / data.length * 0.7))
         const g = Math.max(1, Math.floor((width - 80) / data.length * 0.3))
@@ -109,6 +102,43 @@ export default function KlineChart({
     
     const scalePrice = (p: number) => height - ((p - minPrice) / priceRange) * height
     const scaleX = (i: number) => yAxisWidth + i * (candleWidth + candleGap)
+    const getIndexFromClientX = (clientX: number) => {
+        const rect = chartRef.current?.getBoundingClientRect()
+        if (!rect) return null
+
+        const x = clientX - rect.left - yAxisWidth
+        const idx = Math.floor(x / (candleWidth + candleGap))
+        return idx >= 0 && idx < data.length ? idx : null
+    }
+
+    const closeAnnotationMenu = () => setAnnotationMenu(null)
+
+    const addSupportFromMenu = () => {
+        if (annotationMenu && onAddSupport) {
+            onAddSupport(annotationMenu.price)
+        }
+        closeAnnotationMenu()
+    }
+
+    const addResistanceFromMenu = () => {
+        if (annotationMenu && onAddResistance) {
+            onAddResistance(annotationMenu.price)
+        }
+        closeAnnotationMenu()
+    }
+
+    if (data.length === 0) {
+        return (
+            <div ref={containerRef} className="w-full rounded-lg border border-[#2a2e39] bg-[#131722] p-4">
+                <EmptyState
+                    icon={LineChart}
+                    title="暂无 K 线数据"
+                    description="当前品种还没有可展示的 K 线数据，等待数据同步后会自动展示。"
+                    className="border-[#2a2e39] bg-[#1e222d]"
+                />
+            </div>
+        )
+    }
 
     return (
         <div ref={containerRef} className="w-full bg-[#131722] rounded-lg border border-[#2a2e39] overflow-hidden select-none">
@@ -127,25 +157,24 @@ export default function KlineChart({
                         className="w-full cursor-crosshair" 
                         viewBox={`0 0 ${width} ${height + volumeHeight}`}
                         onMouseMove={(e) => {
-                            const rect = chartRef.current?.getBoundingClientRect()
-                            if (rect) {
-                                const x = e.clientX - rect.left - yAxisWidth
-                                const idx = Math.floor(x / (candleWidth + candleGap))
-                                if (idx >= 0 && idx < data.length) setHoverIndex(idx)
+                            const idx = getIndexFromClientX(e.clientX)
+                            if (idx !== null) {
+                                setHoverIndex(idx)
                             }
                         }}
                         onMouseLeave={() => setHoverIndex(null)}
                         onContextMenu={(e) => {
                             e.preventDefault()
-                            if (hoverIndex !== null) {
-                                const price = data[hoverIndex]?.close
-                                if (price && onAddResistance && onAddSupport) {
-                                    if (confirm(`在 ${price.toFixed(2)} 添加支撑位(S)或阻力位(R)?\n确定=阻力位，取消=支撑位`)) {
-                                        onAddResistance(price)
-                                    } else {
-                                        onAddSupport(price)
-                                    }
-                                }
+                            const idx = getIndexFromClientX(e.clientX) ?? hoverIndex
+                            const price = idx !== null ? data[idx]?.close : null
+                            const rect = containerRef.current?.getBoundingClientRect()
+
+                            if (price && rect && onAddResistance && onAddSupport) {
+                                setAnnotationMenu({
+                                    x: Math.min(Math.max(e.clientX - rect.left, 12), Math.max(width - 172, 12)),
+                                    y: Math.min(Math.max(e.clientY - rect.top, 48), height + volumeHeight - 96),
+                                    price,
+                                })
                             }
                         }}
                     >
@@ -185,7 +214,6 @@ export default function KlineChart({
                         {data.map((candle, i) => {
                             const isUp = candle.close >= candle.open
                             const color = isUp ? "#ef4444" : "#22c55e"
-                            const bodyColor = isUp ? "rgba(239,68,68,0.2)" : "rgba(34,197,94,0.2)"
                             const yLow = scalePrice(candle.low)
                             const yHigh = scalePrice(candle.high)
                             const yOpen = scalePrice(candle.open)
@@ -219,7 +247,7 @@ export default function KlineChart({
                             const isUp = candle.close >= candle.open
                             const color = isUp ? "#ef4444" : "#22c55e"
                             const x = scaleX(i)
-                            const maxVol = Math.max(...data.map(d => d.volume))
+                            const maxVol = Math.max(1, ...data.map(d => d.volume))
                             const h = (candle.volume / maxVol) * (volumeHeight - 20)
                             return (
                                 <rect key={`v-${i}`} x={x} y={height + volumeHeight - h} width={candleWidth} height={h} fill={color} opacity="0.4" rx="2" />
@@ -243,6 +271,40 @@ export default function KlineChart({
                                 <div className="text-gray-400">成交量</div>
                                 <div className="text-white font-mono">{data[hoverIndex].volume.toLocaleString()}</div>
                             </div>
+                        </div>
+                    )}
+
+                    {annotationMenu && (
+                        <div
+                            className="absolute z-20 w-40 rounded-lg border border-[#2a2e39] bg-[#1e222d] p-2 text-xs shadow-xl"
+                            style={{ left: annotationMenu.x, top: annotationMenu.y }}
+                        >
+                            <div className="mb-2 border-b border-[#2a2e39] pb-2 font-mono text-slate-200">
+                                {annotationMenu.price.toFixed(2)}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={addSupportFromMenu}
+                                className="flex w-full items-center justify-between rounded px-2 py-2 text-left text-green-300 transition hover:bg-green-400/10"
+                            >
+                                添加支撑位
+                                <span className="h-2 w-2 rounded-full bg-green-400" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={addResistanceFromMenu}
+                                className="mt-1 flex w-full items-center justify-between rounded px-2 py-2 text-left text-red-300 transition hover:bg-red-400/10"
+                            >
+                                添加阻力位
+                                <span className="h-2 w-2 rounded-full bg-red-400" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={closeAnnotationMenu}
+                                className="mt-1 w-full rounded px-2 py-2 text-left text-slate-400 transition hover:bg-slate-700/40 hover:text-slate-200"
+                            >
+                                取消
+                            </button>
                         </div>
                     )}
                 </div>

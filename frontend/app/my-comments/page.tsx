@@ -1,119 +1,190 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import Navbar from '@/components/Navbar'
-import { api, Comment, User } from '@/lib/api'
-import { MessageSquare } from 'lucide-react'
+import AppShell from '@/components/layout/AppShell'
+import LoginRequired from '@/components/auth/LoginRequired'
+import { useAuth } from '@/components/auth/AuthProvider'
+import EmptyState from '@/components/ui/EmptyState'
+import ErrorState from '@/components/ui/ErrorState'
+import { api, Comment, Product } from '@/lib/api'
+import { formatDateTime } from '@/lib/format'
+import { ArrowRight, MessageSquare, RefreshCw } from 'lucide-react'
 
 export default function MyCommentsPage() {
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth()
   const [comments, setComments] = useState<Comment[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const token = api.getToken()
-    if (token) {
-      api.getMe().then(u => {
-        setUser(u)
-        setIsLoggedIn(true)
-        return api.getUserComments(u.username)
-      }).then(setComments).catch(() => {
-        api.logout()
-        setIsLoggedIn(false)
-      }).finally(() => setLoading(false))
-    } else {
-      setIsLoggedIn(false)
+  const loadComments = useCallback(async () => {
+    if (!user) {
+      setComments([])
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    try {
+      setError(null)
+      const [commentData, productData] = await Promise.all([
+        api.getUserComments(user.username),
+        api.getProducts().catch(() => []),
+      ])
+      setComments(commentData)
+      setProducts(productData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '评论记录加载失败')
+      if (err instanceof Error && err.message.includes('401')) {
+        logout()
+      }
+    } finally {
       setLoading(false)
     }
-  }, [])
+  }, [logout, user])
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
+  useEffect(() => {
+    if (authLoading) return
+    if (!isAuthenticated) {
+      setLoading(false)
+      setComments([])
+      return
+    }
+    loadComments()
+  }, [authLoading, isAuthenticated, loadComments])
 
-  if (isLoggedIn === null) {
-    return (
-      <div className="min-h-screen bg-slate-900">
-        <Navbar />
-        <main className="max-w-4xl mx-auto px-4 py-8 text-center text-slate-400">
-          加载中...
-        </main>
-      </div>
-    )
-  }
+  const latestCommentTime = useMemo(() => {
+    if (comments.length === 0) return '--'
+    return formatDateTime(comments[0].created_at)
+  }, [comments])
 
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-slate-900">
-        <Navbar />
-        <main className="max-w-4xl mx-auto px-4 py-8">
-          <div className="bg-slate-800 rounded-xl p-8 border border-slate-700 text-center">
-            <MessageSquare size={48} className="mx-auto text-slate-600 mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">请先登录</h2>
-            <p className="text-slate-400">登录后即可查看您的评论记录</p>
-          </div>
-        </main>
-      </div>
-    )
-  }
+  const productCount = useMemo(() => {
+    return new Set(comments.map((comment) => comment.product_id)).size
+  }, [comments])
+
+  const productMap = useMemo(() => {
+    return new Map(products.map((product) => [product.id, product]))
+  }, [products])
 
   return (
-    <div className="min-h-screen bg-slate-900">
-      <Navbar />
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-white mb-2">我的评论</h1>
-          <p className="text-slate-400">
-            {user ? `欢迎，${user.username}` : '加载中...'}
-          </p>
-        </div>
-
-        {loading ? (
-          <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="bg-slate-800 rounded-xl p-4 animate-pulse">
-                <div className="h-4 bg-slate-700 rounded w-1/4 mb-2"></div>
-                <div className="h-3 bg-slate-700 rounded w-3/4"></div>
-              </div>
-            ))}
-          </div>
-        ) : comments.length === 0 ? (
-          <div className="bg-slate-800 rounded-xl p-8 border border-slate-700 text-center">
-            <MessageSquare size={48} className="mx-auto text-slate-600 mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">暂无评论</h2>
-            <p className="text-slate-400">快去品种详情页发表你的看法吧！</p>
-            <Link
-              href="/products"
-              className="inline-block mt-4 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors"
-            >
-              浏览品种
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {comments.map(comment => (
-              <Link key={comment.id} href={`/products/${comment.product_id}`}>
-                <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-slate-600 transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-cyan-400 text-sm">品种 #{comment.product_id}</span>
-                    <span className="text-slate-500 text-xs">{formatDate(comment.created_at)}</span>
-                  </div>
-                  <p className="text-slate-300 text-sm leading-relaxed">{comment.content}</p>
+    <AppShell>
+      {authLoading ? (
+        <StatePanel>正在确认登录状态...</StatePanel>
+      ) : !isAuthenticated ? (
+        <LoginRequired />
+      ) : (
+        <div className="space-y-5">
+            <section className="rounded-lg border border-slate-800 bg-[#10161d] p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold">我的评论</h1>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    {user ? `${user.username} 的社区发言记录` : '社区发言记录'}
+                  </p>
                 </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </main>
+                <button
+                  type="button"
+                  onClick={loadComments}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:border-red-800 hover:text-white"
+                >
+                  <RefreshCw size={15} />
+                  刷新
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <Metric label="评论数" value={String(comments.length)} />
+                <Metric label="最近发言" value={latestCommentTime} />
+                <Metric label="涉及品种" value={String(productCount)} />
+              </div>
+            </section>
+
+            {loading ? (
+              <CommentSkeleton />
+            ) : error ? (
+              <ErrorState message={error} onRetry={loadComments} />
+            ) : comments.length === 0 ? (
+              <EmptyState
+                icon={MessageSquare}
+                title="暂无评论"
+                description="进入品种详情页，记录你的行情判断和复盘想法。"
+                action={
+                  <Link
+                    href="/products"
+                    className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+                  >
+                    浏览品种
+                    <ArrowRight size={15} />
+                  </Link>
+                }
+              />
+            ) : (
+              <section className="space-y-3">
+                {comments.map((comment) => (
+                  <CommentCard key={comment.id} comment={comment} product={productMap.get(comment.product_id)} />
+                ))}
+              </section>
+            )}
+        </div>
+      )}
+    </AppShell>
+  )
+}
+
+function StatePanel({ children }: { children: string }) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-[#10161d] p-8 text-center text-slate-400">
+      {children}
+    </div>
+  )
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-black/30 p-3">
+      <div className="text-xs text-slate-500">{label}</div>
+      <div className="mt-2 truncate font-mono text-base font-semibold text-slate-200">{value}</div>
+    </div>
+  )
+}
+
+function CommentCard({ comment, product }: { comment: Comment; product?: Product }) {
+  const productLabel = product ? `${product.name} ${product.symbol}` : `品种 #${comment.product_id}`
+
+  return (
+    <Link
+      href={`/products/${comment.product_id}`}
+      className="group block rounded-lg border border-slate-800 bg-[#10161d] p-4 transition hover:border-red-800/80 hover:bg-[#121b24]"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="rounded border border-slate-700 px-2 py-0.5 font-mono text-xs text-slate-400">
+            {productLabel}
+          </span>
+          <span className="text-sm text-slate-500">{comment.username}</span>
+        </div>
+        <span className="font-mono text-xs text-slate-600">{formatDateTime(comment.created_at)}</span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-slate-300">{comment.content}</p>
+      <div className="mt-4 inline-flex items-center gap-1 rounded-lg border border-red-900/50 px-3 py-1.5 text-sm text-red-300 transition group-hover:border-red-700 group-hover:text-red-200">
+        查看品种详情
+        <ArrowRight size={14} />
+      </div>
+    </Link>
+  )
+}
+
+function CommentSkeleton() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className="h-28 animate-pulse rounded-lg border border-slate-800 bg-[#10161d] p-4">
+          <div className="h-4 w-32 rounded bg-slate-800" />
+          <div className="mt-4 h-3 w-3/4 rounded bg-slate-800" />
+          <div className="mt-2 h-3 w-1/2 rounded bg-slate-800" />
+        </div>
+      ))}
     </div>
   )
 }
