@@ -59,7 +59,10 @@ app = FastAPI(
     redoc_url=_redoc_url,
 )
 
-origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3200,http://127.0.0.1:3200",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -120,4 +123,6 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    host = os.getenv("BACKEND_HOST", "127.0.0.1")
+    port = int(os.getenv("BACKEND_PORT", "8200"))
+    uvicorn.run(app, host=host, port=port)

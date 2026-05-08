@@ -10,9 +10,23 @@ from models import SessionLocal, VarietyDB, ProductDB
 from data_collector.base import BaseCollector
 from data_collector.pipeline import DataPipeline
 from data_collector.cleaner import clean_realtime, clean_kline
-from config import DATA_SOURCE
+from config import DATA_SOURCE, ENV
 
 logger = logging.getLogger("data.scheduler")
+
+
+def _is_rate_limit_exception(error: Exception) -> bool:
+    message = str(error).lower()
+    return any(
+        marker in message
+        for marker in (
+            "rate limit",
+            "cooldown",
+            "频率",
+            "每分钟",
+            "访问接口",
+        )
+    )
 
 # 鏍规嵁閰嶇疆鍔ㄦ€侀€夋嫨 Collector 鍜?Adapter
 from data_collector.adapters import (
@@ -30,6 +44,7 @@ class _MappedFallbackCollector(BaseCollector):
 
     def __init__(self, entries):
         self.entries = entries
+        self._reported_rate_limits = set()
 
     def fetch_realtime(self, symbol: str):
         for name, collector, realtime_adapter, _ in self.entries:
@@ -39,7 +54,15 @@ class _MappedFallbackCollector(BaseCollector):
                     continue
                 return realtime_adapter(raw, symbol)
             except Exception as e:
-                logger.warning("%s realtime failed for %s, trying next source: %s", name, symbol, e)
+                key = (name, "realtime")
+                if _is_rate_limit_exception(e):
+                    if key not in self._reported_rate_limits:
+                        logger.warning("%s realtime rate-limited; falling back to next source: %s", name, e)
+                        self._reported_rate_limits.add(key)
+                    else:
+                        logger.debug("%s realtime still rate-limited for %s: %s", name, symbol, e)
+                else:
+                    logger.warning("%s realtime failed for %s, trying next source: %s", name, symbol, e)
         return None
 
     def fetch_kline(self, contract_code: str, period: str, limit: int = 100):
@@ -50,7 +73,15 @@ class _MappedFallbackCollector(BaseCollector):
                     continue
                 return [kline_adapter(row, contract_code, period) for row in raw_rows]
             except Exception as e:
-                logger.warning("%s kline failed for %s/%s, trying next source: %s", name, contract_code, period, e)
+                key = (name, "kline", period)
+                if _is_rate_limit_exception(e):
+                    if key not in self._reported_rate_limits:
+                        logger.warning("%s kline rate-limited for %s; falling back to next source: %s", name, period, e)
+                        self._reported_rate_limits.add(key)
+                    else:
+                        logger.debug("%s kline still rate-limited for %s/%s: %s", name, contract_code, period, e)
+                else:
+                    logger.warning("%s kline failed for %s/%s, trying next source: %s", name, contract_code, period, e)
         return []
 
 
@@ -91,7 +122,7 @@ def _build_collectors():
         if akshare_entry:
             entries.append(akshare_entry)
 
-    if data_source == "mock" or not entries:
+    if data_source == "mock" or not entries or (ENV != "production" and data_source in ("tushare", "akshare", "auto")):
         from data_collector.mock_collector import MockCollector
 
         mock_entry = _try_create(
@@ -129,7 +160,8 @@ _pipeline_kline = DataPipeline(
     cleaner=clean_kline,
 )
 
-# 鎵╁睍锛氭湡璐ф棩绾?/ 缁撶畻 / 鍛ㄦ姤 / 浠撳崟 / 鎸佷粨 pipeline锛堜粎 Tushare 鏀寔锛?_pipeline_fut_daily = None
+# 扩展 pipeline：期货日线 / 结算 / 周报 / 仓单 / 持仓（仅 Tushare 支持）
+_pipeline_fut_daily = None
 _pipeline_fut_settle = None
 _pipeline_fut_weekly_detail = None
 _pipeline_fut_wsr = None

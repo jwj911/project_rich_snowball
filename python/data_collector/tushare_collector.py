@@ -37,6 +37,23 @@ _MINUTE_FREQ_MAP = {
     "60m": "60min",
 }
 
+_RATE_LIMIT_COOLDOWN_SECONDS = 65
+
+
+def _is_rate_limit_error(error: Exception) -> bool:
+    message = str(error).lower()
+    return any(
+        marker in message
+        for marker in (
+            "频率",
+            "每分钟",
+            "rate limit",
+            "too many",
+            "limit exceeded",
+            "访问接口",
+        )
+    )
+
 
 def _extract_symbol(contract_code: str) -> str:
     match = re.match(r"^([A-Za-z]+)", contract_code or "")
@@ -119,14 +136,28 @@ class TushareCollector(BaseCollector):
             ts.set_token(TUSHARE_TOKEN)
             self.pro = ts.pro_api()
             self.ts = ts
+            self._rate_limited_until = 0.0
         except ImportError:
             raise ImportError("tushare is not installed. Run: pip install tushare")
 
     def _retry(self, func, max_retries=3):
+        now = time.time()
+        if now < self._rate_limited_until:
+            wait = int(self._rate_limited_until - now)
+            raise RuntimeError(f"Tushare rate limit cooldown active; retry after {wait}s")
+
         for attempt in range(max_retries):
             try:
                 return func()
             except Exception as e:
+                if _is_rate_limit_error(e):
+                    self._rate_limited_until = time.time() + _RATE_LIMIT_COOLDOWN_SECONDS
+                    logger.warning(
+                        "Tushare rate limit detected; pausing Tushare calls for %ss: %s",
+                        _RATE_LIMIT_COOLDOWN_SECONDS,
+                        e,
+                    )
+                    raise
                 wait = 2**attempt
                 logger.warning("[retry %s/%s] %s, waiting %ss", attempt + 1, max_retries, e, wait)
                 if attempt < max_retries - 1:
