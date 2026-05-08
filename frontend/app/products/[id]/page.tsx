@@ -22,6 +22,47 @@ import {
   XCircle,
 } from 'lucide-react'
 
+type KlinePeriod = '1m' | '5m' | '15m' | '30m' | '1h' | '1d' | '1w'
+
+const KLINE_PERIODS: Array<{ value: KlinePeriod; label: string }> = [
+  { value: '1m', label: '1分' },
+  { value: '5m', label: '5分' },
+  { value: '15m', label: '15分' },
+  { value: '30m', label: '30分' },
+  { value: '1h', label: '1小时' },
+  { value: '1d', label: '日线' },
+  { value: '1w', label: '周线' },
+]
+
+const KLINE_PERIOD_LIMITS: Record<KlinePeriod, number> = {
+  '1m': 120,
+  '5m': 120,
+  '15m': 120,
+  '30m': 120,
+  '1h': 100,
+  '1d': 90,
+  '1w': 90,
+}
+
+async function loadKlineWithFallback(symbol: string, period: KlinePeriod) {
+  const rows = await api.getKline(symbol, period, KLINE_PERIOD_LIMITS[period])
+
+  if (rows.length > 0 || period === '1d') {
+    return {
+      rows,
+      period,
+      notice: rows.length > 0 ? null : '当前周期暂无 K 线数据',
+    }
+  }
+
+  const fallbackRows = await api.getKline(symbol, '1d', KLINE_PERIOD_LIMITS['1d'])
+  return {
+    rows: fallbackRows,
+    period: '1d' as KlinePeriod,
+    notice: fallbackRows.length > 0 ? '当前周期暂无数据，已显示日线' : '当前周期和日线均暂无 K 线数据',
+  }
+}
+
 export default function ProductDetailPage({ params }: { params: { id: string } }) {
   const productId = Number.parseInt(params.id, 10)
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
@@ -37,6 +78,10 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const [newSupport, setNewSupport] = useState('')
   const [newResistance, setNewResistance] = useState('')
   const [klineData, setKlineData] = useState<KlineData[]>([])
+  const [selectedKlinePeriod, setSelectedKlinePeriod] = useState<KlinePeriod>('1d')
+  const [displayedKlinePeriod, setDisplayedKlinePeriod] = useState<KlinePeriod>('1d')
+  const [klineNotice, setKlineNotice] = useState<string | null>(null)
+  const [isKlineLoading, setIsKlineLoading] = useState(false)
   const [realtime, setRealtime] = useState<RealtimeQuote | null>(null)
   const [levelsLoaded, setLevelsLoaded] = useState(false)
 
@@ -61,11 +106,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
       setComments(data.comments)
 
       if (data.product?.symbol) {
-        const [kline, quote] = await Promise.all([
-          api.getKline(data.product.symbol, '1h', 80).catch(() => []),
-          api.getRealtime(data.product.symbol).catch(() => null),
-        ])
-        setKlineData(kline)
+        const quote = await api.getRealtime(data.product.symbol).catch(() => null)
         setRealtime(quote)
       }
     } catch (err) {
@@ -100,6 +141,37 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
     return () => clearInterval(interval)
   }, [authLoading, isAuthenticated, loadData, productId])
+
+  useEffect(() => {
+    if (!product?.symbol || !isAuthenticated) return
+
+    let cancelled = false
+    setIsKlineLoading(true)
+    setKlineNotice(null)
+
+    loadKlineWithFallback(product.symbol, selectedKlinePeriod)
+      .then((kline) => {
+        if (cancelled) return
+        setKlineData(kline.rows)
+        setDisplayedKlinePeriod(kline.period)
+        setKlineNotice(kline.notice)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setKlineData([])
+        setDisplayedKlinePeriod(selectedKlinePeriod)
+        setKlineNotice(err instanceof Error ? err.message : 'K 线数据加载失败')
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsKlineLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated, product?.symbol, selectedKlinePeriod])
 
   useEffect(() => {
     setLevelsLoaded(false)
@@ -248,7 +320,42 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
               <section className="min-w-0 space-y-5">
-                <div className="min-h-[420px]">
+                <div className="min-h-[420px] space-y-3">
+                  <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-wrap gap-2">
+                      {KLINE_PERIODS.map((period) => {
+                        const isSelected = selectedKlinePeriod === period.value
+                        return (
+                          <button
+                            key={period.value}
+                            type="button"
+                            disabled={isKlineLoading}
+                            onClick={() => setSelectedKlinePeriod(period.value)}
+                            className={`h-8 rounded border px-3 text-sm transition ${
+                              isSelected
+                                ? 'border-red-500 bg-red-500/15 text-red-200'
+                                : 'border-slate-700 bg-black/20 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+                            } disabled:cursor-wait disabled:opacity-60`}
+                          >
+                            {period.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      {isKlineLoading && <RefreshCw size={13} className="animate-spin text-slate-400" />}
+                      <span>
+                        当前显示：{KLINE_PERIODS.find((period) => period.value === displayedKlinePeriod)?.label ?? displayedKlinePeriod}
+                      </span>
+                    </div>
+                  </div>
+
+                  {klineNotice && (
+                    <div className="mb-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                      {klineNotice}
+                    </div>
+                  )}
+
                   <KlineChart
                     data={klineData}
                     symbol={product.symbol}

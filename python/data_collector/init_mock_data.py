@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
-from models import SessionLocal, ProductDB, UserDB, CommentDB
+from models import SessionLocal, ProductDB, UserDB, CommentDB, KlineDataDB, VarietyDB
 from utils import hash_password
+from data_collector.mock_collector import MockCollector
+from data_collector.upsert import insert_kline_bulk
 
 
 def init_mock_data():
@@ -41,6 +43,18 @@ def init_mock_data():
             ]
             for c in comments:
                 db.add(CommentDB(**c))
+
+        collector = MockCollector()
+        varieties = db.query(VarietyDB).all()
+        for variety in varieties:
+            for period, limit in (("1h", 120), ("1d", 90)):
+                has_kline = db.query(KlineDataDB).filter(
+                    KlineDataDB.variety_id == variety.id,
+                    KlineDataDB.period == period,
+                ).first()
+                if not has_kline:
+                    rows = collector.fetch_kline(variety.contract_code, period, limit=limit)
+                    insert_kline_bulk(db, rows, period)
 
         db.commit()
         print("模拟数据初始化完成")

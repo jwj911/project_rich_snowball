@@ -15,6 +15,8 @@ import { formatInteger, formatNumber } from '@/lib/format'
 import { useMarketPolling } from '@/hooks/useMarketPolling'
 import { ArrowRight, BarChart3, Search } from 'lucide-react'
 
+const EMPTY_PRODUCTS: Product[] = []
+
 export default function HomePage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const fetchProducts = useCallback(() => {
@@ -31,7 +33,7 @@ export default function HomePage() {
     fetcher: fetchProducts,
     errorMessage: '行情数据加载失败',
   })
-  const products = data ?? []
+  const products = data ?? EMPTY_PRODUCTS
 
   const hotProducts = useMemo(() => products.slice(0, 6), [products])
   const leader = hotProducts[0]

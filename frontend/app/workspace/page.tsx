@@ -26,6 +26,10 @@ interface SavedLevels {
   updatedAt?: unknown
 }
 
+const EMPTY_COMMENTS: Comment[] = []
+const EMPTY_PRODUCTS: Product[] = []
+const EMPTY_ANNOTATIONS: WorkspaceAnnotation[] = []
+
 export default function WorkspacePage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
 
@@ -58,9 +62,9 @@ export default function WorkspacePage() {
     errorMessage: '工作区数据加载失败',
   })
 
-  const comments = data?.comments ?? []
-  const products = data?.products ?? []
-  const annotations = data?.annotations ?? []
+  const comments = data?.comments ?? EMPTY_COMMENTS
+  const products = data?.products ?? EMPTY_PRODUCTS
+  const annotations = data?.annotations ?? EMPTY_ANNOTATIONS
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products])
   const productCount = useMemo(() => new Set(comments.map((comment) => comment.product_id)).size, [comments])
   const annotationCount = annotations.reduce(

@@ -15,6 +15,8 @@ import { Filter, Search, X } from 'lucide-react'
 
 type DirectionFilter = 'all' | 'up' | 'down'
 
+const EMPTY_PRODUCTS: Product[] = []
+
 export default function ProductsPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [sortBy, setSortBy] = useState<QuoteSortField>('change_percent')
@@ -37,7 +39,7 @@ export default function ProductsPage() {
     fetcher: fetchProducts,
     errorMessage: '品种列表加载失败',
   })
-  const products = data ?? []
+  const products = data ?? EMPTY_PRODUCTS
 
   const categories = useMemo(() => {
     return Array.from(new Set(products.map((product) => product.category).filter(Boolean) as string[])).sort()

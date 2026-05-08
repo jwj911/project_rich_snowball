@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
 import os
+import traceback
 
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -15,16 +16,19 @@ from routers import auth, products, comments, varieties, kline, realtime, health
 logger = logging.getLogger(__name__)
 
 
-def _error_response(code: str, message: str, errors: list = None, status_code: int = 500) -> JSONResponse:
+def _error_response(code: str, message: str, errors: list = None, status_code: int = 500, detail: dict = None) -> JSONResponse:
     """统一错误响应格式。"""
+    content = {
+        "code": code,
+        "message": message,
+        "errors": errors or [],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    if detail:
+        content.update(detail)
     return JSONResponse(
         status_code=status_code,
-        content={
-            "code": code,
-            "message": message,
-            "errors": errors or [],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        },
+        content=content,
     )
 
 
@@ -59,10 +63,13 @@ app = FastAPI(
     redoc_url=_redoc_url,
 )
 
-origins = os.getenv(
-    "CORS_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3200,http://127.0.0.1:3200",
-).split(",")
+# CORS 配置：优先读取 CORS_ORIGINS，兼容 ALLOW_ORIGINS
+origins_raw = os.getenv("CORS_ORIGINS") or os.getenv("ALLOW_ORIGINS")
+if ENV == "production" and not origins_raw:
+    raise ValueError("CORS_ORIGINS (or ALLOW_ORIGINS) is required in production")
+default_origins = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3200,http://127.0.0.1:3200"
+origins = [origin.strip() for origin in (origins_raw or default_origins).split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -109,10 +116,15 @@ async def validation_exception_handler(request, exc: RequestValidationError):
 async def generic_exception_handler(request, exc: Exception):
     """兜底异常处理器，防止未捕获异常暴露内部信息。"""
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    detail = {}
+    if ENV == "development":
+        detail["exception"] = str(exc)
+        detail["traceback"] = traceback.format_exc()
     return _error_response(
         code="INTERNAL_ERROR",
         message="服务器内部错误",
         status_code=500,
+        detail=detail if ENV == "development" else None,
     )
 
 
@@ -123,6 +135,7 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    host = os.getenv("BACKEND_HOST", "127.0.0.1")
-    port = int(os.getenv("BACKEND_PORT", "8200"))
+
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8200"))
     uvicorn.run(app, host=host, port=port)
