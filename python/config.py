@@ -23,6 +23,10 @@ ENABLE_SCHEDULER = os.getenv("ENABLE_SCHEDULER", "1") == "1"
 if ENV == "production" and len(SECRET_KEY) < 32:
     raise ValueError("SECRET_KEY must be at least 32 characters in production")
 
+# 生产环境禁止 SQLite
+if ENV == "production" and DATABASE_URL.startswith("sqlite"):
+    raise ValueError("SQLite is not allowed in production. Use PostgreSQL.")
+
 # 数据源配置
 DATA_SOURCE = os.getenv("DATA_SOURCE", "mock")
 TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN", "")

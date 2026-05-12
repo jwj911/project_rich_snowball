@@ -5,7 +5,7 @@ from typing import Any
 
 def map_akshare_realtime(row: dict[str, Any], symbol: str) -> dict[str, Any]:
     close = _to_float(_first(row, "\u6700\u65b0\u4ef7", "current_price", "close", "last_price"))
-    pre_settlement = _to_float(_first(row, "\u6628\u7ed3\u7b97", "\u6628\u7ed3\u7b97\u4ef7", "pre_settlement"))
+    pre_settlement = _to_float(_first(row, "\u6628\u7ed3\u7b97", "\u6628\u7ed3\u7b97\u4ef7", "pre_settlement", "settle"))
     change_percent = _to_float(_first(row, "\u6da8\u8dcc\u5e45", "change_percent"))
     if change_percent is None and close is not None and pre_settlement and pre_settlement > 0:
         change_percent = round((close - pre_settlement) / pre_settlement * 100, 2)
@@ -21,7 +21,7 @@ def map_akshare_realtime(row: dict[str, Any], symbol: str) -> dict[str, Any]:
         "bid1": _to_float(_first(row, "\u4e70\u4e00\u4ef7", "bid1")),
         "ask1": _to_float(_first(row, "\u5356\u4e00\u4ef7", "ask1")),
         "change_percent": change_percent,
-        "updated_at": _parse_datetime(_first(row, "\u66f4\u65b0\u65f6\u95f4", "time", "updated_at"))
+        "updated_at": _parse_datetime(_first(row, "\u66f4\u65b0\u65f6\u95f4", "time", "updated_at", "date"))
         or datetime.now(timezone.utc),
     }
 
@@ -212,9 +212,76 @@ def map_tushare_ft_limit(raw: dict[str, Any]) -> dict[str, Any]:
     return {
         "ts_code": raw.get("ts_code"),
         "trade_date": _parse_datetime(raw.get("trade_date")),
+        "name": raw.get("name"),
         "up_limit": _to_float(raw.get("up_limit")),
         "down_limit": _to_float(raw.get("down_limit")),
+        "m_ratio": _to_float(raw.get("m_ratio")),
+        "cont": raw.get("cont"),
         "exchange": raw.get("exchange"),
+    }
+
+
+def map_tushare_fut_mapping(raw: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ts_code": raw.get("ts_code"),
+        "trade_date": _parse_datetime(raw.get("trade_date")),
+        "mapping_ts_code": raw.get("mapping_ts_code"),
+    }
+
+
+def _contract_type_from_ts_code(ts_code: str, name: str | None = None) -> str:
+    """Infer contract type from Tushare ts_code and name.
+
+    Rules (based on Tushare doc_id=135):
+    - Normal     : ends with digits, e.g. AU2506.SHF, CU1811.SHF
+    - CONTINUOUS : ends with 'L', e.g. CUL.SHF, IFL.CFX
+    - MAIN       : otherwise, e.g. AU.SHF, IF.CFX
+
+    Cross-validation with name field (more reliable for CFFEX/GFEX):
+    - name contains '主力' -> MAIN
+    - name contains '连续' -> CONTINUOUS
+    """
+    name = (name or "")
+    if "主力" in name:
+        return "MAIN"
+    if "连续" in name:
+        return "CONTINUOUS"
+
+    base = (ts_code or "").split(".", 1)[0]
+    if not base:
+        return "NORMAL"
+    if base[-1].isdigit():
+        return "NORMAL"
+    if base.endswith("L"):
+        return "CONTINUOUS"
+    return "MAIN"
+
+
+def map_tushare_fut_contract(raw: dict[str, Any]) -> dict[str, Any]:
+    """Map Tushare fut_basic row to FutContractDB schema."""
+    ts_code = (raw.get("ts_code") or "").upper()
+    symbol = (raw.get("symbol") or "").upper()
+    fut_code = (raw.get("fut_code") or "").upper()
+    list_date = _parse_datetime(raw.get("list_date"))
+    delist_date = _parse_datetime(raw.get("delist_date"))
+    is_active = True
+    if delist_date is not None and datetime.now().date() >= delist_date.date():
+        is_active = False
+    return {
+        "ts_code": ts_code,
+        "symbol": symbol,
+        "name": raw.get("name"),
+        "fut_code": fut_code,
+        "exchange": raw.get("exchange"),
+        "list_date": list_date,
+        "delist_date": delist_date,
+        "multiplier": _to_float(raw.get("multiplier")),
+        "trade_unit": raw.get("trade_unit"),
+        "per_unit": _to_float(raw.get("per_unit")),
+        "quote_unit": raw.get("quote_unit"),
+        "d_month": raw.get("d_month"),
+        "contract_type": _contract_type_from_ts_code(ts_code, raw.get("name")),
+        "is_active": is_active,
     }
 
 
@@ -229,7 +296,11 @@ def _to_float(val: Any) -> float | None:
     if val in (None, "-", "", "None"):
         return None
     try:
-        return float(val)
+        import math
+        f = float(val)
+        if math.isnan(f):
+            return None
+        return f
     except (ValueError, TypeError):
         return None
 

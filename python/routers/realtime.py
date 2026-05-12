@@ -15,20 +15,24 @@ def get_realtime(symbol: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="品种不存在")
 
     def _fetch():
-        return db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).first()
+        q = db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).first()
+        if not q:
+            return None
+        # 缓存纯 dict，不存 ORM 实例，避免 detached session 风险
+        return {
+            "symbol": variety.symbol,
+            "current_price": q.current_price,
+            "change_percent": q.change_percent or 0,
+            "open_price": q.open_price,
+            "high": q.high,
+            "low": q.low,
+            "volume": q.volume,
+            "updated_at": q.updated_at,
+        }
 
     quote = get_cached(f"realtime:{symbol}", _fetch)
 
     if not quote:
         raise HTTPException(status_code=404, detail="暂无实时行情数据")
 
-    return {
-        "symbol": variety.symbol,
-        "current_price": quote.current_price,
-        "change_percent": quote.change_percent or 0,
-        "open_price": quote.open_price,
-        "high": quote.high,
-        "low": quote.low,
-        "volume": quote.volume,
-        "updated_at": quote.updated_at,
-    }
+    return quote

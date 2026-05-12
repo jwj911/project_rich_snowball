@@ -31,13 +31,21 @@ class AkshareCollector(BaseCollector):
                     raise
 
     def fetch_realtime(self, symbol: str) -> Dict[str, Any] | None:
-        """Fetch one AkShare realtime quote row and leave field mapping to adapters."""
+        """Fetch one AkShare realtime quote row and leave field mapping to adapters.
+
+        Note: futures_zh_spot is currently broken in recent akshare versions
+        (Length mismatch error). We fall back to futures_zh_daily_sina and
+        take the latest row as the "realtime" snapshot.
+        """
 
         def _do():
-            df = self.ak.futures_zh_spot(symbol=symbol, market="CF")
+            # Try the daily endpoint which is still stable; take the last row
+            # as the best available "realtime" price for the main contract.
+            contract = f"{symbol.lower()}0"
+            df = self.ak.futures_zh_daily_sina(symbol=contract)
             if df is None or df.empty:
                 return None
-            row = df.iloc[0].to_dict()
+            row = df.iloc[-1].to_dict()
             row["symbol"] = symbol
             return row
 

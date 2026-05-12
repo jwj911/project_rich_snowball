@@ -106,6 +106,9 @@ class TushareCollector(BaseCollector):
 
     The collector returns Tushare-shaped raw rows. Field normalization is kept
     in adapters.py so fallback collectors can share the same pipeline.
+
+    Rate limiting: enforces a minimum interval between API calls to respect
+    Tushare's free-tier quota (default 1 call/sec).
     """
 
     def __init__(self):
@@ -122,11 +125,28 @@ class TushareCollector(BaseCollector):
         except ImportError:
             raise ImportError("tushare is not installed. Run: pip install tushare")
 
+        self._last_call_time = 0.0
+        # 5000-point users have higher quotas; 0.5s interval allows ~120 calls/min
+        self._min_interval = 0.5
+
+    def _rate_limit(self):
+        """Sleep if needed to respect the min interval between API calls."""
+        elapsed = time.time() - self._last_call_time
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
+        self._last_call_time = time.time()
+
     def _retry(self, func, max_retries=3):
         for attempt in range(max_retries):
             try:
+                self._rate_limit()
                 return func()
             except Exception as e:
+                msg = str(e).lower()
+                # Permission/quota/frequency errors: don't waste retries, re-raise immediately
+                if any(k in msg for k in ("unauthorized", "积分", "权限", "freq", "frequency", "配额", "超限", " limit")):
+                    logger.warning("Tushare permission/quota error (no retry): %s", e)
+                    raise
                 wait = 2**attempt
                 logger.warning("[retry %s/%s] %s, waiting %ss", attempt + 1, max_retries, e, wait)
                 if attempt < max_retries - 1:
@@ -158,11 +178,8 @@ class TushareCollector(BaseCollector):
             logger.warning("Variety not found for symbol: %s", symbol)
             return None
 
-        rows = self.fetch_kline(info["contract_code"], "1m", limit=1)
-        if rows:
-            rows[-1]["symbol"] = symbol
-            return rows[-1]
-
+        # Free-tier Tushare users: ft_mins is limited to 2 calls/minute.
+        # Skip minute-level fallback and go straight to fut_daily.
         ts_code = _to_contract_ts_code(info["contract_code"], info["exchange"])
         today = datetime.now().strftime("%Y%m%d")
 

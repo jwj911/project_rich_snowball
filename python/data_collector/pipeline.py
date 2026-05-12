@@ -378,3 +378,53 @@ class DataPipeline:
                 exc=exc,
                 meta={"trade_date": trade_date, "ts_code": ts_code},
             )
+
+    def run_fut_mapping(self, trade_date: str = None) -> dict:
+        """Update VarietyDB.contract_code from fut_mapping (main contract rollover)."""
+        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(timezone.utc)}
+        db = SessionLocal()
+        exc = None
+        try:
+            raw_rows = self.collector.fetch_mapping(trade_date=trade_date)
+            if not raw_rows:
+                return stats
+
+            rows = [self.adapter(row) for row in raw_rows] if self.adapter else raw_rows
+            updated = 0
+            skipped = 0
+            for row in rows:
+                ts_code = row.get("ts_code")
+                mapping_ts_code = row.get("mapping_ts_code")
+                if not ts_code or not mapping_ts_code:
+                    skipped += 1
+                    continue
+                # Extract base symbol from ts_code, e.g. "AU.SHF" -> "AU"
+                symbol = ts_code.split(".")[0]
+                variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
+                if not variety:
+                    skipped += 1
+                    continue
+                # Extract contract_code from mapping_ts_code, e.g. "AU2506.SHF" -> "AU2506"
+                contract_code = mapping_ts_code.split(".")[0]
+                if variety.contract_code != contract_code:
+                    variety.contract_code = contract_code
+                    updated += 1
+            db.commit()
+            stats["processed"] = updated
+            stats["skipped"] = skipped
+            logger.info(f"FutMapping pipeline completed: {stats}")
+            return stats
+        except Exception as e:
+            db.rollback()
+            exc = e
+            logger.critical(f"FutMapping pipeline aborted: {e}", exc_info=True)
+            raise
+        finally:
+            db.close()
+            _record_run(
+                job_name="sync_fut_mapping",
+                source=self.collector.__class__.__name__,
+                stats=stats,
+                exc=exc,
+                meta={"trade_date": trade_date},
+            )

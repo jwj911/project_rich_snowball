@@ -22,7 +22,7 @@ def health_check():
 
 @router.get("/ready")
 def readiness_check(db: Session = Depends(get_db)):
-    """返回系统就绪状态。任一依赖异常返回 503。"""
+    """返回系统就绪状态。DB 可连接即 ready。scheduler 状态单独检查。"""
     try:
         db.execute(text("SELECT 1"))
         db_ok = True
@@ -30,9 +30,8 @@ def readiness_check(db: Session = Depends(get_db)):
         db_ok = False
 
     cache_stats = get_cache_stats()
-    scheduler_ok = ENABLE_SCHEDULER
 
-    ready = db_ok and scheduler_ok
+    ready = db_ok
 
     if not ready:
         raise HTTPException(
@@ -41,7 +40,6 @@ def readiness_check(db: Session = Depends(get_db)):
                 "ready": False,
                 "db": db_ok,
                 "cache": cache_stats,
-                "scheduler": scheduler_ok,
             },
         )
 
@@ -49,6 +47,21 @@ def readiness_check(db: Session = Depends(get_db)):
         "ready": True,
         "db": db_ok,
         "cache": cache_stats,
-        "scheduler": scheduler_ok,
         "engine": get_engine_info(),
+    }
+
+
+@router.get("/scheduler")
+def scheduler_check():
+    """返回调度器状态。API 进程本身不运行 scheduler 时也返回信息。"""
+    try:
+        from data_collector.scheduler import scheduler
+        scheduler_running = scheduler.running
+    except Exception:
+        scheduler_running = False
+
+    return {
+        "scheduler_enabled": ENABLE_SCHEDULER,
+        "scheduler_running": scheduler_running,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }

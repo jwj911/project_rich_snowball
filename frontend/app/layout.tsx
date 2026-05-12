@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { AuthProvider } from '@/components/auth/AuthProvider'
 
 export const metadata: Metadata = {
-  title: '期货交流社区',
-  description: '期货品种数据展示与评论社区',
+  title: '倍增计划',
+  description: '倍增计划期货行情与私密交流社区',
 }
 
 export default function RootLayout({
@@ -13,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   )
 }

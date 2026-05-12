@@ -1,4 +1,4 @@
-﻿from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 import logging
@@ -10,11 +10,11 @@ from models import SessionLocal, VarietyDB, ProductDB
 from data_collector.base import BaseCollector
 from data_collector.pipeline import DataPipeline
 from data_collector.cleaner import clean_realtime, clean_kline
-from config import DATA_SOURCE
+from config import DATA_SOURCE, ENV
 
 logger = logging.getLogger("data.scheduler")
 
-# 鏍规嵁閰嶇疆鍔ㄦ€侀€夋嫨 Collector 鍜?Adapter
+# 根据配置动态选择 Collector 和 Adapter
 from data_collector.adapters import (
     map_akshare_kline,
     map_akshare_realtime,
@@ -62,7 +62,43 @@ def _try_create(name, factory, realtime_adapter, kline_adapter):
         return None
 
 
-def _build_collectors():
+# ------------------------------------------------------------------
+# 延迟初始化：模块级变量初始为 None，首次使用时构建
+# ------------------------------------------------------------------
+
+_collector = None
+_adapter_realtime = None
+_adapter_kline = None
+_tushare_entry = None
+_pipeline_realtime = None
+_pipeline_kline = None
+
+# 扩展 pipeline 模块级变量
+_pipeline_fut_daily = None
+_pipeline_fut_settle = None
+_pipeline_fut_weekly_detail = None
+_pipeline_fut_wsr = None
+_pipeline_fut_holding = None
+_pipeline_fut_price_limit = None
+_pipeline_fut_mapping = None
+_pipeline_akshare_minute = None
+
+_initialized = False
+
+
+def _ensure_collectors():
+    """延迟初始化 collector 和 pipeline。保证应用始终可启动。"""
+    global _initialized
+    global _collector, _adapter_realtime, _adapter_kline, _tushare_entry
+    global _pipeline_realtime, _pipeline_kline
+    global _pipeline_fut_daily, _pipeline_fut_settle
+    global _pipeline_fut_weekly_detail, _pipeline_fut_wsr
+    global _pipeline_fut_holding, _pipeline_fut_price_limit, _pipeline_fut_mapping
+    global _pipeline_akshare_minute
+
+    if _initialized:
+        return
+
     data_source = (DATA_SOURCE or "mock").lower()
     entries = []
     tushare_entry = None
@@ -91,9 +127,15 @@ def _build_collectors():
         if akshare_entry:
             entries.append(akshare_entry)
 
-    if data_source == "mock" or not entries:
+    if not entries:
+        # 生产环境不允许降级 Mock，避免向用户展示伪造行情
+        if ENV == "production":
+            raise RuntimeError(
+                "No data collector is available in production. "
+                "Check DATA_SOURCE, TUSHARE_TOKEN, and network connectivity."
+            )
+        # 非生产环境降级 Mock，保证开发可启动
         from data_collector.mock_collector import MockCollector
-
         mock_entry = _try_create(
             "mock",
             MockCollector,
@@ -102,57 +144,79 @@ def _build_collectors():
         )
         if mock_entry:
             entries.append(mock_entry)
+            logger.critical("All real collectors failed, fallback to MockCollector")
 
     if not entries:
-        raise RuntimeError("No data collector is available")
+        logger.critical("All collectors failed; scheduler will not run any data collection jobs.")
+        _initialized = True
+        return
 
     if len(entries) == 1:
         name, collector, realtime_adapter, kline_adapter = entries[0]
         logger.info("Using %s collector", name)
-        return collector, realtime_adapter, kline_adapter, tushare_entry
+    else:
+        logger.info("Using collector fallback order: %s", " -> ".join(entry[0] for entry in entries))
+        collector = _MappedFallbackCollector(entries)
+        realtime_adapter = None
+        kline_adapter = None
 
-    logger.info("Using collector fallback order: %s", " -> ".join(entry[0] for entry in entries))
-    return _MappedFallbackCollector(entries), None, None, tushare_entry
+    _collector = collector
+    _adapter_realtime = realtime_adapter
+    _adapter_kline = kline_adapter
+    _tushare_entry = tushare_entry
 
-
-_collector, _adapter_realtime, _adapter_kline, _tushare_entry = _build_collectors()
-
-_pipeline_realtime = DataPipeline(
-    collector=_collector,
-    adapter=_adapter_realtime,
-    cleaner=clean_realtime,
-)
-
-_pipeline_kline = DataPipeline(
-    collector=_collector,
-    adapter=_adapter_kline,
-    cleaner=clean_kline,
-)
-
-# 鎵╁睍锛氭湡璐ф棩绾?/ 缁撶畻 / 鍛ㄦ姤 / 浠撳崟 / 鎸佷粨 pipeline锛堜粎 Tushare 鏀寔锛?_pipeline_fut_daily = None
-_pipeline_fut_settle = None
-_pipeline_fut_weekly_detail = None
-_pipeline_fut_wsr = None
-_pipeline_fut_holding = None
-_pipeline_fut_price_limit = None
-
-if _tushare_entry:
-    from data_collector.adapters import (
-        map_tushare_fut_daily, map_tushare_fut_settle,
-        map_tushare_fut_weekly_detail, map_tushare_fut_wsr,
-        map_tushare_fut_holding, map_tushare_ft_limit,
+    _pipeline_realtime = DataPipeline(
+        collector=_collector,
+        adapter=_adapter_realtime,
+        cleaner=clean_realtime,
     )
-    _, _tushare_collector, _, _ = _tushare_entry
-    _pipeline_fut_daily = DataPipeline(collector=_tushare_collector, adapter=map_tushare_fut_daily)
-    _pipeline_fut_settle = DataPipeline(collector=_tushare_collector, adapter=map_tushare_fut_settle)
-    _pipeline_fut_weekly_detail = DataPipeline(collector=_tushare_collector, adapter=map_tushare_fut_weekly_detail)
-    _pipeline_fut_wsr = DataPipeline(collector=_tushare_collector, adapter=map_tushare_fut_wsr)
-    _pipeline_fut_holding = DataPipeline(collector=_tushare_collector, adapter=map_tushare_fut_holding)
-    _pipeline_fut_price_limit = DataPipeline(collector=_tushare_collector, adapter=map_tushare_ft_limit)
+
+    _pipeline_kline = DataPipeline(
+        collector=_collector,
+        adapter=_adapter_kline,
+        cleaner=clean_kline,
+    )
+
+    # 扩展：期货日线 / 结算 / 周报 / 仓单 / 持仓 pipeline（仅 Tushare 支持）
+    if _tushare_entry:
+        from data_collector.adapters import (
+            map_tushare_fut_daily, map_tushare_fut_settle,
+            map_tushare_fut_weekly_detail, map_tushare_fut_wsr,
+            map_tushare_fut_holding, map_tushare_ft_limit,
+            map_tushare_fut_mapping,
+        )
+        _, _tushare_collector, _, _ = _tushare_entry
+        _pipeline_fut_daily = DataPipeline(collector=_tushare_collector, adapter=map_tushare_fut_daily)
+        _pipeline_fut_settle = DataPipeline(collector=_tushare_collector, adapter=map_tushare_fut_settle)
+        _pipeline_fut_weekly_detail = DataPipeline(collector=_tushare_collector, adapter=map_tushare_fut_weekly_detail)
+        _pipeline_fut_wsr = DataPipeline(collector=_tushare_collector, adapter=map_tushare_fut_wsr)
+        _pipeline_fut_holding = DataPipeline(collector=_tushare_collector, adapter=map_tushare_fut_holding)
+        _pipeline_fut_price_limit = DataPipeline(collector=_tushare_collector, adapter=map_tushare_ft_limit)
+        _pipeline_fut_mapping = DataPipeline(collector=_tushare_collector, adapter=map_tushare_fut_mapping)
+
+    # 双系统：AkShare 分钟线专用 Pipeline
+    try:
+        from data_collector.akshare_collector import AkshareCollector
+        from data_collector.adapters import map_akshare_kline
+        _akshare_collector_minute = AkshareCollector()
+        _pipeline_akshare_minute = DataPipeline(
+            collector=_akshare_collector_minute,
+            adapter=map_akshare_kline,
+            cleaner=clean_kline,
+        )
+        logger.info("AkShare minute pipeline ready")
+    except Exception as e:
+        logger.warning("AkShare minute pipeline unavailable: %s", e)
+
+    _initialized = True
 
 
 def refresh_realtime_quotes():
     """Refresh realtime quotes."""
+    _ensure_collectors()
+    if not _pipeline_realtime:
+        logger.warning("Realtime pipeline not available, skipping refresh")
+        return
     logger.info("Refreshing realtime quotes...")
     db = SessionLocal()
     try:
@@ -165,14 +229,19 @@ def refresh_realtime_quotes():
 
 
 def sync_daily_kline():
-    """Sync intraday kline data."""
+    """Sync daily kline data (1d period)."""
+    _ensure_collectors()
+    if not _pipeline_kline:
+        logger.warning("Kline pipeline not available, skipping sync")
+        return
     logger.info("Syncing daily kline...")
     db = SessionLocal()
     try:
         varieties = db.query(VarietyDB).all()
         for v in varieties:
             try:
-                _pipeline_kline.run_kline(v.contract_code, "1h", limit=24)
+                # Use 1d to avoid ft_mins quota limits on free-tier Tushare
+                _pipeline_kline.run_kline(v.contract_code, "1d", limit=30)
             except Exception as e:
                 logger.error(f"Failed to sync kline for {v.contract_code}: {e}")
         logger.info(f"Synced kline for {len(varieties)} varieties")
@@ -221,9 +290,10 @@ scheduler = BackgroundScheduler()
 
 
 def start_scheduler():
+    _ensure_collectors()
     scheduler.add_job(
         refresh_realtime_quotes,
-        IntervalTrigger(seconds=30),
+        IntervalTrigger(seconds=60),
         id="realtime",
         replace_existing=True,
         max_instances=1,
@@ -232,7 +302,7 @@ def start_scheduler():
     )
     scheduler.add_job(
         sync_prices_to_products,
-        IntervalTrigger(seconds=30),
+        IntervalTrigger(seconds=60),
         id="sync_products",
         replace_existing=True,
         max_instances=1,
@@ -250,7 +320,7 @@ def start_scheduler():
     )
     scheduler.add_job(
         sync_minute_kline,
-        IntervalTrigger(minutes=5),
+        IntervalTrigger(minutes=15),
         id="minute_kline",
         replace_existing=True,
         max_instances=1,
@@ -259,14 +329,14 @@ def start_scheduler():
     )
     scheduler.add_job(
         sync_variety_metadata,
-        CronTrigger(day_of_week="sun", hour=2, minute=0),
+        CronTrigger(hour=2, minute=0),
         id="variety_metadata",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
         misfire_grace_time=3600,
     )
-    # 鎵╁睍浠诲姟娉ㄥ唽
+    # 扩展任务注册
     if _pipeline_fut_daily:
         scheduler.add_job(
             sync_fut_daily,
@@ -332,14 +402,21 @@ def start_scheduler():
 
 
 def sync_minute_kline():
-    """Sync recent minute-level kline data."""
-    logger.info("Syncing minute kline...")
+    """Sync recent minute-level kline data via AkShare (dual-system architecture).
+
+    Tushare handles daily+ data; AkShare handles minute-level data independently.
+    """
+    _ensure_collectors()
+    if not _pipeline_akshare_minute:
+        logger.info("Skipping minute kline: AkShare minute pipeline unavailable")
+        return
+    logger.info("Syncing minute kline via AkShare...")
     db = SessionLocal()
     try:
         varieties = db.query(VarietyDB).all()
         for v in varieties:
             try:
-                _pipeline_kline.run_kline(v.contract_code, "1m", limit=5)
+                _pipeline_akshare_minute.run_kline(v.contract_code, "1m", limit=5)
             except Exception as e:
                 logger.error(f"Failed to sync minute kline for {v.contract_code}: {e}")
         logger.info(f"Synced minute kline for {len(varieties)} varieties")
@@ -348,7 +425,7 @@ def sync_minute_kline():
 
 
 # ------------------------------------------------------------------
-# 鎵╁睍锛氭湡璐ф棩绾?/ 缁撶畻 / 鍛ㄦ姤 / 浠撳崟 / 鎸佷粨 瀹氭椂浠诲姟
+# 扩展：期货日线 / 结算 / 周报 / 仓单 / 持仓 定时任务
 # ------------------------------------------------------------------
 
 def _get_ts_code(variety):
@@ -370,6 +447,7 @@ def _get_ts_code(variety):
 
 def sync_fut_daily():
     """Sync recent futures daily bars."""
+    _ensure_collectors()
     if not _pipeline_fut_daily:
         logger.debug("sync_fut_daily skipped: not tushare source")
         return
@@ -395,6 +473,7 @@ def sync_fut_daily():
 
 def sync_fut_settle():
     """Sync futures settlement parameters."""
+    _ensure_collectors()
     if not _pipeline_fut_settle:
         logger.debug("sync_fut_settle skipped: not tushare source")
         return
@@ -409,6 +488,7 @@ def sync_fut_settle():
 
 def sync_fut_weekly_detail():
     """Sync futures weekly trading detail."""
+    _ensure_collectors()
     if not _pipeline_fut_weekly_detail:
         logger.debug("sync_fut_weekly_detail skipped: not tushare source")
         return
@@ -425,6 +505,7 @@ def sync_fut_weekly_detail():
 
 def sync_fut_wsr():
     """Sync futures warehouse receipt data."""
+    _ensure_collectors()
     if not _pipeline_fut_wsr:
         logger.debug("sync_fut_wsr skipped: not tushare source")
         return
@@ -439,6 +520,7 @@ def sync_fut_wsr():
 
 def sync_fut_holding():
     """Sync futures holding rankings."""
+    _ensure_collectors()
     if not _pipeline_fut_holding:
         logger.debug("sync_fut_holding skipped: not tushare source")
         return
@@ -453,6 +535,7 @@ def sync_fut_holding():
 
 def sync_fut_price_limit():
     """Daily sync for futures price limit data."""
+    _ensure_collectors()
     if not _pipeline_fut_price_limit:
         logger.debug("sync_fut_price_limit skipped: not tushare source")
         return
@@ -466,10 +549,18 @@ def sync_fut_price_limit():
 
 
 def sync_variety_metadata():
-    """Framework hook for future variety metadata refresh."""
+    """Update main-contract mapping from Tushare fut_mapping."""
+    _ensure_collectors()
     logger.info("Syncing variety metadata...")
-    # TODO: 浠?Tushare/akshare 鑾峰彇鍚堢害鍒楄〃锛屽姣?VarietyDB 鏇存柊 contract_code
-    logger.info("Variety metadata sync framework ready")
+    if not _pipeline_fut_mapping:
+        logger.debug("sync_variety_metadata skipped: not tushare source")
+        return
+    try:
+        trade_date = datetime.now().strftime("%Y%m%d")
+        stats = _pipeline_fut_mapping.run_fut_mapping(trade_date=trade_date)
+        logger.info(f"Synced variety metadata: {stats}")
+    except Exception as e:
+        logger.error(f"Failed to sync variety metadata: {e}")
 
 
 def shutdown_scheduler():

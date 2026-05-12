@@ -1,6 +1,16 @@
 # 期货交流社区
 
-一个前后端分离的期货品种数据展示与评论社区应用。
+一个前后端分离的期货行情与私密交流社区应用。前端提供登录后的行情工作台、品种筛选、K 线复盘、支撑/阻力标注和个人工作区；后端提供认证、评论、实时行情、K 线、健康检查，以及 Mock / AkShare / Tushare 数据采集流水线。
+
+---
+
+## 当前状态
+
+- 前端：Next.js 14 App Router，默认开发地址 `http://127.0.0.1:3200`
+- 后端：FastAPI，默认开发地址 `http://127.0.0.1:8200`
+- 数据库：开发可用 SQLite；PostgreSQL 16 通过 `docker-compose.yml` 提供
+- K 线：前端使用 `lightweight-charts`，后端支持 `1m/5m/15m/30m/1h/1d/1w`
+- 访问控制：主要页面需要登录，未登录时显示登录引导
 
 ---
 
@@ -8,146 +18,150 @@
 
 | 层级 | 技术 |
 |------|------|
-| 前端 | Next.js 14 + React 18 + TypeScript + Tailwind CSS |
-| 后端 | Python FastAPI + SQLAlchemy + SQLite |
-| 认证 | JWT + OAuth2 |
+| 前端 | Next.js 14.1.0 + React 18 + TypeScript 5.3 + Tailwind CSS 3.4 |
+| 图表与图标 | `lightweight-charts`、`lucide-react` |
+| 后端 | Python 3.11 + FastAPI 0.115 + Uvicorn |
+| ORM / 迁移 | SQLAlchemy 2.0 + Alembic |
+| 数据库 | SQLite（默认开发）/ PostgreSQL 16（可选） |
+| 认证 | JWT + OAuth2 密码流 + bcrypt |
+| 数据采集 | MockCollector / AkShare / Tushare |
+| 定时任务 | APScheduler |
+| 缓存 | 线程安全内存 LRU（Redis 仅预留） |
 
 ---
 
 ## 项目结构
 
-```
+```text
 project_rich_snowball/
-├── frontend/          # 前端：Next.js 应用
-│   ├── app/           # App Router 页面
-│   ├── components/    # React 组件
-│   └── lib/           # API 客户端与工具
+├── frontend/
+│   ├── app/                     # 页面路由：/、/products、/products/[id]、/workspace、/my-comments
+│   ├── components/              # 布局、认证、行情、工作区、UI 组件
+│   ├── hooks/useMarketPolling.ts# 30 秒行情轮询与刷新状态
+│   └── lib/                     # API 客户端与格式化工具
 │
-├── python/            # 后端：FastAPI 应用
-│   ├── main.py        # 主入口文件
-│   ├── init_data.py   # 数据初始化脚本
-│   └── requirements.txt
+├── python/
+│   ├── main.py                  # FastAPI 应用入口，默认 127.0.0.1:8200
+│   ├── config.py                # .env 加载、安全配置、生产环境约束
+│   ├── models.py                # SQLAlchemy 模型
+│   ├── routers/                 # auth/products/comments/varieties/kline/realtime/health
+│   ├── data_collector/          # 在线采集流水线与调度器
+│   ├── tushare_pg_ingest/       # 独立 PostgreSQL 历史数据回填脚本
+│   ├── scripts/                 # 一次性验证/采集辅助脚本
+│   ├── tests/                   # pytest 回归与集成测试
+│   └── alembic/                 # 数据库迁移
 │
-└── src/main/java/     # Java 后端目录（目前仅有空包结构）
+├── docker-compose.yml           # PostgreSQL 16 + Redis 7
+├── .env.example                 # 环境变量模板
+├── FULLSTACK_REVIEW_AND_ITERATION_PLAN_20260509.md # 全栈评审与迭代路线
+├── AGENTS.md                    # AI 编程助手上下文
+└── src/main/java/               # 预留目录，目前无 Java 后端
 ```
 
 ---
 
-## 前端架构
+## 环境变量
 
-- **框架**: Next.js 14 (App Router)
-- **运行端口**: `localhost:3000`
-- **UI 组件库**: `lucide-react`
+复制 `.env.example` 为 `.env`，至少确认以下变量：
 
-### 入口文件
-- `frontend/app/layout.tsx` — 根布局
-- `frontend/app/page.tsx` — 首页（热门品种列表）
-
-### 页面路由
-| 路径 | 说明 |
-|------|------|
-| `/` | 首页，展示热门期货品种卡片 |
-| `/products` | 全部品种列表 |
-| `/products/[id]` | 品种详情 + 社区评论 |
-| `/my-comments` | 当前用户的评论 |
-
-### 核心模块
-- `lib/api.ts` — 封装所有后端 API 调用（登录、注册、品种数据、评论）
-- `components/Navbar.tsx` — 顶部导航栏
-- `components/KlineChart.tsx` — K 线图展示
-
----
-
-## 后端架构
-
-- **框架**: FastAPI
-- **ORM**: SQLAlchemy
-- **数据库**: SQLite (`futures_community.db`)
-- **运行端口**: `localhost:8000`
-
-### 入口文件
-- `python/main.py` — 主入口，启动 Uvicorn 服务器
-
-### 数据模型
-- `UserDB` — 用户表（用户名、邮箱、密码哈希）
-- `ProductDB` — 期货品种表（名称、代码、价格、涨跌幅、分类等）
-- `CommentDB` — 评论表（用户与品种的多对多关联）
-
-### API 接口
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/` | GET | 服务状态与文档链接 |
-| `/api/auth/register` | POST | 用户注册 |
-| `/api/auth/login` | POST | 用户登录（OAuth2 密码流） |
-| `/api/auth/me` | GET | 获取当前登录用户信息 |
-| `/api/products` | GET | 获取全部品种列表 |
-| `/api/products/{id}` | GET | 获取品种详情及评论 |
-| `/api/comments` | POST | 发表评论（需登录） |
-| `/api/comments/user/{username}` | GET | 获取指定用户的评论 |
-
----
-
-## 环境要求
-
-- **Node.js**: >= 18
-- **Python**: >= 3.9
-- **npm**: >= 9
-
----
-
-## 安装与启动
-
-### 1. 克隆或进入项目目录
-
-```bash
-cd project_rich_snowball
+```env
+DATABASE_URL=sqlite:///./futures_community.db
+SECRET_KEY=change-this-to-a-real-secret
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:3200,http://127.0.0.1:3200
+DATA_SOURCE=mock
+ENABLE_SCHEDULER=1
+ENV=development
+HOST=127.0.0.1
+PORT=8200
 ```
 
-### 2. 启动后端
+说明：
+- 生产环境必须使用长度至少 32 的 `SECRET_KEY`，且不能使用 SQLite。
+- 后端优先读取 `CORS_ORIGINS`，也兼容旧变量 `ALLOW_ORIGINS`。
+- 前端 API 地址由 `NEXT_PUBLIC_API_BASE` 控制，代码默认是 `http://127.0.0.1:8200`。
+- 若使用 `DATA_SOURCE=tushare`，需要提供 `TUSHARE_TOKEN`。
 
-```bash
-cd python
+---
 
-# 创建虚拟环境（推荐）
+## 启动后端
+
+```powershell
+cd D:\Code\project_rich_snowball\python
 python -m venv venv
-
-# Windows 激活虚拟环境
 venv\Scripts\activate
-
-# 安装依赖
 pip install -r requirements.txt
-
-# 启动服务
 python main.py
 ```
 
-后端将运行在 `http://localhost:8000`，首次启动会自动初始化模拟数据。
+默认服务地址：
+- API: `http://127.0.0.1:8200`
+- Swagger UI: `http://127.0.0.1:8200/docs`
+- ReDoc: `http://127.0.0.1:8200/redoc`
+- 健康检查: `http://127.0.0.1:8200/health/ready`
 
-API 文档可访问：
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+启动时会执行：
+- `init_db()`：非生产环境自动建表，SQLite 启用 WAL
+- `init_varieties()`：初始化/更新品种元数据
+- `init_mock_data()`：非生产环境插入开发账号和示例评论
+- `start_scheduler()`：按配置启动实时行情、K 线与扩展数据采集
 
-### 3. 启动前端
+---
 
-新开一个终端窗口：
+## 启动前端
 
-```bash
-cd frontend
-
-# 安装依赖
+```powershell
+cd D:\Code\project_rich_snowball\frontend
 npm install
-
-# 启动开发服务器
 npm run dev
 ```
 
-前端将运行在 `http://localhost:3000`。
+默认服务地址：`http://127.0.0.1:3200`
+
+常用命令：
+
+```powershell
+npm run build
+npm run lint
+npx tsc --noEmit
+```
+
+---
+
+## 页面与功能
+
+| 路径 | 说明 |
+|------|------|
+| `/` | 登录后的行情工作台，展示热门品种、领涨观察、刷新状态 |
+| `/products` | 行情中心，支持搜索、分类筛选、涨跌筛选和排序 |
+| `/products/[id]` | 品种详情，展示实时行情、K 线、技术分析、评论、支撑/阻力标注 |
+| `/workspace` | 我的工作区，聚合评论历史、本地价位标注和自选观察入口 |
+| `/my-comments` | 当前用户评论历史 |
+
+支撑/阻力标注目前存储在浏览器 `localStorage`，键名形如 `price-levels:v1:{userId}:{productId}`，不会写入后端数据库。
+
+---
+
+## API 概览
+
+| 接口 | 说明 |
+|------|------|
+| `POST /api/auth/register` | 注册，IP 级限流 |
+| `POST /api/auth/login` | 登录，OAuth2 表单，返回 JWT |
+| `GET /api/auth/me` | 当前用户信息 |
+| `GET /api/products` | 旧兼容品种列表，供当前前端主流程使用 |
+| `GET /api/products/{id}` | 旧兼容品种详情和评论 |
+| `POST /api/comments` | 发表评论，需要登录 |
+| `GET /api/comments/user/{username}` | 用户评论历史 |
+| `GET /api/varieties` | 新数据层品种列表 |
+| `GET /api/realtime/{symbol}` | 实时行情，带内存缓存 |
+| `GET /api/kline/{symbol}` | K 线数据，支持 `period` 和 `limit` |
+| `GET /health` / `/health/ready` / `/health/scheduler` | 存活、就绪、调度器状态 |
 
 ---
 
 ## 开发账号
 
-后端初始化时会自动创建以下测试账号：
+非生产环境首次初始化会创建：
 
 | 用户名 | 密码 |
 |--------|------|
@@ -157,8 +171,67 @@ npm run dev
 
 ---
 
-## 注意事项
+## 测试
 
-- 前端与后端通过 CORS 通信，后端已配置允许 `http://localhost:3000` 访问。
-- `python/init_data.py` 是一个独立的数据初始化脚本，其引用的数据模型与 `main.py` 略有不同，如需使用请根据当前模型做相应调整。
-- `src/main/java/` 目录为预留的 Java 后端模块，目前暂无实质代码。
+后端使用 pytest：
+
+```powershell
+cd D:\Code\project_rich_snowball\python
+$env:SECRET_KEY="test-secret-key"
+$env:ENABLE_SCHEDULER="0"
+pytest tests -v
+```
+
+重点测试文件：
+- `test_p0_fixes.py`：安全、配置、登录、评论、缓存、健康检查回归
+- `test_phase1_3_integration.py`：Schema、模型关系、新旧 API 兼容
+- `test_cors_variable.py`：`CORS_ORIGINS` / `ALLOW_ORIGINS` 兼容
+- `test_kline_seeded_api.py`：K 线 API 行为
+- `test_comment_validation_and_pagination.py`：评论校验和分页
+- `test_cache_orm_detached.py`：缓存避免 ORM detached session
+- `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
+- `test_production_config.py`：生产环境安全约束
+
+前端当前没有 Jest/Vitest/Playwright 自动化测试。修改前端后至少运行：
+
+```powershell
+cd D:\Code\project_rich_snowball\frontend
+npx tsc --noEmit
+npm run lint
+```
+
+---
+
+## PostgreSQL 与历史数据
+
+启动基础设施：
+
+```powershell
+cd D:\Code\project_rich_snowball
+docker-compose up -d postgres redis
+```
+
+本仓库的 PostgreSQL 端口映射为 `15432:5432`。使用 PG 时常见连接串：
+
+```env
+DATABASE_URL=postgresql://futures:futures123@localhost:15432/futures_community
+```
+
+迁移：
+
+```powershell
+cd D:\Code\project_rich_snowball\python
+alembic upgrade head
+```
+
+Tushare 历史回填脚本位于 `python/tushare_pg_ingest/`，包含日线、周/月线、结算、仓单、持仓、涨跌停、主力映射、周度统计等入口。详见 [python/tushare_pg_ingest/README.md](python/tushare_pg_ingest/README.md)。
+
+---
+
+## 常见注意事项
+
+- `python/init_data.py` 已不是当前主流程的一部分，启动初始化在 `data_collector/init_mock_data.py` 和 `init_varieties.py`。
+- `docker-compose.yml` 中 backend 服务仍是注释状态，默认只启动 PostgreSQL 和 Redis。
+- Redis 依赖未接入运行时代码，当前实时行情缓存使用内存 LRU。
+- `DATA_SOURCE=auto` 或真实数据源初始化失败时，非生产环境会降级到 Mock；生产环境不允许降级 Mock。
+- 当前 Git 工作区可能包含 `.next`、`node_modules`、`venv` 等生成物变更，提交前需要谨慎筛选。

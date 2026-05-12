@@ -1,141 +1,241 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import Navbar from '@/components/Navbar'
+import { useCallback, useMemo, useState } from 'react'
+import AppShell from '@/components/layout/AppShell'
+import LoginRequired from '@/components/auth/LoginRequired'
+import { useAuth } from '@/components/auth/AuthProvider'
+import EmptyState from '@/components/ui/EmptyState'
+import ErrorState from '@/components/ui/ErrorState'
+import RefreshStatus from '@/components/activity/RefreshStatus'
+import QuoteTable, { QuoteSortField, QuoteSortOrder } from '@/components/market/QuoteTable'
 import { api, Product } from '@/lib/api'
-import { TrendingUp, TrendingDown, ArrowUpDown } from 'lucide-react'
+import { formatInteger } from '@/lib/format'
+import { useMarketPolling } from '@/hooks/useMarketPolling'
+import { Filter, Search, X } from 'lucide-react'
+
+type DirectionFilter = 'all' | 'up' | 'down'
+
+const EMPTY_PRODUCTS: Product[] = []
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  const [sortBy, setSortBy] = useState<'change_percent' | 'volume' | 'current_price'>('change_percent')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const [sortBy, setSortBy] = useState<QuoteSortField>('change_percent')
+  const [sortOrder, setSortOrder] = useState<QuoteSortOrder>('desc')
+  const [searchText, setSearchText] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all')
 
-  useEffect(() => {
-    const load = () => {
-      api.getProducts().then(data => {
-        setProducts(data)
-        setLoading(false)
-      }).catch(() => setLoading(false))
-    }
-    load()
-    const interval = setInterval(load, 30000)
-    return () => clearInterval(interval)
+  const fetchProducts = useCallback(() => {
+    return api.getProducts()
   }, [])
-
-  const sortedProducts = [...products].sort((a, b) => {
-    const aVal = a[sortBy] ?? 0
-    const bVal = b[sortBy] ?? 0
-    return sortOrder === 'desc' ? bVal - aVal : aVal - bVal
+  const {
+    data,
+    loading,
+    error,
+    heartbeat,
+    refresh,
+  } = useMarketPolling<Product[]>({
+    enabled: !authLoading && isAuthenticated,
+    fetcher: fetchProducts,
+    errorMessage: '品种列表加载失败',
   })
+  const products = data ?? EMPTY_PRODUCTS
 
-  const handleSort = (field: 'change_percent' | 'volume' | 'current_price') => {
+  const categories = useMemo(() => {
+    return Array.from(new Set(products.map((product) => product.category).filter(Boolean) as string[])).sort()
+  }, [products])
+
+  const filteredProducts = useMemo(() => {
+    const keyword = searchText.trim().toLowerCase()
+
+    return products.filter((product) => {
+      const matchesKeyword = keyword.length === 0
+        || product.name.toLowerCase().includes(keyword)
+        || product.symbol.toLowerCase().includes(keyword)
+        || (product.category ?? '').toLowerCase().includes(keyword)
+      const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter
+      const change = product.change_percent ?? 0
+      const matchesDirection = directionFilter === 'all'
+        || (directionFilter === 'up' && change >= 0)
+        || (directionFilter === 'down' && change < 0)
+
+      return matchesKeyword && matchesCategory && matchesDirection
+    })
+  }, [categoryFilter, directionFilter, products, searchText])
+
+  const sortedProducts = useMemo(() => {
+    return [...filteredProducts].sort((a, b) => {
+      const aVal = a[sortBy] ?? 0
+      const bVal = b[sortBy] ?? 0
+      return sortOrder === 'desc' ? bVal - aVal : aVal - bVal
+    })
+  }, [filteredProducts, sortBy, sortOrder])
+
+  const upCount = useMemo(
+    () => products.filter((product) => (product.change_percent ?? 0) >= 0).length,
+    [products],
+  )
+  const downCount = Math.max(products.length - upCount, 0)
+  const totalVolume = useMemo(
+    () => products.reduce((sum, product) => sum + (product.volume ?? 0), 0),
+    [products],
+  )
+  const hasActiveFilter = searchText.trim() !== '' || categoryFilter !== 'all' || directionFilter !== 'all'
+
+  const handleSort = (field: QuoteSortField) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')
-    } else {
-      setSortBy(field)
-      setSortOrder('desc')
+      return
     }
+
+    setSortBy(field)
+    setSortOrder('desc')
   }
 
-  const SortButton = ({ field, label }: { field: 'change_percent' | 'volume' | 'current_price'; label: string }) => (
-    <button
-      onClick={() => handleSort(field)}
-      className={`flex items-center gap-1 hover:text-white transition-colors ${
-        sortBy === field ? 'text-cyan-400' : 'text-slate-400'
-      }`}
-    >
-      {label}
-      {sortBy === field && (
-        <ArrowUpDown size={14} className={sortOrder === 'asc' ? 'rotate-180' : ''} />
-      )}
-    </button>
-  )
+  const resetFilters = () => {
+    setSearchText('')
+    setCategoryFilter('all')
+    setDirectionFilter('all')
+  }
 
   return (
-    <div className="min-h-screen bg-slate-900">
-      <Navbar />
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-white mb-2">品种列表</h1>
-          <p className="text-slate-400">查看所有期货品种数据</p>
+    <AppShell>
+      {authLoading ? (
+        <div className="rounded-lg border border-slate-800 bg-[#10161d] p-8 text-center text-slate-400">
+          正在确认登录状态...
         </div>
-
-        {loading ? (
-          <div className="bg-slate-800 rounded-xl overflow-hidden">
-            <div className="animate-pulse p-4 space-y-4">
-              {[...Array(10)].map((_, i) => (
-                <div key={i} className="h-12 bg-slate-700 rounded"></div>
-              ))}
+      ) : !isAuthenticated ? (
+        <LoginRequired />
+      ) : (
+        <div className="space-y-5">
+          <section className="rounded-lg border border-slate-800 bg-[#10161d] p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-white">行情中心</h1>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  搜索和筛选期货品种，按价格、涨跌幅或成交量排序。
+                </p>
+              </div>
+              <RefreshStatus heartbeat={heartbeat} onRefresh={refresh} className="lg:min-w-[360px]" />
             </div>
-          </div>
-        ) : (
-          <div className="bg-slate-800 rounded-xl overflow-hidden border border-slate-700">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-700">
-                  <th className="text-left px-4 py-3 text-sm font-medium text-slate-400">品种</th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-slate-400">
-                    <SortButton field="current_price" label="最新价" />
-                  </th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-slate-400">
-                    <SortButton field="change_percent" label="涨跌幅" />
-                  </th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-slate-400">
-                    <SortButton field="volume" label="成交量" />
-                  </th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-slate-400">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedProducts.map(product => {
-                  const isUp = (product.change_percent ?? 0) >= 0
-                  return (
-                    <tr
-                      key={product.id}
-                      className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-white font-medium">{product.name}</span>
-                          <span className="text-slate-500 text-sm">{product.symbol}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={`font-mono ${isUp ? 'up' : 'down'}`}>
-                          {product.current_price?.toLocaleString() ?? '--'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className={`flex items-center justify-end gap-1 ${isUp ? 'up' : 'down'}`}>
-                          {isUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                          <span className="font-mono">
-                            {isUp ? '+' : ''}{(product.change_percent ?? 0).toFixed(2)}%
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className="font-mono text-slate-300">
-                          {product.volume?.toLocaleString() ?? '-'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Link
-                          href={`/products/${product.id}`}
-                          className="text-cyan-400 hover:text-cyan-300 text-sm transition-colors"
-                        >
-                          查看详情
-                        </Link>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </main>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-4">
+              <Metric label="品种数" value={formatInteger(products.length)} />
+              <Metric label="上涨" value={formatInteger(upCount)} tone="up" />
+              <Metric label="下跌" value={formatInteger(downCount)} tone="down" />
+              <Metric label="总成交量" value={formatInteger(totalVolume)} />
+            </div>
+
+            <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_auto]">
+              <label className="relative block">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="search"
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
+                  placeholder="搜索品种名称、代码或分类"
+                  className="h-10 w-full rounded-lg border border-slate-700 bg-black/30 pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-red-800"
+                />
+              </label>
+
+              <label className="relative block">
+                <Filter size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <select
+                  value={categoryFilter}
+                  onChange={(event) => setCategoryFilter(event.target.value)}
+                  className="h-10 w-full appearance-none rounded-lg border border-slate-700 bg-black/30 pl-9 pr-3 text-sm text-white outline-none transition focus:border-red-800"
+                >
+                  <option value="all">全部分类</option>
+                  {categories.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+              </label>
+
+              <select
+                value={directionFilter}
+                onChange={(event) => setDirectionFilter(event.target.value as DirectionFilter)}
+                className="h-10 rounded-lg border border-slate-700 bg-black/30 px-3 text-sm text-white outline-none transition focus:border-red-800"
+              >
+                <option value="all">全部涨跌</option>
+                <option value="up">上涨品种</option>
+                <option value="down">下跌品种</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={resetFilters}
+                disabled={!hasActiveFilter}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 text-sm text-slate-300 transition hover:border-red-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <X size={15} />
+                清除
+              </button>
+            </div>
+          </section>
+
+          {loading ? (
+            <TableSkeleton />
+          ) : error ? (
+            <ErrorState message={error} onRetry={refresh} />
+          ) : products.length === 0 ? (
+            <EmptyState
+              icon={Search}
+              title="暂无品种数据"
+              description="当前没有可展示的期货品种，请稍后重试。"
+            />
+          ) : sortedProducts.length === 0 ? (
+            <EmptyState
+              icon={Search}
+              title="没有匹配的品种"
+              description="调整搜索词或筛选条件后再试。"
+              action={
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+                >
+                  清除筛选
+                </button>
+              }
+            />
+          ) : (
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+                <span>当前显示 {sortedProducts.length} / {products.length} 个品种</span>
+                <span>每 30 秒自动刷新</span>
+              </div>
+              <QuoteTable
+                products={sortedProducts}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSort={handleSort}
+              />
+            </section>
+          )}
+        </div>
+      )}
+    </AppShell>
+  )
+}
+
+function Metric({ label, value, tone }: { label: string; value: string; tone?: 'up' | 'down' }) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-black/30 p-3">
+      <div className="text-xs text-slate-500">{label}</div>
+      <div className={`mt-2 font-mono text-xl font-semibold ${tone ?? 'text-white'}`}>{value}</div>
+    </div>
+  )
+}
+
+function TableSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-800 bg-[#10161d] p-4">
+      <div className="space-y-3">
+        {Array.from({ length: 8 }).map((_, index) => (
+          <div key={index} className="h-12 animate-pulse rounded bg-slate-800" />
+        ))}
+      </div>
     </div>
   )
 }

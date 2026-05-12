@@ -12,7 +12,7 @@ services:
       POSTGRES_PASSWORD: futures123
       POSTGRES_DB: futures_community
     ports:
-      - "5432:5432"
+      - "15432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # 如需初始化脚本，可挂载：
@@ -39,7 +39,8 @@ services:
   # backend:
   #   build:
   #     context: ./python
-  ices: ["postgres"]
+  #   depends_on:
+  #     - postgres
   #   environment:
   #     - DATABASE_URL=postgresql://futures:futures123@postgres:5432/futures_community
   #     - REDIS_URL=redis://redis:6379/0

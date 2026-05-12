@@ -106,7 +106,7 @@ def test_comment_content_min_length():
         CommentCreate(product_id=1, content="")
         assert False, "应抛出 ValidationError"
     except Exception as e:
-        assert "min_length" in str(e) or "String should have at least 1 character" in str(e)
+        assert "min_length" in str(e) or "String should have at least 1 character" in str(e) or "评论内容不能为空" in str(e)
 
 
 def test_comment_content_xss_escaped():

@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8200'
 
 export interface Product {
   id: number
@@ -22,6 +22,7 @@ export interface Comment {
   user_id: number
   username: string
   content: string
+  price_level_id: number | null
   created_at: string
 }
 
@@ -68,6 +69,35 @@ export interface Variety {
   commission: number | null
 }
 
+export interface PriceLevel {
+  id: number
+  user_id: number
+  variety_id: number
+  type: 'support' | 'resistance'
+  price: string
+  note: string | null
+  source: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Watchlist {
+  id: number
+  user_id: number
+  variety_id: number
+  variety_symbol: string
+  variety_name: string
+  notes: string | null
+  is_notified: boolean
+  created_at: string
+}
+
+export interface WorkspaceSummary {
+  price_levels: PriceLevel[]
+  watchlists: Watchlist[]
+  recent_comments: Comment[]
+}
+
 export interface AuthState {
   user: User | null
   token: string | null
@@ -79,10 +109,12 @@ class ApiService {
 
   setToken(token: string | null) {
     this.token = token
-    if (token) {
-      localStorage.setItem('token', token)
-    } else {
-      localStorage.removeItem('token')
+    if (typeof window !== 'undefined') {
+      if (token) {
+        localStorage.setItem('token', token)
+      } else {
+        localStorage.removeItem('token')
+      }
     }
   }
 
@@ -111,6 +143,9 @@ class ApiService {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Request failed' }))
+      if (response.status === 401) {
+        this.setToken(null)
+      }
       throw new Error(error.message || error.detail || 'Request failed')
     }
 
@@ -159,10 +194,10 @@ class ApiService {
     return this.request<ProductDetail>(`/api/products/${id}`)
   }
 
-  async createComment(productId: number, content: string): Promise<Comment> {
+  async createComment(productId: number, content: string, priceLevelId?: number): Promise<Comment> {
     return this.request<Comment>('/api/comments', {
       method: 'POST',
-      body: JSON.stringify({ product_id: productId, content }),
+      body: JSON.stringify({ product_id: productId, content, price_level_id: priceLevelId }),
     })
   }
 
@@ -186,6 +221,64 @@ class ApiService {
     if (params?.limit !== undefined) searchParams.append('limit', String(params.limit))
     const qs = searchParams.toString()
     return this.request<Variety[]>(`/api/varieties${qs ? '?' + qs : ''}`)
+  }
+
+  // ========== Price Levels ==========
+  async getPriceLevels(varietyId?: number, type?: 'support' | 'resistance'): Promise<PriceLevel[]> {
+    const searchParams = new URLSearchParams()
+    if (varietyId !== undefined) searchParams.append('variety_id', String(varietyId))
+    if (type) searchParams.append('type', type)
+    const qs = searchParams.toString()
+    return this.request<PriceLevel[]>(`/api/price-levels${qs ? '?' + qs : ''}`)
+  }
+
+  async createPriceLevel(varietyId: number, type: 'support' | 'resistance', price: string, note?: string): Promise<PriceLevel> {
+    return this.request<PriceLevel>('/api/price-levels', {
+      method: 'POST',
+      body: JSON.stringify({ variety_id: varietyId, type, price, note }),
+    })
+  }
+
+  async updatePriceLevel(id: number, updates: { price?: string; note?: string }): Promise<PriceLevel> {
+    return this.request<PriceLevel>(`/api/price-levels/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    })
+  }
+
+  async deletePriceLevel(id: number): Promise<void> {
+    return this.request<void>(`/api/price-levels/${id}`, { method: 'DELETE' })
+  }
+
+  // ========== Watchlists ==========
+  async getWatchlists(varietyId?: number): Promise<Watchlist[]> {
+    const searchParams = new URLSearchParams()
+    if (varietyId !== undefined) searchParams.append('variety_id', String(varietyId))
+    const qs = searchParams.toString()
+    return this.request<Watchlist[]>(`/api/watchlists${qs ? '?' + qs : ''}`)
+  }
+
+  async createWatchlist(varietyId: number, notes?: string): Promise<Watchlist> {
+    return this.request<Watchlist>('/api/watchlists', {
+      method: 'POST',
+      body: JSON.stringify({ variety_id: varietyId, notes }),
+    })
+  }
+
+  async updateWatchlist(id: number, updates: { notes?: string; is_notified?: boolean }): Promise<Watchlist> {
+    return this.request<Watchlist>(`/api/watchlists/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    })
+  }
+
+  async deleteWatchlist(id: number): Promise<void> {
+    return this.request<void>(`/api/watchlists/${id}`, { method: 'DELETE' })
+  }
+
+  // ========== Workspace ==========
+  async getWorkspace(): Promise<WorkspaceSummary> {
+    return this.request<WorkspaceSummary>('/api/workspace/me')
   }
 
   logout() {
