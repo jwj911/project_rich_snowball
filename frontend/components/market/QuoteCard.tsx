@@ -1,14 +1,16 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import PriceChange from '@/components/market/PriceChange'
+import PriceFlash from '@/components/market/PriceFlash'
 import { Product } from '@/lib/api'
 import { formatDateTime, formatInteger, formatNumber, getChangeTone } from '@/lib/format'
+import { memo } from 'react'
 
 interface QuoteCardProps {
   product: Product
 }
 
-export default function QuoteCard({ product }: QuoteCardProps) {
+function QuoteCard({ product }: QuoteCardProps) {
   const tone = getChangeTone(product.change_percent)
 
   return (
@@ -29,9 +31,9 @@ export default function QuoteCard({ product }: QuoteCardProps) {
 
       <div className="mt-4 flex items-end justify-between gap-3">
         <div>
-          <div className={`font-mono text-2xl font-bold ${tone}`}>
+          <PriceFlash value={product.current_price} className={`inline-block font-mono text-2xl font-bold ${tone}`}>
             {formatNumber(product.current_price)}
-          </div>
+          </PriceFlash>
           <PriceChange value={product.change_percent} className="mt-1 text-sm" />
         </div>
         <div className="text-right text-xs text-slate-500">
@@ -53,3 +55,5 @@ export default function QuoteCard({ product }: QuoteCardProps) {
     </Link>
   )
 }
+
+export default memo(QuoteCard)

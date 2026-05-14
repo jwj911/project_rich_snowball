@@ -71,6 +71,21 @@ def init_mock_data():
                     rows = collector.fetch_kline(variety.contract_code, period, limit=limit)
                     insert_kline_bulk(db, rows, period)
 
+        # 初始化实时行情数据（从 products 同步，确保 /api/realtime/{symbol} 可用）
+        for product in db.query(ProductDB).all():
+            variety = db.query(VarietyDB).filter(VarietyDB.symbol == product.symbol).first()
+            if variety and not db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).first():
+                db.add(RealtimeQuoteDB(
+                    variety_id=variety.id,
+                    current_price=product.current_price,
+                    change_percent=product.change_percent,
+                    open_price=product.open_price,
+                    high=product.high,
+                    low=product.low,
+                    volume=product.volume,
+                    updated_at=datetime.now(),
+                ))
+
         db.commit()
         print("模拟数据初始化完成")
     finally:

@@ -317,12 +317,12 @@ function LoginModal({
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="rounded-lg bg-red-500/10 p-2 text-sm text-red-300">{error}</div>}
         <div>
-          <label className="mb-1 block text-sm text-slate-400">用户名</label>
-          <Input type="text" value={username} onChange={(event) => setUsername(event.target.value)} required />
+          <label htmlFor="login-username" className="mb-1 block text-sm text-slate-400">用户名</label>
+          <Input id="login-username" type="text" value={username} onChange={(event) => setUsername(event.target.value)} required />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-slate-400">密码</label>
-          <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          <label htmlFor="login-password" className="mb-1 block text-sm text-slate-400">密码</label>
+          <Input id="login-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
         </div>
         <Button type="submit" isLoading={loading} className="w-full">
           登录
@@ -366,16 +366,16 @@ function RegisterModal({ onClose, onSuccess }: { onClose: () => void; onSuccess:
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="rounded-lg bg-red-500/10 p-2 text-sm text-red-300">{error}</div>}
         <div>
-          <label className="mb-1 block text-sm text-slate-400">用户名</label>
-          <Input type="text" value={username} onChange={(event) => setUsername(event.target.value)} required />
+          <label htmlFor="register-username" className="mb-1 block text-sm text-slate-400">用户名</label>
+          <Input id="register-username" type="text" value={username} onChange={(event) => setUsername(event.target.value)} required />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-slate-400">邮箱</label>
-          <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+          <label htmlFor="register-email" className="mb-1 block text-sm text-slate-400">邮箱</label>
+          <Input id="register-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-slate-400">密码</label>
-          <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          <label htmlFor="register-password" className="mb-1 block text-sm text-slate-400">密码</label>
+          <Input id="register-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
         </div>
         <Button type="submit" isLoading={loading} className="w-full">
           注册

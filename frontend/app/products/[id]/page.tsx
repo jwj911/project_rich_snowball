@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import AppShell from '@/components/layout/AppShell'
 import KlineChart from '@/components/KlineChart'
@@ -10,13 +10,10 @@ import EmptyState from '@/components/ui/EmptyState'
 import ErrorState from '@/components/ui/ErrorState'
 import PriceChange from '@/components/market/PriceChange'
 import TechnicalAnalysisPanel from '@/components/market/TechnicalAnalysisPanel'
-import { usePriceLevels } from '@/hooks/usePriceLevels'
 import { api, Comment, KlineData, Product, RealtimeQuote } from '@/lib/api'
 import { formatDateTime, formatInteger, formatNumber, getChangeTone } from '@/lib/format'
 import {
   ArrowLeft,
-  Bookmark,
-  BookmarkCheck,
   CheckCircle2,
   CircleDollarSign,
   RefreshCw,
@@ -26,13 +23,6 @@ import {
 } from 'lucide-react'
 
 type KlinePeriod = '1m' | '5m' | '15m' | '30m' | '1h' | '1d' | '1w'
-type KlineSource = 'continuous' | 'main' | 'single'
-
-const KLINE_SOURCES: Array<{ value: KlineSource; label: string }> = [
-  { value: 'continuous', label: '连续K线' },
-  { value: 'main', label: '主力合约' },
-  { value: 'single', label: '单合约' },
-]
 
 const KLINE_PERIODS: Array<{ value: KlinePeriod; label: string }> = [
   { value: '1m', label: '1分' },
@@ -52,46 +42,6 @@ const KLINE_PERIOD_LIMITS: Record<KlinePeriod, number> = {
   '1h': 100,
   '1d': 90,
   '1w': 90,
-}
-
-async function loadKlineBySource(
-  symbol: string,
-  source: KlineSource,
-  period: KlinePeriod,
-): Promise<{ rows: KlineData[]; period: KlinePeriod; notice: string | null }> {
-  const limit = KLINE_PERIOD_LIMITS[period]
-  try {
-    let rows: KlineData[]
-    switch (source) {
-      case 'continuous':
-        rows = await api.getContinuousKline(symbol, period, undefined, undefined, limit)
-        break
-      case 'main':
-        rows = await api.getMainContractKline(symbol, period, undefined, undefined, limit)
-        break
-      case 'single':
-      default:
-        rows = await api.getKline(symbol, period, limit)
-        break
-    }
-    if (rows.length > 0) {
-      return { rows, period, notice: null }
-    }
-    const sourceLabel = KLINE_SOURCES.find((s) => s.value === source)?.label ?? source
-    let notice = `${sourceLabel}（${period}）暂无 K 线数据`
-    if (source === 'continuous') {
-      notice += '，可尝试切换至主力合约或单合约'
-    } else if (source === 'main') {
-      notice += '，可尝试切换至单合约'
-    }
-    return { rows, period, notice }
-  } catch (err) {
-    return {
-      rows: [],
-      period,
-      notice: err instanceof Error ? err.message : 'K 线数据加载失败',
-    }
-  }
 }
 
 async function loadKlineWithFallback(symbol: string, period: KlinePeriod) {
@@ -123,29 +73,23 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const [error, setError] = useState<string | null>(null)
   const [commentError, setCommentError] = useState<string | null>(null)
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [supportLevels, setSupportLevels] = useState<number[]>([])
+  const [resistanceLevels, setResistanceLevels] = useState<number[]>([])
   const [newSupport, setNewSupport] = useState('')
   const [newResistance, setNewResistance] = useState('')
   const [klineData, setKlineData] = useState<KlineData[]>([])
   const [selectedKlinePeriod, setSelectedKlinePeriod] = useState<KlinePeriod>('1d')
   const [displayedKlinePeriod, setDisplayedKlinePeriod] = useState<KlinePeriod>('1d')
-  const [selectedKlineSource, setSelectedKlineSource] = useState<KlineSource>('continuous')
-  const [displayedKlineSource, setDisplayedKlineSource] = useState<KlineSource>('continuous')
   const [klineNotice, setKlineNotice] = useState<string | null>(null)
   const [isKlineLoading, setIsKlineLoading] = useState(false)
   const [realtime, setRealtime] = useState<RealtimeQuote | null>(null)
-  const [varietyId, setVarietyId] = useState<number | null>(null)
-  const [isInWatchlist, setIsInWatchlist] = useState(false)
-  const [watchlistId, setWatchlistId] = useState<number | null>(null)
+  const [levelsLoaded, setLevelsLoaded] = useState(false)
+  const pollingInFlightRef = useRef(false)
 
-  const {
-    supportLevels,
-    resistanceLevels,
-    levelsLoaded,
-    addSupport,
-    addResistance,
-    removeSupport,
-    removeResistance,
-  } = usePriceLevels(varietyId, user?.id ?? null, productId)
+  const levelsStorageKey = useMemo(() => {
+    if (!Number.isFinite(productId) || !user) return null
+    return `price-levels:v1:${user.id}:${productId}`
+  }, [productId, user])
 
   const loadData = useCallback(async (showLoading = true) => {
     if (!Number.isFinite(productId)) {
@@ -165,13 +109,6 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
       if (data.product?.symbol) {
         const quote = await api.getRealtime(data.product.symbol).catch(() => null)
         setRealtime(quote)
-
-        try {
-          const variety = await api.getVariety(data.product.symbol)
-          setVarietyId(variety.id)
-        } catch {
-          setVarietyId(null)
-        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '品种详情加载失败')
@@ -191,6 +128,9 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     if (!Number.isFinite(productId)) return
 
     const interval = setInterval(async () => {
+      if (pollingInFlightRef.current) return
+      pollingInFlightRef.current = true
+
       try {
         const data = await api.getProduct(productId)
         setProduct(data.product)
@@ -200,6 +140,8 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
         }
       } catch {
         // 详情页轮询失败时保留当前画面，避免打断阅读。
+      } finally {
+        pollingInFlightRef.current = false
       }
     }, 30000)
 
@@ -213,19 +155,17 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     setIsKlineLoading(true)
     setKlineNotice(null)
 
-    loadKlineBySource(product.symbol, selectedKlineSource, selectedKlinePeriod)
+    loadKlineWithFallback(product.symbol, selectedKlinePeriod)
       .then((kline) => {
         if (cancelled) return
         setKlineData(kline.rows)
         setDisplayedKlinePeriod(kline.period)
-        setDisplayedKlineSource(selectedKlineSource)
         setKlineNotice(kline.notice)
       })
       .catch((err) => {
         if (cancelled) return
         setKlineData([])
         setDisplayedKlinePeriod(selectedKlinePeriod)
-        setDisplayedKlineSource(selectedKlineSource)
         setKlineNotice(err instanceof Error ? err.message : 'K 线数据加载失败')
       })
       .finally(() => {
@@ -237,35 +177,60 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, product?.symbol, selectedKlinePeriod, selectedKlineSource])
+  }, [isAuthenticated, product?.symbol, selectedKlinePeriod])
 
-  // 检查自选状态
   useEffect(() => {
-    if (!varietyId) return
-    let cancelled = false
+    setLevelsLoaded(false)
 
-    api.getWatchlists(varietyId)
-      .then((list) => {
-        if (cancelled) return
-        if (list.length > 0) {
-          setIsInWatchlist(true)
-          setWatchlistId(list[0].id)
-        } else {
-          setIsInWatchlist(false)
-          setWatchlistId(null)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setIsInWatchlist(false)
-          setWatchlistId(null)
-        }
-      })
-
-    return () => {
-      cancelled = true
+    if (!levelsStorageKey || typeof window === 'undefined') {
+      setSupportLevels([])
+      setResistanceLevels([])
+      setLevelsLoaded(true)
+      return
     }
-  }, [varietyId])
+
+    try {
+      const rawLevels = window.localStorage.getItem(levelsStorageKey)
+      if (!rawLevels) {
+        setSupportLevels([])
+        setResistanceLevels([])
+        return
+      }
+
+      const parsed = JSON.parse(rawLevels) as {
+        supportLevels?: unknown
+        resistanceLevels?: unknown
+      }
+
+      const savedSupport = Array.isArray(parsed.supportLevels)
+        ? parsed.supportLevels.filter(Number.isFinite)
+        : []
+      const savedResistance = Array.isArray(parsed.resistanceLevels)
+        ? parsed.resistanceLevels.filter(Number.isFinite)
+        : []
+
+      setSupportLevels(savedSupport.sort((a, b) => a - b))
+      setResistanceLevels(savedResistance.sort((a, b) => b - a))
+    } catch {
+      setSupportLevels([])
+      setResistanceLevels([])
+    } finally {
+      setLevelsLoaded(true)
+    }
+  }, [levelsStorageKey])
+
+  useEffect(() => {
+    if (!levelsLoaded || !levelsStorageKey || typeof window === 'undefined') return
+
+    window.localStorage.setItem(
+      levelsStorageKey,
+      JSON.stringify({
+        supportLevels,
+        resistanceLevels,
+        updatedAt: new Date().toISOString(),
+      }),
+    )
+  }, [levelsLoaded, levelsStorageKey, resistanceLevels, supportLevels])
 
   const displayPrice = realtime?.current_price ?? product?.current_price
   const displayChange = realtime?.change_percent ?? product?.change_percent
@@ -279,6 +244,18 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     () => [...resistanceLevels].sort((a, b) => b - a),
     [resistanceLevels],
   )
+
+  const addSupport = (price: number) => {
+    if (Number.isFinite(price) && !supportLevels.includes(price)) {
+      setSupportLevels((levels) => [...levels, price].sort((a, b) => a - b))
+    }
+  }
+
+  const addResistance = (price: number) => {
+    if (Number.isFinite(price) && !resistanceLevels.includes(price)) {
+      setResistanceLevels((levels) => [...levels, price].sort((a, b) => b - a))
+    }
+  }
 
   const submitLevel = (value: string, type: 'support' | 'resistance') => {
     const price = Number.parseFloat(value)
@@ -336,17 +313,6 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                   <h1 className="text-2xl font-bold text-white">{product.name}</h1>
                   <span className="font-mono text-sm text-slate-500">{product.symbol}</span>
                   {product.category && <span className="rounded border border-slate-700 px-2 py-0.5 text-xs text-slate-400">{product.category}</span>}
-                  {varietyId && (
-                    <WatchlistButton
-                      varietyId={varietyId}
-                      isInWatchlist={isInWatchlist}
-                      watchlistId={watchlistId}
-                      onToggle={(inList, id) => {
-                        setIsInWatchlist(inList)
-                        setWatchlistId(id)
-                      }}
-                    />
-                  )}
                 </div>
               </div>
 
@@ -362,33 +328,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
               <section className="min-w-0 space-y-5">
                 <div className="min-h-[420px] space-y-3">
                   <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {KLINE_SOURCES.map((source) => {
-                        const isSelected = selectedKlineSource === source.value
-                        return (
-                          <button
-                            key={source.value}
-                            type="button"
-                            disabled={isKlineLoading}
-                            onClick={() => setSelectedKlineSource(source.value)}
-                            className={`h-8 rounded border px-3 text-sm transition ${
-                              isSelected
-                                ? 'border-amber-500 bg-amber-500/15 text-amber-200'
-                                : 'border-slate-700 bg-black/20 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-                            } disabled:cursor-wait disabled:opacity-60`}
-                            title={
-                              source.value === 'continuous'
-                                ? '按主力合约切换拼接的连续价格序列'
-                                : source.value === 'main'
-                                  ? '当前主力合约的独立 K 线'
-                                  : '单品种标准 K 线'
-                            }
-                          >
-                            {source.label}
-                          </button>
-                        )
-                      })}
-                      <div className="mx-1 hidden h-5 w-px bg-slate-700 sm:block" />
+                    <div className="flex flex-wrap gap-2">
                       {KLINE_PERIODS.map((period) => {
                         const isSelected = selectedKlinePeriod === period.value
                         return (
@@ -411,9 +351,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                     <div className="flex items-center gap-2 text-xs text-slate-500">
                       {isKlineLoading && <RefreshCw size={13} className="animate-spin text-slate-400" />}
                       <span>
-                        {KLINE_SOURCES.find((s) => s.value === displayedKlineSource)?.label ?? displayedKlineSource}
-                        ·
-                        {KLINE_PERIODS.find((period) => period.value === displayedKlinePeriod)?.label ?? displayedKlinePeriod}
+                        当前显示：{KLINE_PERIODS.find((period) => period.value === displayedKlinePeriod)?.label ?? displayedKlinePeriod}
                       </span>
                     </div>
                   </div>
@@ -431,8 +369,8 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                     resistanceLevels={sortedResistanceLevels}
                     onAddSupport={addSupport}
                     onAddResistance={addResistance}
-                    onRemoveSupport={removeSupport}
-                    onRemoveResistance={removeResistance}
+                    onRemoveSupport={(price) => setSupportLevels((levels) => levels.filter((level) => level !== price))}
+                    onRemoveResistance={(price) => setResistanceLevels((levels) => levels.filter((level) => level !== price))}
                   />
                 </div>
 
@@ -465,7 +403,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                   isSaved={levelsLoaded}
                   onInputChange={setNewSupport}
                   onAdd={() => submitLevel(newSupport, 'support')}
-                  onRemove={removeSupport}
+                  onRemove={(price) => setSupportLevels((levels) => levels.filter((level) => level !== price))}
                 />
 
                 <LevelEditor
@@ -477,7 +415,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                   isSaved={levelsLoaded}
                   onInputChange={setNewResistance}
                   onAdd={() => submitLevel(newResistance, 'resistance')}
-                  onRemove={removeResistance}
+                  onRemove={(price) => setResistanceLevels((levels) => levels.filter((level) => level !== price))}
                 />
               </aside>
             </div>
@@ -538,47 +476,6 @@ function TradingInfo({
   )
 }
 
-function WatchlistButton({
-  varietyId,
-  isInWatchlist,
-  watchlistId,
-  onToggle,
-}: {
-  varietyId: number
-  isInWatchlist: boolean
-  watchlistId: number | null
-  onToggle: (inList: boolean, id: number | null) => void
-}) {
-  const handleClick = async () => {
-    try {
-      if (isInWatchlist && watchlistId != null) {
-        await api.deleteWatchlist(watchlistId)
-        onToggle(false, null)
-      } else {
-        const item = await api.createWatchlist(varietyId)
-        onToggle(true, item.id)
-      }
-    } catch {
-      // 静默失败
-    }
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={handleClick}
-      className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-xs font-medium transition ${
-        isInWatchlist
-          ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
-          : 'border-slate-700 bg-black/20 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-      }`}
-    >
-      {isInWatchlist ? <BookmarkCheck size={13} /> : <Bookmark size={13} />}
-      {isInWatchlist ? '已自选' : '加入自选'}
-    </button>
-  )
-}
-
 function InfoRow({ label, value, valueClassName = 'text-white' }: { label: string; value: string; valueClassName?: string }) {
   return (
     <div className="flex items-center justify-between gap-3 text-slate-400">
@@ -610,6 +507,7 @@ function LevelEditor({
   onRemove: (price: number) => void
 }) {
   const isSupport = tone === 'support'
+  const inputId = `${tone}-level-input`
   const colorClass = isSupport ? 'text-green-400' : 'text-red-400'
   const bgClass = isSupport ? 'bg-green-400/10 hover:bg-green-400/20' : 'bg-red-400/10 hover:bg-red-400/20'
   const borderFocus = isSupport ? 'focus:border-green-500' : 'focus:border-red-500'
@@ -621,10 +519,12 @@ function LevelEditor({
         {title}
       </h2>
       <div className="mt-1 text-xs text-slate-600">
-        {isSaved ? '已同步到云端' : '正在同步标注...'}
+        {isSaved ? '已自动保存到本机' : '正在读取本地标注...'}
       </div>
       <div className="mt-4 flex gap-2">
+        <label htmlFor={inputId} className="sr-only">{title}</label>
         <input
+          id={inputId}
           type="number"
           value={inputValue}
           onChange={(event) => onInputChange(event.target.value)}
@@ -685,7 +585,9 @@ function CommentPanel({
       </h2>
 
       <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <label htmlFor="product-comment-input" className="sr-only">发表评论</label>
         <input
+          id="product-comment-input"
           type="text"
           value={newComment}
           onChange={(event) => onChangeComment(event.target.value)}

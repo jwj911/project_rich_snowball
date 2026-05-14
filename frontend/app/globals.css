@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -23,3 +21,21 @@ body {
 
 .up { color: #ef4444; }
 .down { color: #22c55e; }
+
+@keyframes price-flash-up {
+  0% { background-color: rgba(239, 68, 68, 0.32); }
+  100% { background-color: transparent; }
+}
+
+@keyframes price-flash-down {
+  0% { background-color: rgba(34, 197, 94, 0.32); }
+  100% { background-color: transparent; }
+}
+
+.animate-price-flash-up {
+  animation: price-flash-up 700ms ease-out;
+}
+
+.animate-price-flash-down {
+  animation: price-flash-down 700ms ease-out;
+}

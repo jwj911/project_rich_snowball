@@ -66,6 +66,96 @@ class CommentResponse(BaseModel):
     created_at: dt
 
 
+class PriceLevelCreate(BaseModel):
+    variety_id: int = Field(..., ge=1)
+    type: str = Field(..., pattern=r"^(support|resistance)$")
+    price: float = Field(..., ge=0)
+    note: Optional[str] = Field(None, max_length=500)
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def sanitize_note(cls, v: Optional[str]) -> Optional[str]:
+        if isinstance(v, str):
+            v = v.strip()
+            if v:
+                return html.escape(v)
+        return v
+
+
+class PriceLevelUpdate(BaseModel):
+    price: Optional[float] = Field(None, ge=0)
+    note: Optional[str] = Field(None, max_length=500)
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def sanitize_note(cls, v: Optional[str]) -> Optional[str]:
+        if isinstance(v, str):
+            v = v.strip()
+            if v:
+                return html.escape(v)
+        return v
+
+
+class PriceLevelResponse(BaseModel):
+    id: int
+    user_id: int
+    variety_id: int
+    type: str
+    price: float
+    note: Optional[str] = None
+    created_at: dt
+    updated_at: dt
+
+    model_config = {"from_attributes": True}
+
+
+class WatchlistCreate(BaseModel):
+    variety_id: int = Field(..., ge=1)
+    notes: Optional[str] = Field(None, max_length=500)
+
+    @field_validator("notes", mode="before")
+    @classmethod
+    def sanitize_notes(cls, v: Optional[str]) -> Optional[str]:
+        if isinstance(v, str):
+            v = v.strip()
+            if v:
+                return html.escape(v)
+        return v
+
+
+class WatchlistUpdate(BaseModel):
+    notes: Optional[str] = Field(None, max_length=500)
+    is_notified: Optional[bool] = None
+
+    @field_validator("notes", mode="before")
+    @classmethod
+    def sanitize_notes(cls, v: Optional[str]) -> Optional[str]:
+        if isinstance(v, str):
+            v = v.strip()
+            if v:
+                return html.escape(v)
+        return v
+
+
+class WatchlistResponse(BaseModel):
+    id: int
+    user_id: int
+    variety_id: int
+    variety_symbol: str
+    variety_name: str
+    notes: Optional[str] = None
+    is_notified: bool = False
+    created_at: dt
+
+    model_config = {"from_attributes": True}
+
+
+class WorkspaceSummary(BaseModel):
+    watchlists: List[WatchlistResponse]
+    price_levels: List[PriceLevelResponse]
+    comments: List[CommentResponse]
+
+
 class ProductDetailResponse(BaseModel):
     product: ProductResponse
     comments: List[CommentResponse]

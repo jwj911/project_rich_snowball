@@ -126,13 +126,9 @@ def test_comment_content_strips_whitespace():
 # 5. B-P0-08 裸 except 吞异常 → 精确捕获 PyJWTError
 # ============================================================================
 
-def test_get_current_user_with_expired_token():
+def test_get_current_user_with_expired_token(db_session):
     """过期 JWT 应返回 None，不抛出异常，且应记录 warning 日志"""
-    from sqlalchemy.orm import sessionmaker
-    from models import engine
-
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    db = SessionLocal()
+    db = db_session
 
     # 创建一个已过期 1 小时的 token
     expired_token = create_access_token({"sub": "1"})
@@ -144,20 +140,14 @@ def test_get_current_user_with_expired_token():
 
     result = get_current_user(expired_token, db)
     assert result is None
-    db.close()
 
 
-def test_get_current_user_with_invalid_token():
+def test_get_current_user_with_invalid_token(db_session):
     """无效 JWT 应返回 None，不抛出异常"""
-    from sqlalchemy.orm import sessionmaker
-    from models import engine
-
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    db = SessionLocal()
+    db = db_session
 
     result = get_current_user("totally.invalid.token", db)
     assert result is None
-    db.close()
 
 
 # ============================================================================

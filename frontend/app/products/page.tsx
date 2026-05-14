@@ -152,7 +152,9 @@ export default function ProductsPage() {
                 </select>
               </label>
 
+              <label htmlFor="direction-filter" className="sr-only">涨跌方向筛选</label>
               <select
+                id="direction-filter"
                 value={directionFilter}
                 onChange={(event) => setDirectionFilter(event.target.value as DirectionFilter)}
                 className="h-10 rounded-lg border border-slate-700 bg-black/30 px-3 text-sm text-white outline-none transition focus:border-red-800"

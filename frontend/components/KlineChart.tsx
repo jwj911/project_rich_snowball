@@ -84,17 +84,40 @@ export default function KlineChart({
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null)
   const priceLinesRef = useRef<IPriceLine[]>([])
+  const pointByTimeRef = useRef<Map<Time, CandlePoint>>(new Map())
+  const hasFitInitialContentRef = useRef(false)
 
   const [annotationMenu, setAnnotationMenu] = useState<AnnotationMenu | null>(null)
   const [crosshairQuote, setCrosshairQuote] = useState<CrosshairQuote | null>(null)
 
   const points = useMemo(() => normalizeKlineData(externalData), [externalData])
+  const pointByTime = useMemo(
+    () => new Map(points.map((point) => [point.time, point])),
+    [points],
+  )
+  const candleData = useMemo(
+    () => points.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })),
+    [points],
+  )
+  const volumeData = useMemo(
+    () => points.map((point) => ({
+      time: point.time,
+      value: Math.max(point.volume, 0),
+      color: point.close >= point.open ? 'rgba(255, 107, 107, 0.38)' : 'rgba(74, 222, 128, 0.38)',
+    })),
+    [points],
+  )
   const latestPoint = points[points.length - 1]
   const firstPoint = points[0]
+  const hasChartData = points.length > 0
+
+  useEffect(() => {
+    pointByTimeRef.current = pointByTime
+  }, [pointByTime])
 
   useEffect(() => {
     const container = chartContainerRef.current
-    if (!container || points.length === 0) return
+    if (!container || !hasChartData || chartRef.current) return
 
     const chart = createChart(container, {
       width: container.clientWidth,
@@ -173,7 +196,7 @@ export default function KlineChart({
         return
       }
 
-      const matchedPoint = points.find((point) => point.time === seriesData.time)
+      const matchedPoint = pointByTimeRef.current.get(seriesData.time)
       setCrosshairQuote({
         time: matchedPoint?.originalTime ?? String(seriesData.time),
         open: seriesData.open,
@@ -202,23 +225,24 @@ export default function KlineChart({
       candleSeriesRef.current = null
       volumeSeriesRef.current = null
       priceLinesRef.current = []
+      hasFitInitialContentRef.current = false
     }
-  }, [points])
+  }, [hasChartData])
 
   useEffect(() => {
     const candleSeries = candleSeriesRef.current
     const volumeSeries = volumeSeriesRef.current
     const chart = chartRef.current
-    if (!candleSeries || !volumeSeries || !chart || points.length === 0) return
+    if (!candleSeries || !volumeSeries || !chart) return
 
-    candleSeries.setData(points.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })))
-    volumeSeries.setData(points.map((point) => ({
-      time: point.time,
-      value: Math.max(point.volume, 0),
-      color: point.close >= point.open ? 'rgba(255, 107, 107, 0.38)' : 'rgba(74, 222, 128, 0.38)',
-    })))
-    chart.timeScale().fitContent()
-  }, [points])
+    candleSeries.setData(candleData)
+    volumeSeries.setData(volumeData)
+
+    if (points.length > 0 && !hasFitInitialContentRef.current) {
+      chart.timeScale().fitContent()
+      hasFitInitialContentRef.current = true
+    }
+  }, [candleData, points.length, volumeData])
 
   useEffect(() => {
     const candleSeries = candleSeriesRef.current
@@ -242,7 +266,7 @@ export default function KlineChart({
 
     supportLevels.forEach((price) => addLine(price, 'support'))
     resistanceLevels.forEach((price) => addLine(price, 'resistance'))
-  }, [resistanceLevels, supportLevels, points])
+  }, [resistanceLevels, supportLevels])
 
   const latestColor = latestPoint && firstPoint && latestPoint.close >= firstPoint.open ? 'text-red-400' : 'text-green-400'
 
@@ -297,6 +321,8 @@ export default function KlineChart({
   return (
     <div
       ref={rootRef}
+      role="img"
+      aria-label={`${symbol} K线图，最新价 ${latestPoint.close.toFixed(2)}，最高 ${maxOf(points, 'high').toFixed(2)}，最低 ${minOf(points, 'low').toFixed(2)}`}
       onContextMenu={openAnnotationMenu}
       onClick={annotationMenu ? closeAnnotationMenu : undefined}
       className="relative w-full select-none overflow-hidden rounded-lg border border-[#2a2e39] bg-[#131722]"

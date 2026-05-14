@@ -1,4 +1,15 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8200'
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000'
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code?: string,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
 
 export interface Product {
   id: number
@@ -136,17 +147,22 @@ class ApiService {
       headers['Authorization'] = `Bearer ${token}`
     }
 
-    const response = await fetch(`${API_BASE}${url}`, {
-      ...options,
-      headers,
-    })
+    let response: Response
+    try {
+      response = await fetch(`${API_BASE}${url}`, {
+        ...options,
+        headers,
+      })
+    } catch (err) {
+      throw new ApiError(err instanceof Error ? err.message : 'Network request failed', 0, 'NETWORK_ERROR')
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Request failed' }))
       if (response.status === 401) {
         this.setToken(null)
       }
-      throw new Error(error.message || error.detail || 'Request failed')
+      throw new ApiError(error.message || error.detail || 'Request failed', response.status, error.code)
     }
 
     return response.json()
@@ -157,17 +173,22 @@ class ApiService {
     formData.append('username', username)
     formData.append('password', password)
 
-    const response = await fetch(`${API_BASE}/api/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData,
-    })
+    let response: Response
+    try {
+      response = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData,
+      })
+    } catch (err) {
+      throw new ApiError(err instanceof Error ? err.message : 'Network request failed', 0, 'NETWORK_ERROR')
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Login failed' }))
-      throw new Error(error.message || error.detail || 'Login failed')
+      throw new ApiError(error.message || error.detail || 'Login failed', response.status, error.code)
     }
 
     const data = await response.json()
@@ -202,11 +223,11 @@ class ApiService {
   }
 
   async getUserComments(username: string): Promise<Comment[]> {
-    return this.request<Comment[]>(`/api/comments/user/${username}`)
+    return this.request<Comment[]>(`/api/comments/user/${encodeURIComponent(username)}`)
   }
 
   async getRealtime(symbol: string): Promise<RealtimeQuote> {
-    return this.request<RealtimeQuote>(`/api/realtime/${symbol}`)
+    return this.request<RealtimeQuote>(`/api/realtime/${encodeURIComponent(symbol)}`)
   }
 
   async getRealtimeBatch(symbols: string[]): Promise<{ quotes: RealtimeQuote[]; not_found: string[] }> {
@@ -217,7 +238,11 @@ class ApiService {
   }
 
   async getKline(symbol: string, period: string = '1h', limit: number = 100): Promise<KlineData[]> {
-    return this.request<KlineData[]>(`/api/kline/${symbol}?period=${period}&limit=${limit}`)
+    const searchParams = new URLSearchParams({
+      period,
+      limit: String(limit),
+    })
+    return this.request<KlineData[]>(`/api/kline/${encodeURIComponent(symbol)}?${searchParams.toString()}`)
   }
 
   async getContinuousKline(

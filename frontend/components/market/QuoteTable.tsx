@@ -1,9 +1,11 @@
 import Link from 'next/link'
 import { ArrowRight, ArrowUpDown } from 'lucide-react'
 import PriceChange from '@/components/market/PriceChange'
+import PriceFlash from '@/components/market/PriceFlash'
 import QuoteCard from '@/components/market/QuoteCard'
 import { Product } from '@/lib/api'
 import { formatDateTime, formatInteger, formatNumber, getChangeTone } from '@/lib/format'
+import { memo } from 'react'
 
 export type QuoteSortField = 'change_percent' | 'volume' | 'current_price'
 export type QuoteSortOrder = 'asc' | 'desc'
@@ -50,19 +52,31 @@ export default function QuoteTable({ products, sortBy, sortOrder, onSort }: Quot
             </tr>
           </thead>
           <tbody>
-            {products.map((product) => {
-              const tone = getChangeTone(product.change_percent)
+            {products.map((product) => (
+              <QuoteRow key={product.id} product={product} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
 
-              return (
-                <tr key={product.id} className="border-b border-slate-800/80 transition-colors last:border-0 hover:bg-slate-900/60">
+const QuoteRow = memo(function QuoteRow({ product }: { product: Product }) {
+  const tone = getChangeTone(product.change_percent)
+
+  return (
+                <tr className="border-b border-slate-800/80 transition-colors last:border-0 hover:bg-slate-900/60">
                   <td className="px-4 py-3">
                     <div className="min-w-0">
                       <div className="truncate font-medium text-white">{product.name}</div>
                       <div className="mt-1 font-mono text-xs text-slate-500">{product.symbol}</div>
                     </div>
                   </td>
-                  <td className={`px-4 py-3 text-right font-mono font-semibold ${tone}`}>
+                  <td className="px-4 py-3 text-right">
+                    <PriceFlash value={product.current_price} className={`inline-block font-mono font-semibold ${tone}`}>
                     {formatNumber(product.current_price)}
+                    </PriceFlash>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <PriceChange value={product.change_percent} className="justify-end" />
@@ -83,11 +97,5 @@ export default function QuoteTable({ products, sortBy, sortOrder, onSort }: Quot
                     </Link>
                   </td>
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </>
   )
-}
+})

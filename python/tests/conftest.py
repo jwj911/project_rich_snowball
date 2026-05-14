@@ -1,28 +1,36 @@
 """
-Pytest fixtures：提供内存 SQLite 数据库 + TestClient，实现测试隔离。
+Pytest fixtures：提供隔离 SQLite 数据库 + TestClient，实现测试隔离。
 """
 
 import os
 import sys
+import tempfile
+import atexit
 from typing import Generator
 
-# 确保在导入项目模块前设置 SECRET_KEY
+# 确保在导入任何项目模块前设置测试环境变量
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest")
-os.environ.setdefault("SSE_TEST_MODE", "1")
+os.environ["ENABLE_SCHEDULER"] = "0"
+os.environ["DOTENV_PATH"] = "/nonexistent/.env"
+
+# 创建临时数据库文件，确保所有测试共享同一个物理数据库（避免 :memory: 多连接隔离问题）
+_TEST_DB_FILE = tempfile.mktemp(suffix="_test.db")
+os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_FILE}"
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker
 
+# 必须先导入 models 让全局 engine 指向临时库，然后再导入 main
+import models as _models_module
 from main import app
 from dependencies import get_db
 from models import Base
 
-# 内存 SQLite 引擎（每个测试进程独立）
-TEST_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+# 使用 models 的全局 engine（已绑定到临时文件数据库），所有测试共享同一连接池
+engine = _models_module.engine
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -85,3 +93,16 @@ def seed_varieties(db_session):
         db_session.add(v)
     db_session.commit()
     return varieties
+
+
+def _cleanup_test_db():
+    """测试进程退出时删除临时数据库文件。"""
+    import os as _os
+    if _os.path.exists(_TEST_DB_FILE):
+        try:
+            _os.remove(_TEST_DB_FILE)
+        except OSError:
+            pass
+
+
+atexit.register(_cleanup_test_db)

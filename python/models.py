@@ -1,17 +1,11 @@
 import datetime
-import logging
-import os
-import time
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, DateTime,
-    Text, ForeignKey, Boolean, UniqueConstraint, Index, text, Numeric, event
+    Text, ForeignKey, Boolean, UniqueConstraint, Index, text, Numeric
 )
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from config import DATABASE_URL
-
-logger = logging.getLogger(__name__)
-SLOW_QUERY_THRESHOLD_SECONDS = float(os.getenv("SLOW_QUERY_THRESHOLD_SECONDS", "1.0"))
 
 _IS_SQLITE = DATABASE_URL.startswith("sqlite")
 
@@ -32,30 +26,22 @@ else:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# ========== 慢查询日志 ==========
-
-@event.listens_for(engine, "before_cursor_execute")
-def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-    context._query_start_time = time.time()
-
-
-@event.listens_for(engine, "after_cursor_execute")
-def _after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-    total = time.time() - context._query_start_time
-    if total > SLOW_QUERY_THRESHOLD_SECONDS:
-        logger.warning(f"Slow query ({total:.2f}s): {statement[:500]}")
-
-
-from config import ENV
 
 def init_db():
-    # 生产环境不自动建表，依赖 alembic upgrade head 管理 schema
-    if ENV == "production":
-        return
     Base.metadata.create_all(bind=engine)
     if _IS_SQLITE:
         with engine.connect() as conn:
             conn.execute(text("PRAGMA journal_mode=WAL;"))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS alembic_version (
+                    version_num VARCHAR(32) NOT NULL,
+                    CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+                )
+            """))
+            conn.execute(text("""
+                INSERT OR IGNORE INTO alembic_version (version_num)
+                VALUES ('7a8e00d86747')
+            """))
             conn.commit()
 
 
@@ -106,12 +92,12 @@ class CommentDB(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    price_level_id = Column(Integer, ForeignKey("price_levels.id"), nullable=True, index=True)
     content = Column(Text, nullable=False)
+    price_level_id = Column(Integer, ForeignKey("price_levels.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.now)
     user = relationship("UserDB", back_populates="comments")
     product = relationship("ProductDB", back_populates="comments")
-    price_level = relationship("PriceLevelDB")
+    price_level = relationship("PriceLevelDB", back_populates="comments")
 
 
 class VarietyDB(Base):
@@ -141,32 +127,6 @@ class VarietyDB(Base):
     price_levels = relationship("PriceLevelDB", back_populates="variety")
 
 
-class FutContractDB(Base):
-    """期货合约信息表（Tushare fut_basic）。存储具体合约元数据，供行情采集时轮询使用。"""
-    __tablename__ = "fut_contracts"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    ts_code = Column(String(20), unique=True, nullable=False, index=True)
-    symbol = Column(String(20), index=True)
-    name = Column(String(50))
-    fut_code = Column(String(10), index=True)
-    exchange = Column(String(10), index=True)
-    list_date = Column(DateTime, index=True)
-    delist_date = Column(DateTime, index=True)
-    multiplier = Column(Float)
-    trade_unit = Column(String(20))
-    per_unit = Column(Float)
-    quote_unit = Column(String(20))
-    d_month = Column(String(10))
-    contract_type = Column(String(10), index=True)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.datetime.now)
-    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
-    __table_args__ = (
-        UniqueConstraint("ts_code", name="uix_fut_contracts_ts_code"),
-        Index("idx_fut_contracts_lookup", "fut_code", "exchange", "list_date"),
-    )
-
-
 class RealtimeQuoteDB(Base):
     __tablename__ = "realtime_quotes"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -189,7 +149,6 @@ class KlineDataDB(Base):
     __tablename__ = "kline_data"
     id = Column(Integer, primary_key=True, autoincrement=True)
     variety_id = Column(Integer, ForeignKey("varieties.id"), nullable=False)
-    contract_id = Column(Integer, ForeignKey("fut_contracts.id"), nullable=True, index=True)
     period = Column(String(10), nullable=False)
     trading_time = Column(DateTime, nullable=False)
     open_price = Column(Float, nullable=False)
@@ -200,27 +159,28 @@ class KlineDataDB(Base):
     open_interest = Column(Integer)
     created_at = Column(DateTime, default=datetime.datetime.now)
     variety = relationship("VarietyDB", back_populates="klines")
-    contract = relationship("FutContractDB")
     __table_args__ = (
-        UniqueConstraint("variety_id", "contract_id", "period", "trading_time", name="uix_kline_contract"),
+        UniqueConstraint("variety_id", "period", "trading_time", name="uix_kline"),
         Index("idx_kline_lookup", "variety_id", "period", "trading_time"),
     )
 
 
-class ContractRolloverDB(Base):
-    __tablename__ = "contract_rollovers"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    variety_id = Column(Integer, ForeignKey("varieties.id"), nullable=False, index=True)
-    old_contract_id = Column(Integer, ForeignKey("fut_contracts.id"), nullable=True)
-    new_contract_id = Column(Integer, ForeignKey("fut_contracts.id"), nullable=True)
-    old_contract_code = Column(String(20), nullable=True)
-    new_contract_code = Column(String(20), nullable=True)
-    effective_date = Column(DateTime, nullable=False, index=True)
-    source = Column(String(30), nullable=False, default="mapping_pipeline")
+class PriceLevelDB(Base):
+    __tablename__ = "price_levels"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    variety_id = Column(Integer, ForeignKey("varieties.id"), nullable=False)
+    type = Column(String(20), nullable=False)
+    price = Column(Numeric(15, 4), nullable=False)
+    note = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.now)
-    variety = relationship("VarietyDB")
-    old_contract = relationship("FutContractDB", foreign_keys=[old_contract_id])
-    new_contract = relationship("FutContractDB", foreign_keys=[new_contract_id])
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+    user = relationship("UserDB", back_populates="price_levels")
+    variety = relationship("VarietyDB", back_populates="price_levels")
+    comments = relationship("CommentDB", back_populates="price_level")
+    __table_args__ = (
+        UniqueConstraint("user_id", "variety_id", "type", "price", name="uix_price_level"),
+    )
 
 
 class WatchlistDB(Base):
@@ -235,6 +195,9 @@ class WatchlistDB(Base):
     created_at = Column(DateTime, default=datetime.datetime.now)
     user = relationship("UserDB", back_populates="watchlists")
     variety = relationship("VarietyDB", back_populates="watchlists")
+    __table_args__ = (
+        UniqueConstraint("user_id", "variety_id", name="uix_watchlist_user_variety"),
+    )
 
 
 class OpinionDB(Base):
@@ -251,25 +214,6 @@ class OpinionDB(Base):
     variety = relationship("VarietyDB", back_populates="opinions")
 
 
-class PriceLevelDB(Base):
-    __tablename__ = "price_levels"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    variety_id = Column(Integer, ForeignKey("varieties.id"), nullable=False, index=True)
-    type = Column(String(20), nullable=False)  # support | resistance
-    price = Column(Numeric(15, 4), nullable=False)
-    note = Column(Text, nullable=True)
-    source = Column(String(30), nullable=False, default="manual")
-    created_at = Column(DateTime, default=datetime.datetime.now)
-    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
-    user = relationship("UserDB", back_populates="price_levels")
-    variety = relationship("VarietyDB", back_populates="price_levels")
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "variety_id", "type", "price", name="uix_user_variety_type_price"),
-    )
-
-
 class DataIngestionRunDB(Base):
     """采集批次质量追踪。"""
     __tablename__ = "data_ingestion_runs"
@@ -278,15 +222,11 @@ class DataIngestionRunDB(Base):
     source = Column(String(50), nullable=False)
     started_at = Column(DateTime, nullable=False)
     finished_at = Column(DateTime)
-    duration_ms = Column(Integer, nullable=True)
     status = Column(String(20), default="running")
     success_count = Column(Integer, default=0)
     failed_count = Column(Integer, default=0)
     skipped_count = Column(Integer, default=0)
     error_message = Column(Text)
-    error_sample = Column(Text, nullable=True)
-    window_start = Column(DateTime, nullable=True)
-    window_end = Column(DateTime, nullable=True)
     metadata_json = Column(Text)
 
 
@@ -363,10 +303,6 @@ class FutWeeklyDetailDB(Base):
     week = Column(String(10))
     week_date = Column(DateTime)
     created_at = Column(DateTime, default=datetime.datetime.now)
-    __table_args__ = (
-        UniqueConstraint("week", "prd", "exchange", name="uix_fut_weekly_detail"),
-        Index("idx_fut_weekly_lookup", "week", "prd", "exchange"),
-    )
 
 
 class FutWsrDB(Base):
@@ -391,10 +327,6 @@ class FutWsrDB(Base):
     unit = Column(String(10))
     exchange = Column(String(10))
     created_at = Column(DateTime, default=datetime.datetime.now)
-    __table_args__ = (
-        UniqueConstraint("trade_date", "symbol", "warehouse", "wh_id", name="uix_fut_wsr"),
-        Index("idx_fut_wsr_lookup", "trade_date", "symbol", "warehouse"),
-    )
 
 
 class FutHoldingDB(Base):
@@ -412,23 +344,16 @@ class FutHoldingDB(Base):
     short_chg = Column(Integer)
     exchange = Column(String(10))
     created_at = Column(DateTime, default=datetime.datetime.now)
-    __table_args__ = (
-        UniqueConstraint("trade_date", "symbol", "broker", name="uix_fut_holding"),
-        Index("idx_fut_holding_lookup", "trade_date", "symbol", "broker"),
-    )
 
 
 class FutPriceLimitDB(Base):
-    """期货合约涨跌停价格（Tushare ft_limit）。"""
+    """期货合约涨跌停价格（预留，接口权限待验证）。"""
     __tablename__ = "fut_price_limits"
     id = Column(Integer, primary_key=True, autoincrement=True)
     ts_code = Column(String(20), nullable=False)
     trade_date = Column(DateTime, nullable=False)
-    name = Column(String(50))
     up_limit = Column(Float)
     down_limit = Column(Float)
-    m_ratio = Column(Float)
-    cont = Column(String(20))
     exchange = Column(String(10))
     created_at = Column(DateTime, default=datetime.datetime.now)
     __table_args__ = (
@@ -454,36 +379,4 @@ class FutIndexDB(Base):
     created_at = Column(DateTime, default=datetime.datetime.now)
     __table_args__ = (
         UniqueConstraint("ts_code", "trade_date", name="uix_fut_index"),
-    )
-
-
-class FutTradeFeeDB(Base):
-    """期货合约手续费与保证金（九期网 / AKShare futures_comm_info）。"""
-    __tablename__ = "fut_trade_fee"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    exchange = Column(String(20), nullable=False, index=True)
-    contract_name = Column(String(50), nullable=False)
-    contract_code = Column(String(20), nullable=False, index=True)
-    current_price = Column(Float)
-    up_limit = Column(Float)
-    down_limit = Column(Float)
-    margin_buy_open = Column(Float)
-    margin_sell_open = Column(Float)
-    margin_per_hand = Column(Numeric(15, 2))
-    fee_open_rate = Column(Float)
-    fee_open_fixed = Column(String(50))
-    fee_close_yesterday_rate = Column(Float)
-    fee_close_yesterday_fixed = Column(String(50))
-    fee_close_today_rate = Column(Float)
-    fee_close_today_fixed = Column(String(50))
-    tick_profit_gross = Column(Integer)
-    fee_total = Column(Float)
-    tick_profit_net = Column(Float)
-    remark = Column(String(20))
-    fee_updated_at = Column(DateTime)
-    price_updated_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.datetime.now)
-    __table_args__ = (
-        UniqueConstraint("contract_code", "fee_updated_at", name="uix_fut_trade_fee"),
-        Index("idx_fut_trade_fee_lookup", "exchange", "contract_code", "fee_updated_at"),
     )

@@ -259,13 +259,27 @@ class DataPipeline:
             if not raw_rows:
                 return stats
 
-            rows = [self.adapter(row) for row in raw_rows] if self.adapter else raw_rows
+            rows = []
+            adapter_failed = 0
+            if self.adapter:
+                for row in raw_rows:
+                    try:
+                        rows.append(self.adapter(row))
+                    except Exception as e:
+                        adapter_failed += 1
+                        logger.warning(f"FutSettle adapter failed: row={row}, error={e}")
+            else:
+                rows = raw_rows
             rows = [row for row in rows if row.get("ts_code") and row.get("trade_date")]
             inserted = upsert_fut_settle_bulk(db, rows)
             db.commit()
             stats["processed"] = inserted
             stats["skipped"] = len(raw_rows) - len(rows)
-            logger.info(f"FutSettle pipeline completed: {stats}")
+            stats["adapter_failed"] = adapter_failed
+            if adapter_failed > 0:
+                logger.warning(f"FutSettle pipeline partial: {stats}")
+            else:
+                logger.info(f"FutSettle pipeline completed: {stats}")
             return stats
         except Exception as e:
             db.rollback()
@@ -294,7 +308,17 @@ class DataPipeline:
             if not raw_rows:
                 return stats
 
-            rows = [self.adapter(row) for row in raw_rows] if self.adapter else raw_rows
+            rows = []
+            adapter_failed = 0
+            if self.adapter:
+                for row in raw_rows:
+                    try:
+                        rows.append(self.adapter(row))
+                    except Exception as e:
+                        adapter_failed += 1
+                        logger.warning(f"FutWeeklyDetail adapter failed: row={row}, error={e}")
+            else:
+                rows = raw_rows
             rows = [
                 row for row in rows
                 if row.get("week") and row.get("prd") and row.get("exchange")
@@ -303,7 +327,11 @@ class DataPipeline:
             db.commit()
             stats["processed"] = inserted
             stats["skipped"] = len(raw_rows) - len(rows)
-            logger.info(f"FutWeeklyDetail pipeline completed: {stats}")
+            stats["adapter_failed"] = adapter_failed
+            if adapter_failed > 0:
+                logger.warning(f"FutWeeklyDetail pipeline partial: {stats}")
+            else:
+                logger.info(f"FutWeeklyDetail pipeline completed: {stats}")
             return stats
         except Exception as e:
             db.rollback()
@@ -332,7 +360,17 @@ class DataPipeline:
             if not raw_rows:
                 return stats
 
-            rows = [self.adapter(row) for row in raw_rows] if self.adapter else raw_rows
+            rows = []
+            adapter_failed = 0
+            if self.adapter:
+                for row in raw_rows:
+                    try:
+                        rows.append(self.adapter(row))
+                    except Exception as e:
+                        adapter_failed += 1
+                        logger.warning(f"FutWsr adapter failed: row={row}, error={e}")
+            else:
+                rows = raw_rows
             rows = [
                 row for row in rows
                 if row.get("trade_date") and row.get("symbol") and row.get("warehouse")
@@ -341,7 +379,11 @@ class DataPipeline:
             db.commit()
             stats["processed"] = inserted
             stats["skipped"] = len(raw_rows) - len(rows)
-            logger.info(f"FutWsr pipeline completed: {stats}")
+            stats["adapter_failed"] = adapter_failed
+            if adapter_failed > 0:
+                logger.warning(f"FutWsr pipeline partial: {stats}")
+            else:
+                logger.info(f"FutWsr pipeline completed: {stats}")
             return stats
         except Exception as e:
             db.rollback()
@@ -370,7 +412,17 @@ class DataPipeline:
             if not raw_rows:
                 return stats
 
-            rows = [self.adapter(row) for row in raw_rows] if self.adapter else raw_rows
+            rows = []
+            adapter_failed = 0
+            if self.adapter:
+                for row in raw_rows:
+                    try:
+                        rows.append(self.adapter(row))
+                    except Exception as e:
+                        adapter_failed += 1
+                        logger.warning(f"FutHolding adapter failed: row={row}, error={e}")
+            else:
+                rows = raw_rows
             rows = [
                 row for row in rows
                 if row.get("trade_date") and row.get("symbol") and row.get("broker")
@@ -379,7 +431,11 @@ class DataPipeline:
             db.commit()
             stats["processed"] = inserted
             stats["skipped"] = len(raw_rows) - len(rows)
-            logger.info(f"FutHolding pipeline completed: {stats}")
+            stats["adapter_failed"] = adapter_failed
+            if adapter_failed > 0:
+                logger.warning(f"FutHolding pipeline partial: {stats}")
+            else:
+                logger.info(f"FutHolding pipeline completed: {stats}")
             return stats
         except Exception as e:
             db.rollback()
@@ -408,13 +464,27 @@ class DataPipeline:
             if not raw_rows:
                 return stats
 
-            rows = [self.adapter(row) for row in raw_rows] if self.adapter else raw_rows
+            rows = []
+            adapter_failed = 0
+            if self.adapter:
+                for row in raw_rows:
+                    try:
+                        rows.append(self.adapter(row))
+                    except Exception as e:
+                        adapter_failed += 1
+                        logger.warning(f"FutPriceLimit adapter failed: row={row}, error={e}")
+            else:
+                rows = raw_rows
             rows = [row for row in rows if row.get("ts_code") and row.get("trade_date")]
             inserted = upsert_fut_price_limit_bulk(db, rows)
             db.commit()
             stats["processed"] = inserted
             stats["skipped"] = len(raw_rows) - len(rows)
-            logger.info(f"FutPriceLimit pipeline completed: {stats}")
+            stats["adapter_failed"] = adapter_failed
+            if adapter_failed > 0:
+                logger.warning(f"FutPriceLimit pipeline partial: {stats}")
+            else:
+                logger.info(f"FutPriceLimit pipeline completed: {stats}")
             return stats
         except Exception as e:
             db.rollback()

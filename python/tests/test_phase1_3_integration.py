@@ -8,22 +8,16 @@
     pytest -p no:langsmith tests/test_phase1_3_integration.py -v
 """
 
-import datetime
 import os
 import sys
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import inspect, text
 
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from main import app
 from models import engine, Base, init_db, SessionLocal, VarietyDB, KlineDataDB, RealtimeQuoteDB, WatchlistDB, OpinionDB
 from data_collector.init_varieties import init_varieties
-
-
-client = TestClient(app)
 
 
 # ============================================================================
@@ -32,24 +26,20 @@ client = TestClient(app)
 
 class TestSchemaIntegrity:
     def test_all_tables_exist(self):
-        """数据库中应存在 9 张业务表（alembic_version 由 Alembic 管理，不强制存在）"""
+        """数据库中应存在 9 张业务表 + alembic_version"""
         inspector = inspect(engine)
         tables = set(inspector.get_table_names())
         expected = {
-            "users", "products", "comments",
+            "alembic_version", "users", "products", "comments",
             "varieties", "realtime_quotes", "kline_data",
             "watchlists", "opinions"
         }
         assert expected.issubset(tables), f"缺失表: {expected - tables}"
 
-    def test_varieties_table_has_data(self):
-        """varieties 表应有初始化数据"""
-        db = SessionLocal()
-        try:
-            count = db.query(VarietyDB).count()
-            assert count > 0, f"预期 varieties 表有数据，实际 {count}"
-        finally:
-            db.close()
+    def test_varieties_table_has_data(self, client, db_session):
+        """varieties 表应有 10 条初始化数据"""
+        count = db_session.query(VarietyDB).count()
+        assert count == 10, f"预期 10 条品种数据，实际 {count}"
 
     def test_varieties_indexes(self):
         """varieties 表应有 symbol 和 category 索引"""
@@ -59,11 +49,11 @@ class TestSchemaIntegrity:
         assert "ix_varieties_category" in indexes
 
     def test_kline_unique_constraint(self):
-        """kline_data 应有 variety_id+contract_id+period+trading_time 唯一约束"""
+        """kline_data 应有 variety_id+period+trading_time 唯一约束"""
         inspector = inspect(engine)
         constraints = inspector.get_unique_constraints("kline_data")
         names = {c["name"] for c in constraints}
-        assert "uix_kline_contract" in names
+        assert "uix_kline" in names
 
     def test_foreign_keys(self):
         """关键外键关系存在"""
@@ -80,15 +70,11 @@ class TestSchemaIntegrity:
         assert "varieties" in fk_map["opinions"]
         assert "users" in fk_map["opinions"]
 
-    def test_products_data_intact(self):
+    def test_products_data_intact(self, client, db_session):
         """旧 products 表数据应完好"""
-        db = SessionLocal()
-        try:
-            from models import ProductDB
-            count = db.query(ProductDB).count()
-            assert count == 10, f"products 表应有 10 条数据，实际 {count}"
-        finally:
-            db.close()
+        from models import ProductDB
+        count = db_session.query(ProductDB).count()
+        assert count == 10, f"products 表应有 10 条数据，实际 {count}"
 
 
 # ============================================================================
@@ -96,7 +82,7 @@ class TestSchemaIntegrity:
 # ============================================================================
 
 class TestLegacyApiCompatibility:
-    def test_products_list(self):
+    def test_products_list(self, client):
         """/api/products 应返回 10 条，字段结构不变"""
         r = client.get("/api/products")
         assert r.status_code == 200
@@ -106,7 +92,7 @@ class TestLegacyApiCompatibility:
         assert "id" in p and "name" in p and "symbol" in p
         assert "current_price" in p and "change_percent" in p
 
-    def test_product_detail(self):
+    def test_product_detail(self, client):
         """/api/products/1 应返回 product + comments"""
         r = client.get("/api/products/1")
         assert r.status_code == 200
@@ -115,7 +101,7 @@ class TestLegacyApiCompatibility:
         assert "comments" in data
         assert data["product"]["id"] == 1
 
-    def test_auth_register_login_me(self):
+    def test_auth_register_login_me(self, client):
         """注册 → 登录 → 获取 Me 流程应通顺"""
         # 注册
         r = client.post("/api/auth/register", json={
@@ -138,14 +124,7 @@ class TestLegacyApiCompatibility:
         assert r.status_code == 200
         assert r.json()["username"] == "integration_user"
 
-        # 清理
-        db = SessionLocal()
-        from models import UserDB
-        db.query(UserDB).filter(UserDB.username == "integration_user").delete()
-        db.commit()
-        db.close()
-
-    def test_comments_api(self):
+    def test_comments_api(self, client):
         """评论接口应能正常写入和读取"""
         r = client.get("/api/comments/user/trader001")
         assert r.status_code == 200
@@ -158,15 +137,15 @@ class TestLegacyApiCompatibility:
 # ============================================================================
 
 class TestNewApiEndpoints:
-    def test_varieties_list(self):
-        """/api/varieties 应返回品种列表"""
+    def test_varieties_list(self, client):
+        """/api/varieties 应返回 10 条品种"""
         r = client.get("/api/varieties")
         assert r.status_code == 200
         data = r.json()
-        assert len(data) > 0
+        assert len(data) == 10
         assert data[0]["symbol"] is not None
 
-    def test_varieties_pagination(self):
+    def test_varieties_pagination(self, client):
         """分页参数 skip/limit 应生效"""
         r = client.get("/api/varieties?skip=0&limit=5")
         assert len(r.json()) == 5
@@ -174,7 +153,7 @@ class TestNewApiEndpoints:
         r = client.get("/api/varieties?skip=5&limit=5")
         assert len(r.json()) == 5
 
-    def test_varieties_category_filter(self):
+    def test_varieties_category_filter(self, client):
         """分类过滤应生效"""
         r = client.get("/api/varieties?category=贵金属")
         data = r.json()
@@ -182,14 +161,14 @@ class TestNewApiEndpoints:
         for v in data:
             assert v["category"] == "贵金属"
 
-    def test_varieties_search(self):
+    def test_varieties_search(self, client):
         """搜索应生效"""
         r = client.get("/api/varieties?search=黄金")
         data = r.json()
         assert len(data) >= 1
         assert any("黄金" in v["name"] for v in data)
 
-    def test_varieties_detail(self):
+    def test_varieties_detail(self, client):
         """/api/varieties/AU 应返回黄金详情"""
         r = client.get("/api/varieties/AU")
         assert r.status_code == 200
@@ -197,12 +176,12 @@ class TestNewApiEndpoints:
         assert data["symbol"] == "AU"
         assert data["name"] == "黄金"
 
-    def test_varieties_detail_not_found(self):
+    def test_varieties_detail_not_found(self, client):
         """不存在的品种应返回 404"""
         r = client.get("/api/varieties/UNKNOWN")
         assert r.status_code == 404
 
-    def test_varieties_invalid_pagination(self):
+    def test_varieties_invalid_pagination(self, client):
         """非法分页参数应返回 422"""
         r = client.get("/api/varieties?skip=-1")
         assert r.status_code == 422
@@ -210,45 +189,25 @@ class TestNewApiEndpoints:
         r = client.get("/api/varieties?limit=1001")
         assert r.status_code == 422
 
-    def test_kline_has_data(self):
-        """K 线表应返回数据（测试内显式插入，避免依赖调度器历史采集）"""
-        db = SessionLocal()
-        try:
-            au = db.query(VarietyDB).filter(VarietyDB.symbol == "AU").first()
-            assert au is not None
-            # 显式插入一条测试 K 线
-            kline = KlineDataDB(
-                variety_id=au.id,
-                period="1h",
-                trading_time=datetime.datetime.now(),
-                open_price=500.0,
-                high_price=510.0,
-                low_price=490.0,
-                close_price=505.0,
-                volume=1000,
-            )
-            db.add(kline)
-            db.commit()
-        finally:
-            db.close()
-
+    def test_kline_has_data(self, client):
+        """K 线表应返回数据"""
         r = client.get("/api/kline/AU?period=1h&limit=100")
         assert r.status_code == 200
         data = r.json()
         assert len(data) > 0
         assert "time" in data[0] and "open" in data[0] and "close" in data[0]
 
-    def test_kline_invalid_period(self):
+    def test_kline_invalid_period(self, client):
         """非法周期应返回 422"""
         r = client.get("/api/kline/AU?period=invalid")
         assert r.status_code == 422
 
-    def test_kline_variety_not_found(self):
+    def test_kline_variety_not_found(self, client):
         """不存在的品种应返回 404"""
         r = client.get("/api/kline/UNKNOWN?period=1h")
         assert r.status_code == 404
 
-    def test_realtime_has_data(self):
+    def test_realtime_has_data(self, client):
         """实时行情表应返回动态价格"""
         r = client.get("/api/realtime/AU")
         assert r.status_code == 200
@@ -256,17 +215,17 @@ class TestNewApiEndpoints:
         assert "current_price" in data
         assert "change_percent" in data
 
-    def test_realtime_variety_not_found(self):
+    def test_realtime_variety_not_found(self, client):
         """不存在的品种应返回 404"""
         r = client.get("/api/realtime/UNKNOWN")
         assert r.status_code == 404
 
-    def test_docs_accessible(self):
+    def test_docs_accessible(self, client):
         """/docs 应可正常访问"""
         r = client.get("/docs")
         assert r.status_code == 200
 
-    def test_root_endpoint(self):
+    def test_root_endpoint(self, client):
         """/ 应返回 API 信息"""
         r = client.get("/")
         assert r.status_code == 200
@@ -278,16 +237,12 @@ class TestNewApiEndpoints:
 # ============================================================================
 
 class TestModelRelationships:
-    def test_variety_relationships(self):
+    def test_variety_relationships(self, client, db_session):
         """VarietyDB 的关系属性应可访问（不抛异常）"""
-        db = SessionLocal()
-        try:
-            v = db.query(VarietyDB).filter(VarietyDB.symbol == "AU").first()
-            assert v is not None
-            # 关系属性应存在，当前无数据时返回空列表/None
-            assert v.realtime is None or hasattr(v.realtime, "current_price")
-            assert isinstance(v.klines, list)
-            assert isinstance(v.watchlists, list)
-            assert isinstance(v.opinions, list)
-        finally:
-            db.close()
+        v = db_session.query(VarietyDB).filter(VarietyDB.symbol == "AU").first()
+        assert v is not None
+        # 关系属性应存在，当前无数据时返回空列表/None
+        assert v.realtime is None or hasattr(v.realtime, "current_price")
+        assert isinstance(v.klines, list)
+        assert isinstance(v.watchlists, list)
+        assert isinstance(v.opinions, list)
