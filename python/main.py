@@ -2,16 +2,19 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
 import os
+import time
 import traceback
+import uuid
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from models import init_db
 from config import ENV, ENABLE_SCHEDULER
-from routers import auth, products, comments, varieties, kline, realtime, health, watchlists, price_levels, workspace
+from routers import auth, products, comments, varieties, kline, realtime, health, watchlists, price_levels, workspace, contracts
+from services.metrics import metrics_response, get_content_type, http_requests_total, http_request_duration_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +77,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
@@ -84,10 +87,53 @@ app.include_router(comments.router)
 app.include_router(varieties.router)
 app.include_router(kline.router)
 app.include_router(realtime.router)
-app.include_router(health.router)
 app.include_router(watchlists.router)
 app.include_router(price_levels.router)
 app.include_router(workspace.router)
+app.include_router(contracts.router)
+app.include_router(health.router)
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    """为每个请求生成或复用 X-Request-ID，便于日志串联。"""
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request.state.request_id = request_id
+
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+@app.middleware("http")
+async def prometheus_middleware(request: Request, call_next):
+    """记录请求延迟和状态码到 Prometheus 指标。跳过内部端点避免噪声。"""
+    path = request.url.path
+    if path in ("/metrics", "/docs", "/redoc", "/openapi.json", "/"):
+        return await call_next(request)
+
+    method = request.method
+    start = time.time()
+    try:
+        response = await call_next(request)
+        status_code = str(response.status_code)
+    except Exception:
+        status_code = "500"
+        raise
+    finally:
+        duration = time.time() - start
+        # 使用路由路径而非完整路径，避免 cardinality 爆炸
+        endpoint = path
+        http_request_duration_seconds.labels(method=method, endpoint=endpoint).observe(duration)
+        http_requests_total.labels(method=method, endpoint=endpoint, status_code=status_code).inc()
+
+    return response
+
+
+@app.get("/metrics")
+def metrics():
+    """Prometheus 指标抓取端点。"""
+    return Response(content=metrics_response(), media_type=get_content_type())
 
 
 @app.exception_handler(HTTPException)
@@ -116,10 +162,11 @@ async def validation_exception_handler(request, exc: RequestValidationError):
 
 
 @app.exception_handler(Exception)
-async def generic_exception_handler(request, exc: Exception):
+async def generic_exception_handler(request: Request, exc: Exception):
     """兜底异常处理器，防止未捕获异常暴露内部信息。"""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    detail = {}
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.error(f"[{request_id}] Unhandled exception: {exc}", exc_info=True)
+    detail = {"request_id": request_id}
     if ENV == "development":
         detail["exception"] = str(exc)
         detail["traceback"] = traceback.format_exc()
@@ -127,7 +174,7 @@ async def generic_exception_handler(request, exc: Exception):
         code="INTERNAL_ERROR",
         message="服务器内部错误",
         status_code=500,
-        detail=detail if ENV == "development" else None,
+        detail=detail,
     )
 
 
@@ -140,5 +187,5 @@ if __name__ == "__main__":
     import uvicorn
 
     host = os.getenv("HOST", "127.0.0.1")
-    port = int(os.getenv("PORT", "8000"))
+    port = int(os.getenv("PORT", "8200"))
     uvicorn.run(app, host=host, port=port)
