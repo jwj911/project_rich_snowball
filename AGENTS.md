@@ -2,20 +2,28 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-05-09，基于前后端近期迭代后的实际代码。
+> **最后更新**：2026-05-14，基于 master 分支当前代码。
+
+---
+
+## Git 工作流约定
+
+- **默认在 `master` 分支工作**。每次新对话开始时，先执行 `git branch` 确认当前分支。
+- 如果当前不在 `master`，**立即提醒用户**，并在征得同意后切换到 `master`（切换前用 `git stash` 保存未提交修改）。
+- 如有明确需求要在其他分支操作，按用户指令执行。
 
 ---
 
 ## 项目概览
 
-**期货交流社区**是一个前后端分离的期货行情与私密交流社区应用。当前产品形态更接近“登录后的行情工作台”：用户登录后查看热门期货、筛选品种、进入单品种 K 线复盘、添加本地支撑/阻力位标注、发表评论，并在个人工作区汇总自己的研究上下文。
+**期货交流社区**是一个前后端分离的期货行情与私密交流社区应用。当前产品形态更接近"登录后的行情工作台"：用户登录后查看热门期货、筛选品种、进入单品种 K 线复盘、添加本地支撑/阻力位标注、发表评论，并在个人工作区汇总自己的研究上下文。
 
 主要功能：
 - 登录/注册/JWT 鉴权，主页面均有登录门禁
 - 首页行情工作台：热门品种、领涨观察、30 秒轮询和刷新状态
 - 行情中心：搜索、分类、涨跌筛选，按价格/涨跌幅/成交量排序
-- 品种详情：实时行情、`lightweight-charts` K 线、技术分析、评论、支撑/阻力标注
-- 我的工作区：评论历史、本地价位标注、自选观察入口
+- 品种详情：实时行情、`lightweight-charts` K 线、技术分析、评论、支撑/阻力标注、合约切换
+- 我的工作区：评论历史、云端价位标注、自选观察入口
 - 数据采集：Mock / AkShare / Tushare，多源 fallback，定时刷新实时行情和 K 线
 - PostgreSQL 历史回填：`python/tushare_pg_ingest/` 下有独立脚本体系
 
@@ -39,6 +47,7 @@
 | 数据采集 | Mock / AkShare / Tushare | `DATA_SOURCE` 控制，非生产可降级 Mock |
 | 定时任务 | APScheduler | BackgroundScheduler |
 | 缓存 | 内存 LRU | Redis 预留但未接入运行时代码 |
+| 可观测性 | Prometheus 风格指标 | `services/metrics.py` 预留 |
 
 ---
 
@@ -61,19 +70,24 @@ project_rich_snowball/
 │   │   ├── layout.tsx           # 根布局，包裹 AuthProvider
 │   │   ├── page.tsx             # 行情工作台，需登录
 │   │   ├── products/page.tsx    # 行情中心，搜索/筛选/排序
-│   │   ├── products/[id]/page.tsx # 品种详情，K 线/评论/本地标注
+│   │   ├── products/[id]/page.tsx # 品种详情，K 线/评论/合约切换/标注
 │   │   ├── workspace/page.tsx   # 我的工作区
 │   │   ├── my-comments/page.tsx # 当前用户评论历史
 │   │   └── globals.css
 │   ├── components/
 │   │   ├── auth/                # AuthProvider、LoginRequired
 │   │   ├── layout/AppShell.tsx  # 全局应用壳，左侧导航偏移
-│   │   ├── market/              # QuoteCard/Table、PriceChange、技术分析
+│   │   ├── market/              # QuoteCard/Table、PriceChange、PriceFlash、TechnicalAnalysisPanel
+│   │   ├── activity/            # RefreshStatus 等状态组件
 │   │   ├── ui/                  # Button/Input/EmptyState/ErrorState
 │   │   ├── workspace/           # 工作区摘要、标注、评论时间线、自选面板
 │   │   ├── Navbar.tsx
 │   │   └── KlineChart.tsx       # lightweight-charts 封装
-│   ├── hooks/useMarketPolling.ts# 轮询和 heartbeat 状态
+│   ├── hooks/
+│   │   ├── useMarketPolling.ts  # 轮询和 heartbeat 状态
+│   │   ├── usePriceLevels.ts    # 价位标注后端同步与 localStorage 降级
+│   │   ├── useRealtimeQuotes.ts # 实时行情 hook
+│   │   └── useWatchlistRealtime.ts # 自选实时监听
 │   ├── lib/api.ts               # 统一 API 客户端，含 token 管理
 │   └── tests/p0-fixes.test.md   # 人工检查清单
 │
@@ -84,12 +98,17 @@ project_rich_snowball/
 │   ├── schemas.py               # Pydantic v2，请求/响应模型和 XSS 过滤
 │   ├── dependencies.py          # get_db、JWT 用户解析
 │   ├── utils.py                 # bcrypt、JWT
-│   ├── routers/                 # auth/products/comments/varieties/kline/realtime/health/watchlists/price-levels/workspace
+│   ├── worker.py                # 独立 scheduler 入口，不启动 FastAPI
+│   ├── routers/                 # auth/products/comments/varieties/kline/realtime/health/contracts/watchlists/price-levels/workspace
 │   ├── data_collector/          # 在线采集、清洗、upsert、调度器
 │   ├── tushare_pg_ingest/       # 独立历史数据回填脚本
-│   ├── scripts/                 # 一次性采集/验证脚本
-│   ├── services/cache.py        # 线程安全内存 LRU
-│   ├── tests/                   # pytest 测试
+│   ├── scripts/                 # 一次性采集/验证/回填脚本
+│   ├── services/
+│   │   ├── cache.py             # 线程安全内存 LRU
+│   │   ├── circuit_breaker.py   # 数据源熔断器
+│   │   ├── continuous_kline.py  # 主力连续 K 线拼接
+│   │   └── metrics.py           # 可观测性指标预留
+│   ├── tests/                   # pytest 测试（见下方完整列表）
 │   └── alembic/versions/        # 迁移脚本
 │
 ├── docker-compose.yml           # PostgreSQL 16 + Redis 7，backend 注释
@@ -201,6 +220,13 @@ pip install -r requirements.txt
 python main.py
 ```
 
+独立 worker（不启动 FastAPI，只跑 scheduler）：
+
+```powershell
+cd python
+python worker.py
+```
+
 前端：
 
 ```powershell
@@ -231,7 +257,7 @@ pytest tests -v
 
 ## 测试现状
 
-后端已有 pytest：
+后端已有 pytest（17 个测试文件）：
 - `test_p0_fixes.py`
 - `test_phase1_3_integration.py`
 - `test_cors_variable.py`
@@ -245,6 +271,10 @@ pytest tests -v
 - `test_workspace.py`
 - `test_contracts.py`
 - `test_pipeline_rollover.py`
+- `test_circuit_breaker.py`
+- `test_scheduler_health.py`
+- `test_realtime_batch.py`
+- `test_realtime_sse.py`
 
 前端仍没有自动化测试框架，只有 `frontend/tests/p0-fixes.test.md` 人工检查清单。前端改动后必须至少做类型检查。
 
@@ -259,7 +289,7 @@ pytest tests -v
 | `CORS_ORIGINS` | 生产建议必填 | CORS 白名单，兼容旧变量 `ALLOW_ORIGINS` |
 | `DATA_SOURCE` | 否 | `mock` / `akshare` / `tushare` / `auto` |
 | `TUSHARE_TOKEN` | Tushare 必填 | Tushare Pro Token |
-| `ENABLE_SCHEDULER` | 否 | `1` 启用，`0` 禁用 |
+| `ENABLE_SCHEDULER` | 否 | `1` 启用，`0` 禁用（API 默认禁用） |
 | `ENV` | 否 | `development` / `production` |
 | `HOST` / `PORT` | 否 | 后端监听地址，默认 `127.0.0.1:8200` |
 | `NEXT_PUBLIC_API_BASE` | 前端可选 | 前端请求后端地址 |
@@ -290,6 +320,7 @@ pytest tests -v
 - Redis 服务可以启动，但应用代码当前使用内存缓存。
 - `node_modules`、`.next`、`venv`、数据库文件和日志可能在工作区中产生大量噪声，提交时不要顺手纳入。
 - 当前仓库可能已有用户或其他助手留下的未提交变更，修改前后都要用 `git status --short` 观察，不要回滚无关改动。
+- **分支陷阱**：`codex/new_fronted` 等历史分支曾执行 `git filter-branch`，部分文件（如 `tushare_pg_ingest/*.py`）在那些分支上被移除。需要这些文件时务必在 `master` 上操作。
 
 ---
 
@@ -302,20 +333,20 @@ pytest tests -v
 - `watchlists` 表与 `/api/watchlists` CRUD 路由（去重、越权保护）
 - `/api/workspace/me` 聚合 API（评论 + 标注 + 自选）
 - 评论模型扩展 `price_level_id` nullable 字段
-- 全部有 pytest 覆盖（88 passed）
+- 全部有 pytest 覆盖
 
 **前端**
 - `frontend/hooks/usePriceLevels.ts`：封装价位标注的后端同步、localStorage 降级、首次导入
 - `frontend/lib/api.ts`：新增 `getVariety`、`PriceLevel`、`Watchlist`、`WorkspaceSummary` 类型与方法
 - `workspace/page.tsx`：接入真实 `api.getWorkspace()`，自选/标注/评论全部来自后端
 - `WatchlistPanel.tsx`：从占位替换为真实自选列表，支持删除
-- `MyAnnotationsPanel.tsx`：标签从“本地”改为“云端”
+- `MyAnnotationsPanel.tsx`：标签从"本地"改为"云端"
 - `products/[id]/page.tsx`：
   - 接入 `usePriceLevels` hook，添加/删除价位实时同步后端
   - 首次进入时自动将本地标注导入后端
-  - 新增“加入自选 / 已自选”按钮
+  - 新增"加入自选 / 已自选"按钮
 
-### Phase 2：合约与 K 线语义 — 后端就绪，前端待接入
+### Phase 2：合约与 K 线语义 — 已完成
 
 **后端**
 - `kline_data` 增加 `contract_id` nullable（Alembic 迁移已生成）
@@ -325,9 +356,9 @@ pytest tests -v
 - `/api/kline/{symbol}/continuous` 和 `/api/kline/{symbol}/main` 接口
 - 全部有 pytest 覆盖
 
-**前端待做**
-- 品种详情页增加合约选择（主力/连续/具体合约）
-- K 线 tooltip 显示当前 bar 所属合约
+**前端**
+- 品种详情页已接入合约切换（主力/连续/具体合约）
+- K 线 tooltip 已显示当前 bar 所属合约
 - 支撑/阻力绑定合约口径
 
 ### Phase 3：生产边界 — 已完成
@@ -342,9 +373,9 @@ pytest tests -v
 
 ### 下一步推荐
 
-1. **前端合约切换**：在品种详情页增加周期选择器旁边的合约口径选择
-2. **K 线 tooltip 合约信息**：`KlineChart.tsx` crosshair 中展示 `contract_code`
-3. **Phase 4 可观测性**：Prometheus 指标、请求 ID、慢查询日志
+1. **Phase 4 可观测性**：Prometheus 指标接入、请求 ID 中间件、慢查询日志
+2. **Phase 5 实时推送**：SSE/WebSocket 替代轮询，降低服务端压力
+3. **前端自动化测试**：引入 Vitest + React Testing Library
 
 ---
 
@@ -362,4 +393,4 @@ pytest tests -v
 
 ---
 
-*最后更新：2026-05-09，由 AI 助手根据当前代码树与近期迭代结果整理。*
+*最后更新：2026-05-14，由 AI 助手根据 master 分支当前代码整理。*
