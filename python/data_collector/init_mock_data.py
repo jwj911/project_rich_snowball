@@ -1,8 +1,9 @@
+from datetime import datetime
 from sqlalchemy.orm import Session
-from models import SessionLocal, ProductDB, UserDB, CommentDB, KlineDataDB, VarietyDB
+from models import SessionLocal, ProductDB, UserDB, CommentDB, KlineDataDB, VarietyDB, RealtimeQuoteDB
 from utils import hash_password
 from data_collector.mock_collector import MockCollector
-from data_collector.upsert import insert_kline_bulk
+from data_collector.upsert import insert_kline_bulk, upsert_realtime
 
 
 def init_mock_data():
@@ -43,6 +44,20 @@ def init_mock_data():
             ]
             for c in comments:
                 db.add(CommentDB(**c))
+
+        # 初始化实时行情
+        if db.query(RealtimeQuoteDB).count() == 0:
+            for p in db.query(ProductDB).all():
+                upsert_realtime(db, {
+                    "symbol": p.symbol,
+                    "current_price": p.current_price,
+                    "change_percent": p.change_percent,
+                    "open_price": p.open_price,
+                    "high": p.high,
+                    "low": p.low,
+                    "volume": p.volume,
+                    "updated_at": datetime.now(),
+                })
 
         collector = MockCollector()
         varieties = db.query(VarietyDB).all()

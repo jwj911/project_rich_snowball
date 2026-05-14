@@ -10,43 +10,48 @@ import WorkspaceSummary from '@/components/workspace/WorkspaceSummary'
 import MyAnnotationsPanel, { WorkspaceAnnotation } from '@/components/workspace/MyAnnotationsPanel'
 import MyResearchTimeline from '@/components/workspace/MyResearchTimeline'
 import WatchlistPanel from '@/components/workspace/WatchlistPanel'
-import { api, Comment, Product } from '@/lib/api'
+import { api, Comment, Product, PriceLevel, Watchlist, Variety } from '@/lib/api'
 import { useMarketPolling } from '@/hooks/useMarketPolling'
+import { useWatchlistRealtime } from '@/hooks/useWatchlistRealtime'
 import { Briefcase } from 'lucide-react'
 
 interface WorkspaceData {
   comments: Comment[]
   products: Product[]
   annotations: WorkspaceAnnotation[]
-}
-
-interface SavedLevels {
-  supportLevels?: unknown
-  resistanceLevels?: unknown
-  updatedAt?: unknown
+  watchlists: Watchlist[]
 }
 
 const EMPTY_COMMENTS: Comment[] = []
 const EMPTY_PRODUCTS: Product[] = []
 const EMPTY_ANNOTATIONS: WorkspaceAnnotation[] = []
+const EMPTY_WATCHLISTS: Watchlist[] = []
 
 export default function WorkspacePage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
 
   const fetchWorkspace = useCallback(async (): Promise<WorkspaceData> => {
     if (!user) {
-      return { comments: [], products: [], annotations: [] }
+      return { comments: [], products: [], annotations: [], watchlists: [] }
     }
 
-    const [comments, products] = await Promise.all([
-      api.getUserComments(user.username),
+    const [workspace, products, varieties] = await Promise.all([
+      api.getWorkspace().catch(() => null),
       api.getProducts().catch(() => []),
+      api.getVarieties().catch(() => []),
     ])
+
+    const priceLevels = workspace?.price_levels ?? []
+    const watchlists = workspace?.watchlists ?? []
+    const comments = workspace?.recent_comments ?? []
+
+    const annotations = buildAnnotations(priceLevels, varieties, products)
 
     return {
       comments,
       products,
-      annotations: readLocalAnnotations(user.id, products),
+      annotations,
+      watchlists,
     }
   }, [user])
 
@@ -65,12 +70,26 @@ export default function WorkspacePage() {
   const comments = data?.comments ?? EMPTY_COMMENTS
   const products = data?.products ?? EMPTY_PRODUCTS
   const annotations = data?.annotations ?? EMPTY_ANNOTATIONS
+  const watchlists = data?.watchlists ?? EMPTY_WATCHLISTS
+
+  const watchlistSymbols = useMemo(() => watchlists.map((w) => w.variety_symbol), [watchlists])
+  const { quotes: watchlistRealtime } = useWatchlistRealtime(watchlistSymbols)
+
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products])
   const productCount = useMemo(() => new Set(comments.map((comment) => comment.product_id)).size, [comments])
   const annotationCount = annotations.reduce(
     (sum, annotation) => sum + annotation.supportLevels.length + annotation.resistanceLevels.length,
     0,
   )
+
+  const handleDeleteWatchlist = useCallback(async (id: number) => {
+    try {
+      await api.deleteWatchlist(id)
+      refresh()
+    } catch {
+      // 错误由 useMarketPolling 处理，这里静默失败
+    }
+  }, [refresh])
 
   return (
     <AppShell>
@@ -89,7 +108,7 @@ export default function WorkspacePage() {
                 </div>
                 <h1 className="mt-3 text-2xl font-bold text-white">我的工作区</h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                  聚合你的评论记录、本地价位标注和后续自选/预警入口。这里不会公开你的私密标注。
+                  聚合你的评论记录、价位标注和自选观察。数据已同步到云端，换设备后仍然保留。
                 </p>
               </div>
               <RefreshStatus heartbeat={heartbeat} onRefresh={refresh} className="lg:min-w-[360px]" />
@@ -104,7 +123,7 @@ export default function WorkspacePage() {
                 commentCount={comments.length}
                 productCount={productCount}
                 annotationCount={annotationCount}
-                watchlistCount={0}
+                watchlistCount={watchlists.length}
               />
 
               {loading ? (
@@ -115,7 +134,12 @@ export default function WorkspacePage() {
                     <MyResearchTimeline comments={comments} productMap={productMap} />
                     <MyAnnotationsPanel annotations={annotations} />
                   </div>
-                  <WatchlistPanel products={products} />
+                  <WatchlistPanel
+                    watchlists={watchlists}
+                    products={products}
+                    realtimeQuotes={watchlistRealtime}
+                    onDelete={handleDeleteWatchlist}
+                  />
                 </div>
               )}
             </>
@@ -126,38 +150,53 @@ export default function WorkspacePage() {
   )
 }
 
-function readLocalAnnotations(userId: number, products: Product[]): WorkspaceAnnotation[] {
-  if (typeof window === 'undefined') return []
+function buildAnnotations(
+  priceLevels: PriceLevel[],
+  varieties: Variety[],
+  products: Product[],
+): WorkspaceAnnotation[] {
+  const varietyMap = new Map(varieties.map((v) => [v.id, v]))
+  const symbolToProduct = new Map(products.map((p) => [p.symbol, p]))
 
-  return products.flatMap((product) => {
-    const raw = window.localStorage.getItem(`price-levels:v1:${userId}:${product.id}`)
-    if (!raw) return []
+  const byVariety = new Map<number, PriceLevel[]>()
+  for (const pl of priceLevels) {
+    const list = byVariety.get(pl.variety_id) ?? []
+    list.push(pl)
+    byVariety.set(pl.variety_id, list)
+  }
 
-    try {
-      const parsed = JSON.parse(raw) as SavedLevels
-      const supportLevels = normalizeLevels(parsed.supportLevels).sort((a, b) => a - b)
-      const resistanceLevels = normalizeLevels(parsed.resistanceLevels).sort((a, b) => b - a)
+  const annotations: WorkspaceAnnotation[] = []
+  byVariety.forEach((levels, varietyId) => {
+    const variety = varietyMap.get(varietyId)
+    if (!variety) return
 
-      if (supportLevels.length === 0 && resistanceLevels.length === 0) return []
+    const product = symbolToProduct.get(variety.symbol)
+    if (!product) return
 
-      return [{
-        productId: product.id,
-        productName: product.name,
-        symbol: product.symbol,
-        supportLevels,
-        resistanceLevels,
-        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : undefined,
-      }]
-    } catch {
-      return []
-    }
+    const supportLevels = levels
+      .filter((l: PriceLevel) => l.type === 'support')
+      .map((l: PriceLevel) => Number(l.price))
+      .filter(Number.isFinite)
+      .sort((a: number, b: number) => a - b)
+
+    const resistanceLevels = levels
+      .filter((l: PriceLevel) => l.type === 'resistance')
+      .map((l: PriceLevel) => Number(l.price))
+      .filter(Number.isFinite)
+      .sort((a: number, b: number) => b - a)
+
+    if (supportLevels.length === 0 && resistanceLevels.length === 0) return
+
+    annotations.push({
+      productId: product.id,
+      productName: product.name,
+      symbol: product.symbol,
+      supportLevels,
+      resistanceLevels,
+    })
   })
-}
 
-function normalizeLevels(value: unknown) {
-  return Array.isArray(value)
-    ? value.map((item) => Number(item)).filter(Number.isFinite)
-    : []
+  return annotations
 }
 
 function StatePanel({ children }: { children: string }) {

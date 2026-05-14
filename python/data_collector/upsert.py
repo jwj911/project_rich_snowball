@@ -130,7 +130,7 @@ def insert_kline_bulk(db: Session, rows: list[dict], period: str) -> int:
 
     stmt = _dialect_insert(KlineDataDB).values(values)
     stmt = stmt.on_conflict_do_nothing(
-        index_elements=["variety_id", "period", "trading_time"]
+        index_elements=["variety_id", "contract_id", "period", "trading_time"]
     )
     result = db.execute(stmt)
 

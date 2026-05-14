@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime
 from fastapi.testclient import TestClient
 from main import app
 from models import (
@@ -54,6 +55,8 @@ def _login(username="contract_tester", password="testpass123"):
 
 @pytest.fixture(autouse=True)
 def clean_db():
+    from models import init_db
+    init_db()  # 确保文件数据库表结构已创建
     db = SessionLocal()
     try:
         db.query(ContractRolloverDB).delete()
@@ -152,7 +155,7 @@ def test_get_contract_kline():
             variety_id=db.query(VarietyDB).filter(VarietyDB.symbol == "TEST").first().id,
             contract_id=c1.id,
             period="D",
-            trading_time="2025-01-15T00:00:00",
+            trading_time=datetime(2025, 1, 15),
             open_price=100.0,
             high_price=110.0,
             low_price=95.0,
@@ -215,7 +218,7 @@ def test_variety_rollovers():
             new_contract_id=c2.id,
             old_contract_code="TEST2501",
             new_contract_code="TEST2502",
-            effective_date="2025-02-01T00:00:00",
+            effective_date=datetime(2025, 2, 1),
             source="test",
         )
         db.add(rollover)

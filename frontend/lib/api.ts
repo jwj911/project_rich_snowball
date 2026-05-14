@@ -209,8 +209,49 @@ class ApiService {
     return this.request<RealtimeQuote>(`/api/realtime/${symbol}`)
   }
 
+  async getRealtimeBatch(symbols: string[]): Promise<{ quotes: RealtimeQuote[]; not_found: string[] }> {
+    if (symbols.length === 0) return { quotes: [], not_found: [] }
+    const params = new URLSearchParams()
+    for (const s of symbols) params.append('symbols', s)
+    return this.request<{ quotes: RealtimeQuote[]; not_found: string[] }>(`/api/realtime/batch?${params.toString()}`)
+  }
+
   async getKline(symbol: string, period: string = '1h', limit: number = 100): Promise<KlineData[]> {
     return this.request<KlineData[]>(`/api/kline/${symbol}?period=${period}&limit=${limit}`)
+  }
+
+  async getContinuousKline(
+    symbol: string,
+    period: string = 'D',
+    start?: string,
+    end?: string,
+    limit: number = 500
+  ): Promise<KlineData[]> {
+    const params = new URLSearchParams()
+    params.append('period', period)
+    params.append('limit', String(limit))
+    if (start) params.append('start', start)
+    if (end) params.append('end', end)
+    return this.request<KlineData[]>(`/api/kline/${symbol}/continuous?${params.toString()}`)
+  }
+
+  async getMainContractKline(
+    symbol: string,
+    period: string = 'D',
+    start?: string,
+    end?: string,
+    limit: number = 500
+  ): Promise<KlineData[]> {
+    const params = new URLSearchParams()
+    params.append('period', period)
+    params.append('limit', String(limit))
+    if (start) params.append('start', start)
+    if (end) params.append('end', end)
+    return this.request<KlineData[]>(`/api/kline/${symbol}/main?${params.toString()}`)
+  }
+
+  async getVariety(symbol: string): Promise<Variety> {
+    return this.request<Variety>(`/api/varieties/${symbol}`)
   }
 
   async getVarieties(params?: { category?: string; search?: string; skip?: number; limit?: number }): Promise<Variety[]> {

@@ -107,7 +107,7 @@ project_rich_snowball/
 - 行情轮询优先使用 `useMarketPolling`，默认 30 秒。
 - 色彩语义遵循中国市场惯例：上涨红色，下跌绿色。
 - `KlineChart.tsx` 已使用 `lightweight-charts`，不要再按旧文档理解为自研 SVG 蜡烛图。
-- 支撑/阻力位已同步后端：`price_levels` 表存储，通过 `/api/price-levels` CRUD；本地存储作为降级/缓存方案保留。
+- 支撑/阻力位已同步后端：`price_levels` 表存储，通过 `/api/price-levels` CRUD；`frontend/hooks/usePriceLevels.ts` 封装了后端同步逻辑，本地存储作为降级/缓存方案保留。
 - 主页面登录门禁来自 `AuthProvider` 和 `LoginRequired`。新增需要保护的页面时沿用该模式。
 - 修改前端后至少运行 `npx tsc --noEmit`；如涉及样式或路由，也运行 `npm run lint`，必要时用浏览器查看 `127.0.0.1:3200`。
 
@@ -240,6 +240,11 @@ pytest tests -v
 - `test_cache_orm_detached.py`
 - `test_postgres_upsert_integration.py`
 - `test_production_config.py`
+- `test_watchlists.py`
+- `test_price_levels.py`
+- `test_workspace.py`
+- `test_contracts.py`
+- `test_pipeline_rollover.py`
 
 前端仍没有自动化测试框架，只有 `frontend/tests/p0-fixes.test.md` 人工检查清单。前端改动后必须至少做类型检查。
 
@@ -285,6 +290,61 @@ pytest tests -v
 - Redis 服务可以启动，但应用代码当前使用内存缓存。
 - `node_modules`、`.next`、`venv`、数据库文件和日志可能在工作区中产生大量噪声，提交时不要顺手纳入。
 - 当前仓库可能已有用户或其他助手留下的未提交变更，修改前后都要用 `git status --short` 观察，不要回滚无关改动。
+
+---
+
+## 当前迭代状态（2026-05-14）
+
+### Phase 1：用户工作区闭环 — 已完成
+
+**后端**
+- `price_levels` 表与 `/api/price-levels` CRUD 路由（去重、越权保护）
+- `watchlists` 表与 `/api/watchlists` CRUD 路由（去重、越权保护）
+- `/api/workspace/me` 聚合 API（评论 + 标注 + 自选）
+- 评论模型扩展 `price_level_id` nullable 字段
+- 全部有 pytest 覆盖（88 passed）
+
+**前端**
+- `frontend/hooks/usePriceLevels.ts`：封装价位标注的后端同步、localStorage 降级、首次导入
+- `frontend/lib/api.ts`：新增 `getVariety`、`PriceLevel`、`Watchlist`、`WorkspaceSummary` 类型与方法
+- `workspace/page.tsx`：接入真实 `api.getWorkspace()`，自选/标注/评论全部来自后端
+- `WatchlistPanel.tsx`：从占位替换为真实自选列表，支持删除
+- `MyAnnotationsPanel.tsx`：标签从“本地”改为“云端”
+- `products/[id]/page.tsx`：
+  - 接入 `usePriceLevels` hook，添加/删除价位实时同步后端
+  - 首次进入时自动将本地标注导入后端
+  - 新增“加入自选 / 已自选”按钮
+
+### Phase 2：合约与 K 线语义 — 后端就绪，前端待接入
+
+**后端**
+- `kline_data` 增加 `contract_id` nullable（Alembic 迁移已生成）
+- 新增 `contract_rollovers` 表记录主力换月
+- `/api/contracts`、`/api/varieties/{id}/contracts`、`/api/varieties/{id}/rollovers` 路由
+- 连续 K 线服务 `services/continuous_kline.py`（主力切换拼接）
+- `/api/kline/{symbol}/continuous` 和 `/api/kline/{symbol}/main` 接口
+- 全部有 pytest 覆盖
+
+**前端待做**
+- 品种详情页增加合约选择（主力/连续/具体合约）
+- K 线 tooltip 显示当前 bar 所属合约
+- 支撑/阻力绑定合约口径
+
+### Phase 3：生产边界 — 已完成
+
+- **独立 worker 入口**：`python/worker.py` 纯 CLI 启动 scheduler，不启动 FastAPI
+- **API 默认禁用 scheduler**：`ENABLE_SCHEDULER` 默认值改为 `0`
+- **任务状态表扩展**：`data_ingestion_runs` 增加 `duration_ms`、`error_sample`、`window_start`、`window_end`
+- **`/health/scheduler` 增强**：返回最近 24h 任务统计、成功率、平均执行时长、熔断器状态
+- **数据源熔断**：`services/circuit_breaker.py` 内存实现，连续失败 5 次后冷却 10 分钟
+- **数据质量检查脚本**：`scripts/data_quality_report.py` 检测缺失日期、重复键、OHLC 异常、负成交量
+- **后端测试**：`test_circuit_breaker.py`、`test_scheduler_health.py`（98 passed）
+
+### 下一步推荐
+
+1. **前端合约切换**：在品种详情页增加周期选择器旁边的合约口径选择
+2. **K 线 tooltip 合约信息**：`KlineChart.tsx` crosshair 中展示 `contract_code`
+3. **Phase 4 可观测性**：Prometheus 指标、请求 ID、慢查询日志
 
 ---
 

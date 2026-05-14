@@ -45,3 +45,13 @@ def get_current_user_dependency(
     if not user:
         raise HTTPException(status_code=401, detail="无效的 token")
     return user
+
+
+def get_current_user_from_token(token: str, db: Session) -> UserDB:
+    """供 SSE 等无法使用标准 Header 的场景使用。"""
+    if not token:
+        raise HTTPException(status_code=401, detail="未登录")
+    user = get_current_user(token, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="无效的 token")
+    return user

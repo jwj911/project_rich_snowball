@@ -1,0 +1,269 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - link "倍增计划" [ref=e9] [cursor=pointer]:
+          - /url: /
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - link "工作台" [ref=e12] [cursor=pointer]:
+            - /url: /
+            - img [ref=e14]
+            - text: 工作台
+          - link "行情" [ref=e17] [cursor=pointer]:
+            - /url: /products
+            - img [ref=e18]
+            - text: 行情
+          - link "我的" [ref=e21] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e22]
+            - text: 我的
+          - link "评论" [ref=e25] [cursor=pointer]:
+            - /url: /my-comments
+            - img [ref=e26]
+            - text: 评论
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - generic [ref=e30]: AGENT
+            - generic [ref=e31]:
+              - generic [ref=e32]:
+                - img [ref=e33]
+                - text: Agent 状态
+              - generic [ref=e35]:
+                - img [ref=e36]
+                - text: 权限心跳
+          - generic [ref=e39]:
+            - generic [ref=e40]: DATA
+            - generic [ref=e41]:
+              - generic [ref=e42]:
+                - img [ref=e43]
+                - text: 市场数据
+              - generic [ref=e47]:
+                - img [ref=e48]
+                - text: 提醒事件
+          - generic [ref=e51]:
+            - generic [ref=e52]: SYSTEM
+            - generic [ref=e53]:
+              - generic [ref=e54]:
+                - img [ref=e55]
+                - text: 工具
+              - generic [ref=e57]:
+                - img [ref=e58]
+                - text: 设置
+      - generic [ref=e61]:
+        - generic [ref=e101]:
+          - generic [ref=e102]: 当前用户
+          - generic [ref=e103]: trader001
+        - button "退出" [ref=e104] [cursor=pointer]:
+          - img [ref=e105]
+          - text: 退出
+        - generic [ref=e68]: 私密工作台
+    - main [ref=e70]:
+      - generic [ref=e108]:
+        - generic [ref=e109]:
+          - generic [ref=e110]:
+            - generic [ref=e111]:
+              - generic [ref=e112]:
+                - generic [ref=e113]:
+                  - img [ref=e114]
+                  - text: 30 秒自动刷新
+                - heading "行情工作台" [level=1] [ref=e116]
+                - paragraph [ref=e117]: 聚合热门期货品种、实时涨跌和社区入口，快速进入单品种复盘与讨论。
+              - generic [ref=e118]:
+                - generic [ref=e119]:
+                  - img [ref=e120]
+                  - generic [ref=e123]:
+                    - generic [ref=e124]: 数据正常
+                    - generic [ref=e125]: 上次刷新 05/14 16:05
+                - generic [ref=e126]:
+                  - generic [ref=e127]: 下次 05/14 16:05
+                  - button "刷新" [ref=e128] [cursor=pointer]:
+                    - img [ref=e129]
+                    - text: 刷新
+            - generic [ref=e134]:
+              - generic [ref=e135]:
+                - generic [ref=e136]: 品种数
+                - generic [ref=e137]: "10"
+              - generic [ref=e138]:
+                - generic [ref=e139]: 上涨品种
+                - generic [ref=e140]: 6/10
+              - generic [ref=e141]:
+                - generic [ref=e142]: 总成交量
+                - generic [ref=e143]: 7,155,420
+          - generic [ref=e144]:
+            - generic [ref=e145]: 领涨观察
+            - generic [ref=e146]:
+              - generic [ref=e147]:
+                - generic [ref=e148]:
+                  - generic [ref=e149]: 黄金
+                  - generic [ref=e150]: AU
+                - generic [ref=e151]:
+                  - img [ref=e152]
+                  - text: +1.25%
+              - generic [ref=e155]: "453.20"
+              - link "查看详情" [ref=e156] [cursor=pointer]:
+                - /url: /products/1
+                - text: 查看详情
+                - img [ref=e157]
+        - generic [ref=e159]:
+          - generic [ref=e160]:
+            - generic [ref=e161]:
+              - heading "热门品种" [level=2] [ref=e162]
+              - paragraph [ref=e163]: 点击卡片进入品种详情页，查看品种技术分析、策略与评论
+            - link "全部品种" [ref=e164] [cursor=pointer]:
+              - /url: /products
+              - text: 全部品种
+              - img [ref=e165]
+          - generic [ref=e167]:
+            - link "黄金 AU 贵金属 453.20 +1.25% 高 455.80 低 446.20 成交量 152,340 更新 05/14 10:23" [ref=e168] [cursor=pointer]:
+              - /url: /products/1
+              - generic [ref=e169]:
+                - generic [ref=e170]:
+                  - generic [ref=e171]:
+                    - heading "黄金" [level=2] [ref=e172]
+                    - generic [ref=e173]: AU
+                  - generic [ref=e174]: 贵金属
+                - img [ref=e175]
+              - generic [ref=e177]:
+                - generic [ref=e178]:
+                  - generic [ref=e179]: "453.20"
+                  - generic [ref=e180]:
+                    - img [ref=e181]
+                    - text: +1.25%
+                - generic [ref=e184]:
+                  - generic [ref=e185]: 高 455.80
+                  - generic [ref=e186]: 低 446.20
+              - generic [ref=e187]:
+                - generic [ref=e188]:
+                  - generic [ref=e189]: 成交量
+                  - generic [ref=e190]: 152,340
+                - generic [ref=e191]:
+                  - generic [ref=e192]: 更新
+                  - generic [ref=e193]: 05/14 10:23
+            - link "白银 AG 贵金属 5,420.00 -0.85% 高 5,500.00 低 5,380.00 成交量 89,420 更新 05/14 10:23" [ref=e194] [cursor=pointer]:
+              - /url: /products/2
+              - generic [ref=e195]:
+                - generic [ref=e196]:
+                  - generic [ref=e197]:
+                    - heading "白银" [level=2] [ref=e198]
+                    - generic [ref=e199]: AG
+                  - generic [ref=e200]: 贵金属
+                - img [ref=e201]
+              - generic [ref=e203]:
+                - generic [ref=e204]:
+                  - generic [ref=e205]: 5,420.00
+                  - generic [ref=e206]:
+                    - img [ref=e207]
+                    - text: "-0.85%"
+                - generic [ref=e210]:
+                  - generic [ref=e211]: 高 5,500.00
+                  - generic [ref=e212]: 低 5,380.00
+              - generic [ref=e213]:
+                - generic [ref=e214]:
+                  - generic [ref=e215]: 成交量
+                  - generic [ref=e216]: 89,420
+                - generic [ref=e217]:
+                  - generic [ref=e218]: 更新
+                  - generic [ref=e219]: 05/14 10:23
+            - link "铜 CU 有色金属 68,450.00 +2.15% 高 68,800.00 低 66,800.00 成交量 125,680 更新 05/14 10:23" [ref=e220] [cursor=pointer]:
+              - /url: /products/3
+              - generic [ref=e221]:
+                - generic [ref=e222]:
+                  - generic [ref=e223]:
+                    - heading "铜" [level=2] [ref=e224]
+                    - generic [ref=e225]: CU
+                  - generic [ref=e226]: 有色金属
+                - img [ref=e227]
+              - generic [ref=e229]:
+                - generic [ref=e230]:
+                  - generic [ref=e231]: 68,450.00
+                  - generic [ref=e232]:
+                    - img [ref=e233]
+                    - text: +2.15%
+                - generic [ref=e236]:
+                  - generic [ref=e237]: 高 68,800.00
+                  - generic [ref=e238]: 低 66,800.00
+              - generic [ref=e239]:
+                - generic [ref=e240]:
+                  - generic [ref=e241]: 成交量
+                  - generic [ref=e242]: 125,680
+                - generic [ref=e243]:
+                  - generic [ref=e244]: 更新
+                  - generic [ref=e245]: 05/14 10:23
+            - link "螺纹钢 RB 黑色系 3,680.00 -1.32% 高 3,750.00 低 3,650.00 成交量 2,156,800 更新 05/14 10:23" [ref=e246] [cursor=pointer]:
+              - /url: /products/4
+              - generic [ref=e247]:
+                - generic [ref=e248]:
+                  - generic [ref=e249]:
+                    - heading "螺纹钢" [level=2] [ref=e250]
+                    - generic [ref=e251]: RB
+                  - generic [ref=e252]: 黑色系
+                - img [ref=e253]
+              - generic [ref=e255]:
+                - generic [ref=e256]:
+                  - generic [ref=e257]: 3,680.00
+                  - generic [ref=e258]:
+                    - img [ref=e259]
+                    - text: "-1.32%"
+                - generic [ref=e262]:
+                  - generic [ref=e263]: 高 3,750.00
+                  - generic [ref=e264]: 低 3,650.00
+              - generic [ref=e265]:
+                - generic [ref=e266]:
+                  - generic [ref=e267]: 成交量
+                  - generic [ref=e268]: 2,156,800
+                - generic [ref=e269]:
+                  - generic [ref=e270]: 更新
+                  - generic [ref=e271]: 05/14 10:23
+            - link "铁矿石 I 黑色系 825.00 +0.78% 高 835.00 低 812.00 成交量 985,420 更新 05/14 10:23" [ref=e272] [cursor=pointer]:
+              - /url: /products/5
+              - generic [ref=e273]:
+                - generic [ref=e274]:
+                  - generic [ref=e275]:
+                    - heading "铁矿石" [level=2] [ref=e276]
+                    - generic [ref=e277]: I
+                  - generic [ref=e278]: 黑色系
+                - img [ref=e279]
+              - generic [ref=e281]:
+                - generic [ref=e282]:
+                  - generic [ref=e283]: "825.00"
+                  - generic [ref=e284]:
+                    - img [ref=e285]
+                    - text: +0.78%
+                - generic [ref=e288]:
+                  - generic [ref=e289]: 高 835.00
+                  - generic [ref=e290]: 低 812.00
+              - generic [ref=e291]:
+                - generic [ref=e292]:
+                  - generic [ref=e293]: 成交量
+                  - generic [ref=e294]: 985,420
+                - generic [ref=e295]:
+                  - generic [ref=e296]: 更新
+                  - generic [ref=e297]: 05/14 10:23
+            - link "原油 SC 能源化工 528.50 -2.15% 高 542.00 低 525.00 成交量 425,680 更新 05/14 10:23" [ref=e298] [cursor=pointer]:
+              - /url: /products/6
+              - generic [ref=e299]:
+                - generic [ref=e300]:
+                  - generic [ref=e301]:
+                    - heading "原油" [level=2] [ref=e302]
+                    - generic [ref=e303]: SC
+                  - generic [ref=e304]: 能源化工
+                - img [ref=e305]
+              - generic [ref=e307]:
+                - generic [ref=e308]:
+                  - generic [ref=e309]: "528.50"
+                  - generic [ref=e310]:
+                    - img [ref=e311]
+                    - text: "-2.15%"
+                - generic [ref=e314]:
+                  - generic [ref=e315]: 高 542.00
+                  - generic [ref=e316]: 低 525.00
+              - generic [ref=e317]:
+                - generic [ref=e318]:
+                  - generic [ref=e319]: 成交量
+                  - generic [ref=e320]: 425,680
+                - generic [ref=e321]:
+                  - generic [ref=e322]: 更新
+                  - generic [ref=e323]: 05/14 10:23
+  - alert [ref=e100]

@@ -59,11 +59,11 @@ class TestSchemaIntegrity:
         assert "ix_varieties_category" in indexes
 
     def test_kline_unique_constraint(self):
-        """kline_data 应有 variety_id+period+trading_time 唯一约束"""
+        """kline_data 应有 variety_id+contract_id+period+trading_time 唯一约束"""
         inspector = inspect(engine)
         constraints = inspector.get_unique_constraints("kline_data")
         names = {c["name"] for c in constraints}
-        assert "uix_kline" in names
+        assert "uix_kline_contract" in names
 
     def test_foreign_keys(self):
         """关键外键关系存在"""

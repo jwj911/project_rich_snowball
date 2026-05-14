@@ -2,6 +2,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 import logging
+import time
 from datetime import datetime, timedelta
 
 from sqlalchemy.orm import selectinload
@@ -11,6 +12,7 @@ from data_collector.base import BaseCollector
 from data_collector.pipeline import DataPipeline
 from data_collector.cleaner import clean_realtime, clean_kline
 from config import DATA_SOURCE, ENV
+from services.metrics import data_collection_runs_total, data_collection_duration_seconds
 
 logger = logging.getLogger("data.scheduler")
 
@@ -216,16 +218,24 @@ def refresh_realtime_quotes():
     _ensure_collectors()
     if not _pipeline_realtime:
         logger.warning("Realtime pipeline not available, skipping refresh")
+        data_collection_runs_total.labels(task_name="refresh_realtime", status="skipped").inc()
         return
     logger.info("Refreshing realtime quotes...")
+    start = time.time()
     db = SessionLocal()
     try:
         varieties = db.query(VarietyDB).all()
         symbols = [v.symbol for v in varieties]
         stats = _pipeline_realtime.run_realtime(symbols)
         logger.info(f"Refreshed realtime: {stats}")
+        data_collection_runs_total.labels(task_name="refresh_realtime", status="success").inc()
+    except Exception as e:
+        logger.error(f"Refresh realtime failed: {e}")
+        data_collection_runs_total.labels(task_name="refresh_realtime", status="failed").inc()
+        raise
     finally:
         db.close()
+        data_collection_duration_seconds.labels(task_name="refresh_realtime").observe(time.time() - start)
 
 
 def sync_daily_kline():
@@ -233,31 +243,48 @@ def sync_daily_kline():
     _ensure_collectors()
     if not _pipeline_kline:
         logger.warning("Kline pipeline not available, skipping sync")
+        data_collection_runs_total.labels(task_name="sync_kline", status="skipped").inc()
         return
     logger.info("Syncing daily kline...")
+    start = time.time()
     db = SessionLocal()
+    success_count = 0
+    fail_count = 0
     try:
         varieties = db.query(VarietyDB).all()
         for v in varieties:
             try:
                 # Use 1d to avoid ft_mins quota limits on free-tier Tushare
                 _pipeline_kline.run_kline(v.contract_code, "1d", limit=30)
+                success_count += 1
             except Exception as e:
                 logger.error(f"Failed to sync kline for {v.contract_code}: {e}")
+                fail_count += 1
         logger.info(f"Synced kline for {len(varieties)} varieties")
+        if fail_count == 0:
+            data_collection_runs_total.labels(task_name="sync_kline", status="success").inc()
+        else:
+            data_collection_runs_total.labels(task_name="sync_kline", status="partial").inc()
+    except Exception as e:
+        logger.error(f"Sync kline failed: {e}")
+        data_collection_runs_total.labels(task_name="sync_kline", status="failed").inc()
+        raise
     finally:
         db.close()
+        data_collection_duration_seconds.labels(task_name="sync_kline").observe(time.time() - start)
 
 
 def sync_prices_to_products():
     """Copy realtime quote prices to legacy products."""
     logger.info("Syncing prices to products...")
+    start = time.time()
     db = SessionLocal()
     try:
         from models import RealtimeQuoteDB
         quotes = db.query(RealtimeQuoteDB).options(selectinload(RealtimeQuoteDB.variety)).all()
         if not quotes:
             logger.info("No realtime quotes to sync")
+            data_collection_runs_total.labels(task_name="sync_prices", status="success").inc()
             return
 
         symbols = [q.variety.symbol for q in quotes]
@@ -280,10 +307,13 @@ def sync_prices_to_products():
                 synced += 1
         db.commit()
         logger.info(f"Synced {synced} prices to products")
+        data_collection_runs_total.labels(task_name="sync_prices", status="success").inc()
     except Exception as e:
         logger.error(f"Sync prices failed: {e}")
+        data_collection_runs_total.labels(task_name="sync_prices", status="failed").inc()
     finally:
         db.close()
+        data_collection_duration_seconds.labels(task_name="sync_prices").observe(time.time() - start)
 
 
 scheduler = BackgroundScheduler()

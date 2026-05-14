@@ -18,15 +18,15 @@ export default function MyAnnotationsPanel({ annotations }: { annotations: Works
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-white">我的标注</h2>
-          <p className="mt-1 text-xs text-slate-500">当前读取本机保存的支撑位和阻力位。</p>
+          <p className="mt-1 text-xs text-slate-500">同步自云端保存的支撑位和阻力位。</p>
         </div>
-        <span className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-500">本地</span>
+        <span className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-500">云端</span>
       </div>
 
       {annotations.length === 0 ? (
         <EmptyState
           icon={PencilLine}
-          title="暂无本地标注"
+          title="暂无标注"
           description="进入品种详情页添加支撑位或阻力位后，这里会聚合展示。"
           className="mt-4 bg-black/20"
         />

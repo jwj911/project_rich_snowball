@@ -1,0 +1,245 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - link "倍增计划" [ref=e9] [cursor=pointer]:
+          - /url: /
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - link "工作台" [ref=e12] [cursor=pointer]:
+            - /url: /
+            - img [ref=e13]
+            - text: 工作台
+          - link "行情" [ref=e16] [cursor=pointer]:
+            - /url: /products
+            - img [ref=e18]
+            - text: 行情
+          - link "我的" [ref=e21] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e22]
+            - text: 我的
+          - link "评论" [ref=e25] [cursor=pointer]:
+            - /url: /my-comments
+            - img [ref=e26]
+            - text: 评论
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - generic [ref=e30]: AGENT
+            - generic [ref=e31]:
+              - generic [ref=e32]:
+                - img [ref=e33]
+                - text: Agent 状态
+              - generic [ref=e35]:
+                - img [ref=e36]
+                - text: 权限心跳
+          - generic [ref=e39]:
+            - generic [ref=e40]: DATA
+            - generic [ref=e41]:
+              - generic [ref=e42]:
+                - img [ref=e43]
+                - text: 市场数据
+              - generic [ref=e47]:
+                - img [ref=e48]
+                - text: 提醒事件
+          - generic [ref=e51]:
+            - generic [ref=e52]: SYSTEM
+            - generic [ref=e53]:
+              - generic [ref=e54]:
+                - img [ref=e55]
+                - text: 工具
+              - generic [ref=e57]:
+                - img [ref=e58]
+                - text: 设置
+      - generic [ref=e61]:
+        - generic [ref=e72]:
+          - generic [ref=e73]: 当前用户
+          - generic [ref=e74]: trader001
+        - button "退出" [ref=e75] [cursor=pointer]:
+          - img [ref=e76]
+          - text: 退出
+        - generic [ref=e68]: 私密工作台
+    - main [ref=e70]:
+      - generic [ref=e79]:
+        - generic [ref=e80]:
+          - generic [ref=e81]:
+            - link "返回行情中心" [ref=e82] [cursor=pointer]:
+              - /url: /products
+              - img [ref=e83]
+              - text: 返回行情中心
+            - generic [ref=e85]:
+              - heading "黄金" [level=1] [ref=e86]
+              - generic [ref=e87]: AU
+              - generic [ref=e88]: 贵金属
+              - button "加入自选" [ref=e89] [cursor=pointer]:
+                - img [ref=e90]
+                - text: 加入自选
+          - generic [ref=e92]:
+            - generic [ref=e93]:
+              - generic [ref=e94]: 最新价
+              - generic [ref=e95]: "453.20"
+            - generic [ref=e96]:
+              - generic [ref=e97]: 涨跌幅
+              - generic [ref=e99]:
+                - img [ref=e100]
+                - text: +1.25%
+            - generic [ref=e103]:
+              - generic [ref=e104]: 最高
+              - generic [ref=e105]: "455.80"
+            - generic [ref=e106]:
+              - generic [ref=e107]: 成交量
+              - generic [ref=e108]: 152,340
+        - generic [ref=e109]:
+          - generic [ref=e110]:
+            - generic [ref=e111]:
+              - generic [ref=e112]:
+                - generic [ref=e113]:
+                  - button "连续K线" [ref=e114] [cursor=pointer]
+                  - button "主力合约" [ref=e115] [cursor=pointer]
+                  - button "单合约" [ref=e116] [cursor=pointer]
+                  - button "1分" [ref=e118] [cursor=pointer]
+                  - button "5分" [ref=e119] [cursor=pointer]
+                  - button "15分" [ref=e120] [cursor=pointer]
+                  - button "30分" [ref=e121] [cursor=pointer]
+                  - button "1小时" [ref=e122] [cursor=pointer]
+                  - button "日线" [ref=e123] [cursor=pointer]
+                  - button "周线" [ref=e124] [cursor=pointer]
+                - generic [ref=e126]: 单合约·日线
+              - generic [ref=e128]:
+                - generic [ref=e220]:
+                  - generic [ref=e221]: AU
+                  - generic [ref=e222]: 最新 457.00
+                  - generic [ref=e223]: 开 453.20
+                  - generic [ref=e224]: 高 462.39
+                  - generic [ref=e225]: 低 445.33
+                - table [ref=e228]:
+                  - row [ref=e229]:
+                    - cell
+                    - cell [ref=e230]:
+                      - link "Charting by TradingView" [ref=e234] [cursor=pointer]:
+                        - /url: https://www.tradingview.com/?utm_medium=lwc-link&utm_campaign=lwc-chart&utm_source=127.0.0.1/products/1
+                        - img [ref=e235]
+                    - cell [ref=e239]
+                  - row [ref=e243]:
+                    - cell
+                    - cell [ref=e244]
+                    - cell [ref=e248]
+                - generic [ref=e252]:
+                  - generic [ref=e253]: 时间
+                  - generic [ref=e254]: 2026-05-13T14:02:48.072778
+                  - generic [ref=e255]: 收盘
+                  - generic [ref=e256]: "457.00"
+                  - generic [ref=e257]: 成交量
+                  - generic [ref=e258]: 3,583
+            - generic [ref=e135]:
+              - generic [ref=e259]:
+                - generic [ref=e260]:
+                  - heading "技术分析与策略" [level=2] [ref=e261]:
+                    - img [ref=e262]
+                    - text: 技术分析与策略
+                  - paragraph [ref=e265]: 基于最近 90 根 K 线自动生成
+                - generic [ref=e266]:
+                  - img [ref=e267]
+                  - text: 震荡观察
+              - generic [ref=e140]:
+                - generic [ref=e269]:
+                  - generic [ref=e270]: MA5
+                  - generic [ref=e271]: "454.48"
+                - generic [ref=e272]:
+                  - generic [ref=e273]: MA20
+                  - generic [ref=e274]: "454.32"
+                - generic [ref=e275]:
+                  - generic [ref=e276]: 区间振幅
+                  - generic [ref=e277]: 3.20%
+                - generic [ref=e278]:
+                  - generic [ref=e279]: 量能变化
+                  - generic [ref=e280]: 缩量
+              - generic [ref=e281]:
+                - generic [ref=e282]:
+                  - heading "策略观察" [level=3] [ref=e283]:
+                    - img [ref=e284]
+                    - text: 策略观察
+                  - generic [ref=e288]:
+                    - paragraph [ref=e289]: 均线方向暂不明确，适合先观察区间边界。
+                    - paragraph [ref=e290]: 近 20 根 K 线低点 448.04 可作为临时支撑参考。
+                    - paragraph [ref=e291]: 近 20 根 K 线高点 462.39 可作为压力参考。
+                - generic [ref=e292]:
+                  - heading "风险提示" [level=3] [ref=e293]:
+                    - img [ref=e294]
+                    - text: 风险提示
+                  - generic [ref=e296]:
+                    - paragraph [ref=e297]: 近期振幅相对可控，但仍需关注突发行情。
+                    - paragraph [ref=e298]: 量能未明显放大，突破信号可能需要等待跟进。
+            - generic [ref=e141]:
+              - heading "评论区" [level=2] [ref=e142]:
+                - img [ref=e143]
+                - text: 评论区
+              - generic [ref=e146]:
+                - textbox "发表你的看法..." [ref=e147]
+                - button "发送" [disabled] [ref=e148]
+              - generic [ref=e149]:
+                - article [ref=e150]:
+                  - generic [ref=e151]:
+                    - generic [ref=e152]: ws_test_23106509
+                    - generic [ref=e153]: 05/14 14:03
+                  - paragraph [ref=e154]: 测试评论
+                - article [ref=e155]:
+                  - generic [ref=e156]:
+                    - generic [ref=e157]: ws_test_a898662e
+                    - generic [ref=e158]: 05/14 10:36
+                  - paragraph [ref=e159]: 测试评论
+                - article [ref=e160]:
+                  - generic [ref=e161]:
+                    - generic [ref=e162]: ws_test_eaf371ba
+                    - generic [ref=e163]: 05/14 10:24
+                  - paragraph [ref=e164]: 测试评论
+                - article [ref=e165]:
+                  - generic [ref=e166]:
+                    - generic [ref=e167]: trader001
+                    - generic [ref=e168]: 05/14 10:23
+                  - paragraph [ref=e169]: 黄金近期走势强劲，受避险情绪影响明显，建议关注450美元阻力位。
+                - article [ref=e170]:
+                  - generic [ref=e171]:
+                    - generic [ref=e172]: investor_wang
+                    - generic [ref=e173]: 05/14 10:23
+                  - paragraph [ref=e174]: 美联储加息预期降温，金价有望继续上攻。
+          - complementary [ref=e175]:
+            - generic [ref=e176]:
+              - heading "交易信息" [level=2] [ref=e177]:
+                - img [ref=e178]
+                - text: 交易信息
+              - generic [ref=e181]:
+                - generic [ref=e182]:
+                  - generic [ref=e183]: 当前价格
+                  - generic [ref=e184]: "453.20"
+                - generic [ref=e185]:
+                  - generic [ref=e186]: 保证金率
+                  - generic [ref=e187]: 8.00%
+                - generic [ref=e188]:
+                  - generic [ref=e189]: 预估保证金
+                  - generic [ref=e190]: "36.26"
+                - generic [ref=e191]:
+                  - generic [ref=e192]: 手续费
+                  - generic [ref=e193]: 15.00 元/手
+                - generic [ref=e194]:
+                  - generic [ref=e195]: 更新时间
+                  - generic [ref=e196]: 05/14 10:23
+            - generic [ref=e197]:
+              - heading "支撑位" [level=2] [ref=e198]:
+                - img [ref=e199]
+                - text: 支撑位
+              - generic [ref=e202]: 已同步到云端
+              - generic [ref=e203]:
+                - spinbutton [ref=e204]
+                - button "添加" [ref=e205] [cursor=pointer]
+              - generic [ref=e207]: 暂无标记
+            - generic [ref=e208]:
+              - heading "阻力位" [level=2] [ref=e209]:
+                - img [ref=e210]
+                - text: 阻力位
+              - generic [ref=e213]: 已同步到云端
+              - generic [ref=e214]:
+                - spinbutton [ref=e215]
+                - button "添加" [ref=e216] [cursor=pointer]
+              - generic [ref=e218]: 暂无标记
+  - alert [ref=e219]

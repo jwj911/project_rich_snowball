@@ -23,17 +23,58 @@ from sqlalchemy.orm import Session
 from models import SessionLocal, KlineDataDB, VarietyDB, FutContractDB
 
 
+def _resolve_contract_id(db: Session, contract_code: str) -> int | None:
+    """将 contract_code（如 AU2506, MA2506）解析为 fut_contracts.id。
+    尝试顺序：symbol 精确匹配 -> ts_code 精确匹配 -> ZCE 格式 symbol -> ZCE 格式 ts_code。
+    """
+    if not contract_code:
+        return None
+
+    # 1. symbol 精确匹配（如 M2506）
+    c = db.query(FutContractDB).filter(FutContractDB.symbol == contract_code).first()
+    if c:
+        return c.id
+
+    # 2. ts_code 精确匹配（如 AU2506.SHF）
+    c = db.query(FutContractDB).filter(FutContractDB.ts_code == contract_code).first()
+    if c:
+        return c.id
+
+    # 3. ZCE 格式：去掉世纪前缀（MA2506 -> MA506）
+    if len(contract_code) > 4 and contract_code[-4:].isdigit():
+        zce_symbol = contract_code[:-4] + contract_code[-3:]
+        c = db.query(FutContractDB).filter(FutContractDB.symbol == zce_symbol).first()
+        if c:
+            return c.id
+        # 4. ZCE ts_code 格式
+        c = db.query(FutContractDB).filter(FutContractDB.ts_code == contract_code + ".ZCE").first()
+        if c:
+            return c.id
+        # 5. DCE ts_code 格式
+        c = db.query(FutContractDB).filter(FutContractDB.ts_code == contract_code + ".DCE").first()
+        if c:
+            return c.id
+        # 6. SHFE ts_code 格式
+        c = db.query(FutContractDB).filter(FutContractDB.ts_code == contract_code + ".SHF").first()
+        if c:
+            return c.id
+        # 7. INE ts_code 格式
+        c = db.query(FutContractDB).filter(FutContractDB.ts_code == contract_code + ".INE").first()
+        if c:
+            return c.id
+
+    return None
+
+
 def backfill():
     db: Session = SessionLocal()
     try:
-        # 统计回填前
         total_null = db.query(KlineDataDB).filter(KlineDataDB.contract_id.is_(None)).count()
         print(f"回填前 contract_id 为 null 的记录: {total_null}")
         if total_null == 0:
             print("无需回填")
             return
 
-        # 获取所有 contract_id 为 null 的 variety_id
         variety_ids = (
             db.query(KlineDataDB.variety_id)
             .filter(KlineDataDB.contract_id.is_(None))
@@ -43,28 +84,14 @@ def backfill():
         variety_ids = [v[0] for v in variety_ids]
         print(f"涉及品种数: {len(variety_ids)}")
 
-        # 批量获取 variety -> contract_code 映射
         varieties = db.query(VarietyDB).filter(VarietyDB.id.in_(variety_ids)).all()
         variety_contract_map = {v.id: v.contract_code for v in varieties if v.contract_code}
-
-        # 批量获取 contract_code -> contract_id 映射
-        # contract_code 通常是 symbol（不含后缀，如 "AU2506"）
-        contract_codes = set(variety_contract_map.values())
-        contracts_by_symbol = {
-            c.symbol: c.id
-            for c in db.query(FutContractDB).filter(FutContractDB.symbol.in_(contract_codes)).all()
-        }
-        contracts_by_ts = {
-            c.ts_code: c.id
-            for c in db.query(FutContractDB).filter(FutContractDB.ts_code.in_(contract_codes)).all()
-        }
-        contract_map = {**contracts_by_symbol, **contracts_by_ts}
 
         matched = 0
         unmatched_varieties = []
 
         for vid, code in variety_contract_map.items():
-            cid = contract_map.get(code)
+            cid = _resolve_contract_id(db, code)
             if not cid:
                 unmatched_varieties.append((vid, code))
                 continue
@@ -79,9 +106,7 @@ def backfill():
 
         db.commit()
 
-        # 统计回填后
         remaining_null = db.query(KlineDataDB).filter(KlineDataDB.contract_id.is_(None)).count()
-
         print("\n========== 回填报告 ==========")
         print(f"回填前 null 数: {total_null}")
         print(f"回填成功:       {matched}")

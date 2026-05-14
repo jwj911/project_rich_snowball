@@ -8,6 +8,7 @@ from typing import Generator
 
 # 确保在导入项目模块前设置 SECRET_KEY
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest")
+os.environ.setdefault("SSE_TEST_MODE", "1")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

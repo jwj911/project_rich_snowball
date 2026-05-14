@@ -13,11 +13,11 @@ if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is not set")
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
 
 # 环境控制
 ENV = os.getenv("ENV", "development")
-ENABLE_SCHEDULER = os.getenv("ENABLE_SCHEDULER", "1") == "1"
+ENABLE_SCHEDULER = os.getenv("ENABLE_SCHEDULER", "0") == "1"
 
 # SECRET_KEY 强度检查（必须在 ENV 定义之后）
 if ENV == "production" and len(SECRET_KEY) < 32:

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator, EmailStr
+from pydantic import BaseModel, Field, field_validator, EmailStr, ConfigDict
 from typing import List, Optional
 from datetime import datetime as dt
 from decimal import Decimal
@@ -102,6 +102,11 @@ class RealtimeResponse(BaseModel):
     updated_at: dt
 
 
+class RealtimeBatchResponse(BaseModel):
+    quotes: list[RealtimeResponse]
+    not_found: list[str]
+
+
 # ========== Price Level / Workspace schemas ==========
 
 class PriceLevelType:
@@ -150,8 +155,7 @@ class PriceLevelResponse(BaseModel):
     created_at: dt
     updated_at: dt
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WatchlistCreate(BaseModel):
@@ -192,8 +196,7 @@ class WatchlistResponse(BaseModel):
     is_notified: bool
     created_at: dt
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WorkspaceSummary(BaseModel):
@@ -216,8 +219,7 @@ class ContractResponse(BaseModel):
     contract_type: Optional[str]
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ContractRolloverResponse(BaseModel):
@@ -231,8 +233,7 @@ class ContractRolloverResponse(BaseModel):
     source: str
     created_at: dt
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ContinuousKlineResponse(BaseModel):

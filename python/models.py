@@ -1,11 +1,17 @@
 import datetime
+import logging
+import os
+import time
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, DateTime,
-    Text, ForeignKey, Boolean, UniqueConstraint, Index, text, Numeric
+    Text, ForeignKey, Boolean, UniqueConstraint, Index, text, Numeric, event
 )
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from config import DATABASE_URL
+
+logger = logging.getLogger(__name__)
+SLOW_QUERY_THRESHOLD_SECONDS = float(os.getenv("SLOW_QUERY_THRESHOLD_SECONDS", "1.0"))
 
 _IS_SQLITE = DATABASE_URL.startswith("sqlite")
 
@@ -25,6 +31,19 @@ else:
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+# ========== 慢查询日志 ==========
+
+@event.listens_for(engine, "before_cursor_execute")
+def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    context._query_start_time = time.time()
+
+
+@event.listens_for(engine, "after_cursor_execute")
+def _after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    total = time.time() - context._query_start_time
+    if total > SLOW_QUERY_THRESHOLD_SECONDS:
+        logger.warning(f"Slow query ({total:.2f}s): {statement[:500]}")
 
 
 from config import ENV
@@ -183,7 +202,7 @@ class KlineDataDB(Base):
     variety = relationship("VarietyDB", back_populates="klines")
     contract = relationship("FutContractDB")
     __table_args__ = (
-        UniqueConstraint("variety_id", "period", "trading_time", name="uix_kline"),
+        UniqueConstraint("variety_id", "contract_id", "period", "trading_time", name="uix_kline_contract"),
         Index("idx_kline_lookup", "variety_id", "period", "trading_time"),
     )
 
@@ -259,11 +278,15 @@ class DataIngestionRunDB(Base):
     source = Column(String(50), nullable=False)
     started_at = Column(DateTime, nullable=False)
     finished_at = Column(DateTime)
+    duration_ms = Column(Integer, nullable=True)
     status = Column(String(20), default="running")
     success_count = Column(Integer, default=0)
     failed_count = Column(Integer, default=0)
     skipped_count = Column(Integer, default=0)
     error_message = Column(Text)
+    error_sample = Column(Text, nullable=True)
+    window_start = Column(DateTime, nullable=True)
+    window_end = Column(DateTime, nullable=True)
     metadata_json = Column(Text)
 
 
