@@ -146,6 +146,17 @@ def login(
 
     access_token = create_access_token(data={"sub": str(user.id)})
 
+    # 设置 access token cookie（支持 SSE 等无 Header 场景）
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        httponly=True,
+        secure=ENV == "production",
+        samesite="lax",
+        path="/",
+    )
+
     # 生成 refresh token 并持久化
     raw_refresh = generate_refresh_token()
     refresh_hash = hash_refresh_token(raw_refresh)

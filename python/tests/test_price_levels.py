@@ -178,6 +178,7 @@ def test_cross_user_price_level_forbidden():
 
 def test_unauthorized_price_level():
     """未登录访问应返回 401"""
+    client.cookies.clear()
     r = client.get("/api/price-levels")
     assert r.status_code == 401
 

@@ -109,6 +109,9 @@ class ProductDB(Base):
     category = Column(String(20))
     margin = Column(Numeric(10, 4), default=0)
     commission = Column(Numeric(10, 4), default=0)
+    limit_up = Column(Numeric(19, 4))
+    limit_down = Column(Numeric(19, 4))
+    price_precision = Column(Integer, default=2)
     updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
     comments = relationship("CommentDB", back_populates="product", passive_deletes=True)
 
@@ -195,6 +198,8 @@ class RealtimeQuoteDB(Base):
     bid1 = Column(Numeric(19, 4))
     ask1 = Column(Numeric(19, 4))
     data_source = Column(String(20), nullable=True)
+    limit_up = Column(Numeric(19, 4))
+    limit_down = Column(Numeric(19, 4))
     updated_at = Column(DateTime(timezone=True), nullable=False, default=_utc_now)
     variety = relationship("VarietyDB", back_populates="realtime")
 
@@ -523,3 +528,21 @@ class RefreshTokenDB(Base):
     revoked_at = Column(DateTime(timezone=True), nullable=True)
     device_info = Column(String(200), nullable=True)  # 可选：记录设备/UA 摘要
     user = relationship("UserDB", back_populates="refresh_tokens")
+
+
+class TradingCalendarDB(Base):
+    """中国期货市场交易日历。"""
+    __tablename__ = "trading_calendar"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    trade_date = Column(DateTime(timezone=True), nullable=False, index=True)
+    is_trading_day = Column(Boolean, default=True, nullable=False)
+    day_session_start = Column(String(5), default="09:00")
+    day_session_end = Column(String(5), default="15:00")
+    night_session_start = Column(String(5), default="21:00")
+    night_session_end = Column(String(5), default="02:30")
+    exchange = Column(String(10), default="ALL")
+    remark = Column(String(100))
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    __table_args__ = (
+        UniqueConstraint("trade_date", "exchange", name="uix_calendar_date_exchange"),
+    )

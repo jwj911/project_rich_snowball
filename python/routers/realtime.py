@@ -4,7 +4,7 @@ import os
 from datetime import UTC, datetime, timedelta
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from jwt.exceptions import PyJWTError
 from sqlalchemy.orm import Session
@@ -93,6 +93,8 @@ def _fetch_realtime(symbol: str, db: Session, variety: VarietyDB | None = None):
             "updated_at": q.updated_at,
             "delayed": q.data_source == "akshare",
             "data_source": q.data_source,
+            "limit_up": q.limit_up,
+            "limit_down": q.limit_down,
         }
 
     return get_cached(f"futures:realtime:{symbol}", _fetch)
@@ -215,12 +217,14 @@ async def _sse_realtime_generator(symbols: list[str], token: str, user_id: int):
 async def get_realtime_stream(
     symbols: list[str] = Query(default=[], description="品种代码列表，如 ?symbols=AU&symbols=CU"),
     token: str = Query(default="", description="JWT token（EventSource 不支持自定义 Header，通过 query param 传递）"),
+    access_token: str = Cookie(None),
 ):
     """SSE 实时行情推送端点。每 5 秒推送一次订阅品种的行情数据。
 
     并发限制：同一用户同时只能维持 1 个活跃 SSE 连接，新连接建立时旧连接会被取消。
     """
-    if not token or len(token) < 10:
+    effective_token = token or access_token
+    if not effective_token or len(effective_token) < 10:
         raise HTTPException(status_code=401, detail="未登录或 token 无效")
     if len(symbols) > SSE_MAX_SYMBOLS:
         raise HTTPException(
@@ -232,7 +236,7 @@ async def get_realtime_stream(
 
     # 验证 token 并获取 user_id
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": True})
+        payload = jwt.decode(effective_token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": True})
         user_id = int(payload.get("sub", 0))
         if not user_id:
             raise HTTPException(status_code=401, detail="未登录或 token 无效")

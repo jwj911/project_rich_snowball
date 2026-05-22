@@ -104,5 +104,6 @@ def test_workspace_me_isolation():
 
 def test_workspace_unauthorized():
     """未登录访问应返回 401"""
+    client.cookies.clear()
     r = client.get("/api/workspace/me")
     assert r.status_code == 401

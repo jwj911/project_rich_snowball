@@ -2,7 +2,7 @@
 import logging
 
 import jwt
-from fastapi import Depends, Header, HTTPException
+from fastapi import Cookie, Depends, Header, HTTPException
 from jwt.exceptions import PyJWTError
 from sqlalchemy.orm import Session
 
@@ -40,11 +40,17 @@ def get_current_user(token: str, db: Session) -> UserDB | None:
 
 def get_current_user_dependency(
     authorization: str = Header(None),
+    access_token: str = Cookie(None),
     db: Session = Depends(get_db),  # noqa: B008
 ) -> UserDB:
-    if not authorization or not authorization.startswith("Bearer "):
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.replace("Bearer ", "")
+    elif access_token:
+        token = access_token
+
+    if not token:
         raise HTTPException(status_code=401, detail="未登录")
-    token = authorization.replace("Bearer ", "")
     user = get_current_user(token, db)
     if not user:
         raise HTTPException(status_code=401, detail="无效的 token")

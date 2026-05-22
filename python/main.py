@@ -56,6 +56,7 @@ from routers import (  # noqa: E402
     contracts,
     health,
     kline,
+    market,
     price_levels,
     products,
     realtime,
@@ -188,6 +189,7 @@ app.include_router(price_levels.router)
 app.include_router(workspace.router)
 app.include_router(contracts.router)
 app.include_router(health.router)
+app.include_router(market.router)
 
 
 @app.middleware("http")

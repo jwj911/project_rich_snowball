@@ -48,6 +48,8 @@ def upsert_realtime(db: Session, data: dict) -> None:
         bid1=data.get("bid1"),
         ask1=data.get("ask1"),
         data_source=data.get("data_source"),
+        limit_up=data.get("limit_up"),
+        limit_down=data.get("limit_down"),
         updated_at=data["updated_at"],
     )
     stmt = stmt.on_conflict_do_update(
@@ -64,6 +66,8 @@ def upsert_realtime(db: Session, data: dict) -> None:
             "bid1": data.get("bid1"),
             "ask1": data.get("ask1"),
             "data_source": data.get("data_source"),
+            "limit_up": data.get("limit_up"),
+            "limit_down": data.get("limit_down"),
             "updated_at": data["updated_at"],
         },
     )

@@ -2,7 +2,7 @@ import html
 from datetime import datetime as dt
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
 
 
 def sanitize_html_text(v: str | None) -> str | None:
@@ -71,6 +71,9 @@ class ProductResponse(BaseModel):
     category: str | None
     margin: float | None
     commission: float | None
+    limit_up: float | None = None
+    limit_down: float | None = None
+    price_precision: int = 2
     updated_at: dt
 
     model_config = ConfigDict(from_attributes=True)
@@ -120,6 +123,19 @@ class VarietyResponse(BaseModel):
     category: str | None
     margin_rate: float | None
     commission: float | None
+    tick_size: float | None = None
+
+    @computed_field
+    @property
+    def price_precision(self) -> int:
+        """根据 tick_size 推导价格精度（小数位数）。"""
+        if not self.tick_size:
+            return 2
+        tick = self.tick_size
+        s = f"{tick:.10f}".rstrip("0")
+        if "." in s:
+            return len(s.split(".")[1])
+        return 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -146,6 +162,8 @@ class RealtimeResponse(BaseModel):
     updated_at: dt
     delayed: bool = False
     data_source: str | None = None
+    limit_up: float | None = None
+    limit_down: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -302,5 +320,30 @@ class VarietyFeeResponse(BaseModel):
     commission_close_today: float | None
     unit: str | None
     updated_at: dt | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ========== Trading Calendar / Market Status ==========
+
+class TradingCalendarEntry(BaseModel):
+    trade_date: dt
+    is_trading_day: bool
+    day_session_start: str
+    day_session_end: str
+    night_session_start: str | None
+    night_session_end: str | None
+    exchange: str
+    remark: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MarketStatusResponse(BaseModel):
+    date: str
+    is_trading_day: bool
+    current_session: str
+    next_trade_date: str | None
+    remark: str | None
 
     model_config = ConfigDict(from_attributes=True)

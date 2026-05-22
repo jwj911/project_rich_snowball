@@ -134,5 +134,6 @@ def test_cross_user_watchlist_forbidden():
 
 def test_unauthorized_watchlist():
     """未登录访问应返回 401"""
+    client.cookies.clear()
     r = client.get("/api/watchlists")
     assert r.status_code == 401

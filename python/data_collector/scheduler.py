@@ -316,6 +316,9 @@ def sync_prices_to_products():
             for p in db.query(ProductDB).filter(ProductDB.symbol.in_(symbols)).all()
         }
 
+        # 批量预查品种精度
+        varieties = {v.id: v for v in db.query(VarietyDB).filter(VarietyDB.symbol.in_(symbols)).all()}
+
         synced = 0
         for q in quotes:
             product = products.get(q.variety.symbol)
@@ -326,7 +329,14 @@ def sync_prices_to_products():
                 product.high = q.high
                 product.low = q.low
                 product.volume = q.volume
+                product.limit_up = q.limit_up
+                product.limit_down = q.limit_down
                 product.updated_at = q.updated_at
+                variety = varieties.get(q.variety_id)
+                if variety and variety.tick_size is not None:
+                    tick = float(variety.tick_size)
+                    s = f"{tick:.10f}".rstrip("0")
+                    product.price_precision = len(s.split(".")[1]) if "." in s else 0
                 synced += 1
         db.commit()
         logger.info(f"Synced {synced} prices to products")
