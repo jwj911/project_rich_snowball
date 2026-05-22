@@ -137,7 +137,6 @@ export default function KlineSection({
       <KlineChart
         data={data}
         symbol={symbol}
-        viewportResetKey={viewportResetKey}
         supportLevels={supportLevels}
         resistanceLevels={resistanceLevels}
         onAddSupport={onAddSupport}

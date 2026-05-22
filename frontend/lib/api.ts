@@ -25,6 +25,9 @@ export interface Product {
   margin: number | null
   commission: number | null
   updated_at: string
+  limit_up: number | null
+  limit_down: number | null
+  price_precision: number
 }
 
 export interface Comment {
@@ -58,6 +61,8 @@ export interface RealtimeQuote {
   low: number | null
   volume: number | null
   updated_at: string
+  limit_up: number | null
+  limit_down: number | null
 }
 
 export interface KlineData {
@@ -67,6 +72,20 @@ export interface KlineData {
   low: number
   close: number
   volume: number
+  contract_code?: string | null
+}
+
+export interface FutContract {
+  id: number
+  ts_code: string
+  symbol: string | null
+  name: string | null
+  fut_code: string | null
+  exchange: string | null
+  list_date: string | null
+  delist_date: string | null
+  contract_type: string | null
+  is_active: boolean
 }
 
 export interface Variety {
@@ -78,6 +97,8 @@ export interface Variety {
   category: string | null
   margin_rate: number | null
   commission: number | null
+  tick_size: number | null
+  price_precision: number
 }
 
 export interface PriceLevel {
@@ -120,8 +141,12 @@ class ApiService {
 
   setToken(token: string | null) {
     this.token = token
-    if (typeof window !== 'undefined' && !token) {
-      localStorage.removeItem('token')
+    if (typeof window !== 'undefined') {
+      if (token) {
+        localStorage.setItem('token', token)
+      } else {
+        localStorage.removeItem('token')
+      }
     }
   }
 
@@ -130,6 +155,14 @@ class ApiService {
       this.token = localStorage.getItem('token')
     }
     return this.token
+  }
+
+  setRefreshToken(_token: string | null) {
+    // 兼容性 shim：refresh token 由后端 HttpOnly Cookie 管理
+  }
+
+  getRefreshToken(): string | null {
+    return null
   }
 
   private async request<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -186,6 +219,7 @@ class ApiService {
     try {
       response = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
@@ -223,12 +257,46 @@ class ApiService {
     return this.request<User>('/api/auth/me')
   }
 
-  async getProducts(): Promise<Product[]> {
-    return this.request<Product[]>('/api/products')
+  async getProducts(options: RequestInit = {}): Promise<Product[]> {
+    return this.request<Product[]>('/api/products', options)
   }
 
-  async getProduct(id: number): Promise<ProductDetail> {
-    return this.request<ProductDetail>(`/api/products/${id}`)
+  async getProductsPage(params: { skip?: number; limit?: number; search?: string; category?: string; direction?: 'all' | 'up' | 'down'; sortBy?: string; sortOrder?: 'asc' | 'desc' } = {}, options: RequestInit = {}): Promise<{ items: Product[]; total: number; totalVolume: number; upCount: number; downCount: number; categories: string[] }> {
+    const searchParams = new URLSearchParams()
+    if (params.skip !== undefined) searchParams.append('skip', String(params.skip))
+    if (params.limit !== undefined) searchParams.append('limit', String(params.limit))
+    if (params.search) searchParams.append('search', params.search)
+    if (params.category) searchParams.append('category', params.category)
+    if (params.direction) searchParams.append('direction', params.direction)
+    if (params.sortBy) searchParams.append('sort_by', params.sortBy)
+    if (params.sortOrder) searchParams.append('sort_order', params.sortOrder)
+    const qs = searchParams.toString()
+    const response = await fetch(`${API_BASE}/api/products${qs ? '?' + qs : ''}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers as Record<string, string> || {}),
+        ...(this.getToken() ? { Authorization: `Bearer ${this.getToken()}` } : {}),
+      },
+    })
+    const items: Product[] = await response.json()
+    const getHeader = (name: string): number => {
+      const value = response.headers.get(name)
+      return value ? Number.parseInt(value, 10) : 0
+    }
+    const categoriesHeader = response.headers.get('X-Categories')
+    return {
+      items,
+      total: getHeader('X-Total-Count'),
+      totalVolume: getHeader('X-Total-Volume'),
+      upCount: getHeader('X-Up-Count'),
+      downCount: getHeader('X-Down-Count'),
+      categories: categoriesHeader ? decodeURIComponent(categoriesHeader).split(',') : [],
+    }
+  }
+
+  async getProduct(id: number, options: RequestInit = {}): Promise<ProductDetail> {
+    return this.request<ProductDetail>(`/api/products/${id}`, options)
   }
 
   async createComment(productId: number, content: string, priceLevelId?: number): Promise<Comment> {
@@ -242,8 +310,8 @@ class ApiService {
     return this.request<Comment[]>(`/api/comments/user/${encodeURIComponent(username)}`)
   }
 
-  async getRealtime(symbol: string): Promise<RealtimeQuote> {
-    return this.request<RealtimeQuote>(`/api/realtime/${encodeURIComponent(symbol)}`)
+  async getRealtime(symbol: string, options: RequestInit = {}): Promise<RealtimeQuote> {
+    return this.request<RealtimeQuote>(`/api/realtime/${encodeURIComponent(symbol)}`, options)
   }
 
   async getRealtimeBatch(symbols: string[]): Promise<{ quotes: RealtimeQuote[]; not_found: string[] }> {
@@ -253,12 +321,12 @@ class ApiService {
     return this.request<{ quotes: RealtimeQuote[]; not_found: string[] }>(`/api/realtime/batch?${params.toString()}`)
   }
 
-  async getKline(symbol: string, period: string = '1h', limit: number = 100): Promise<KlineData[]> {
+  async getKline(symbol: string, period: string = '1h', limit: number = 100, options: RequestInit = {}): Promise<KlineData[]> {
     const searchParams = new URLSearchParams({
       period,
       limit: String(limit),
     })
-    return this.request<KlineData[]>(`/api/klines/${encodeURIComponent(symbol)}?${searchParams.toString()}`)
+    return this.request<KlineData[]>(`/api/klines/${encodeURIComponent(symbol)}?${searchParams.toString()}`, options)
   }
 
   async getContinuousKline(
@@ -266,14 +334,15 @@ class ApiService {
     period: string = 'D',
     start?: string,
     end?: string,
-    limit: number = 500
+    limit: number = 500,
+    options: RequestInit = {},
   ): Promise<KlineData[]> {
     const params = new URLSearchParams()
     params.append('period', period)
     params.append('limit', String(limit))
     if (start) params.append('start', start)
     if (end) params.append('end', end)
-    return this.request<KlineData[]>(`/api/klines/${symbol}/continuous?${params.toString()}`)
+    return this.request<KlineData[]>(`/api/klines/${symbol}/continuous?${params.toString()}`, options)
   }
 
   async getMainContractKline(
@@ -281,18 +350,35 @@ class ApiService {
     period: string = 'D',
     start?: string,
     end?: string,
-    limit: number = 500
+    limit: number = 500,
+    options: RequestInit = {},
   ): Promise<KlineData[]> {
     const params = new URLSearchParams()
     params.append('period', period)
     params.append('limit', String(limit))
     if (start) params.append('start', start)
     if (end) params.append('end', end)
-    return this.request<KlineData[]>(`/api/klines/${symbol}/main?${params.toString()}`)
+    return this.request<KlineData[]>(`/api/klines/${symbol}/main?${params.toString()}`, options)
   }
 
-  async getVariety(symbol: string): Promise<Variety> {
-    return this.request<Variety>(`/api/varieties/${symbol}`)
+  async getContractKline(
+    contractId: number,
+    period: string = 'D',
+    start?: string,
+    end?: string,
+    limit: number = 500,
+    options: RequestInit = {},
+  ): Promise<KlineData[]> {
+    const params = new URLSearchParams()
+    params.append('period', period)
+    params.append('limit', String(limit))
+    if (start) params.append('start', start)
+    if (end) params.append('end', end)
+    return this.request<KlineData[]>(`/api/contracts/${contractId}/kline?${params.toString()}`, options)
+  }
+
+  async getVariety(symbol: string, options: RequestInit = {}): Promise<Variety> {
+    return this.request<Variety>(`/api/varieties/${symbol}`, options)
   }
 
   async getVarieties(params?: { category?: string; search?: string; skip?: number; limit?: number }): Promise<Variety[]> {
@@ -361,6 +447,23 @@ class ApiService {
   // ========== Workspace ==========
   async getWorkspace(): Promise<WorkspaceSummary> {
     return this.request<WorkspaceSummary>('/api/workspace/me')
+  }
+
+  async getMarketStatus(): Promise<{ date: string; is_trading_day: boolean; current_session: string; next_trade_date: string | null; remark: string | null }> {
+    return this.request('/api/market/status')
+  }
+
+  async getVarietyFees(symbol: string): Promise<{ margin_rate: number | null; margin_amount: number | null; commission_open: number | null; commission_close: number | null; commission_close_today: number | null; unit: string | null; updated_at: string | null }> {
+    return this.request(`/api/varieties/${encodeURIComponent(symbol)}/fees`)
+  }
+
+  async getContracts(varietyId: number, params?: { activeOnly?: boolean; skip?: number; limit?: number }, options: RequestInit = {}): Promise<FutContract[]> {
+    const searchParams = new URLSearchParams()
+    searchParams.append('variety_id', String(varietyId))
+    if (params?.activeOnly !== undefined) searchParams.append('active_only', String(params.activeOnly))
+    if (params?.skip !== undefined) searchParams.append('skip', String(params.skip))
+    if (params?.limit !== undefined) searchParams.append('limit', String(params.limit))
+    return this.request<FutContract[]>(`/api/contracts?${searchParams.toString()}`, options)
   }
 
   logout() {

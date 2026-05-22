@@ -12,6 +12,9 @@ export interface Product {
   margin: number | null
   commission: number | null
   updated_at: string
+  limit_up: number | null
+  limit_down: number | null
+  price_precision: number
 }
 
 export interface ProductQuery {
@@ -66,6 +69,8 @@ export interface RealtimeQuote {
   low: number | null
   volume: number | null
   updated_at: string
+  limit_up: number | null
+  limit_down: number | null
 }
 
 export interface KlineData {
@@ -87,6 +92,8 @@ export interface Variety {
   category: string | null
   margin_rate: number | null
   commission: number | null
+  tick_size: number | null
+  price_precision: number
 }
 
 export interface FutContract {
@@ -157,4 +164,12 @@ export interface VarietyFees {
   commission_close_today: number | null
   unit: string | null
   updated_at: string | null
+}
+
+export interface MarketStatusResponse {
+  date: string
+  is_trading_day: boolean
+  current_session: string
+  next_trade_date: string | null
+  remark: string | null
 }

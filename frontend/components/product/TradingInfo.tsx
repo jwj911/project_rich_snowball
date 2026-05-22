@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { CircleDollarSign } from 'lucide-react'
 import { api, Product } from '@/lib/api'
-import { formatDateTime, formatNumber } from '@/lib/format'
+import { formatDateTime, formatNumber, formatPrice } from '@/lib/format'
 
 interface TradingInfoProps {
   product: Product
@@ -50,9 +50,9 @@ export default function TradingInfo({ product, displayPrice }: TradingInfoProps)
         {loading && <span className="ml-auto text-xs text-slate-500">加载中...</span>}
       </h2>
       <div className="mt-4 space-y-3 text-sm">
-        <InfoRow label="当前价格" value={formatNumber(displayPrice)} />
+        <InfoRow label="当前价格" value={formatPrice(displayPrice, product.price_precision)} />
         <InfoRow label="保证金率" value={marginRate != null ? `${formatNumber(marginRate * 100)}%` : '--'} />
-        <InfoRow label="预估保证金" value={formatNumber(marginCost)} valueClassName="text-green-400" />
+        <InfoRow label="预估保证金" value={formatPrice(marginCost, product.price_precision)} valueClassName="text-green-400" />
         <InfoRow label="开仓手续费" value={commissionOpen != null ? `${formatNumber(commissionOpen)} 元/手` : '--'} />
         {fees?.commission_close_today != null && (
           <InfoRow label="平今手续费" value={`${formatNumber(fees.commission_close_today)} 元/手`} />

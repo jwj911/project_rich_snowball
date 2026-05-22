@@ -3,7 +3,7 @@ import { ReactNode } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import PriceChange from '@/components/market/PriceChange'
 import { Product, RealtimeQuote } from '@/lib/api'
-import { formatInteger, formatNumber, getChangeTone } from '@/lib/format'
+import { formatInteger, formatPrice, getChangeTone, isLimitUp, isLimitDown } from '@/lib/format'
 
 interface ProductHeaderProps {
   product: Product
@@ -36,9 +36,23 @@ export default function ProductHeader({
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[560px]">
-        <QuoteMetric label="最新价" value={formatNumber(displayPrice)} tone={getChangeTone(displayChange)} />
+        <QuoteMetric
+          label="最新价"
+          value={
+            <span className="flex items-center gap-1.5">
+              {formatPrice(displayPrice, product.price_precision)}
+              {isLimitUp(displayPrice, realtime?.limit_up ?? product.limit_up) && (
+                <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">涨停</span>
+              )}
+              {isLimitDown(displayPrice, realtime?.limit_down ?? product.limit_down) && (
+                <span className="rounded bg-green-600 px-1.5 py-0.5 text-[10px] font-bold text-white">跌停</span>
+              )}
+            </span>
+          }
+          tone={getChangeTone(displayChange)}
+        />
         <QuoteMetric label="涨跌幅" value={<PriceChange value={displayChange} />} />
-        <QuoteMetric label="最高" value={formatNumber(realtime?.high ?? product.high)} />
+        <QuoteMetric label="最高" value={formatPrice(realtime?.high ?? product.high, product.price_precision)} />
         <QuoteMetric label="成交量" value={formatInteger(realtime?.volume ?? product.volume)} />
       </div>
     </div>

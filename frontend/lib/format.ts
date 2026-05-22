@@ -6,6 +6,10 @@ export function formatNumber(value: number | null | undefined, digits = 2) {
   }).format(value as number)
 }
 
+export function formatPrice(value: number | null | undefined, precision?: number | null) {
+  return formatNumber(value, precision ?? 2)
+}
+
 export function formatInteger(value: number | null | undefined) {
   if (!Number.isFinite(value)) return '--'
   return new Intl.NumberFormat('zh-CN', {
@@ -54,4 +58,12 @@ export function formatRelativeTime(value: string | null | undefined) {
 
 export function getChangeTone(value: number | null | undefined) {
   return (value ?? 0) >= 0 ? 'up' : 'down'
+}
+
+export function isLimitUp(price: number | null | undefined, limitUp: number | null | undefined, epsilon = 0.01) {
+  return limitUp != null && price != null && Math.abs(price - limitUp) < epsilon
+}
+
+export function isLimitDown(price: number | null | undefined, limitDown: number | null | undefined, epsilon = 0.01) {
+  return limitDown != null && price != null && Math.abs(price - limitDown) < epsilon
 }

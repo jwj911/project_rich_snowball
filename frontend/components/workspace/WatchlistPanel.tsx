@@ -2,7 +2,7 @@ import Link from 'next/link'
 import EmptyState from '@/components/ui/EmptyState'
 import PriceChange from '@/components/market/PriceChange'
 import { Product, Watchlist, RealtimeQuote } from '@/lib/api'
-import { formatNumber } from '@/lib/format'
+import { formatPrice } from '@/lib/format'
 import { Star, Trash2, Zap } from 'lucide-react'
 
 interface WatchlistPanelProps {
@@ -69,7 +69,7 @@ export default function WatchlistPanel({ watchlists, products, realtimeQuotes, o
                   </div>
                   {(displayPrice != null) && (
                     <div className="text-right">
-                      <div className="font-mono text-sm text-slate-200">{formatNumber(displayPrice)}</div>
+                      <div className="font-mono text-sm text-slate-200">{formatPrice(displayPrice, product?.price_precision)}</div>
                       <PriceChange value={displayChange} className="text-xs" />
                     </div>
                   )}

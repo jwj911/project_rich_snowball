@@ -3,7 +3,7 @@ import { ArrowRight } from 'lucide-react'
 import PriceChange from '@/components/market/PriceChange'
 import PriceFlash from '@/components/market/PriceFlash'
 import { Product } from '@/lib/api'
-import { formatDateTime, formatInteger, formatNumber, getChangeTone } from '@/lib/format'
+import { formatDateTime, formatInteger, formatPrice, getChangeTone, isLimitUp, isLimitDown } from '@/lib/format'
 import { memo } from 'react'
 
 interface QuoteCardProps {
@@ -31,14 +31,22 @@ function QuoteCard({ product }: QuoteCardProps) {
 
       <div className="mt-4 flex items-end justify-between gap-3">
         <div>
-          <PriceFlash value={product.current_price} className={`inline-block font-mono text-2xl font-bold ${tone}`}>
-            {formatNumber(product.current_price)}
-          </PriceFlash>
+          <div className="flex items-center gap-1.5">
+            <PriceFlash value={product.current_price} className={`inline-block font-mono text-2xl font-bold ${tone}`}>
+              {formatPrice(product.current_price, product.price_precision)}
+            </PriceFlash>
+            {isLimitUp(product.current_price, product.limit_up) && (
+              <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">涨停</span>
+            )}
+            {isLimitDown(product.current_price, product.limit_down) && (
+              <span className="rounded bg-green-600 px-1.5 py-0.5 text-[10px] font-bold text-white">跌停</span>
+            )}
+          </div>
           <PriceChange value={product.change_percent} className="mt-1 text-sm" />
         </div>
         <div className="text-right text-xs text-slate-500">
-          <div>高 <span className="font-mono text-slate-300">{formatNumber(product.high)}</span></div>
-          <div>低 <span className="font-mono text-slate-300">{formatNumber(product.low)}</span></div>
+          <div>高 <span className="font-mono text-slate-300">{formatPrice(product.high, product.price_precision)}</span></div>
+          <div>低 <span className="font-mono text-slate-300">{formatPrice(product.low, product.price_precision)}</span></div>
         </div>
       </div>
 

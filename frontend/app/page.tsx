@@ -13,7 +13,7 @@ import MarketSessionBadge from '@/components/market/MarketSessionBadge'
 import PriceChange from '@/components/market/PriceChange'
 import QuoteCard from '@/components/market/QuoteCard'
 import { api, Product } from '@/lib/api'
-import { formatInteger, formatNumber } from '@/lib/format'
+import { formatInteger, formatPrice } from '@/lib/format'
 import { useMarketPolling } from '@/hooks/useMarketPolling'
 import { ArrowRight, BarChart3, Search } from 'lucide-react'
 
@@ -95,7 +95,7 @@ export default function HomePage() {
                     <PriceChange value={leader.change_percent} className="text-base" />
                   </div>
                   <div className="mt-5 font-mono text-3xl font-bold text-red-400">
-                    {formatNumber(leader.current_price)}
+                    {formatPrice(leader.current_price, leader.price_precision)}
                   </div>
                   <Link
                     href={`/products/${leader.id}`}

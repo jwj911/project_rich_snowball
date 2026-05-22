@@ -15,7 +15,7 @@ export interface MarketHeartbeat {
 
 interface UseMarketPollingOptions<T> {
   enabled: boolean
-  fetcher: () => Promise<T>
+  fetcher: (() => Promise<T>) | ((signal: AbortSignal) => Promise<T>)
   intervalMs?: number
   runOnMount?: boolean
   errorMessage?: string
@@ -72,7 +72,8 @@ export function useMarketPolling<T>({
     }))
 
     try {
-      const nextData = await fetcher()
+      const controller = new AbortController()
+      const nextData = await fetcher(controller.signal)
       if (!mountedRef.current) return
 
       const now = new Date().toISOString()

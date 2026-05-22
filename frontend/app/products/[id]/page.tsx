@@ -18,7 +18,7 @@ import TechnicalAnalysisPanel from '@/components/market/TechnicalAnalysisPanel'
 import { usePriceLevels } from '@/hooks/usePriceLevels'
 import { api, Comment, KlineData, Product, RealtimeQuote } from '@/lib/api'
 import { captureMessage } from '@/lib/sentry-lite'
-import { formatInteger, formatNumber, getChangeTone } from '@/lib/format'
+import { formatInteger, formatPrice, getChangeTone } from '@/lib/format'
 import { toast } from 'sonner'
 import {
   ArrowLeft,
@@ -298,10 +298,10 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[560px]">
-              <QuoteMetric label="最新价" value={formatNumber(displayPrice)} tone={getChangeTone(displayChange)} />
+              <QuoteMetric label="最新价" value={formatPrice(displayPrice, product?.price_precision)} tone={getChangeTone(displayChange)} />
               <QuoteMetric label="涨跌幅" value={<PriceChange value={displayChange} />} />
-              <QuoteMetric label="最高" value={formatNumber(realtime?.high ?? product.high)} />
-              <QuoteMetric label="成交量" value={formatInteger(realtime?.volume ?? product.volume)} />
+              <QuoteMetric label="最高" value={formatPrice(realtime?.high ?? product?.high, product?.price_precision)} />
+              <QuoteMetric label="成交量" value={formatInteger(realtime?.volume ?? product?.volume)} />
             </div>
           </div>
 

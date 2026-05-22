@@ -1,10 +1,39 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { api } from '@/lib/api'
 import { getMarketStatusMessage } from '@/lib/trading-calendar'
 
 export default function MarketClosedBanner() {
-  const message = getMarketStatusMessage()
+  const [message, setMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    api.getMarketStatus()
+      .then((status) => {
+        if (cancelled) return
+        if (!status.is_trading_day) {
+          setMessage(
+            status.remark
+              ? `今日为${status.remark}休市，显示数据为上一交易日收盘数据`
+              : '今日休市，显示数据为上一交易日收盘数据',
+          )
+        } else if (status.current_session === 'closed') {
+          setMessage('当前非交易时段，显示数据为上一交易日收盘数据')
+        } else {
+          setMessage(null)
+        }
+      })
+      .catch(() => {
+        // 后端不可用，回退到本地硬编码日历
+        if (!cancelled) {
+          setMessage(getMarketStatusMessage())
+        }
+      })
+    return () => { cancelled = true }
+  }, [])
+
   if (!message) return null
 
   return (

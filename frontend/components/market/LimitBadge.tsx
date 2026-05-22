@@ -4,9 +4,9 @@ interface LimitBadgeProps {
   currentPrice: number | null | undefined
 }
 
-function isNearLimit(price: number, limit: number | null | undefined): boolean {
+function isNearLimit(price: number | null | undefined, limit: number | null | undefined): boolean {
   if (limit == null || !Number.isFinite(price)) return false
-  return Math.abs(price - limit) < 0.01
+  return Math.abs((price as number) - limit) < 0.01
 }
 
 export default function LimitBadge({ limitUp, limitDown, currentPrice }: LimitBadgeProps) {

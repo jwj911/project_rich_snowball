@@ -4,7 +4,7 @@ import PriceChange from '@/components/market/PriceChange'
 import PriceFlash from '@/components/market/PriceFlash'
 import QuoteCard from '@/components/market/QuoteCard'
 import { Product } from '@/lib/api'
-import { formatDateTime, formatInteger, formatNumber, getChangeTone } from '@/lib/format'
+import { formatDateTime, formatInteger, formatPrice, getChangeTone } from '@/lib/format'
 import { memo } from 'react'
 
 export type QuoteSortField = 'change_percent' | 'volume' | 'current_price'
@@ -74,9 +74,17 @@ const QuoteRow = memo(function QuoteRow({ product }: { product: Product }) {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <PriceFlash value={product.current_price} className={`inline-block font-mono font-semibold ${tone}`}>
-                    {formatNumber(product.current_price)}
-                    </PriceFlash>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <PriceFlash value={product.current_price} className={`inline-block font-mono font-semibold ${tone}`}>
+                        {formatPrice(product.current_price, product.price_precision)}
+                      </PriceFlash>
+                      {product.limit_up != null && Math.abs((product.current_price ?? 0) - product.limit_up) < 0.01 && (
+                        <span className="rounded bg-red-600 px-1 py-0.5 text-[10px] font-bold text-white">涨停</span>
+                      )}
+                      {product.limit_down != null && Math.abs((product.current_price ?? 0) - product.limit_down) < 0.01 && (
+                        <span className="rounded bg-green-600 px-1 py-0.5 text-[10px] font-bold text-white">跌停</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <PriceChange value={product.change_percent} className="justify-end" />

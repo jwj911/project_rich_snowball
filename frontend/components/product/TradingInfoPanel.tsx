@@ -1,6 +1,6 @@
 import { CircleDollarSign } from 'lucide-react'
 import { Product } from '@/lib/api'
-import { formatDateTime, formatNumber } from '@/lib/format'
+import { formatDateTime, formatNumber, formatPrice } from '@/lib/format'
 
 interface TradingInfoPanelProps {
   product: Product
@@ -16,9 +16,9 @@ export default function TradingInfoPanel({ product, displayPrice, marginCost }: 
         交易信息
       </h2>
       <div className="mt-4 space-y-3 text-sm">
-        <InfoRow label="当前价格" value={formatNumber(displayPrice)} />
+        <InfoRow label="当前价格" value={formatPrice(displayPrice, product.price_precision)} />
         <InfoRow label="保证金率" value={product.margin != null ? `${formatNumber(product.margin)}%` : '--'} />
-        <InfoRow label="预估保证金" value={formatNumber(marginCost)} valueClassName="text-green-400" />
+        <InfoRow label="预估保证金" value={formatPrice(marginCost, product.price_precision)} valueClassName="text-green-400" />
         <InfoRow label="手续费" value={product.commission != null ? `${formatNumber(product.commission)} 元/手` : '--'} />
         <InfoRow label="更新时间" value={formatDateTime(product.updated_at)} />
       </div>

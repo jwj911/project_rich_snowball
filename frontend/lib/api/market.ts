@@ -134,3 +134,7 @@ export async function getVarieties(
 export function getVarietyFees(transport: ApiTransport, symbol: string): Promise<VarietyFees> {
   return transport.request<VarietyFees>(`/api/varieties/${encodeURIComponent(symbol)}/fees`)
 }
+
+export function getMarketStatus(transport: ApiTransport): Promise<import('./types').MarketStatusResponse> {
+  return transport.request('/api/market/status')
+}

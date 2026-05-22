@@ -12,6 +12,7 @@ import {
   getContracts,
   getKline,
   getMainContractKline,
+  getMarketStatus,
   getRealtime,
   getRealtimeBatch,
   getVarieties,
@@ -34,6 +35,7 @@ import type {
   Comment,
   FutContract,
   KlineData,
+  MarketStatusResponse,
   PriceLevel,
   Product,
   ProductDetail,
@@ -395,6 +397,10 @@ class ApiService {
 
   getVarietyFees(symbol: string): Promise<VarietyFees> {
     return getVarietyFees(this, symbol)
+  }
+
+  getMarketStatus(): Promise<MarketStatusResponse> {
+    return getMarketStatus(this)
   }
 
   async logout(): Promise<void> {
