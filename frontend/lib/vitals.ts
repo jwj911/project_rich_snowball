@@ -1,4 +1,4 @@
-import { onCLS, onFCP, onFID, onLCP, onTTFB } from 'web-vitals'
+import { onCLS, onFCP, onINP, onLCP, onTTFB } from 'web-vitals'
 
 function sendToAnalytics(metric: { name: string; value: number; id: string }) {
   console.log('[Web Vitals]', metric.name, metric.value, metric.id)
@@ -7,7 +7,7 @@ function sendToAnalytics(metric: { name: string; value: number; id: string }) {
 
 export function reportWebVitals() {
   onCLS(sendToAnalytics)
-  onFID(sendToAnalytics)
+  onINP(sendToAnalytics)
   onFCP(sendToAnalytics)
   onLCP(sendToAnalytics)
   onTTFB(sendToAnalytics)
