@@ -93,10 +93,14 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
             const support = normalizeLevels(parsed.supportLevels)
             const resistance = normalizeLevels(parsed.resistanceLevels)
             for (const price of support) {
-              await api.createPriceLevel(varietyId, 'support', price.toFixed(2)).catch(() => {})
+              await api.createPriceLevel(varietyId, 'support', price.toFixed(2)).catch((err) => {
+                console.error('导入支撑位失败:', err)
+              })
             }
             for (const price of resistance) {
-              await api.createPriceLevel(varietyId, 'resistance', price.toFixed(2)).catch(() => {})
+              await api.createPriceLevel(varietyId, 'resistance', price.toFixed(2)).catch((err) => {
+                console.error('导入阻力位失败:', err)
+              })
             }
             const imported = await api.getPriceLevels(varietyId)
             if (!cancelled) {
@@ -105,7 +109,8 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
             }
           }
         }
-      } catch {
+      } catch (err) {
+        console.error('加载价位标注失败:', err)
         if (!cancelled) loadFromLocalStorage()
       } finally {
         if (!cancelled) setLevelsLoaded(true)
@@ -128,7 +133,8 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
         updateLevelsFromData(levels)
         syncToLocalStorage(levels)
         return
-      } catch {
+      } catch (err) {
+        console.error('添加支撑位失败:', err)
         return
       }
     }
@@ -144,7 +150,8 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
         updateLevelsFromData(levels)
         syncToLocalStorage(levels)
         return
-      } catch {
+      } catch (err) {
+        console.error('添加阻力位失败:', err)
         return
       }
     }
@@ -163,7 +170,8 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
           syncToLocalStorage(refreshed)
         }
         return
-      } catch {
+      } catch (err) {
+        console.error('删除支撑位失败:', err)
         return
       }
     }
@@ -182,7 +190,8 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
           syncToLocalStorage(refreshed)
         }
         return
-      } catch {
+      } catch (err) {
+        console.error('删除阻力位失败:', err)
         return
       }
     }

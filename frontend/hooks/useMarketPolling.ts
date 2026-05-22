@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MARKET } from '@/lib/constants'
 
 export type MarketHeartbeatStatus = 'idle' | 'refreshing' | 'healthy' | 'stale' | 'error'
 
@@ -29,7 +30,7 @@ interface UseMarketPollingResult<T> {
   setData: (data: T) => void
 }
 
-const DEFAULT_INTERVAL_MS = 30000
+const DEFAULT_INTERVAL_MS = MARKET.POLL_INTERVAL_MS
 
 function getNextRefreshAt(intervalMs: number) {
   return new Date(Date.now() + intervalMs).toISOString()
@@ -125,8 +126,23 @@ export function useMarketPolling<T>({
       refresh()
     }
 
-    const interval = window.setInterval(refresh, intervalMs)
-    return () => window.clearInterval(interval)
+    let interval = window.setInterval(refresh, intervalMs)
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        window.clearInterval(interval)
+      } else {
+        refresh()
+        interval = window.setInterval(refresh, intervalMs)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [enabled, intervalMs, refresh, runOnMount])
 
   return {

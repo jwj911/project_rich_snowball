@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { MarketHeartbeat } from '@/hooks/useMarketPolling'
+import { MARKET } from '@/lib/constants'
 import { formatDateTime } from '@/lib/format'
 import { AlertTriangle, CheckCircle2, Clock3, RefreshCw } from 'lucide-react'
 
@@ -19,8 +20,8 @@ const statusCopy: Record<MarketHeartbeat['status'], string> = {
   error: '刷新失败',
 }
 
-const STALE_THRESHOLD_MS = 60_000 // 60 秒无更新视为陈旧
-const DANGER_THRESHOLD_MS = 300_000 // 5 分钟无更新视为严重陈旧
+const STALE_THRESHOLD_MS = MARKET.STALE_THRESHOLD_MS
+const DANGER_THRESHOLD_MS = MARKET.DANGER_THRESHOLD_MS
 
 function getDataAgeStatus(heartbeat: MarketHeartbeat): 'fresh' | 'stale' | 'danger' {
   if (heartbeat.status !== 'healthy' || !heartbeat.lastUpdatedAt) return 'fresh'

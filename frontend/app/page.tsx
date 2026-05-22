@@ -8,6 +8,8 @@ import { useAuth } from '@/components/auth/AuthProvider'
 import EmptyState from '@/components/ui/EmptyState'
 import ErrorState from '@/components/ui/ErrorState'
 import RefreshStatus from '@/components/activity/RefreshStatus'
+import MarketClosedBanner from '@/components/market/MarketClosedBanner'
+import MarketSessionBadge from '@/components/market/MarketSessionBadge'
 import PriceChange from '@/components/market/PriceChange'
 import QuoteCard from '@/components/market/QuoteCard'
 import { api, Product } from '@/lib/api'
@@ -53,13 +55,18 @@ export default function HomePage() {
         <LoginRequired />
       ) : (
         <div className="space-y-6">
+          <MarketClosedBanner />
+
           <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
             <div className="rounded-lg border border-slate-800 bg-[#10161d] p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <div className="flex items-center gap-2 text-sm text-slate-400">
-                    <BarChart3 size={16} />
-                    30 秒自动刷新
+                  <div className="flex items-center gap-3 text-sm text-slate-400">
+                    <span className="flex items-center gap-2">
+                      <BarChart3 size={16} />
+                      30 秒自动刷新
+                    </span>
+                    <MarketSessionBadge />
                   </div>
                   <h1 className="mt-3 text-2xl font-bold text-white">行情工作台</h1>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">

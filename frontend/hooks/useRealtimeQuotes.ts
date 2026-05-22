@@ -4,8 +4,10 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { api, RealtimeQuote } from '@/lib/api'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8200'
-const SSE_RETRY_DELAY_MS = 3000
-const POLL_INTERVAL_MS = 10000
+import { MARKET } from '@/lib/constants'
+
+const SSE_RETRY_DELAY_MS = MARKET.SSE_RETRY_DELAY_MS
+const POLL_INTERVAL_MS = MARKET.SSE_FALLBACK_INTERVAL_MS
 
 interface UseRealtimeQuotesResult {
   quotes: Map<string, RealtimeQuote>
@@ -14,10 +16,9 @@ interface UseRealtimeQuotesResult {
   error: string | null
 }
 
-function buildSseUrl(symbols: string[], token: string): string {
+function buildSseUrl(symbols: string[]): string {
   const params = new URLSearchParams()
   for (const s of symbols) params.append('symbols', s)
-  params.append('token', token)
   return `${API_BASE}/api/realtime/stream?${params.toString()}`
 }
 
@@ -79,7 +80,6 @@ export function useRealtimeQuotes(symbols: string[]): UseRealtimeQuotesResult {
 
     const token = api.getToken()
     if (!token) {
-      // 未登录时直接走轮询（此时通常 symbols 也为空）
       poll()
       const interval = window.setInterval(poll, POLL_INTERVAL_MS)
       return () => window.clearInterval(interval)
@@ -94,7 +94,7 @@ export function useRealtimeQuotes(symbols: string[]): UseRealtimeQuotesResult {
       if (!mountedRef.current || sseFailed) return
 
       try {
-        es = new EventSource(buildSseUrl(symbols, token))
+        es = new EventSource(buildSseUrl(symbols))
 
         es.onopen = () => {
           if (!mountedRef.current) return

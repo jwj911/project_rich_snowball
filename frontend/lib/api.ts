@@ -120,12 +120,8 @@ class ApiService {
 
   setToken(token: string | null) {
     this.token = token
-    if (typeof window !== 'undefined') {
-      if (token) {
-        localStorage.setItem('token', token)
-      } else {
-        localStorage.removeItem('token')
-      }
+    if (typeof window !== 'undefined' && !token) {
+      localStorage.removeItem('token')
     }
   }
 
@@ -147,14 +143,24 @@ class ApiService {
       headers['Authorization'] = `Bearer ${token}`
     }
 
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), 15_000)
+
     let response: Response
     try {
       response = await fetch(`${API_BASE}${url}`, {
         ...options,
         headers,
+        signal: controller.signal,
       })
     } catch (err) {
+      window.clearTimeout(timeoutId)
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new ApiError('请求超时，请检查网络连接', 0, 'TIMEOUT')
+      }
       throw new ApiError(err instanceof Error ? err.message : 'Network request failed', 0, 'NETWORK_ERROR')
+    } finally {
+      window.clearTimeout(timeoutId)
     }
 
     if (!response.ok) {
@@ -173,6 +179,9 @@ class ApiService {
     formData.append('username', username)
     formData.append('password', password)
 
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), 15_000)
+
     let response: Response
     try {
       response = await fetch(`${API_BASE}/api/auth/login`, {
@@ -181,9 +190,16 @@ class ApiService {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: formData,
+        signal: controller.signal,
       })
     } catch (err) {
+      window.clearTimeout(timeoutId)
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new ApiError('请求超时，请检查网络连接', 0, 'TIMEOUT')
+      }
       throw new ApiError(err instanceof Error ? err.message : 'Network request failed', 0, 'NETWORK_ERROR')
+    } finally {
+      window.clearTimeout(timeoutId)
     }
 
     if (!response.ok) {

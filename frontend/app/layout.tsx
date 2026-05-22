@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/components/auth/AuthProvider'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import WebVitalsReporter from '@/components/WebVitalsReporter'
+import { Toaster } from 'sonner'
 
 export const metadata: Metadata = {
   title: '倍增计划',
@@ -15,7 +18,13 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            {children}
+            <Toaster position="top-right" theme="dark" />
+            <WebVitalsReporter />
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   )

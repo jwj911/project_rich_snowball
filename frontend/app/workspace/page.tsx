@@ -86,8 +86,8 @@ export default function WorkspacePage() {
     try {
       await api.deleteWatchlist(id)
       refresh()
-    } catch {
-      // 错误由 useMarketPolling 处理，这里静默失败
+    } catch (err) {
+      console.error('删除自选失败:', err)
     }
   }, [refresh])
 

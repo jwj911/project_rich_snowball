@@ -1,71 +1,40 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import AppShell from '@/components/layout/AppShell'
 import LoginRequired from '@/components/auth/LoginRequired'
 import { useAuth } from '@/components/auth/AuthProvider'
 import EmptyState from '@/components/ui/EmptyState'
 import ErrorState from '@/components/ui/ErrorState'
-import { api, Comment, Product } from '@/lib/api'
+import { useUserComments } from '@/lib/swr-hooks'
+import { api, Product } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 import { ArrowRight, MessageSquare, RefreshCw } from 'lucide-react'
+import useSWR from 'swr'
 
 export default function MyCommentsPage() {
-  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth()
-  const [comments, setComments] = useState<Comment[]>([])
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
+  const username = user?.username ?? null
 
-  const loadComments = useCallback(async () => {
-    if (!user) {
-      setComments([])
-      setLoading(false)
-      return
-    }
+  const {
+    data: comments,
+    error: commentError,
+    isLoading: commentsLoading,
+    mutate: mutateComments,
+  } = useUserComments(username)
 
-    setLoading(true)
-    try {
-      setError(null)
-      const [commentData, productData] = await Promise.all([
-        api.getUserComments(user.username),
-        api.getProducts().catch(() => []),
-      ])
-      setComments(commentData)
-      setProducts(productData)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '评论记录加载失败')
-      if (err instanceof Error && err.message.includes('401')) {
-        logout()
-      }
-    } finally {
-      setLoading(false)
-    }
-  }, [logout, user])
+  const {
+    data: products,
+    isLoading: productsLoading,
+  } = useSWR(
+    isAuthenticated ? 'my-comments-products' : null,
+    () => api.getProducts().catch(() => [] as Product[]),
+    { revalidateOnFocus: false },
+  )
 
-  useEffect(() => {
-    if (authLoading) return
-    if (!isAuthenticated) {
-      setLoading(false)
-      setComments([])
-      return
-    }
-    loadComments()
-  }, [authLoading, isAuthenticated, loadComments])
-
-  const latestCommentTime = useMemo(() => {
-    if (comments.length === 0) return '--'
-    return formatDateTime(comments[0].created_at)
-  }, [comments])
-
-  const productCount = useMemo(() => {
-    return new Set(comments.map((comment) => comment.product_id)).size
-  }, [comments])
-
-  const productMap = useMemo(() => {
-    return new Map(products.map((product) => [product.id, product]))
-  }, [products])
+  const loading = authLoading || commentsLoading || productsLoading
+  const productMap = new Map((products ?? []).map((p) => [p.id, p]))
+  const productCount = new Set((comments ?? []).map((c) => c.product_id)).size
 
   return (
     <AppShell>
@@ -75,57 +44,60 @@ export default function MyCommentsPage() {
         <LoginRequired />
       ) : (
         <div className="space-y-5">
-            <section className="rounded-lg border border-slate-800 bg-[#10161d] p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h1 className="text-2xl font-bold">我的评论</h1>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    {user ? `${user.username} 的社区发言记录` : '社区发言记录'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={loadComments}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:border-red-800 hover:text-white"
-                >
-                  <RefreshCw size={15} />
-                  刷新
-                </button>
+          <section className="rounded-lg border border-slate-800 bg-[#10161d] p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h1 className="text-2xl font-bold">我的评论</h1>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  {user ? `${user.username} 的社区发言记录` : '社区发言记录'}
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => mutateComments()}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:border-red-800 hover:text-white"
+              >
+                <RefreshCw size={15} />
+                刷新
+              </button>
+            </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <Metric label="评论数" value={String(comments.length)} />
-                <Metric label="最近发言" value={latestCommentTime} />
-                <Metric label="涉及品种" value={String(productCount)} />
-              </div>
-            </section>
-
-            {loading ? (
-              <CommentSkeleton />
-            ) : error ? (
-              <ErrorState message={error} onRetry={loadComments} />
-            ) : comments.length === 0 ? (
-              <EmptyState
-                icon={MessageSquare}
-                title="暂无评论"
-                description="进入品种详情页，记录你的行情判断和复盘想法。"
-                action={
-                  <Link
-                    href="/products"
-                    className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
-                  >
-                    浏览品种
-                    <ArrowRight size={15} />
-                  </Link>
-                }
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <Metric label="评论数" value={String((comments ?? []).length)} />
+              <Metric
+                label="最近发言"
+                value={comments?.[0]?.created_at ? formatDateTime(comments[0].created_at) : '--'}
               />
-            ) : (
-              <section className="space-y-3">
-                {comments.map((comment) => (
-                  <CommentCard key={comment.id} comment={comment} product={productMap.get(comment.product_id)} />
-                ))}
-              </section>
-            )}
+              <Metric label="涉及品种" value={String(productCount)} />
+            </div>
+          </section>
+
+          {loading ? (
+            <CommentSkeleton />
+          ) : commentError ? (
+            <ErrorState message={commentError instanceof Error ? commentError.message : '评论记录加载失败'} onRetry={() => mutateComments()} />
+          ) : (comments ?? []).length === 0 ? (
+            <EmptyState
+              icon={MessageSquare}
+              title="暂无评论"
+              description="进入品种详情页，记录你的行情判断和复盘想法。"
+              action={
+                <Link
+                  href="/products"
+                  className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+                >
+                  浏览品种
+                  <ArrowRight size={15} />
+                </Link>
+              }
+            />
+          ) : (
+            <section className="space-y-3">
+              {(comments ?? []).map((comment) => (
+                <CommentCard key={comment.id} comment={comment} product={productMap.get(comment.product_id)} />
+              ))}
+            </section>
+          )}
         </div>
       )}
     </AppShell>
@@ -149,7 +121,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function CommentCard({ comment, product }: { comment: Comment; product?: Product }) {
+function CommentCard({ comment, product }: { comment: { id: number; product_id: number; username: string; content: string; created_at: string }; product?: Product }) {
   const productLabel = product ? `${product.name} ${product.symbol}` : `品种 #${comment.product_id}`
 
   return (

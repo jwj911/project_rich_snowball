@@ -16,6 +16,7 @@ import {
 } from 'lightweight-charts'
 import EmptyState from '@/components/ui/EmptyState'
 import { LineChart } from 'lucide-react'
+import { CHART } from '@/lib/constants'
 
 interface KlineData {
   time: string
@@ -62,7 +63,7 @@ type CandlePoint = {
   volume: number
 }
 
-const CHART_HEIGHT = 520
+const CHART_HEIGHT = CHART.HEIGHT
 const SUPPORT_COLOR = '#4ade80'
 const RESISTANCE_COLOR = '#ff6b6b'
 const UP_COLOR = '#ff6b6b'
