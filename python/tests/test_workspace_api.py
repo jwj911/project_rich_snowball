@@ -12,7 +12,7 @@ from main import app
 from models import SessionLocal, VarietyDB, WatchlistDB, PriceLevelDB, CommentDB, ProductDB
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def db():
     db = SessionLocal()
     try:
@@ -21,7 +21,7 @@ def db():
         db.close()
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def client(db):
     from fastapi.testclient import TestClient
     from dependencies import get_db
@@ -42,12 +42,19 @@ def client(db):
     app.dependency_overrides.clear()
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def auth_client(client, db):
-    # 清理可能存在的旧用户
-    from models import UserDB
-    db.query(UserDB).filter(UserDB.username == "workspace_user").delete()
-    db.commit()
+    # 清理可能存在的旧用户及其关联数据（兼容外键开启/关闭两种情况）
+    from models import UserDB, WatchlistDB, PriceLevelDB, CommentDB, RefreshTokenDB
+    old = db.query(UserDB).filter(UserDB.username == "workspace_user").first()
+    if old:
+        # 显式清理关联数据，避免外键关闭时留下孤儿数据
+        db.query(WatchlistDB).filter(WatchlistDB.user_id == old.id).delete(synchronize_session=False)
+        db.query(PriceLevelDB).filter(PriceLevelDB.user_id == old.id).delete(synchronize_session=False)
+        db.query(CommentDB).filter(CommentDB.user_id == old.id).delete(synchronize_session=False)
+        db.query(RefreshTokenDB).filter(RefreshTokenDB.user_id == old.id).delete(synchronize_session=False)
+        db.delete(old)
+        db.commit()
 
     r = client.post("/api/auth/register", json={
         "username": "workspace_user",
@@ -75,7 +82,7 @@ def auth_client(client, db):
 class TestWatchlists:
     def test_create_watchlist(self, auth_client):
         r = auth_client.post("/api/watchlists", json={"variety_id": 1, "notes": "关注黄金"})
-        assert r.status_code == 201
+        assert r.status_code == 200
         data = r.json()
         assert data["variety_id"] == 1
         assert data["notes"] == "关注黄金"
@@ -109,7 +116,7 @@ class TestPriceLevels:
             "price": 450.0,
             "note": "强支撑"
         })
-        assert r.status_code == 201
+        assert r.status_code == 200
         data = r.json()
         assert data["type"] == "support"
         assert float(data["price"]) == 450.0
@@ -201,7 +208,7 @@ class TestWorkspace:
         data = r.json()
         assert "watchlists" in data
         assert "price_levels" in data
-        assert "comments" in data
+        assert "recent_comments" in data
         assert len(data["watchlists"]) >= 1
         assert len(data["price_levels"]) >= 1
-        assert len(data["comments"]) >= 1
+        assert len(data["recent_comments"]) >= 1

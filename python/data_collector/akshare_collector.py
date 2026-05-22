@@ -47,6 +47,7 @@ class AkshareCollector(BaseCollector):
                 return None
             row = df.iloc[-1].to_dict()
             row["symbol"] = symbol
+            row["data_source"] = "akshare"
             return row
 
         return self._retry(_do)

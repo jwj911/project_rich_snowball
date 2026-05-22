@@ -1,7 +1,7 @@
 import logging
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
 from .base import BaseCollector
@@ -81,7 +81,7 @@ def _calc_start_datetime(period: str, limit: int) -> datetime:
         "1w": 10080,
     }
     minutes = freq_minutes.get(period, 60)
-    return datetime.now() - timedelta(minutes=int(minutes * limit * 2))
+    return datetime.now(timezone.utc) - timedelta(minutes=int(minutes * limit * 2))
 
 
 def _date_to_week(value: str | None) -> str | None:
@@ -181,7 +181,7 @@ class TushareCollector(BaseCollector):
         # Free-tier Tushare users: ft_mins is limited to 2 calls/minute.
         # Skip minute-level fallback and go straight to fut_daily.
         ts_code = _to_contract_ts_code(info["contract_code"], info["exchange"])
-        today = datetime.now().strftime("%Y%m%d")
+        today = datetime.now(timezone.utc).strftime("%Y%m%d")
 
         def _do():
             df = self.pro.fut_daily(ts_code=ts_code, start_date=today, end_date=today)
@@ -215,7 +215,7 @@ class TushareCollector(BaseCollector):
     def _fetch_ft_mins(self, info: dict[str, Any], period: str, limit: int) -> List[Dict[str, Any]]:
         ts_code = _to_contract_ts_code(info["contract_code"], info["exchange"])
         start = _calc_start_datetime(period, limit).strftime("%Y-%m-%d %H:%M:%S")
-        end = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        end = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
         def _do():
             df = self.pro.ft_mins(
@@ -232,8 +232,8 @@ class TushareCollector(BaseCollector):
 
     def _fetch_fut_daily_for_kline(self, info: dict[str, Any], limit: int) -> List[Dict[str, Any]]:
         ts_code = _to_contract_ts_code(info["contract_code"], info["exchange"])
-        end_date = datetime.now().strftime("%Y%m%d")
-        start_date = (datetime.now() - timedelta(days=max(limit * 2, 30))).strftime("%Y%m%d")
+        end_date = datetime.now(timezone.utc).strftime("%Y%m%d")
+        start_date = (datetime.now(timezone.utc) - timedelta(days=max(limit * 2, 30))).strftime("%Y%m%d")
 
         def _do():
             df = self.pro.fut_daily(ts_code=ts_code, start_date=start_date, end_date=end_date)

@@ -1,7 +1,30 @@
 """Check for duplicate rows in fut_daily_data.
 
-The table has a unique constraint on (variety_id, period, trade_date).
-If upsert is working correctly there should be zero duplicates.
+Purpose:
+    Validates that the unique constraint on ``(variety_id, period, trade_date)``
+    is actually enforced by querying for groups with more than one row.
+    If the upsert logic in sibling scripts is working correctly the result
+    should always be zero duplicates.
+
+Tushare/AKShare APIs:
+    None - this is a pure DB verification script.
+
+Target database table:
+    ``fut_daily_data`` (``FutDailyDataDB`` model).
+
+Key CLI arguments:
+    --allow-sqlite
+    --limit INT    Max duplicate groups to display (default 20)
+
+Usage example:
+    python check_dupes.py --allow-sqlite --limit 50
+
+Known limitations:
+    - The script groups by ``variety_id, period, trade_date, ts_code`` rather
+      than the strict unique columns, so it can also detect intra-contract
+      duplicates that would violate the business constraint.
+    - ``total_dedup`` is an approximation because the nested aggregation
+      may behave differently across PostgreSQL and SQLite.
 """
 
 from __future__ import annotations
@@ -14,6 +37,7 @@ from common import configure_database
 
 
 def main() -> int:
+    """Entry point: run the duplicate query and print results."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--allow-sqlite", action="store_true")
     parser.add_argument("--limit", type=int, default=20, help="Max duplicate groups to display")
@@ -25,6 +49,7 @@ def main() -> int:
 
     db = SessionLocal()
     try:
+        # Find groups that violate the expected uniqueness.
         dupes = (
             db.query(
                 FutDailyDataDB.variety_id,
@@ -45,6 +70,7 @@ def main() -> int:
             .all()
         )
 
+        # Approximate total extra rows (rows beyond the first in each group).
         total_dedup = (
             db.query(
                 func.sum(func.count(FutDailyDataDB.id) - 1).label("extra_rows")

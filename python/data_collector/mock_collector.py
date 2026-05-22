@@ -1,5 +1,5 @@
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any
 from .base import BaseCollector
 
@@ -46,7 +46,7 @@ class MockCollector(BaseCollector):
             "low": low,
             "volume": random.randint(10000, 500000),
             "open_interest": random.randint(10000, 100000),
-            "updated_at": datetime.now(),
+            "updated_at": datetime.now(timezone.utc),
         }
 
     def _symbol_from_contract(self, contract_code: str) -> str:
@@ -65,8 +65,8 @@ class MockCollector(BaseCollector):
         symbol = self._symbol_from_contract(contract_code)
         base = self._get_base(symbol)
         results = []
-        now = datetime.now()
-        interval_map = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "1d": 1440}
+        now = datetime.now(timezone.utc)
+        interval_map = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "1d": 1440, "D": 1440}
         minutes = interval_map.get(period, 60)
 
         close = base

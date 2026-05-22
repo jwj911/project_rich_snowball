@@ -1,4 +1,60 @@
-"""Run a conservative historical Tushare backfill into local PostgreSQL."""
+"""Run a conservative historical Tushare backfill into local PostgreSQL.
+
+Purpose:
+    Orchestrates the entire backfill pipeline by invoking sibling ingest
+    scripts in a sensible order:
+
+        1. ``ingest_basic``      - seed / refresh ``varieties`` metadata
+        2. ``ingest_contracts``  - populate ``fut_contracts``
+        3. ``ingest_mapping``    - update main-contract mappings
+        4. ``ingest_daily``      - backfill daily bars (D)
+        5. ``ingest_daily``      - backfill weekly bars (W)
+        6. ``ingest_daily``      - backfill monthly bars (M)
+        7. ``ingest_settle``     - settlement parameters
+        8. ``ingest_wsr``        - warehouse receipts
+        9. ``ingest_holding``    - broker rankings
+       10. ``ingest_price_limit`` - price limits
+       11. ``ingest_weekly_detail`` - weekly trading statistics
+
+    Each step can be skipped independently via ``--skip-*`` flags.
+
+Tushare/AKShare APIs used:
+    Delegates to sibling scripts; see their individual docstrings.
+
+Target database tables:
+    ``varieties``, ``fut_contracts``, ``fut_daily_data``, ``fut_settle``,
+    ``fut_wsr``, ``fut_holding``, ``fut_price_limits``, ``fut_weekly_detail``.
+
+Key CLI arguments:
+    --start-date YYYYMMDD       (required)
+    --end-date   YYYYMMDD       (required)
+    --symbols    COMMA_LIST     e.g. AU,AG,CU (default: a small active set)
+    --exchanges  COMMA_LIST     e.g. SHFE,DCE
+    --skip-basic
+    --skip-contracts
+    --skip-daily
+    --skip-weekly-monthly
+    --skip-settle
+    --skip-wsr
+    --skip-holding
+    --skip-limit
+    --skip-mapping
+    --skip-weekly-detail
+    --contract-type COMMA_LIST  e.g. MAIN,CONTINUOUS,NORMAL
+    --allow-sqlite
+    --dry-run
+    --min-interval SECONDS
+
+Usage example:
+    python ingest_all.py --start-date 20240101 --end-date 20240131 --allow-sqlite
+
+Known limitations:
+    - The script runs steps sequentially; there is no parallelism.
+    - ``--dry-run`` is forwarded to each sub-script, so no database writes
+      occur anywhere in the pipeline.
+    - Sibling scripts are imported directly, so this module must be executed
+      from the ``tushare_pg_ingest/`` directory (or with correct ``sys.path``).
+"""
 
 from __future__ import annotations
 
@@ -17,6 +73,7 @@ from common import IngestStats, print_stats
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Construct the argument parser for this script."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--start-date", required=True, help="Start date, YYYYMMDD")
     parser.add_argument("--end-date", required=True, help="End date, YYYYMMDD")
@@ -43,12 +100,25 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _ns(args: argparse.Namespace, **overrides):
+    """Clone *args* and override specific attributes.
+
+    This lets us reuse the same parsed namespace across sibling scripts
+    while injecting per-step parameters (e.g. ``period="W"``).
+    """
     values = vars(args).copy()
     values.update(overrides)
     return argparse.Namespace(**values)
 
 
 def ingest(args: argparse.Namespace) -> IngestStats:
+    """Execute the full backfill pipeline, honouring all ``--skip-*`` flags.
+
+    Args:
+        args: Parsed namespace from ``build_parser()``.
+
+    Returns:
+        Aggregated ``IngestStats`` across all executed steps.
+    """
     total = IngestStats()
 
     if not args.skip_basic:
@@ -77,6 +147,7 @@ def ingest(args: argparse.Namespace) -> IngestStats:
 
 
 def main() -> int:
+    """Entry point."""
     stats = ingest(build_parser().parse_args())
     print_stats("all", stats)
     return 0
@@ -84,4 +155,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

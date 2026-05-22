@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import text, func
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import case, func, text
+from sqlalchemy.orm import Session
+
+from config import ENABLE_SCHEDULER
 from dependencies import get_db
-from models import get_engine_info, DataIngestionRunDB
+from models import DataIngestionRunDB, get_engine_info
 from services.cache import get_cache_stats
 from services.circuit_breaker import get_circuit_status
-from config import ENABLE_SCHEDULER
 
 router = APIRouter(prefix="/health", tags=["健康检查"])
 
@@ -17,7 +18,7 @@ def health_check():
     return {
         "status": "ok",
         "version": "2.0.0",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -37,11 +38,7 @@ def readiness_check(db: Session = Depends(get_db)):
     if not ready:
         raise HTTPException(
             status_code=503,
-            detail={
-                "ready": False,
-                "db": db_ok,
-                "cache": cache_stats,
-            },
+            detail=f"Service not ready: db={db_ok}, cache={cache_stats}",
         )
 
     return {
@@ -61,29 +58,45 @@ def scheduler_check(db: Session = Depends(get_db)):
     except Exception:
         scheduler_running = False
 
-    # 最近 24 小时的任务统计
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    # 最近 24 小时的任务统计（聚合全量，避免 limit 导致失真）
+    since = datetime.now(UTC) - timedelta(hours=24)
+
+    agg = (
+        db.query(
+            func.count(DataIngestionRunDB.id).label("total"),
+            func.sum(case((DataIngestionRunDB.status == "success", 1), else_=0)).label("success"),
+            func.sum(case((DataIngestionRunDB.status == "failed", 1), else_=0)).label("failed"),
+            func.avg(DataIngestionRunDB.duration_ms).label("avg_duration"),
+        )
+        .filter(DataIngestionRunDB.started_at >= since)
+        .first()
+    )
+
+    total = agg.total or 0
+    success = agg.success or 0
+    failed = agg.failed or 0
+    avg_duration_ms = int(agg.avg_duration) if agg.avg_duration is not None else None
+
+    last_success = None
+    if total > 0:
+        last_success_row = (
+            db.query(DataIngestionRunDB)
+            .filter(DataIngestionRunDB.started_at >= since)
+            .filter(DataIngestionRunDB.status == "success")
+            .order_by(DataIngestionRunDB.started_at.desc())
+            .first()
+        )
+        if last_success_row and last_success_row.started_at:
+            last_success = last_success_row.started_at.isoformat()
+
+    # 列表展示：最近 10 条（独立查询，不影响聚合统计）
     recent_runs = (
         db.query(DataIngestionRunDB)
         .filter(DataIngestionRunDB.started_at >= since)
         .order_by(DataIngestionRunDB.started_at.desc())
-        .limit(20)
+        .limit(10)
         .all()
     )
-
-    total = len(recent_runs)
-    success = sum(1 for r in recent_runs if r.status == "success")
-    failed = sum(1 for r in recent_runs if r.status == "failed")
-
-    last_success = None
-    for r in recent_runs:
-        if r.status == "success":
-            last_success = r.started_at.isoformat() if r.started_at else None
-            break
-
-    # 平均执行时长
-    durations = [r.duration_ms for r in recent_runs if r.duration_ms is not None]
-    avg_duration_ms = int(sum(durations) / len(durations)) if durations else None
 
     # 熔断器状态
     circuit_status = get_circuit_status()
@@ -109,8 +122,8 @@ def scheduler_check(db: Session = Depends(get_db)):
                 "success_count": r.success_count,
                 "failed_count": r.failed_count,
             }
-            for r in recent_runs[:10]
+            for r in recent_runs
         ],
         "circuit_breakers": circuit_status,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }

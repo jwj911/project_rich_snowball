@@ -15,8 +15,28 @@ from models import RealtimeQuoteDB
 
 
 @pytest.fixture
+def batch_auth_headers(client):
+    """注册并登录测试用户，返回包含 Bearer token 的请求头。"""
+    client.post("/api/auth/register", json={
+        "username": "batch_tester",
+        "email": "batch@test.com",
+        "password": "password123"
+    })
+    r = client.post("/api/auth/login", data={
+        "username": "batch_tester",
+        "password": "password123"
+    })
+    token = r.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
 def seed_realtime_quotes(db_session, seed_varieties):
-    """为前 3 个品种写入实时行情数据。"""
+    """为前 3 个品种写入实时行情数据（如 lifespan 已初始化则先清理）。"""
+    from models import RealtimeQuoteDB
+    variety_ids = [v.id for v in seed_varieties[:3]]
+    db_session.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id.in_(variety_ids)).delete(synchronize_session=False)
+
     quotes = [
         RealtimeQuoteDB(
             variety_id=seed_varieties[0].id,
@@ -53,9 +73,9 @@ def seed_realtime_quotes(db_session, seed_varieties):
 
 
 class TestRealtimeBatch:
-    def test_batch_returns_multiple_quotes(self, client, seed_varieties, seed_realtime_quotes):
+    def test_batch_returns_multiple_quotes(self, client, batch_auth_headers, seed_varieties, seed_realtime_quotes):
         """批量查询多个存在行情的品种应返回全部数据。"""
-        r = client.get("/api/realtime/batch?symbols=AU&symbols=AG&symbols=CU")
+        r = client.get("/api/realtime/batch?symbols=AU&symbols=AG&symbols=CU", headers=batch_auth_headers)
         assert r.status_code == 200
         data = r.json()
         assert "quotes" in data
@@ -65,35 +85,35 @@ class TestRealtimeBatch:
         assert symbols == {"AU", "AG", "CU"}
         assert data["not_found"] == []
 
-    def test_batch_partial_not_found(self, client, seed_varieties, seed_realtime_quotes):
+    def test_batch_partial_not_found(self, client, batch_auth_headers, seed_varieties, seed_realtime_quotes):
         """部分品种无行情时应返回已找到数据 + not_found 列表。"""
-        r = client.get("/api/realtime/batch?symbols=AU&symbols=UNKNOWN")
+        r = client.get("/api/realtime/batch?symbols=AU&symbols=UNKNOWN", headers=batch_auth_headers)
         assert r.status_code == 200
         data = r.json()
         assert len(data["quotes"]) == 1
         assert data["quotes"][0]["symbol"] == "AU"
         assert data["not_found"] == ["UNKNOWN"]
 
-    def test_batch_all_not_found(self, client, seed_varieties, seed_realtime_quotes):
+    def test_batch_all_not_found(self, client, batch_auth_headers, seed_varieties, seed_realtime_quotes):
         """全部品种都不存在时应返回空 quotes + 全部 not_found。"""
-        r = client.get("/api/realtime/batch?symbols=FAKE1&symbols=FAKE2")
+        r = client.get("/api/realtime/batch?symbols=FAKE1&symbols=FAKE2", headers=batch_auth_headers)
         assert r.status_code == 200
         data = r.json()
         assert data["quotes"] == []
         assert data["not_found"] == ["FAKE1", "FAKE2"]
 
-    def test_batch_empty_symbols(self, client):
+    def test_batch_empty_symbols(self, client, batch_auth_headers):
         """空 symbols 列表应返回空结果。"""
-        r = client.get("/api/realtime/batch")
+        r = client.get("/api/realtime/batch", headers=batch_auth_headers)
         assert r.status_code == 200
         data = r.json()
         assert data["quotes"] == []
         assert data["not_found"] == []
 
-    def test_batch_single_symbol_equivalent(self, client, seed_varieties, seed_realtime_quotes):
+    def test_batch_single_symbol_equivalent(self, client, batch_auth_headers, seed_varieties, seed_realtime_quotes):
         """批量查询单个品种应与单品种接口返回一致。"""
-        batch_r = client.get("/api/realtime/batch?symbols=AU")
-        single_r = client.get("/api/realtime/AU")
+        batch_r = client.get("/api/realtime/batch?symbols=AU", headers=batch_auth_headers)
+        single_r = client.get("/api/realtime/AU", headers=batch_auth_headers)
         assert batch_r.status_code == 200
         assert single_r.status_code == 200
 

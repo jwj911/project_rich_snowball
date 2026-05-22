@@ -1,0 +1,29 @@
+import { CandlePoint, CrosshairQuote } from '@/lib/klineChart'
+
+interface CrosshairTooltipProps {
+  quote: CrosshairQuote | null
+  latestPoint: CandlePoint
+}
+
+export default function CrosshairTooltip({ quote, latestPoint }: CrosshairTooltipProps) {
+  const contractCode = quote?.contractCode ?? latestPoint.contractCode
+
+  return (
+    <div className="absolute left-3 top-12 rounded border border-[#2a2e39] bg-[#1e222d]/95 px-3 py-2 text-xs shadow-lg">
+      <div className="grid grid-cols-[42px_minmax(72px,auto)] gap-x-3 gap-y-1">
+        <span className="text-slate-500">时间</span>
+        <span className="font-mono text-slate-200">{quote?.time ?? latestPoint.originalTime}</span>
+        <span className="text-slate-500">收盘</span>
+        <span className="font-mono text-slate-200">{(quote?.close ?? latestPoint.close).toFixed(2)}</span>
+        <span className="text-slate-500">成交量</span>
+        <span className="font-mono text-slate-200">{Math.round(quote?.volume ?? latestPoint.volume).toLocaleString()}</span>
+        {contractCode && (
+          <>
+            <span className="text-slate-500">合约</span>
+            <span className="font-mono text-slate-200">{contractCode}</span>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

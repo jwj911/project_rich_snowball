@@ -1,6 +1,9 @@
 """Map external market data rows to the internal collector schema."""
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
+
+# 东八区时区常量（中国标准时间）
+_CN_TZ = timezone(timedelta(hours=8))
 
 
 def map_akshare_realtime(row: dict[str, Any], symbol: str) -> dict[str, Any]:
@@ -21,6 +24,7 @@ def map_akshare_realtime(row: dict[str, Any], symbol: str) -> dict[str, Any]:
         "bid1": _to_float(_first(row, "\u4e70\u4e00\u4ef7", "bid1")),
         "ask1": _to_float(_first(row, "\u5356\u4e00\u4ef7", "ask1")),
         "change_percent": change_percent,
+        "data_source": row.get("data_source"),
         "updated_at": _parse_datetime(_first(row, "\u66f4\u65b0\u65f6\u95f4", "time", "updated_at", "date"))
         or datetime.now(timezone.utc),
     }
@@ -61,6 +65,7 @@ def map_tushare_realtime(raw: dict[str, Any], symbol: str = None) -> dict[str, A
         "volume": _to_int(raw.get("vol")),
         "open_interest": _to_int(raw.get("oi")),
         "change_percent": change_percent,
+        "data_source": raw.get("data_source"),
         "updated_at": _parse_datetime(raw.get("trade_time") or raw.get("trade_date")) or datetime.now(timezone.utc),
     }
 
@@ -265,7 +270,10 @@ def map_tushare_fut_contract(raw: dict[str, Any]) -> dict[str, Any]:
     list_date = _parse_datetime(raw.get("list_date"))
     delist_date = _parse_datetime(raw.get("delist_date"))
     is_active = True
-    if delist_date is not None and datetime.now().date() >= delist_date.date():
+    # 使用东八区当前日期判断合约是否到期，避免 UTC 跨天偏差
+    from services.trading_calendar import _cn_date
+
+    if delist_date is not None and _cn_date() >= delist_date.date():
         is_active = False
     return {
         "ts_code": ts_code,
@@ -314,11 +322,20 @@ def _to_int(val: Any) -> int | None:
         return None
 
 
-def _parse_datetime(val: Any):
+def _parse_datetime(val: Any) -> datetime | None:
+    """解析时间字符串或 datetime 对象，返回东八区 aware datetime。
+
+    中国期货市场数据源（Tushare/AkShare）的时间字段均为北京时间，
+    解析后统一附加东八区时区信息，避免 naive/aware 混用导致的问题。
+    """
     if val is None:
         return None
     if isinstance(val, datetime):
-        return val
+        # 如果已经是 aware，保持原样
+        if val.tzinfo is not None:
+            return val
+        # naive datetime 假设为东八区
+        return val.replace(tzinfo=_CN_TZ)
     for fmt in [
         "%Y-%m-%d %H:%M:%S",
         "%Y%m%d %H:%M:%S",
@@ -327,7 +344,8 @@ def _parse_datetime(val: Any):
         "%Y%m%d",
     ]:
         try:
-            return datetime.strptime(str(val), fmt)
+            dt = datetime.strptime(str(val), fmt)
+            return dt.replace(tzinfo=_CN_TZ)
         except ValueError:
             continue
     return None

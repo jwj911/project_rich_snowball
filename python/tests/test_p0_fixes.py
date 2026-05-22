@@ -240,11 +240,12 @@ def test_cache_lru_eviction():
     from services.cache import get_cached, invalidate_cache, get_cache_stats
 
     invalidate_cache()
-    for i in range(260):
+    for i in range(1100):
         get_cached(f"key_{i}", lambda i=i: f"value_{i}", ttl=60)
 
     stats = get_cache_stats()
     assert stats["size"] <= stats["max_size"]
+    assert stats["size"] < 1100, "LRU 应淘汰部分 key，实际未触发淘汰"
 
 
 def test_cache_ttl_expiration():
@@ -369,3 +370,46 @@ def test_register_and_login_flow(client):
     r = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
     assert r.json()["username"] == "testuser_p0"
+
+
+# ============================================================================
+# 缓存击穿防护（P0 修复）
+# ============================================================================
+
+def test_cache_prevents_thundering_herd():
+    """并发缓存 miss 时 db_fetch_func 仅执行一次。"""
+    import threading
+    from services.cache import get_cached, invalidate_cache
+
+    call_count = [0]
+    def slow_fetch():
+        call_count[0] += 1
+        time.sleep(0.05)
+        return {"data": "value"}
+
+    results = []
+    def worker():
+        result = get_cached("thundering_herd_test", slow_fetch, ttl=5)
+        results.append(result)
+
+    threads = [threading.Thread(target=worker) for _ in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert call_count[0] == 1, f"db_fetch_func 应只执行一次，实际执行了 {call_count[0]} 次"
+    assert all(r == {"data": "value"} for r in results)
+    invalidate_cache("thundering_herd_test")
+
+
+# ============================================================================
+# Request-ID 全链路追踪（P2 修复）
+# ============================================================================
+
+def test_request_id_in_response_header(client):
+    """响应应携带 X-Request-ID 头，便于日志串联。"""
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert "x-request-id" in resp.headers
+    assert len(resp.headers["x-request-id"]) > 0

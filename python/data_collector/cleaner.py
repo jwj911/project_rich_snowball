@@ -21,6 +21,11 @@ def clean_realtime(data: dict[str, Any], symbol: str) -> dict[str, Any] | None:
         logger.debug("[%s] Invalid price: %s", symbol, current_price)
         return None
 
+    volume = data.get("volume")
+    if volume is None or (isinstance(volume, (int, float)) and volume < 0):
+        logger.debug("[%s] Invalid volume: %s", symbol, volume)
+        return None
+
     ohlc = {
         "open_price": data.get("open_price", current_price),
         "high_price": data["high"],
@@ -61,6 +66,11 @@ def clean_kline(rows: list[dict[str, Any]], contract_code: str) -> list[dict[str
         required = ["period", "trading_time", "volume"]
         if any(row.get(k) is None for k in required):
             logger.debug("[%s] Skipping kline row with missing fields: %s", contract_code, row)
+            continue
+
+        volume = row.get("volume")
+        if isinstance(volume, (int, float)) and volume < 0:
+            logger.debug("[%s] Skipping kline row with negative volume: %s", contract_code, row)
             continue
 
         if not _valid_ohlc(row):

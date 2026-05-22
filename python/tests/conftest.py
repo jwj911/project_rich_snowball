@@ -73,24 +73,49 @@ def client(db_session):
 
 
 @pytest.fixture(scope="function")
+def auth_headers(client):
+    """注册并登录测试用户，返回包含 Bearer token 的请求头。"""
+    client.post("/api/auth/register", json={
+        "username": "integration_tester",
+        "email": "integration@test.com",
+        "password": "password123"
+    })
+    r = client.post("/api/auth/login", data={
+        "username": "integration_tester",
+        "password": "password123"
+    })
+    token = r.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(scope="function")
 def seed_varieties(db_session):
-    """在内存库中初始化 10 个品种数据。"""
+    """在内存库中初始化 10 个品种数据（如 lifespan 已初始化则复用）。"""
     from models import VarietyDB
 
-    varieties = [
-        VarietyDB(symbol="AU", contract_code="AU2406", name="黄金", exchange="SHFE", category="贵金属"),
-        VarietyDB(symbol="AG", contract_code="AG2406", name="白银", exchange="SHFE", category="贵金属"),
-        VarietyDB(symbol="CU", contract_code="CU2406", name="铜", exchange="SHFE", category="有色金属"),
-        VarietyDB(symbol="RB", contract_code="RB2406", name="螺纹钢", exchange="SHFE", category="黑色系"),
-        VarietyDB(symbol="I", contract_code="I2406", name="铁矿石", exchange="DCE", category="黑色系"),
-        VarietyDB(symbol="SC", contract_code="SC2406", name="原油", exchange="INE", category="能源化工"),
-        VarietyDB(symbol="MA", contract_code="MA2406", name="甲醇", exchange="ZCE", category="能源化工"),
-        VarietyDB(symbol="M", contract_code="M2406", name="豆粕", exchange="DCE", category="农产品"),
-        VarietyDB(symbol="C", contract_code="C2406", name="玉米", exchange="DCE", category="农产品"),
-        VarietyDB(symbol="CF", contract_code="CF2406", name="棉花", exchange="ZCE", category="农产品"),
+    specs = [
+        ("AU", "AU2406", "黄金", "SHFE", "贵金属"),
+        ("AG", "AG2406", "白银", "SHFE", "贵金属"),
+        ("CU", "CU2406", "铜", "SHFE", "有色金属"),
+        ("RB", "RB2406", "螺纹钢", "SHFE", "黑色系"),
+        ("I", "I2406", "铁矿石", "DCE", "黑色系"),
+        ("SC", "SC2406", "原油", "INE", "能源化工"),
+        ("MA", "MA2406", "甲醇", "ZCE", "能源化工"),
+        ("M", "M2406", "豆粕", "DCE", "农产品"),
+        ("C", "C2406", "玉米", "DCE", "农产品"),
+        ("CF", "CF2406", "棉花", "ZCE", "农产品"),
     ]
-    for v in varieties:
-        db_session.add(v)
+
+    existing = {v.symbol: v for v in db_session.query(VarietyDB).filter(VarietyDB.symbol.in_([s[0] for s in specs])).all()}
+    varieties = []
+    for sym, contract, name, exchange, category in specs:
+        if sym in existing:
+            varieties.append(existing[sym])
+        else:
+            v = VarietyDB(symbol=sym, contract_code=contract, name=name, exchange=exchange, category=category)
+            db_session.add(v)
+            db_session.flush()
+            varieties.append(v)
     db_session.commit()
     return varieties
 

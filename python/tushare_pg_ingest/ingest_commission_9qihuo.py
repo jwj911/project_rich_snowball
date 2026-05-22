@@ -1,9 +1,32 @@
-"""九期网期货手续费与保证金数据拉取脚本
+"""九期网期货手续费与保证金数据拉取脚本.
 
-来源: AKShare futures_comm_info 接口 (数据来自 www.9qihuo.com)
-支持按交易所拉取或一次性拉取全部，保存 CSV 并可选写入 PostgreSQL/SQLite。
+Purpose:
+    Fetches futures commission, margin, and price-limit data from the
+    九期网 (www.9qihuo.com) source via AKShare's ``futures_comm_info``
+    interface.  Results can be saved to CSV and/or upserted into the
+    ``fut_trade_fee`` table.  Optionally propagates main-contract margin
+    and commission rates back to the ``varieties`` table.
 
-用法:
+AKShare API used:
+    ``ak.futures_comm_info(symbol=...)`` - commission & margin snapshot.
+
+Target database tables:
+    ``fut_trade_fee`` (``FutTradeFeeDB`` model)
+    ``varieties``     (``VarietyDB`` model, when ``--update-varieties``)
+
+Key CLI arguments:
+    --exchange STR              交易所名称; default "所有"
+    --output-dir PATH           CSV output directory; default ./data/commission
+    --save-per-exchange         Save one CSV per exchange
+    --main-only                 Keep only main-contract rows
+    --show-main                 Print main-contract summary to stdout
+    --top-n INT                 Limit main-contract display to N rows
+    --save-db                   Upsert into fut_trade_fee
+    --update-varieties          Write main-contract rates back to varieties
+    --allow-sqlite              Permit SQLite writes
+    --dry-run                   Simulate DB operations
+
+Usage examples:
     # 拉取所有交易所，仅保存 CSV
     python tushare_pg_ingest/ingest_commission_9qihuo.py
 
@@ -18,6 +41,14 @@
 
     # 指定输出目录
     python tushare_pg_ingest/ingest_commission_9qihuo.py --output-dir ./data/commission
+
+Known limitations:
+    - 九期网 data is a *snapshot*; there is no historical dimension.
+    - ``extract_symbol_from_contract`` contains a large but not exhaustive
+      manual mapping of Chinese names to base symbols.  Unrecognised names
+      will produce an empty symbol and be skipped during ``--update-varieties``.
+    - AKShare network errors are retried up to three times with exponential
+      backoff; persistent failures abort the script.
 """
 
 from __future__ import annotations
@@ -28,7 +59,7 @@ import os
 import re
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -37,7 +68,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PYTHON_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PYTHON_DIR))
 
-from common import configure_database, print_stats, IngestStats, records_from_df
+from common import configure_database, print_stats, IngestStats
 
 import akshare as ak
 import pandas as pd
@@ -90,15 +121,21 @@ COLUMN_MAP = {
 
 
 def _ensure_dir(path: Path) -> None:
+    """Create *path* and all parents if they do not already exist."""
     path.mkdir(parents=True, exist_ok=True)
 
 
 def _safe_filename(name: str) -> str:
+    """Sanitise *name* for use in a filesystem path."""
     return re.sub(r'[\\/:*?"<>| ]+', "_", name).strip("_")
 
 
 def _parse_datetime(value: Any) -> datetime | None:
-    """解析九期网返回的时间字符串。"""
+    """Parse a 九期网 datetime string into a Python ``datetime``.
+
+    Handles fractional seconds, plain timestamps, and date-only strings.
+    Returns ``None`` for missing or unparseable input.
+    """
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return None
     s = str(value).strip()
@@ -114,6 +151,7 @@ def _parse_datetime(value: Any) -> datetime | None:
 
 
 def _to_float(value: Any) -> float | None:
+    """Coerce *value* to ``float``, returning ``None`` on failure or NaN."""
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return None
     try:
@@ -123,6 +161,7 @@ def _to_float(value: Any) -> float | None:
 
 
 def _to_int(value: Any) -> int | None:
+    """Coerce *value* to ``int``, returning ``None`` on failure or NaN."""
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return None
     try:
@@ -132,7 +171,19 @@ def _to_int(value: Any) -> int | None:
 
 
 def fetch_commission_data(exchange: str = "所有", max_retries: int = 3) -> pd.DataFrame:
-    """通过 AKShare 拉取九期网手续费数据，支持失败重试。"""
+    """Fetch commission/margin data from AKShare with exponential-backoff retries.
+
+    Args:
+        exchange:     One of ``EXCHANGE_CHOICES``.
+        max_retries:  Number of attempts before giving up.
+
+    Returns:
+        A ``pandas.DataFrame`` with the raw 九期网 schema.
+
+    Raises:
+        ValueError: If *exchange* is not recognised.
+        Exception:  The last exception after all retries are exhausted.
+    """
     if exchange not in EXCHANGE_CHOICES:
         raise ValueError(f"不支持的交易所: {exchange}")
 
@@ -153,10 +204,21 @@ def fetch_commission_data(exchange: str = "所有", max_retries: int = 3) -> pd.
 
 
 def extract_symbol_from_contract(contract_name: str, contract_code: str) -> str:
-    """从合约名称或合约代码中提取品种代码（字母部分）。
+    """Extract the base variety symbol from a contract name or code.
 
-    例: '沪银2606 (ag2606)' -> 'AG'
-         '30年期国债期货2409' -> 'TL'
+    First attempts to read alphabetic characters from *contract_code*.
+    Falls back to a large manual Chinese-name mapping for edge cases.
+
+    Examples:
+        ``'沪银2606 (ag2606)'`` → ``'AG'``
+        ``'30年期国债期货2409'`` → ``'TL'``
+
+    Args:
+        contract_name: Human-readable name from 九期网.
+        contract_code: Machine code such as ``"ag2606"``.
+
+    Returns:
+        Upper-case base symbol or empty string if unrecognised.
     """
     letters = "".join(ch for ch in contract_code if ch.isalpha()).upper()
     if letters:
@@ -191,7 +253,10 @@ def extract_symbol_from_contract(contract_name: str, contract_code: str) -> str:
 
 
 def df_to_model_records(df: pd.DataFrame) -> list[dict[str, Any]]:
-    """将 DataFrame 转换为 FutTradeFeeDB 可接受的字典列表。"""
+    """Convert a raw 九期网 DataFrame into ``FutTradeFeeDB``-compatible dicts.
+
+    Applies type coercion (float, int, datetime, string) per column.
+    """
     records = []
     for _, row in df.iterrows():
         rec: dict[str, Any] = {}
@@ -215,9 +280,15 @@ def df_to_model_records(df: pd.DataFrame) -> list[dict[str, Any]]:
 
 
 def save_csv(df: pd.DataFrame, output_dir: Path, suffix: str = "") -> Path:
-    """保存 DataFrame 为 CSV。"""
+    """Persist *df* to a timestamped CSV under *output_dir*.
+
+    Uses UTF-8 with BOM so Excel opens the file correctly.
+
+    Returns:
+        The ``Path`` of the written file.
+    """
     _ensure_dir(output_dir)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     name = f"futures_comm_{_safe_filename(suffix)}_{ts}.csv"
     path = output_dir / name
     df.to_csv(path, index=False, encoding="utf-8-sig")
@@ -226,7 +297,19 @@ def save_csv(df: pd.DataFrame, output_dir: Path, suffix: str = "") -> Path:
 
 
 def bulk_save_to_db(db: Any, rows: list[dict[str, Any]], dry_run: bool) -> int:
-    """批量写入/更新 fut_trade_fee 表。"""
+    """Bulk-upsert *rows* into ``fut_trade_fee``.
+
+    Uses PostgreSQL ``INSERT … ON CONFLICT`` (or SQLite's ``ON CONFLICT``)
+    with ``contract_code`` + ``fee_updated_at`` as the unique key.
+
+    Args:
+        db:       Active SQLAlchemy session.
+        rows:     List of dict records from ``df_to_model_records``.
+        dry_run:  If ``True``, only print the intended count.
+
+    Returns:
+        Number of rows that would be / were written.
+    """
     if not rows:
         return 0
 
@@ -259,7 +342,7 @@ def bulk_save_to_db(db: Any, rows: list[dict[str, Any]], dry_run: bool) -> int:
             "tick_profit_net": stmt.excluded.tick_profit_net,
             "remark": stmt.excluded.remark,
             "price_updated_at": stmt.excluded.price_updated_at,
-            "created_at": datetime.now(),
+            "created_at": datetime.now(timezone.utc),
         },
     )
 
@@ -274,7 +357,20 @@ def bulk_save_to_db(db: Any, rows: list[dict[str, Any]], dry_run: bool) -> int:
 
 
 def update_varieties_from_main(df: pd.DataFrame, db: Any, dry_run: bool) -> IngestStats:
-    """将主力合约的手续费/保证金率写回 varieties 表。"""
+    """Propagate main-contract margin and commission rates back to ``varieties``.
+
+    Filters *df* to rows whose ``备注`` contains "主力", looks up the
+    corresponding ``VarietyDB`` record by symbol + exchange, and overwrites
+    ``margin_rate`` and ``commission``.
+
+    Args:
+        df:       Raw or filtered 九期网 DataFrame.
+        db:       Active SQLAlchemy session.
+        dry_run:  If ``True``, rollback instead of committing.
+
+    Returns:
+        ``IngestStats`` where ``written`` counts updated variety rows.
+    """
     stats = IngestStats()
     from models import VarietyDB
 
@@ -300,6 +396,7 @@ def update_varieties_from_main(df: pd.DataFrame, db: Any, dry_run: bool) -> Inge
             stats.skipped += 1
             continue
 
+        # Margin rate is stored as a fraction (e.g. 0.12 for 12%).
         try:
             margin_val = float(row.get("保证金-买开", 0))
             if margin_val > 0:
@@ -307,6 +404,7 @@ def update_varieties_from_main(df: pd.DataFrame, db: Any, dry_run: bool) -> Inge
         except (ValueError, TypeError):
             pass
 
+        # Commission is stored as a plain float (元).
         try:
             comm_str = str(row.get("手续费", "0")).replace("元", "").strip()
             comm_val = float(comm_str)
@@ -327,7 +425,7 @@ def update_varieties_from_main(df: pd.DataFrame, db: Any, dry_run: bool) -> Inge
 
 
 def print_summary(df: pd.DataFrame, title: str = "数据汇总") -> None:
-    """打印数据摘要。"""
+    """Print a human-readable summary of the fetched DataFrame."""
     print(f"\n{'=' * 60}")
     print(f"[{title}]")
     print(f"{'=' * 60}")
@@ -345,7 +443,7 @@ def print_summary(df: pd.DataFrame, title: str = "数据汇总") -> None:
 
 
 def print_main_contracts(df: pd.DataFrame, top_n: int | None = None) -> None:
-    """打印主力合约明细。"""
+    """Print a detail table of main-contract rows."""
     main_df = df[df["备注"].astype(str).str.contains("主力", na=False)]
     if main_df.empty:
         print("\n[WARN] 未找到主力合约")
@@ -365,7 +463,15 @@ def print_main_contracts(df: pd.DataFrame, top_n: int | None = None) -> None:
 
 
 def ingest(args: argparse.Namespace) -> IngestStats:
-    """主入口。"""
+    """Main orchestration: fetch, optionally filter, save CSV, and optionally write DB.
+
+    Args:
+        args: Parsed namespace from ``build_parser()``.
+
+    Returns:
+        ``IngestStats`` aggregating fetched, written, skipped, and failed
+        counters across all exchanges.
+    """
     output_dir = Path(args.output_dir)
     _ensure_dir(output_dir)
 
@@ -440,6 +546,7 @@ def ingest(args: argparse.Namespace) -> IngestStats:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Construct the argument parser for this script."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--exchange",
@@ -459,6 +566,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Entry point."""
     stats = ingest(build_parser().parse_args())
     print_stats("9qihuo commission", stats)
     return 0

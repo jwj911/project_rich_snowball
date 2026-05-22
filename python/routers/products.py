@@ -1,20 +1,33 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
-from typing import List
-from models import ProductDB, CommentDB
-from schemas import ProductResponse, ProductDetailResponse, CommentResponse
-from dependencies import get_db
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy.orm import Session
+
+from dependencies import get_current_user_dependency, get_db
+from models import UserDB
+from schemas import ProductDetailResponse, ProductResponse
+from services.domain.product_service import ProductService
 
 router = APIRouter(prefix="/api/products", tags=["品种(兼容)"])
 
 
-@router.get("", response_model=List[ProductResponse])
+@router.get("", response_model=list[ProductResponse])
 def get_products(
+    response: Response,
     skip: int = Query(0, ge=0),
     limit: int = Query(1000, ge=1, le=1000),
-    db: Session = Depends(get_db)
+    search: str | None = Query(None, max_length=100),
+    category: str | None = Query(None, max_length=50),
+    direction: str = Query("all", pattern="^(all|up|down)$"),
+    sort_by: str = Query("change_percent", pattern="^(change_percent|volume|current_price)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user_dependency),
 ):
-    products = db.query(ProductDB).offset(skip).limit(limit).all()
+    products, headers = ProductService(db).list_products(
+        skip, limit, search, category, direction, sort_by, sort_order
+    )
+    for k, v in headers.items():
+        response.headers[k] = v
     return products
 
 
@@ -23,32 +36,7 @@ def get_product(
     product_id: int,
     comment_skip: int = Query(0, ge=0),
     comment_limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user_dependency),
 ):
-    product = db.query(ProductDB).filter(ProductDB.id == product_id).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="品种不存在")
-
-    comments = (
-        db.query(CommentDB)
-        .options(joinedload(CommentDB.user))
-        .filter(CommentDB.product_id == product_id)
-        .order_by(CommentDB.created_at.desc())
-        .offset(comment_skip)
-        .limit(comment_limit)
-        .all()
-    )
-
-    return {
-        "product": product,
-        "comments": [
-            CommentResponse(
-                id=c.id,
-                product_id=c.product_id,
-                user_id=c.user_id,
-                username=c.user.username if c.user else "未知用户",
-                content=c.content,
-                created_at=c.created_at
-            ) for c in comments
-        ]
-    }
+    return ProductService(db).get_product_detail(product_id, comment_skip, comment_limit)

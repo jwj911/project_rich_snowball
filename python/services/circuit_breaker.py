@@ -3,9 +3,8 @@
 连续失败超过阈值后暂停该源一段时间，避免打爆外部 API。
 Phase 5 可替换为 Redis 持久化实现。
 """
-import time
 import threading
-from typing import Optional
+import time
 
 _FAILURE_COUNTS: dict[str, int] = {}
 _LAST_FAILURE_TIME: dict[str, float] = {}
@@ -40,7 +39,7 @@ def record_success(source: str) -> None:
             _FAILURE_COUNTS[source] = 0
 
 
-def get_circuit_status(source: Optional[str] = None) -> dict:
+def get_circuit_status(source: str | None = None) -> dict:
     """返回熔断器状态。source 为 None 时返回所有源。"""
     with _LOCK:
         if source:

@@ -1,9 +1,17 @@
-from pydantic import BaseModel, Field, field_validator, EmailStr, ConfigDict
-from typing import List, Optional
+import html
 from datetime import datetime as dt
 from decimal import Decimal
-import html
-import re
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+
+def sanitize_html_text(v: str | None) -> str | None:
+    """统一 XSS 过滤：去除首尾空白，对非空文本做 HTML escape。"""
+    if isinstance(v, str):
+        v = v.strip()
+        if v:
+            v = html.escape(v)
+    return v if v else None
 
 
 class UserCreate(BaseModel):
@@ -18,10 +26,36 @@ class UserResponse(BaseModel):
     email: str
     created_at: dt
 
+    model_config = ConfigDict(from_attributes=True)
+
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    refresh_token: str | None = None
+    expires_in: int = 1800  # access token 默认有效期（秒）
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str | None = Field(None, min_length=10)
+
+
+class RefreshTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MessageResponse(BaseModel):
+    """通用消息响应，用于删除、退出等无需返回实体的操作。"""
+
+    detail: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProductResponse(BaseModel):
@@ -30,28 +64,28 @@ class ProductResponse(BaseModel):
     symbol: str
     current_price: float
     change_percent: float
-    open_price: Optional[float]
-    high: Optional[float]
-    low: Optional[float]
-    volume: Optional[float]
-    category: Optional[str]
-    margin: Optional[float]
-    commission: Optional[float]
+    open_price: float | None
+    high: float | None
+    low: float | None
+    volume: float | None
+    category: str | None
+    margin: float | None
+    commission: float | None
     updated_at: dt
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CommentCreate(BaseModel):
     product_id: int = Field(..., ge=1)
     content: str = Field(..., min_length=1, max_length=2000)
-    price_level_id: Optional[int] = Field(None, ge=1)
+    price_level_id: int | None = Field(None, ge=1)
 
     @field_validator("content", mode="before")
     @classmethod
     def sanitize_content(cls, v: str) -> str:
-        if isinstance(v, str):
-            v = v.strip()
-        v = html.escape(v)
-        if not v:
+        v = sanitize_html_text(v)
+        if v is None or not v:
             raise ValueError("评论内容不能为空")
         return v
 
@@ -59,106 +93,22 @@ class CommentCreate(BaseModel):
 class CommentResponse(BaseModel):
     id: int
     product_id: int
+    product_symbol: str | None = None
+    product_name: str | None = None
     user_id: int
     username: str
     content: str
-    price_level_id: Optional[int] = None
+    price_level_id: int | None = None
     created_at: dt
 
-
-class PriceLevelCreate(BaseModel):
-    variety_id: int = Field(..., ge=1)
-    type: str = Field(..., pattern=r"^(support|resistance)$")
-    price: float = Field(..., ge=0)
-    note: Optional[str] = Field(None, max_length=500)
-
-    @field_validator("note", mode="before")
-    @classmethod
-    def sanitize_note(cls, v: Optional[str]) -> Optional[str]:
-        if isinstance(v, str):
-            v = v.strip()
-            if v:
-                return html.escape(v)
-        return v
-
-
-class PriceLevelUpdate(BaseModel):
-    price: Optional[float] = Field(None, ge=0)
-    note: Optional[str] = Field(None, max_length=500)
-
-    @field_validator("note", mode="before")
-    @classmethod
-    def sanitize_note(cls, v: Optional[str]) -> Optional[str]:
-        if isinstance(v, str):
-            v = v.strip()
-            if v:
-                return html.escape(v)
-        return v
-
-
-class PriceLevelResponse(BaseModel):
-    id: int
-    user_id: int
-    variety_id: int
-    type: str
-    price: float
-    note: Optional[str] = None
-    created_at: dt
-    updated_at: dt
-
-    model_config = {"from_attributes": True}
-
-
-class WatchlistCreate(BaseModel):
-    variety_id: int = Field(..., ge=1)
-    notes: Optional[str] = Field(None, max_length=500)
-
-    @field_validator("notes", mode="before")
-    @classmethod
-    def sanitize_notes(cls, v: Optional[str]) -> Optional[str]:
-        if isinstance(v, str):
-            v = v.strip()
-            if v:
-                return html.escape(v)
-        return v
-
-
-class WatchlistUpdate(BaseModel):
-    notes: Optional[str] = Field(None, max_length=500)
-    is_notified: Optional[bool] = None
-
-    @field_validator("notes", mode="before")
-    @classmethod
-    def sanitize_notes(cls, v: Optional[str]) -> Optional[str]:
-        if isinstance(v, str):
-            v = v.strip()
-            if v:
-                return html.escape(v)
-        return v
-
-
-class WatchlistResponse(BaseModel):
-    id: int
-    user_id: int
-    variety_id: int
-    variety_symbol: str
-    variety_name: str
-    notes: Optional[str] = None
-    is_notified: bool = False
-    created_at: dt
-
-    model_config = {"from_attributes": True}
-
-
-class WorkspaceSummary(BaseModel):
-    watchlists: List[WatchlistResponse]
-    price_levels: List[PriceLevelResponse]
-    comments: List[CommentResponse]
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProductDetailResponse(BaseModel):
     product: ProductResponse
-    comments: List[CommentResponse]
+    comments: list[CommentResponse]
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class VarietyResponse(BaseModel):
@@ -167,9 +117,11 @@ class VarietyResponse(BaseModel):
     contract_code: str
     name: str
     exchange: str
-    category: Optional[str]
-    margin_rate: Optional[float]
-    commission: Optional[float]
+    category: str | None
+    margin_rate: float | None
+    commission: float | None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class KlineResponse(BaseModel):
@@ -180,21 +132,29 @@ class KlineResponse(BaseModel):
     close: float
     volume: int
 
+    model_config = ConfigDict(from_attributes=True)
+
 
 class RealtimeResponse(BaseModel):
     symbol: str
     current_price: float
     change_percent: float
-    open_price: Optional[float]
-    high: Optional[float]
-    low: Optional[float]
-    volume: Optional[int]
+    open_price: float | None
+    high: float | None
+    low: float | None
+    volume: int | None
     updated_at: dt
+    delayed: bool = False
+    data_source: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RealtimeBatchResponse(BaseModel):
     quotes: list[RealtimeResponse]
     not_found: list[str]
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ========== Price Level / Workspace schemas ==========
@@ -208,39 +168,33 @@ class PriceLevelCreate(BaseModel):
     variety_id: int = Field(..., ge=1)
     type: str = Field(..., pattern=r"^(support|resistance)$")
     price: Decimal = Field(..., ge=0, decimal_places=4)
-    note: Optional[str] = Field(None, max_length=500)
+    note: str | None = Field(None, max_length=500)
 
     @field_validator("note", mode="before")
     @classmethod
-    def sanitize_note(cls, v: Optional[str]) -> Optional[str]:
-        if isinstance(v, str):
-            v = v.strip()
-            if v:
-                v = html.escape(v)
-        return v if v else None
+    def sanitize_note(cls, v: str | None) -> str | None:
+        return sanitize_html_text(v)
 
 
 class PriceLevelUpdate(BaseModel):
-    price: Optional[Decimal] = Field(None, ge=0, decimal_places=4)
-    note: Optional[str] = Field(None, max_length=500)
+    price: Decimal | None = Field(None, ge=0, decimal_places=4)
+    note: str | None = Field(None, max_length=500)
 
     @field_validator("note", mode="before")
     @classmethod
-    def sanitize_note(cls, v: Optional[str]) -> Optional[str]:
-        if isinstance(v, str):
-            v = v.strip()
-            if v:
-                v = html.escape(v)
-        return v if v else None
+    def sanitize_note(cls, v: str | None) -> str | None:
+        return sanitize_html_text(v)
 
 
 class PriceLevelResponse(BaseModel):
     id: int
     user_id: int
     variety_id: int
+    variety_symbol: str | None = None
+    variety_name: str | None = None
     type: str
     price: Decimal
-    note: Optional[str]
+    note: str | None
     source: str
     created_at: dt
     updated_at: dt
@@ -250,30 +204,22 @@ class PriceLevelResponse(BaseModel):
 
 class WatchlistCreate(BaseModel):
     variety_id: int = Field(..., ge=1)
-    notes: Optional[str] = Field(None, max_length=500)
+    notes: str | None = Field(None, max_length=500)
 
     @field_validator("notes", mode="before")
     @classmethod
-    def sanitize_notes(cls, v: Optional[str]) -> Optional[str]:
-        if isinstance(v, str):
-            v = v.strip()
-            if v:
-                v = html.escape(v)
-        return v if v else None
+    def sanitize_notes(cls, v: str | None) -> str | None:
+        return sanitize_html_text(v)
 
 
 class WatchlistUpdate(BaseModel):
-    notes: Optional[str] = Field(None, max_length=500)
-    is_notified: Optional[bool] = None
+    notes: str | None = Field(None, max_length=500)
+    is_notified: bool | None = None
 
     @field_validator("notes", mode="before")
     @classmethod
-    def sanitize_notes(cls, v: Optional[str]) -> Optional[str]:
-        if isinstance(v, str):
-            v = v.strip()
-            if v:
-                v = html.escape(v)
-        return v if v else None
+    def sanitize_notes(cls, v: str | None) -> str | None:
+        return sanitize_html_text(v)
 
 
 class WatchlistResponse(BaseModel):
@@ -282,7 +228,7 @@ class WatchlistResponse(BaseModel):
     variety_id: int
     variety_symbol: str
     variety_name: str
-    notes: Optional[str]
+    notes: str | None
     is_notified: bool
     created_at: dt
 
@@ -290,9 +236,9 @@ class WatchlistResponse(BaseModel):
 
 
 class WorkspaceSummary(BaseModel):
-    price_levels: List[PriceLevelResponse]
-    watchlists: List[WatchlistResponse]
-    recent_comments: List[CommentResponse]
+    price_levels: list[PriceLevelResponse]
+    watchlists: list[WatchlistResponse]
+    recent_comments: list[CommentResponse]
 
 
 # ========== Contract / Rollover schemas ==========
@@ -300,13 +246,13 @@ class WorkspaceSummary(BaseModel):
 class ContractResponse(BaseModel):
     id: int
     ts_code: str
-    symbol: Optional[str]
-    name: Optional[str]
-    fut_code: Optional[str]
-    exchange: Optional[str]
-    list_date: Optional[dt]
-    delist_date: Optional[dt]
-    contract_type: Optional[str]
+    symbol: str | None
+    name: str | None
+    fut_code: str | None
+    exchange: str | None
+    list_date: dt | None
+    delist_date: dt | None
+    contract_type: str | None
     is_active: bool
 
     model_config = ConfigDict(from_attributes=True)
@@ -315,10 +261,10 @@ class ContractResponse(BaseModel):
 class ContractRolloverResponse(BaseModel):
     id: int
     variety_id: int
-    old_contract_id: Optional[int]
-    new_contract_id: Optional[int]
-    old_contract_code: Optional[str]
-    new_contract_code: Optional[str]
+    old_contract_id: int | None
+    new_contract_id: int | None
+    old_contract_code: str | None
+    new_contract_code: str | None
     effective_date: dt
     source: str
     created_at: dt
@@ -326,11 +272,35 @@ class ContractRolloverResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ContinuousKlineResponse(BaseModel):
-    time: str
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: int
-    contract_code: Optional[str]
+class ContinuousKlineResponse(KlineResponse):
+    contract_code: str | None
+
+
+# ========== Batch Price Levels ==========
+
+class PriceLevelBatchCreate(BaseModel):
+    items: list[PriceLevelCreate]
+
+
+class PriceLevelBatchResponse(BaseModel):
+    success: list[PriceLevelResponse]
+    failed: list[dict]
+    created_count: int
+    failed_count: int
+
+
+# ========== Variety Fee ==========
+
+class VarietyFeeResponse(BaseModel):
+    symbol: str
+    name: str | None
+    exchange: str | None
+    margin_rate: float | None
+    margin_amount: float | None
+    commission_open: float | None
+    commission_close: float | None
+    commission_close_today: float | None
+    unit: str | None
+    updated_at: dt | None
+
+    model_config = ConfigDict(from_attributes=True)

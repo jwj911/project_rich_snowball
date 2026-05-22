@@ -1,0 +1,38 @@
+name: Update Trading Calendar
+
+on:
+  # 每年 1 月 1 日自动运行（UTC 时间 00:00，对应北京时间 08:00）
+  schedule:
+    - cron: '0 0 1 1 *'
+  # 也支持手动触发
+  workflow_dispatch:
+
+jobs:
+  update-calendar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install akshare
+
+      - name: Update trading calendar
+        run: |
+          cd python
+          python scripts/update_trading_calendar.py
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add python/data/trading_calendar.json
+          # 仅在文件确实变更时才提交
+          git diff --cached --quiet || (git commit -m "chore: auto-update trading calendar for $(date +%Y)" && git push)

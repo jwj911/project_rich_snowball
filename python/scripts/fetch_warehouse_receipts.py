@@ -24,7 +24,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # 将项目根目录加入 path，以便导入 python/ 下的模块
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -51,7 +51,7 @@ def iter_dates(start_date: str | None, end_date: str | None, single_date: str | 
         return [single_date]
     if not start_date or not end_date:
         # 默认取最近一个交易日（简单处理：今天或昨天）
-        today = datetime.now()
+        today = datetime.now(timezone.utc)
         # 周末回退到周五
         weekday = today.weekday()
         if weekday >= 5:

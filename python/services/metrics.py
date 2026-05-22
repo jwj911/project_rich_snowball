@@ -4,7 +4,7 @@ Prometheus 指标定义
 用于收集 API 请求延迟、错误率、采集任务成功率等可观测性数据。
 """
 
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 # HTTP 请求总数（按方法和状态码分类）
 http_requests_total = Counter(

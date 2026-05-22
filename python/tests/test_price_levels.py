@@ -180,3 +180,42 @@ def test_unauthorized_price_level():
     """未登录访问应返回 401"""
     r = client.get("/api/price-levels")
     assert r.status_code == 401
+
+
+def test_create_price_levels_batch():
+    """批量导入价位标注应成功，重复记录应跳过"""
+    token = _register_and_login()
+
+    # 先创建一条已有记录
+    client.post("/api/price-levels", json={
+        "variety_id": 1,
+        "type": "support",
+        "price": "100.00",
+        "note": "已有"
+    }, headers={"Authorization": f"Bearer {token}"})
+
+    r = client.post("/api/price-levels/batch", json={
+        "items": [
+            {"variety_id": 1, "type": "support", "price": "100.00", "note": "重复"},
+            {"variety_id": 1, "type": "support", "price": "200.00", "note": "新增支撑"},
+            {"variety_id": 1, "type": "resistance", "price": "300.00", "note": "新增阻力"},
+            {"variety_id": 99999, "type": "support", "price": "400.00", "note": "品种不存在"},
+        ]
+    }, headers={"Authorization": f"Bearer {token}"})
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["created_count"] == 2
+    assert data["failed_count"] == 2
+    assert len(data["success"]) == 2
+    assert len(data["failed"]) == 2
+
+    # 验证失败原因
+    failed_reasons = {f["reason"] for f in data["failed"]}
+    assert "该价位标注已存在" in failed_reasons
+    assert "品种不存在" in failed_reasons
+
+    # 验证最终列表
+    r = client.get("/api/price-levels", headers={"Authorization": f"Bearer {token}"})
+    levels = r.json()
+    assert len(levels) == 3  # 100(已有) + 200 + 300

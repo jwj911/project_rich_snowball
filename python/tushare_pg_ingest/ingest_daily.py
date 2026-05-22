@@ -1,11 +1,48 @@
 """Ingest Tushare futures daily/weekly/monthly bars into fut_daily_data.
 
-Workflow:
-1. Read concrete contract list from FutContractDB (filtered by symbol/exchange/date-range).
-2. Poll fut_daily / fut_weekly_monthly per contract.
-3. Upsert rows into fut_daily_data.
+Purpose:
+    Backfills OHLCV bars for futures contracts into the ``fut_daily_data``
+    table.  Two ingestion paths are supported:
 
-If --ts-codes is provided, skip FutContractDB lookup and query the given codes directly.
+    1. *Contract-driven* (default): reads concrete contracts from
+       ``FutContractDB``, filters by symbol / exchange / date-range overlap,
+       and polls ``fut_daily`` or ``fut_weekly_monthly`` per contract.
+    2. *Direct* (legacy): when ``--ts-codes`` is provided, the contract
+       lookup is skipped and the given codes are queried directly.
+
+Tushare APIs used:
+    ``fut_daily``           - daily OHLCV bars for a single contract.
+    ``fut_weekly_monthly``  - weekly or monthly aggregated bars.
+
+Target database table:
+    ``fut_daily_data`` (``FutDailyDataDB`` model).
+
+Key CLI arguments:
+    --start-date YYYYMMDD
+    --end-date   YYYYMMDD
+    --date       YYYYMMDD           Single-trade-date shortcut
+    --symbols    COMMA_LIST         e.g. AU,AG,CU (contract-driven path)
+    --exchanges  COMMA_LIST         e.g. SHFE,DCE
+    --ts-codes   COMMA_LIST         e.g. AU2506.SHF (direct path; skips contract lookup)
+    --contract-type COMMA_LIST      e.g. MAIN,CONTINUOUS,NORMAL
+    --period     {D,W,M}            Bar frequency; default D
+    --allow-sqlite
+    --dry-run
+    --min-interval SECONDS
+
+Usage examples:
+    # Backfill daily bars for all active contracts in a date range
+    python ingest_daily.py --start-date 20240101 --end-date 20240131
+
+    # Direct backfill for specific contracts
+    python ingest_daily.py --ts-codes AU2506.SHF,AG2506.SHF --date 20240115
+
+Known limitations:
+    - Weekly/monthly data requires the ``fut_weekly_monthly`` interface which
+      may have stricter permission requirements than daily data.
+    - Auto-insertion of missing ``VarietyDB`` rows is a convenience feature;
+      the resulting variety names may be incomplete until ``ingest_basic.py``
+      is run separately.
 """
 
 from __future__ import annotations
@@ -38,11 +75,24 @@ def _ingest_direct(
     dry_run: bool,
     stats: IngestStats,
 ) -> None:
-    """Legacy path: query fut_daily/fut_weekly_monthly directly by ts_code."""
+    """Legacy path: query ``fut_daily`` / ``fut_weekly_monthly`` directly by ``ts_code``.
+
+    Args:
+        client:     Initialised ``TushareClient``.
+        db:         Active SQLAlchemy session.
+        codes:      List of full ``ts_code`` strings.
+        start_date: ``YYYYMMDD`` inclusive.
+        end_date:   ``YYYYMMDD`` inclusive.
+        period:     ``"D"``, ``"W"``, or ``"M"``.
+        dry_run:    If ``True``, do not commit rows.
+        stats:      Mutable ``IngestStats`` to update.
+    """
     from data_collector.adapters import map_tushare_fut_daily
     from data_collector.upsert import upsert_fut_daily_bulk
 
     for ts_code in sorted(set(codes)):
+        # Map the concrete contract code back to a base variety so that
+        # ``variety_id`` can be populated in the target table.
         variety_id = variety_id_for_ts_code(ts_code)
         if variety_id is None:
             print(f"[SKIP] {ts_code}: matching VarietyDB row not found")
@@ -94,7 +144,20 @@ def _ingest_via_contracts(
     dry_run: bool,
     stats: IngestStats,
 ) -> None:
-    """New path: read contracts from FutContractDB, then poll market data per contract."""
+    """New path: read contracts from ``FutContractDB``, then poll market data per contract.
+
+    Args:
+        client:         Initialised ``TushareClient``.
+        db:             Active SQLAlchemy session.
+        symbols:        Optional base-symbol filter, e.g. ``["AU", "AG"]``.
+        exchanges:      Optional exchange filter, e.g. ``["SHFE"]``.
+        contract_types: Optional contract-type filter, e.g. ``["MAIN"]``.
+        start_date:     ``YYYYMMDD`` inclusive.
+        end_date:       ``YYYYMMDD`` inclusive.
+        period:         ``"D"``, ``"W"``, or ``"M"``.
+        dry_run:        If ``True``, do not commit rows.
+        stats:          Mutable ``IngestStats`` to update.
+    """
     from data_collector.adapters import map_tushare_fut_daily
     from data_collector.upsert import upsert_fut_daily_bulk
     from models import FutContractDB, VarietyDB
@@ -141,7 +204,7 @@ def _ingest_via_contracts(
             variety_map[clean] = v
 
     def _lookup_variety(contract) -> VarietyDB | None:
-        """Match contract to VarietyDB using fut_code, symbol, and alphabetic fallbacks."""
+        """Match contract to ``VarietyDB`` using ``fut_code``, ``symbol``, and alphabetic fallbacks."""
         for key in (contract.fut_code, contract.symbol):
             if not key:
                 continue
@@ -218,6 +281,14 @@ def _ingest_via_contracts(
 
 
 def ingest(args: argparse.Namespace) -> IngestStats:
+    """Dispatch to the appropriate ingestion path based on CLI flags.
+
+    Args:
+        args: Parsed namespace from ``build_parser()``.
+
+    Returns:
+        ``IngestStats`` summarising fetched, written, and skipped rows.
+    """
     configure_database(args.allow_sqlite)
 
     from models import SessionLocal
@@ -235,12 +306,11 @@ def ingest(args: argparse.Namespace) -> IngestStats:
     try:
         if ts_codes:
             _ingest_direct(client, db, ts_codes, start_date, end_date, args.period, args.dry_run, stats)
-        elif symbols or exchanges or contract_types:
+        else:
+            # Ingest all contracts when no filters are given
             _ingest_via_contracts(
                 client, db, symbols, exchanges, contract_types, start_date, end_date, args.period, args.dry_run, stats
             )
-        else:
-            raise ValueError("Provide --symbols, --exchanges, --contract-type, or --ts-codes")
     finally:
         db.close()
 
@@ -248,6 +318,7 @@ def ingest(args: argparse.Namespace) -> IngestStats:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Construct the argument parser for this script."""
     parser = argparse.ArgumentParser(description=__doc__)
     add_common_args(parser)
     parser.add_argument("--symbols", help="Comma-separated base symbols, e.g. AU,AG,CU")
@@ -270,6 +341,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Entry point."""
     stats = ingest(build_parser().parse_args())
     print_stats("fut_daily_data", stats)
     return 0

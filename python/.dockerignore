@@ -1,0 +1,41 @@
+# 环境变量与敏感配置
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+
+# Python 缓存与虚拟环境
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+ENV/
+
+# 测试与文档
+tests/
+.pytest_cache/
+README.md
+*.md
+
+# 本地数据库
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Alembic 迁移（生产环境由独立流程管理，避免镜像过大）
+# 如需在镜像内运行迁移，可注释掉此行
+# alembic/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

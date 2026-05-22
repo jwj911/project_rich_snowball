@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "futures-community-api"
+version = "2.0.0"
+description = "期货交流社区后端 API"
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long（我们已设置 line-length = 120）
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+
+# 兼容旧代码：允许 implicit Optional（def foo(x: str = None)）
+implicit_optional = true
+
+# 忽略第三方库无类型提示的报错
+ignore_missing_imports = true
+
+# mypy 策略说明：
+# - SQLAlchemy 1.x 的 Column 类型在 mypy 下会产生大量误报（Column[int] vs int）
+# - 这些不是真正的代码错误，迁移到 SQLAlchemy 2.0 后才能根治
+# - 当前策略：排除已知误报严重的文件，专注核心逻辑模块的真实类型问题
+exclude = [
+    "data_collector/",
+    "models.py",
+    "routers/",
+    "services/trading_calendar.py",
+    "services/continuous_kline.py",
+    "tests/",
+    "alembic/",
+    "tushare_pg_ingest/",
+    "scripts/",
+]

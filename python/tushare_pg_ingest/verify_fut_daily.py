@@ -1,12 +1,38 @@
 """Verify futures daily data quality and optionally cross-check against Tushare API.
 
+Purpose:
+    Runs a battery of quality checks against the ``fut_daily_data`` table
+    after a backfill.  This helps catch mapping errors, missing dates,
+    or upstream data anomalies before the dataset is used in production.
+
 Dimensions checked:
-1. Basic stats: row count, variety coverage, date range
-2. OHLC consistency: open <= high >= low, close within [low, high]
-3. Zero / negative price detection
-4. Per-variety row count distribution
-5. Date continuity: flag varieties with unexpectedly low record counts
-6. (Optional) Tushare API spot-check: randomly sample N rows and compare values
+    1. Basic stats: row count, variety coverage, date range
+    2. OHLC consistency: open <= high >= low, close within [low, high]
+    3. Zero / negative price detection
+    4. Per-variety row count distribution
+    5. Date continuity: flag varieties with unexpectedly low record counts
+    6. (Optional) Tushare API spot-check: randomly sample N rows and compare values
+
+Tushare API used (optional):
+    ``fut_daily`` - only when ``--spot-check > 0``.
+
+Target database table:
+    ``fut_daily_data`` (``FutDailyDataDB`` model).
+
+Key CLI arguments:
+    --allow-sqlite
+    --expected-days INT         Expected trading days per variety (default 300)
+    --spot-check INT            Random sample size to compare with Tushare; 0 to skip (default 5)
+    --min-interval SECONDS
+
+Usage example:
+    python verify_fut_daily.py --allow-sqlite --expected-days 250 --spot-check 10
+
+Known limitations:
+    - Spot-check requires a valid ``TUSHARE_TOKEN`` and consumes API quota.
+    - The ``expected_days`` heuristic is crude; newly listed varieties will
+      always be flagged as "LOW".
+    - Floating-point tolerance of ``0.01`` is hard-coded for spot-checks.
 """
 
 from __future__ import annotations
@@ -24,11 +50,19 @@ from models import SessionLocal, FutDailyDataDB, VarietyDB
 
 
 def _fmt_date(dt) -> str:
+    """Format a ``datetime``/``date`` as ``YYYYMMDD`` or return ``"None"``."""
     return dt.strftime("%Y%m%d") if dt else "None"
 
 
 def verify_basic(db) -> dict:
-    """1. Basic statistics."""
+    """1. Basic statistics.
+
+    Args:
+        db: Active SQLAlchemy session.
+
+    Returns:
+        Dict with ``total``, ``varieties``, ``min_date``, ``max_date``.
+    """
     print("\n=== 1. Basic Statistics ===")
     total = db.query(FutDailyDataDB).count()
     variety_cnt = db.query(func.count(func.distinct(FutDailyDataDB.variety_id))).scalar()
@@ -50,7 +84,17 @@ def verify_basic(db) -> dict:
 
 
 def verify_ohlc(db) -> int:
-    """2. OHLC consistency check."""
+    """2. OHLC consistency check.
+
+    Flags rows where ``open > high``, ``low > high``, ``close > high``,
+    ``open < low``, or ``close < low``.
+
+    Args:
+        db: Active SQLAlchemy session.
+
+    Returns:
+        Number of inconsistent rows found.
+    """
     print("\n=== 2. OHLC Consistency ===")
     invalid = (
         db.query(FutDailyDataDB)
@@ -86,7 +130,14 @@ def verify_ohlc(db) -> int:
 
 
 def verify_zeros(db) -> int:
-    """3. Zero / negative price detection."""
+    """3. Zero / negative price detection.
+
+    Args:
+        db: Active SQLAlchemy session.
+
+    Returns:
+        Number of rows with any zero or negative OHLC value.
+    """
     print("\n=== 3. Zero / Negative Prices ===")
     zero_rows = (
         db.query(FutDailyDataDB)
@@ -107,7 +158,17 @@ def verify_zeros(db) -> int:
 
 
 def verify_per_variety(db, expected_days: int) -> list:
-    """4. Per-variety row count and coverage."""
+    """4. Per-variety row count and coverage.
+
+    Flags varieties whose row count is below 50 % of *expected_days*.
+
+    Args:
+        db:            Active SQLAlchemy session.
+        expected_days: heuristic for "healthy" row count.
+
+    Returns:
+        List of ``(symbol, exchange, count)`` tuples for under-represented varieties.
+    """
     print("\n=== 4. Per-Variety Coverage ===")
     rows = (
         db.query(
@@ -143,7 +204,13 @@ def verify_per_variety(db, expected_days: int) -> list:
 
 
 def verify_tushare_spotcheck(db, client: TushareClient, sample_size: int = 5):
-    """6. Randomly sample rows and compare with live Tushare API."""
+    """6. Randomly sample rows and compare with live Tushare API.
+
+    Args:
+        db:          Active SQLAlchemy session.
+        client:      Initialised ``TushareClient`` (or ``None`` to skip).
+        sample_size: Number of random rows to validate.
+    """
     if sample_size <= 0 or not client:
         return
 
@@ -201,6 +268,7 @@ def verify_tushare_spotcheck(db, client: TushareClient, sample_size: int = 5):
 
 
 def main() -> int:
+    """Entry point: parse CLI, run all checks, and emit a summary verdict."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--allow-sqlite", action="store_true")
     parser.add_argument("--expected-days", type=int, default=300, help="Expected trading days per variety")

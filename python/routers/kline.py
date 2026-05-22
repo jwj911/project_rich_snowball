@@ -1,33 +1,41 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
-from datetime import datetime
-from models import KlineDataDB, VarietyDB
-from schemas import KlineResponse, ContinuousKlineResponse
-from dependencies import get_db
+
+from dependencies import get_current_user_dependency, get_db
+from models import KlineDataDB, UserDB, VarietyDB
+from schemas import ContinuousKlineResponse, KlineResponse
 from services.continuous_kline import get_continuous_kline, get_main_contract_kline
+from services.kline_period import period_candidates
+from utils import ensure_naive
 
-router = APIRouter(prefix="/api/kline", tags=["K线"])
+router = APIRouter(prefix="/api/klines", tags=["K线"])
 
 
-@router.get("/{symbol}", response_model=List[KlineResponse])
+@router.get("/{symbol}", response_model=list[KlineResponse])
 def get_kline(
     symbol: str,
     period: str = Query("1h", pattern="^(1m|5m|15m|30m|1h|1d|1w)$"),
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user_dependency),
 ):
     variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
     if not variety:
         raise HTTPException(status_code=404, detail="品种不存在")
 
-    klines = (
-        db.query(KlineDataDB)
-        .filter(KlineDataDB.variety_id == variety.id, KlineDataDB.period == period)
-        .order_by(KlineDataDB.trading_time.desc())
-        .limit(limit)
-        .all()
-    )
+    klines = []
+    for candidate in period_candidates(period):
+        klines = (
+            db.query(KlineDataDB)
+            .filter(KlineDataDB.variety_id == variety.id, KlineDataDB.period == candidate)
+            .order_by(KlineDataDB.trading_time.desc())
+            .limit(limit)
+            .all()
+        )
+        if klines:
+            break
 
     return [
         {
@@ -42,14 +50,15 @@ def get_kline(
     ]
 
 
-@router.get("/{symbol}/continuous", response_model=List[ContinuousKlineResponse])
+@router.get("/{symbol}/continuous", response_model=list[ContinuousKlineResponse])
 def get_continuous_kline_api(
     symbol: str,
     period: str = Query("D", pattern=r"^(D|W|M|5|15|30|60|1m|5m|15m|30m|1h|1d|1w)$"),
-    start: Optional[datetime] = Query(None),
-    end: Optional[datetime] = Query(None),
+    start: datetime | None = Query(None),
+    end: datetime | None = Query(None),
     limit: int = Query(500, ge=1, le=5000),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user_dependency),
 ):
     """获取连续 K 线（按主力切换拼接多合约）。"""
     variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
@@ -57,7 +66,7 @@ def get_continuous_kline_api(
         raise HTTPException(status_code=404, detail="品种不存在")
 
     rows = get_continuous_kline(
-        db, variety.id, period=period, start=start, end=end, limit=limit
+        db, variety.id, period=period, start=ensure_naive(start), end=ensure_naive(end), limit=limit, adjustment="backward"
     )
     return [
         ContinuousKlineResponse(
@@ -73,14 +82,15 @@ def get_continuous_kline_api(
     ]
 
 
-@router.get("/{symbol}/main", response_model=List[ContinuousKlineResponse])
+@router.get("/{symbol}/main", response_model=list[ContinuousKlineResponse])
 def get_main_contract_kline_api(
     symbol: str,
     period: str = Query("D", pattern=r"^(D|W|M|5|15|30|60|1m|5m|15m|30m|1h|1d|1w)$"),
-    start: Optional[datetime] = Query(None),
-    end: Optional[datetime] = Query(None),
+    start: datetime | None = Query(None),
+    end: datetime | None = Query(None),
     limit: int = Query(500, ge=1, le=5000),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user_dependency),
 ):
     """获取当前主力合约的 K 线（不拼接）。"""
     variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
@@ -88,7 +98,7 @@ def get_main_contract_kline_api(
         raise HTTPException(status_code=404, detail="品种不存在")
 
     rows = get_main_contract_kline(
-        db, variety.id, period=period, start=start, end=end, limit=limit
+        db, variety.id, period=period, start=ensure_naive(start), end=ensure_naive(end), limit=limit
     )
     return [
         ContinuousKlineResponse(

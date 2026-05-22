@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
-from models import SessionLocal, ProductDB, UserDB, CommentDB, KlineDataDB, VarietyDB, RealtimeQuoteDB
+from models import SessionLocal, ProductDB, UserDB, CommentDB, KlineDataDB, VarietyDB, RealtimeQuoteDB, FutContractDB
 from utils import hash_password
 from data_collector.mock_collector import MockCollector
-from data_collector.upsert import insert_kline_bulk, upsert_realtime
+from data_collector.upsert import insert_kline_bulk, upsert_realtime, upsert_fut_contract_bulk
 
 
 def init_mock_data():
@@ -56,13 +56,30 @@ def init_mock_data():
                     "high": p.high,
                     "low": p.low,
                     "volume": p.volume,
-                    "updated_at": datetime.now(),
+                    "updated_at": datetime.now(timezone.utc),
                 })
 
-        collector = MockCollector()
+        # 确保每个品种都有对应的合约记录，供 K 线匹配 contract_id
+        # 使用 upsert 避免 PostgreSQL 等环境下的唯一约束冲突
         varieties = db.query(VarietyDB).all()
+        contract_rows = []
         for variety in varieties:
-            for period, limit in (("1h", 120), ("1d", 90)):
+            contract_rows.append({
+                "ts_code": f"{variety.contract_code}.{variety.exchange}",
+                "symbol": variety.contract_code,
+                "name": variety.name,
+                "fut_code": variety.symbol,
+                "exchange": variety.exchange,
+                "is_active": True,
+            })
+        if contract_rows:
+            upsert_fut_contract_bulk(db, contract_rows)
+        db.commit()
+
+        collector = MockCollector()
+        for variety in varieties:
+            # 同时生成 1h/1d（基础 K 线）和 D（连续/主力 K 线）数据
+            for period, limit in (("1h", 120), ("1d", 90), ("D", 90)):
                 has_kline = db.query(KlineDataDB).filter(
                     KlineDataDB.variety_id == variety.id,
                     KlineDataDB.period == period,
@@ -83,7 +100,20 @@ def init_mock_data():
                     high=product.high,
                     low=product.low,
                     volume=product.volume,
-                    updated_at=datetime.now(),
+                    updated_at=datetime.now(timezone.utc),
+                ))
+
+        # 初始化手续费/保证金数据，供 /api/varieties/{symbol}/fees 使用
+        from models import FutTradeFeeDB
+        if db.query(FutTradeFeeDB).count() == 0:
+            for variety in varieties:
+                db.add(FutTradeFeeDB(
+                    exchange=variety.exchange,
+                    contract_name=variety.name,
+                    contract_code=variety.contract_code,
+                    margin_per_hand=variety.margin_rate,
+                    fee_open_fixed=str(variety.commission),
+                    fee_updated_at=datetime.now(timezone.utc),
                 ))
 
         db.commit()

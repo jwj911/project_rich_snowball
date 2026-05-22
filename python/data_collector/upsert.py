@@ -24,14 +24,19 @@ def _dialect_insert(model):
 
 
 def upsert_realtime(db: Session, data: dict) -> None:
-    """写入或更新实时行情。调用方负责 commit。"""
-    variety = db.query(VarietyDB).filter(VarietyDB.symbol == data["symbol"]).first()
-    if not variety:
-        logger.warning(f"Variety not found: {data['symbol']}")
-        return
+    """写入或更新实时行情。调用方负责 commit。
+    如果 data 中已包含 variety_id，则跳过品种查询（避免 N+1）。
+    """
+    variety_id = data.get("variety_id")
+    if not variety_id:
+        variety = db.query(VarietyDB).filter(VarietyDB.symbol == data["symbol"]).first()
+        if not variety:
+            logger.warning(f"Variety not found: {data['symbol']}")
+            return
+        variety_id = variety.id
 
     stmt = _dialect_insert(RealtimeQuoteDB).values(
-        variety_id=variety.id,
+        variety_id=variety_id,
         current_price=data["current_price"],
         pre_settlement=data.get("pre_settlement"),
         change_percent=data.get("change_percent"),
@@ -42,6 +47,7 @@ def upsert_realtime(db: Session, data: dict) -> None:
         open_interest=data.get("open_interest"),
         bid1=data.get("bid1"),
         ask1=data.get("ask1"),
+        data_source=data.get("data_source"),
         updated_at=data["updated_at"],
     )
     stmt = stmt.on_conflict_do_update(
@@ -57,6 +63,7 @@ def upsert_realtime(db: Session, data: dict) -> None:
             "open_interest": data.get("open_interest"),
             "bid1": data.get("bid1"),
             "ask1": data.get("ask1"),
+            "data_source": data.get("data_source"),
             "updated_at": data["updated_at"],
         },
     )
@@ -65,7 +72,8 @@ def upsert_realtime(db: Session, data: dict) -> None:
 
 def insert_kline_bulk(db: Session, rows: list[dict], period: str) -> int:
     """批量写入 K 线。返回实际写入条数。调用方负责 commit。
-    如果 row 中包含 contract_code，会尝试匹配 fut_contracts.id 写入 contract_id。"""
+    如果 row 中包含 contract_code，会尝试匹配 fut_contracts.id 写入 contract_id。
+    无法解析 contract_id 的行会被跳过，防止 contract_id=NULL 导致唯一约束失效和重复数据。"""
     if not rows:
         return 0
 
@@ -95,7 +103,7 @@ def insert_kline_bulk(db: Session, rows: list[dict], period: str) -> int:
             c.symbol: c.id
             for c in db.query(FutContractDB).filter(FutContractDB.symbol.in_(contract_codes)).all()
         }
-        # 也尝试用 ts_code 匹配（有些 contract_code 可能带后缀如 "AU2506.SHF"）
+        # 也尝试用 ts_code 匹配（有些 contract_code 可能带后缀如 "AU2506.SHFE"）
         if len(contracts) < len(contract_codes):
             missing = contract_codes - set(contracts.keys())
             by_ts_code = {
@@ -106,12 +114,24 @@ def insert_kline_bulk(db: Session, rows: list[dict], period: str) -> int:
 
     values = []
     skipped = 0
+    unmatched_contracts = set()
     for row in rows:
         variety_id = varieties.get(row.get("symbol"))
         if not variety_id:
             skipped += 1
             continue
-        contract_id = contracts.get(row.get("contract_code")) if row.get("contract_code") else None
+
+        contract_code = row.get("contract_code")
+        if not contract_code:
+            skipped += 1
+            continue
+
+        contract_id = contracts.get(contract_code)
+        if contract_id is None:
+            skipped += 1
+            unmatched_contracts.add(contract_code)
+            continue
+
         values.append({
             "variety_id": variety_id,
             "contract_id": contract_id,
@@ -136,7 +156,9 @@ def insert_kline_bulk(db: Session, rows: list[dict], period: str) -> int:
 
     inserted = result.rowcount if hasattr(result, "rowcount") else len(values)
     if skipped:
-        logger.warning(f"K-line bulk insert skipped {skipped} rows (variety not found)")
+        logger.warning(f"K-line bulk insert skipped {skipped} rows (variety not found or contract unmatched)")
+    if unmatched_contracts:
+        logger.warning(f"K-line unmatched contracts: {sorted(unmatched_contracts)}")
     return inserted
 
 

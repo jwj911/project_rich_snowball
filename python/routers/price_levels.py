@@ -1,27 +1,31 @@
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
 
-from models import PriceLevelDB, VarietyDB, UserDB
-from schemas import PriceLevelCreate, PriceLevelUpdate, PriceLevelResponse
-from dependencies import get_db, get_current_user_dependency
+from dependencies import get_current_user_dependency, get_db
+from models import UserDB
+from schemas import (
+    MessageResponse,
+    PriceLevelBatchCreate,
+    PriceLevelBatchResponse,
+    PriceLevelCreate,
+    PriceLevelResponse,
+    PriceLevelUpdate,
+)
+from services.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
+from services.domain.price_level_service import PriceLevelService
 
 router = APIRouter(prefix="/api/price-levels", tags=["价位标注"])
 
 
-@router.get("", response_model=List[PriceLevelResponse])
+@router.get("", response_model=list[PriceLevelResponse])
 def list_price_levels(
-    variety_id: Optional[int] = Query(None),
-    type: Optional[str] = Query(None, pattern=r"^(support|resistance)$"),
+    variety_id: int | None = Query(None),
+    type: str | None = Query(None, pattern=r"^(support|resistance)$"),
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
-    query = db.query(PriceLevelDB).filter(PriceLevelDB.user_id == current_user.id)
-    if variety_id:
-        query = query.filter(PriceLevelDB.variety_id == variety_id)
-    if type:
-        query = query.filter(PriceLevelDB.type == type)
-    items = query.order_by(PriceLevelDB.created_at.desc()).all()
+    items = PriceLevelService.list_price_levels(db, current_user.id, variety_id, type)
     return [PriceLevelResponse.model_validate(i) for i in items]
 
 
@@ -31,30 +35,10 @@ def create_price_level(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
-    variety = db.query(VarietyDB).filter(VarietyDB.id == item.variety_id).first()
-    if not variety:
-        raise HTTPException(status_code=404, detail="品种不存在")
-
-    existing = db.query(PriceLevelDB).filter(
-        PriceLevelDB.user_id == current_user.id,
-        PriceLevelDB.variety_id == item.variety_id,
-        PriceLevelDB.type == item.type,
-        PriceLevelDB.price == item.price
-    ).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="该价位标注已存在")
-
-    pl = PriceLevelDB(
-        user_id=current_user.id,
-        variety_id=item.variety_id,
-        type=item.type,
-        price=item.price,
-        note=item.note,
-        source="manual"
-    )
-    db.add(pl)
-    db.commit()
-    db.refresh(pl)
+    try:
+        pl = PriceLevelService.create_price_level(db, current_user.id, item)
+    except (NotFoundError, ConflictError) as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return PriceLevelResponse.model_validate(pl)
 
 
@@ -65,43 +49,39 @@ def update_price_level(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
-    pl = db.query(PriceLevelDB).filter(PriceLevelDB.id == price_level_id).first()
-    if not pl:
-        raise HTTPException(status_code=404, detail="价位标注不存在")
-    if pl.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="无权操作")
-
-    if item.price is not None:
-        existing = db.query(PriceLevelDB).filter(
-            PriceLevelDB.user_id == current_user.id,
-            PriceLevelDB.variety_id == pl.variety_id,
-            PriceLevelDB.type == pl.type,
-            PriceLevelDB.price == item.price,
-            PriceLevelDB.id != price_level_id
-        ).first()
-        if existing:
-            raise HTTPException(status_code=409, detail="该价位标注已存在")
-        pl.price = item.price
-    if item.note is not None:
-        pl.note = item.note
-
-    db.commit()
-    db.refresh(pl)
+    try:
+        pl = PriceLevelService.update_price_level(db, current_user.id, price_level_id, item)
+    except (NotFoundError, ForbiddenError, ConflictError) as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return PriceLevelResponse.model_validate(pl)
 
 
-@router.delete("/{price_level_id}")
+@router.delete("/{price_level_id}", response_model=MessageResponse)
 def delete_price_level(
     price_level_id: int,
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
-    pl = db.query(PriceLevelDB).filter(PriceLevelDB.id == price_level_id).first()
-    if not pl:
-        raise HTTPException(status_code=404, detail="价位标注不存在")
-    if pl.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="无权操作")
-
-    db.delete(pl)
-    db.commit()
+    try:
+        PriceLevelService.delete_price_level(db, current_user.id, price_level_id)
+    except (NotFoundError, ForbiddenError) as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return {"detail": "已删除"}
+
+
+@router.post("/batch", response_model=PriceLevelBatchResponse)
+def create_price_levels_batch(
+    body: PriceLevelBatchCreate,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user_dependency),
+):
+    success_orm, failed = PriceLevelService.create_price_levels_batch(
+        db, current_user.id, body
+    )
+    success = [PriceLevelResponse.model_validate(pl) for pl in success_orm]
+    return PriceLevelBatchResponse(
+        success=success,
+        failed=failed,
+        created_count=len(success),
+        failed_count=len(failed),
+    )

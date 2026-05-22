@@ -32,6 +32,7 @@ from data_collector.upsert import (
     upsert_realtime,
 )
 from models import (
+    FutContractDB,
     FutDailyDataDB,
     FutPriceLimitDB,
     FutSettleDB,
@@ -82,6 +83,18 @@ def db():
         category="测试",
     )
     session.add(variety)
+    session.commit()
+    session.refresh(variety)
+
+    contract = FutContractDB(
+        ts_code=TS_CODE,
+        symbol=CONTRACT,
+        name="测试合约",
+        fut_code=SYMBOL,
+        exchange="SHFE",
+        is_active=True,
+    )
+    session.add(contract)
     session.commit()
     try:
         yield session
@@ -136,6 +149,7 @@ def test_postgres_kline_insert_conflict_does_nothing(db):
     rows = [
         {
             "symbol": SYMBOL,
+            "contract_code": CONTRACT,
             "trading_time": TRADE_DATE,
             "open_price": 100.0,
             "high_price": 110.0,
