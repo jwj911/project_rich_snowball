@@ -227,10 +227,10 @@ class TestNewApiEndpoints:
         assert r.status_code == 200
 
     def test_root_endpoint(self, client):
-        """/ 应返回 API 信息"""
-        r = client.get("/")
-        assert r.status_code == 200
-        assert "docs" in r.json()
+        """/ 应重定向到 /docs"""
+        r = client.get("/", follow_redirects=False)
+        assert r.status_code == 307
+        assert r.headers.get("location") == "/docs"
 
 
 # ============================================================================

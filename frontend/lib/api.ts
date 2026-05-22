@@ -258,7 +258,7 @@ class ApiService {
       period,
       limit: String(limit),
     })
-    return this.request<KlineData[]>(`/api/kline/${encodeURIComponent(symbol)}?${searchParams.toString()}`)
+    return this.request<KlineData[]>(`/api/klines/${encodeURIComponent(symbol)}?${searchParams.toString()}`)
   }
 
   async getContinuousKline(
@@ -273,7 +273,7 @@ class ApiService {
     params.append('limit', String(limit))
     if (start) params.append('start', start)
     if (end) params.append('end', end)
-    return this.request<KlineData[]>(`/api/kline/${symbol}/continuous?${params.toString()}`)
+    return this.request<KlineData[]>(`/api/klines/${symbol}/continuous?${params.toString()}`)
   }
 
   async getMainContractKline(
@@ -288,7 +288,7 @@ class ApiService {
     params.append('limit', String(limit))
     if (start) params.append('start', start)
     if (end) params.append('end', end)
-    return this.request<KlineData[]>(`/api/kline/${symbol}/main?${params.toString()}`)
+    return this.request<KlineData[]>(`/api/klines/${symbol}/main?${params.toString()}`)
   }
 
   async getVariety(symbol: string): Promise<Variety> {

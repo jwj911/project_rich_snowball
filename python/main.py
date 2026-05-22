@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from config import ENABLE_SCHEDULER, ENV
 
@@ -293,7 +293,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 @app.get("/")
 def root():
-    return {"message": "期货交流社区 API", "docs": "/docs"}
+    return RedirectResponse(url="/docs")
 
 
 if __name__ == "__main__":

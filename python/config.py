@@ -10,7 +10,7 @@ load_dotenv(dotenv_path=env_path)
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://futures:futures123@localhost:15432/futures_community",
+    "sqlite:///./futures_community.db",
 )
 SECRET_KEY: str = os.getenv("SECRET_KEY", "")
 if not SECRET_KEY:
