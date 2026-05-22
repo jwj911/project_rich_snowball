@@ -35,15 +35,16 @@ export default function WorkspacePage() {
       return { comments: [], products: [], annotations: [], watchlists: [] }
     }
 
-    const [workspace, products, varieties] = await Promise.all([
+    const [workspace, products, varietiesRes] = await Promise.all([
       api.getWorkspace().catch(() => null),
       api.getProducts().catch(() => []),
-      api.getVarieties().catch(() => []),
+      api.getVarieties().catch(() => ({ items: [], total: 0 })),
     ])
 
     const priceLevels = workspace?.price_levels ?? []
     const watchlists = workspace?.watchlists ?? []
     const comments = workspace?.recent_comments ?? []
+    const varieties = varietiesRes.items ?? []
 
     const annotations = buildAnnotations(priceLevels, varieties, products)
 

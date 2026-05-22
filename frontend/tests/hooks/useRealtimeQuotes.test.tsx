@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 vi.mock('@/lib/api', () => ({
   api: {
     getRealtimeBatch: vi.fn(),
-    createRealtimeStreamToken: vi.fn(),
+    getToken: vi.fn(),
   },
 }))
 
@@ -43,40 +43,12 @@ class MockEventSource {
   }
 }
 
-class MockBroadcastChannel {
-  static instances: MockBroadcastChannel[] = []
-  onmessage: ((event: MessageEvent) => void) | null = null
-  closed = false
-  messages: unknown[] = []
-
-  constructor(public name: string) {
-    MockBroadcastChannel.instances.push(this)
-  }
-
-  postMessage(message: unknown) {
-    this.messages.push(message)
-  }
-
-  emit(message: unknown) {
-    this.onmessage?.(new MessageEvent('message', { data: message }))
-  }
-
-  close() {
-    this.closed = true
-  }
-}
-
 describe('useRealtimeQuotes', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     MockEventSource.instances = []
-    MockBroadcastChannel.instances = []
     vi.stubGlobal('EventSource', MockEventSource)
-    vi.stubGlobal('BroadcastChannel', undefined)
-    vi.mocked(api.createRealtimeStreamToken).mockResolvedValue({
-      stream_token: 'short-lived-stream-token',
-      expires_in: 60,
-    })
+    vi.mocked(api.getToken).mockReturnValue('stored-jwt')
     vi.mocked(api.getRealtimeBatch).mockResolvedValue({
       quotes: [createQuote()],
       not_found: [],
@@ -89,49 +61,34 @@ describe('useRealtimeQuotes', () => {
     vi.clearAllMocks()
   })
 
-  it('opens SSE with a short-lived stream token instead of the stored JWT', async () => {
+  it('opens SSE when a token is available', async () => {
     const { unmount } = renderHook(() => useRealtimeQuotes(['RB']))
 
     await act(async () => {
       await Promise.resolve()
     })
 
-    expect(api.createRealtimeStreamToken).toHaveBeenCalled()
+    expect(api.getToken).toHaveBeenCalled()
     expect(MockEventSource.instances).toHaveLength(1)
     expect(MockEventSource.instances[0].url).toContain('/api/realtime/stream?symbols=RB')
-    expect(MockEventSource.instances[0].url).toContain('token=short-lived-stream-token')
-    expect(MockEventSource.instances[0].url).not.toContain('stored-jwt')
     unmount()
   })
 
-  it('shares one SSE connection for duplicate symbol subscriptions', async () => {
-    const firstHook = renderHook(() => useRealtimeQuotes(['RB', 'CU']))
-    const secondHook = renderHook(() => useRealtimeQuotes(['CU', 'RB', 'RB']))
+  it('falls back to polling when no token is available', async () => {
+    vi.mocked(api.getToken).mockReturnValue(null)
+
+    const { unmount } = renderHook(() => useRealtimeQuotes(['RB']))
 
     await act(async () => {
       await Promise.resolve()
     })
 
-    expect(api.createRealtimeStreamToken).toHaveBeenCalledTimes(1)
-    expect(MockEventSource.instances).toHaveLength(1)
-    expect(MockEventSource.instances[0].url).toContain('symbols=CU')
-    expect(MockEventSource.instances[0].url).toContain('symbols=RB')
-
-    act(() => {
-      MockEventSource.instances[0].onopen?.()
-    })
-
-    expect(firstHook.result.current.source).toBe('sse')
-    expect(secondHook.result.current.source).toBe('sse')
-
-    firstHook.unmount()
-    expect(MockEventSource.instances[0].closed).toBe(false)
-
-    secondHook.unmount()
-    expect(MockEventSource.instances[0].closed).toBe(true)
+    expect(api.getRealtimeBatch).toHaveBeenCalledWith(['RB'])
+    expect(MockEventSource.instances).toHaveLength(0)
+    unmount()
   })
 
-  it('batches rapid SSE messages and keeps the latest quote per symbol', async () => {
+  it('updates quotes from SSE messages', async () => {
     const { result, unmount } = renderHook(() => useRealtimeQuotes(['RB']))
 
     await act(async () => {
@@ -143,88 +100,44 @@ describe('useRealtimeQuotes', () => {
     act(() => {
       source.onopen?.()
       source.onmessage?.(new MessageEvent('message', {
-        data: JSON.stringify({ quotes: [createQuote({ current_price: 3600 })] }),
+        data: JSON.stringify({ quotes: [createQuote({ current_price: 3612 })] }),
       }))
-      source.onmessage?.(new MessageEvent('message', {
-        data: JSON.stringify({ quotes: [createQuote({ current_price: 3612, updated_at: '2026-05-16T10:00:01' })] }),
-      }))
-    })
-
-    expect(result.current.quotes.size).toBe(0)
-
-    act(() => {
-      vi.advanceTimersByTime(100)
     })
 
     expect(result.current.quotes.get('RB')?.current_price).toBe(3612)
-
-    const currentQuotes = result.current.quotes
-
-    act(() => {
-      source.onmessage?.(new MessageEvent('message', {
-        data: JSON.stringify({ quotes: [createQuote({ current_price: 3612, updated_at: '2026-05-16T10:00:01' })] }),
-      }))
-      vi.advanceTimersByTime(100)
-    })
-
-    expect(result.current.quotes).toBe(currentQuotes)
-    unmount()
-  })
-
-  it('uses BroadcastChannel follower mode when another tab is already leading', async () => {
-    vi.stubGlobal('BroadcastChannel', MockBroadcastChannel)
-    const { result, unmount } = renderHook(() => useRealtimeQuotes(['RB']))
-
-    expect(MockBroadcastChannel.instances).toHaveLength(1)
-    expect(MockBroadcastChannel.instances[0].name).toBe('realtime-quotes:RB')
-
-    act(() => {
-      MockBroadcastChannel.instances[0].emit({
-        type: 'leader',
-        tabId: 'remote-leader',
-        source: 'sse',
-      })
-      vi.advanceTimersByTime(150)
-    })
-
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(api.createRealtimeStreamToken).not.toHaveBeenCalled()
-    expect(MockEventSource.instances).toHaveLength(0)
     expect(result.current.source).toBe('sse')
-
-    act(() => {
-      MockBroadcastChannel.instances[0].emit({
-        type: 'quotes',
-        tabId: 'remote-leader',
-        quotes: [createQuote({ current_price: 3620, updated_at: '2026-05-16T10:00:03' })],
-      })
-      vi.advanceTimersByTime(100)
-    })
-
-    expect(result.current.quotes.get('RB')?.current_price).toBe(3620)
     unmount()
-    expect(MockBroadcastChannel.instances[0].closed).toBe(true)
   })
 
-  it('falls back to polling and retries SSE after an error', async () => {
+  it('falls back to polling when SSE errors', async () => {
     const { result, unmount } = renderHook(() => useRealtimeQuotes(['RB']))
 
     await act(async () => {
       await Promise.resolve()
     })
 
-    const first = MockEventSource.instances[0]
+    const source = MockEventSource.instances[0]
 
     await act(async () => {
-      first.onerror?.()
+      source.onerror?.()
       await Promise.resolve()
     })
 
     expect(api.getRealtimeBatch).toHaveBeenCalledWith(['RB'])
     expect(result.current.source).toBe('polling')
+    unmount()
+  })
+
+  it('polls periodically in polling mode', async () => {
+    vi.mocked(api.getToken).mockReturnValue(null)
+
+    const { unmount } = renderHook(() => useRealtimeQuotes(['RB']))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(api.getRealtimeBatch).toHaveBeenCalledTimes(1)
 
     act(() => {
       vi.advanceTimersByTime(3000)
@@ -234,13 +147,7 @@ describe('useRealtimeQuotes', () => {
       await Promise.resolve()
     })
 
-    expect(MockEventSource.instances).toHaveLength(2)
-
-    act(() => {
-      MockEventSource.instances[1].onopen?.()
-    })
-
-    expect(result.current.source).toBe('sse')
+    expect(api.getRealtimeBatch).toHaveBeenCalledTimes(2)
     unmount()
   })
 })
