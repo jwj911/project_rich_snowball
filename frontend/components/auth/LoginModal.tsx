@@ -52,6 +52,7 @@ export default function LoginModal({ onClose, onSuccess, onSwitchToRegister }: L
           <Input
             id="login-username"
             type="text"
+            autoFocus
             {...register('username', { required: '请输入用户名' })}
           />
           {errors.username && <p className="mt-1 text-xs text-red-400">{errors.username.message}</p>}

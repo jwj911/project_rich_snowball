@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/components/auth/AuthProvider'
 import LoginModal from '@/components/auth/LoginModal'
 import RegisterModal from '@/components/auth/RegisterModal'
@@ -59,12 +59,27 @@ export default function Navbar() {
   const { user, logout } = useAuth()
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [showRegisterModal, setShowRegisterModal] = useState(false)
+  const triggerRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
-    const handleOpenLogin = () => setShowLoginModal(true)
+    const handleOpenLogin = () => {
+      triggerRef.current = document.activeElement as HTMLElement
+      setShowLoginModal(true)
+    }
     window.addEventListener('open-login-modal', handleOpenLogin)
     return () => window.removeEventListener('open-login-modal', handleOpenLogin)
   }, [])
+
+  const openLogin = () => {
+    triggerRef.current = document.activeElement as HTMLElement
+    setShowLoginModal(true)
+  }
+
+  const closeLogin = () => {
+    setShowLoginModal(false)
+    // 恢复焦点到触发按钮
+    setTimeout(() => triggerRef.current?.focus(), 0)
+  }
 
   const openRegister = () => {
     setShowLoginModal(false)
@@ -130,7 +145,7 @@ export default function Navbar() {
             </>
           ) : (
             <div className="grid gap-2">
-              <Button type="button" onClick={() => setShowLoginModal(true)} className="w-full">
+              <Button type="button" onClick={openLogin} className="w-full">
                 <LogIn size={16} />
                 登录
               </Button>
@@ -163,7 +178,7 @@ export default function Navbar() {
           ) : (
             <button
               type="button"
-              onClick={() => setShowLoginModal(true)}
+              onClick={openLogin}
               className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-red-700"
             >
               <LogIn size={14} />
@@ -192,8 +207,8 @@ export default function Navbar() {
 
       {showLoginModal && (
         <LoginModal
-          onClose={() => setShowLoginModal(false)}
-          onSuccess={() => setShowLoginModal(false)}
+          onClose={closeLogin}
+          onSuccess={closeLogin}
           onSwitchToRegister={openRegister}
         />
       )}
@@ -203,7 +218,7 @@ export default function Navbar() {
           onClose={() => setShowRegisterModal(false)}
           onSuccess={() => {
             setShowRegisterModal(false)
-            setShowLoginModal(true)
+            openLogin()
           }}
         />
       )}

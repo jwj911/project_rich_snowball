@@ -1,10 +1,17 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { api, PriceLevel } from '@/lib/api'
 
 export function usePriceLevels(varietyId: number | null, userId: number | null, productId: number) {
   const [supportLevels, setSupportLevels] = useState<number[]>([])
   const [resistanceLevels, setResistanceLevels] = useState<number[]>([])
   const [levelsLoaded, setLevelsLoaded] = useState(false)
+  const [levelError, setLevelError] = useState<string | null>(null)
+  const supportRef = useRef(supportLevels)
+  const resistanceRef = useRef(resistanceLevels)
+  const queueRef = useRef(Promise.resolve())
+
+  useEffect(() => { supportRef.current = supportLevels }, [supportLevels])
+  useEffect(() => { resistanceRef.current = resistanceLevels }, [resistanceLevels])
 
   const levelsStorageKey = useMemo(() => {
     if (!Number.isFinite(productId) || !userId) return null
@@ -111,7 +118,10 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
         }
       } catch (err) {
         console.error('加载价位标注失败:', err)
-        if (!cancelled) loadFromLocalStorage()
+        if (!cancelled) {
+          loadFromLocalStorage()
+          setLevelError('云端价位加载失败，已使用本地缓存。')
+        }
       } finally {
         if (!cancelled) setLevelsLoaded(true)
       }
@@ -125,37 +135,78 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
   }, [varietyId, levelsStorageKey, loadFromLocalStorage, updateLevelsFromData, syncToLocalStorage])
 
   const addSupport = async (price: number) => {
-    if (!Number.isFinite(price) || supportLevels.includes(price)) return
-    if (varietyId) {
-      try {
-        await api.createPriceLevel(varietyId, 'support', price.toFixed(2))
-        const levels = await api.getPriceLevels(varietyId)
-        updateLevelsFromData(levels)
-        syncToLocalStorage(levels)
-        return
-      } catch (err) {
-        console.error('添加支撑位失败:', err)
-        return
+    const promise = queueRef.current.then(async () => {
+      const currentSupport = supportRef.current
+      const currentResistance = resistanceRef.current
+      if (!Number.isFinite(price) || currentSupport.includes(price)) return
+      if (varietyId) {
+        try {
+          await api.createPriceLevel(varietyId, 'support', price.toFixed(2))
+          const levels = await api.getPriceLevels(varietyId)
+          updateLevelsFromData(levels)
+          syncToLocalStorage(levels)
+          setLevelError(null)
+          return
+        } catch (err) {
+          console.error('添加支撑位失败:', err)
+          setLevelError(`添加失败：${err instanceof Error ? err.message : '未知错误'}，已临时保存到本地。`)
+        }
       }
-    }
-    setSupportLevels((levels) => [...levels, price].sort((a, b) => a - b))
+      setSupportLevels((prev) => {
+        const next = [...prev, price].sort((a, b) => a - b)
+        // 在 functional update 中同步更新 localStorage，避免并行竞争
+        if (levelsStorageKey && typeof window !== 'undefined') {
+          window.localStorage.setItem(
+            levelsStorageKey,
+            JSON.stringify({
+              supportLevels: next,
+              resistanceLevels: resistanceRef.current,
+              updatedAt: new Date().toISOString(),
+            }),
+          )
+        }
+        return next
+      })
+    })
+    queueRef.current = promise
+    return promise
   }
 
   const addResistance = async (price: number) => {
-    if (!Number.isFinite(price) || resistanceLevels.includes(price)) return
-    if (varietyId) {
-      try {
-        await api.createPriceLevel(varietyId, 'resistance', price.toFixed(2))
-        const levels = await api.getPriceLevels(varietyId)
-        updateLevelsFromData(levels)
-        syncToLocalStorage(levels)
-        return
-      } catch (err) {
-        console.error('添加阻力位失败:', err)
-        return
+    const promise = queueRef.current.then(async () => {
+      const currentSupport = supportRef.current
+      const currentResistance = resistanceRef.current
+      if (!Number.isFinite(price) || currentResistance.includes(price)) return
+      if (varietyId) {
+        try {
+          await api.createPriceLevel(varietyId, 'resistance', price.toFixed(2))
+          const levels = await api.getPriceLevels(varietyId)
+          updateLevelsFromData(levels)
+          syncToLocalStorage(levels)
+          setLevelError(null)
+          return
+        } catch (err) {
+          console.error('添加阻力位失败:', err)
+          setLevelError(`添加失败：${err instanceof Error ? err.message : '未知错误'}，已临时保存到本地。`)
+        }
       }
-    }
-    setResistanceLevels((levels) => [...levels, price].sort((a, b) => b - a))
+      setResistanceLevels((prev) => {
+        const next = [...prev, price].sort((a, b) => b - a)
+        if (levelsStorageKey && typeof window !== 'undefined') {
+          window.localStorage.setItem(
+            levelsStorageKey,
+            JSON.stringify({
+              supportLevels: supportRef.current,
+              resistanceLevels: next,
+              updatedAt: new Date().toISOString(),
+            }),
+          )
+        }
+        return next
+      })
+    })
+    queueRef.current = promise
+    return promise
   }
 
   const removeSupport = async (price: number) => {
@@ -169,9 +220,11 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
           updateLevelsFromData(refreshed)
           syncToLocalStorage(refreshed)
         }
+        setLevelError(null)
         return
       } catch (err) {
         console.error('删除支撑位失败:', err)
+        setLevelError(`删除失败：${err instanceof Error ? err.message : '未知错误'}`)
         return
       }
     }
@@ -189,9 +242,11 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
           updateLevelsFromData(refreshed)
           syncToLocalStorage(refreshed)
         }
+        setLevelError(null)
         return
       } catch (err) {
         console.error('删除阻力位失败:', err)
+        setLevelError(`删除失败：${err instanceof Error ? err.message : '未知错误'}`)
         return
       }
     }
@@ -202,6 +257,7 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
     supportLevels,
     resistanceLevels,
     levelsLoaded,
+    levelError,
     addSupport,
     addResistance,
     removeSupport,

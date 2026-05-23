@@ -27,6 +27,9 @@ export default function ModalShell({ title, children, onClose }: ModalShellProps
       <div
         className="w-full max-w-sm rounded-lg border border-slate-800 bg-[#10161d] p-5 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
       >
         <div className="mb-5 flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold text-white">{title}</h2>

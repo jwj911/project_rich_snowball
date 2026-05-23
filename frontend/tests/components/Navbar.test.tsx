@@ -1,3 +1,4 @@
+import React from 'react'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Navbar from '@/components/Navbar'
@@ -11,6 +12,18 @@ const authState = {
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',
+}))
+
+vi.mock('react-hook-form', () => ({
+  useForm: () => ({
+    register: () => ({}),
+    handleSubmit: (fn: (data: unknown) => void) => (e: Event) => {
+      e.preventDefault()
+      fn({})
+    },
+    setError: vi.fn(),
+    formState: { errors: {}, isSubmitting: false },
+  }),
 }))
 
 vi.mock('@/components/auth/AuthProvider', () => ({

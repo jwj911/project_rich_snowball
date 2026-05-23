@@ -52,12 +52,14 @@ export function useMarketPolling<T>({
   })
   const mountedRef = useRef(true)
   const loadingRef = useRef(false)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     mountedRef.current = true
 
     return () => {
       mountedRef.current = false
+      abortRef.current?.abort()
     }
   }, [])
 
@@ -72,7 +74,9 @@ export function useMarketPolling<T>({
     }))
 
     try {
+      abortRef.current?.abort()
       const controller = new AbortController()
+      abortRef.current = controller
       const nextData = await fetcher(controller.signal)
       if (!mountedRef.current) return
 

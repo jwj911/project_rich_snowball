@@ -20,7 +20,7 @@ export function formatInteger(value: number | null | undefined) {
 export function formatPercent(value: number | null | undefined) {
   if (!Number.isFinite(value)) return '--'
   const numericValue = value as number
-  const sign = numericValue > 0 ? '+' : ''
+  const sign = numericValue >= 0 ? '+' : ''
   return `${sign}${numericValue.toFixed(2)}%`
 }
 

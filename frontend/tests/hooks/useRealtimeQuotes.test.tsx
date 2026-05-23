@@ -45,7 +45,7 @@ class MockEventSource {
 
 describe('useRealtimeQuotes', () => {
   beforeEach(() => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ shouldAdvanceTime: false })
     MockEventSource.instances = []
     vi.stubGlobal('EventSource', MockEventSource)
     vi.mocked(api.getToken).mockReturnValue('stored-jwt')
@@ -71,20 +71,6 @@ describe('useRealtimeQuotes', () => {
     expect(api.getToken).toHaveBeenCalled()
     expect(MockEventSource.instances).toHaveLength(1)
     expect(MockEventSource.instances[0].url).toContain('/api/realtime/stream?symbols=RB')
-    unmount()
-  })
-
-  it('falls back to polling when no token is available', async () => {
-    vi.mocked(api.getToken).mockReturnValue(null)
-
-    const { unmount } = renderHook(() => useRealtimeQuotes(['RB']))
-
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(api.getRealtimeBatch).toHaveBeenCalledWith(['RB'])
-    expect(MockEventSource.instances).toHaveLength(0)
     unmount()
   })
 
@@ -127,11 +113,61 @@ describe('useRealtimeQuotes', () => {
     expect(result.current.source).toBe('polling')
     unmount()
   })
+})
+
+describe('useRealtimeQuotes polling mode', () => {
+  let intervalCallbacks: Array<{ id: number; callback: Function; delay: number }> = []
+  let nextIntervalId = 1
+  let originalSetInterval: typeof window.setInterval
+  let originalClearInterval: typeof window.clearInterval
+
+  beforeEach(() => {
+    intervalCallbacks = []
+    nextIntervalId = 1
+    MockEventSource.instances = []
+    vi.stubGlobal('EventSource', MockEventSource)
+    vi.mocked(api.getToken).mockReturnValue(null)
+    vi.mocked(api.getRealtimeBatch).mockResolvedValue({
+      quotes: [createQuote()],
+      not_found: [],
+    })
+
+    originalSetInterval = window.setInterval
+    originalClearInterval = window.clearInterval
+
+    vi.stubGlobal('setInterval', (callback: Function, delay?: number) => {
+      const id = nextIntervalId++
+      intervalCallbacks.push({ id, callback, delay: delay ?? 0 })
+      return id as unknown as ReturnType<typeof setInterval>
+    })
+
+    vi.stubGlobal('clearInterval', (id: ReturnType<typeof setInterval>) => {
+      intervalCallbacks = intervalCallbacks.filter((c) => c.id !== (id as unknown as number))
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  it('falls back to polling when no token is available', async () => {
+    const symbols = ['RB']
+    const { unmount } = renderHook(() => useRealtimeQuotes(symbols))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(api.getToken).toHaveBeenCalled()
+    expect(api.getRealtimeBatch).toHaveBeenCalledWith(['RB'])
+    expect(MockEventSource.instances).toHaveLength(0)
+    unmount()
+  })
 
   it('polls periodically in polling mode', async () => {
-    vi.mocked(api.getToken).mockReturnValue(null)
-
-    const { unmount } = renderHook(() => useRealtimeQuotes(['RB']))
+    const symbols = ['RB']
+    const { unmount } = renderHook(() => useRealtimeQuotes(symbols))
 
     await act(async () => {
       await Promise.resolve()
@@ -139,11 +175,8 @@ describe('useRealtimeQuotes', () => {
 
     expect(api.getRealtimeBatch).toHaveBeenCalledTimes(1)
 
-    act(() => {
-      vi.advanceTimersByTime(3000)
-    })
-
     await act(async () => {
+      intervalCallbacks[0]?.callback()
       await Promise.resolve()
     })
 
