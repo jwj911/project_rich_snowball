@@ -7,6 +7,7 @@ Redis 不可用时自动降级到内存实现，确保应用始终可运行。
 
 import json
 import logging
+import random
 from collections import OrderedDict
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
@@ -23,6 +24,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_TTL_SECONDS = 5
 _MAX_SIZE = CACHE_MAX_SIZE
 
+# 缓存穿透防护：空结果占位标记（Redis/内存通用）
+_EMPTY_MARKER = {"__cache_empty_marker__": True}
+
 # 内存降级缓存
 _cache: OrderedDict[str, Any] = OrderedDict()
 _cache_time: dict[str, datetime] = {}
@@ -34,10 +38,28 @@ _fetch_locks_lock = Lock()
 
 
 def get_cached(key: str, db_fetch_func: Callable[[], Any], ttl: int = DEFAULT_TTL_SECONDS) -> Any:
-    """获取缓存值。Redis 优先，不可用时降级到内存 LRU。"""
+    """获取缓存值。Redis 优先，不可用时降级到内存 LRU。
+
+    内置缓存雪崩防护：TTL 附加 0~2 秒随机抖动。
+    内置缓存穿透防护：db_fetch_func 返回 None 时写入短 TTL 占位标记。
+    """
+    # 仅对正 TTL 添加随机抖动，避免破坏 ttl=0 的即时过期语义
+    jittered_ttl = ttl if ttl <= 0 else int(ttl + random.uniform(0, 2))
+
+    def _wrapped_fetch() -> Any:
+        data = db_fetch_func()
+        if data is None:
+            return _EMPTY_MARKER
+        return data
+
     if is_redis_available():
-        return _get_cached_redis(key, db_fetch_func, ttl)
-    return _get_cached_memory(key, db_fetch_func, ttl)
+        result = _get_cached_redis(key, _wrapped_fetch, jittered_ttl)
+    else:
+        result = _get_cached_memory(key, _wrapped_fetch, jittered_ttl)
+
+    if result is _EMPTY_MARKER:
+        return None
+    return result
 
 
 def _get_fetch_lock(key: str) -> RLock:

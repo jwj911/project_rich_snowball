@@ -102,7 +102,11 @@ def _check_rate_limit(client_ip: str) -> bool:
 def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     client_ip = _get_client_ip(request)
     if not _check_rate_limit(client_ip):
-        raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
+        raise HTTPException(
+            status_code=429,
+            detail="请求过于频繁，请稍后再试",
+            headers={"Retry-After": str(_RATE_LIMIT_WINDOW_SECONDS)},
+        )
 
     existing = db.query(UserDB).filter(
         (UserDB.username == user.username) | (UserDB.email == user.email)
@@ -130,7 +134,11 @@ def login(
 ):
     client_ip = _get_client_ip(request)
     if not _check_rate_limit(client_ip):
-        raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
+        raise HTTPException(
+            status_code=429,
+            detail="请求过于频繁，请稍后再试",
+            headers={"Retry-After": str(_RATE_LIMIT_WINDOW_SECONDS)},
+        )
 
     user = db.query(UserDB).filter(UserDB.username == form_data.username).first()
 

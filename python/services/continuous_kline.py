@@ -13,10 +13,13 @@
     - 技术分析图表展示主力连续走势
 """
 
+import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from models import ContractRolloverDB, FutContractDB, KlineDataDB, VarietyDB
 from services.kline_period import period_candidates
@@ -86,6 +89,11 @@ def _apply_backward_adjustment(all_rows: list[dict], segments: list[dict]) -> No
             r["high"] -= adj
             r["low"] -= adj
             r["close"] -= adj
+            if any(r[k] <= 0 for k in ("open", "high", "low", "close")):
+                logger.warning(
+                    "Backward adjustment produced non-positive price for contract_id=%s: %s",
+                    r.get("contract_id"), {k: r[k] for k in ("open", "high", "low", "close")}
+                )
 
 
 def get_continuous_kline(
@@ -210,6 +218,11 @@ def get_continuous_kline(
 
         # 若该 contract_id 下无数据，回退到不限制 contract_id（兼容历史数据不一致场景）
         if not seg_rows:
+            logger.warning(
+                "Continuous kline fallback: no data for contract_id=%s variety_id=%s period=%s, "
+                "falling back to unfiltered query (risk of mixing adjacent contracts).",
+                seg["contract_id"], variety_id, period,
+            )
             for candidate in period_candidates(period):
                 q_fallback = (
                     db.query(KlineDataDB)

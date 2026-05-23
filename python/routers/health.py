@@ -1,3 +1,4 @@
+import os
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,7 +25,7 @@ def health_check():
 
 @router.get("/ready")
 def readiness_check(db: Session = Depends(get_db)):
-    """返回系统就绪状态。DB 可连接即 ready。scheduler 状态单独检查。"""
+    """返回系统就绪状态。DB 可连接即 ready；若配置了 Redis，也检查 Redis 连通性。"""
     try:
         db.execute(text("SELECT 1"))
         db_ok = True
@@ -32,9 +33,18 @@ def readiness_check(db: Session = Depends(get_db)):
         # 数据库连接异常视为未就绪（不暴露具体错误给客户端）
         db_ok = False
 
+    redis_ok = True
+    if os.getenv("REDIS_URL"):
+        from services.redis_client import get_redis_client
+        try:
+            client = get_redis_client()
+            redis_ok = client is not None and client.ping()
+        except Exception:
+            redis_ok = False
+
     cache_stats = get_cache_stats()
 
-    ready = db_ok
+    ready = db_ok and redis_ok
 
     if not ready:
         raise HTTPException(

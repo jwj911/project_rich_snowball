@@ -603,6 +603,30 @@ class DataPipeline:
                         logger.warning(f"FutMapping adapter failed: row={row}, error={e}")
             else:
                 rows = raw_rows
+
+            # 批量预查，消除 N+1
+            symbols = set()
+            contract_codes = set()
+            for row in rows:
+                ts_code = row.get("ts_code", "")
+                mapping_ts_code = row.get("mapping_ts_code", "")
+                symbols.add(ts_code.split(".")[0])
+                contract_codes.add(mapping_ts_code.split(".")[0])
+
+            variety_map = {
+                v.symbol: v
+                for v in db.query(VarietyDB).filter(VarietyDB.symbol.in_(symbols)).all()
+            }
+            # 旧合约代码也需要参与预查，否则 rollover 记录中的 old_contract_id 会丢失
+            for v in variety_map.values():
+                if v.contract_code:
+                    contract_codes.add(v.contract_code)
+            from models import FutContractDB
+            contract_map = {
+                c.symbol: c
+                for c in db.query(FutContractDB).filter(FutContractDB.symbol.in_(contract_codes)).all()
+            }
+
             updated = 0
             skipped = 0
             for row in rows:
@@ -611,25 +635,16 @@ class DataPipeline:
                 if not ts_code or not mapping_ts_code:
                     skipped += 1
                     continue
-                # Extract base symbol from ts_code, e.g. "AU.SHF" -> "AU"
                 symbol = ts_code.split(".")[0]
-                variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
+                variety = variety_map.get(symbol)
                 if not variety:
                     skipped += 1
                     continue
-                # Extract contract_code from mapping_ts_code, e.g. "AU2506.SHF" -> "AU2506"
                 contract_code = mapping_ts_code.split(".")[0]
                 old_contract_code = variety.contract_code
                 if old_contract_code != contract_code:
-                    # Record rollover history
-                    from models import ContractRolloverDB, FutContractDB
-                    old_contract = (
-                        db.query(FutContractDB).filter(FutContractDB.symbol == old_contract_code).first()
-                        if old_contract_code else None
-                    )
-                    new_contract = (
-                        db.query(FutContractDB).filter(FutContractDB.symbol == contract_code).first()
-                    )
+                    old_contract = contract_map.get(old_contract_code) if old_contract_code else None
+                    new_contract = contract_map.get(contract_code)
                     if not new_contract:
                         logger.error(
                             f"FutMapping abort: new contract {contract_code} not found for variety {variety.symbol}"
@@ -641,6 +656,7 @@ class DataPipeline:
                     if trade_date and len(trade_date) == 8 and trade_date.isdigit():
                         effective_date = datetime.strptime(trade_date, "%Y%m%d")
 
+                    from models import ContractRolloverDB
                     rollover = ContractRolloverDB(
                         variety_id=variety.id,
                         old_contract_id=old_contract.id if old_contract else None,

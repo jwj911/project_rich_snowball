@@ -177,7 +177,10 @@ class RealtimeBatchResponse(BaseModel):
 
 # ========== Price Level / Workspace schemas ==========
 
-class PriceLevelType:
+from enum import StrEnum
+
+
+class PriceLevelType(StrEnum):
     SUPPORT = "support"
     RESISTANCE = "resistance"
 
@@ -297,7 +300,7 @@ class ContinuousKlineResponse(KlineResponse):
 # ========== Batch Price Levels ==========
 
 class PriceLevelBatchCreate(BaseModel):
-    items: list[PriceLevelCreate]
+    items: list[PriceLevelCreate] = Field(..., max_length=500)
 
 
 class PriceLevelBatchResponse(BaseModel):
