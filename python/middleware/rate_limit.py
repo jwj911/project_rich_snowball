@@ -115,7 +115,7 @@ def _check_rate_limit_redis(client_ip: str, method: str, path: str) -> bool:
         _, _, _, count = pipe.execute()
         # count 已包含当前请求，因此用 < 而非 <=
         return count < _MAX_REQUESTS_PER_WINDOW
-    except Exception:
+    except (OSError, ConnectionError, TimeoutError):
         return _check_rate_limit_memory(client_ip, method, path)
 
 
@@ -169,7 +169,7 @@ def clear_rate_limit_store():
             try:
                 for k in client.scan_iter(match="futures:ratelimit:*"):
                     client.delete(k)
-            except Exception:
+            except (OSError, ConnectionError):
                 pass
 
 

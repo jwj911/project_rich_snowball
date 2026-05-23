@@ -26,6 +26,7 @@ def get_workspace(
         .options(joinedload(PriceLevelDB.variety))
         .filter(PriceLevelDB.user_id == user_id)
         .order_by(PriceLevelDB.created_at.desc())
+        .limit(100)
         .all()
     )
     price_levels = [
@@ -51,6 +52,7 @@ def get_workspace(
         .options(joinedload(WatchlistDB.variety))
         .filter(WatchlistDB.user_id == user_id)
         .order_by(WatchlistDB.created_at.desc())
+        .limit(100)
         .all()
     )
     watchlists = []

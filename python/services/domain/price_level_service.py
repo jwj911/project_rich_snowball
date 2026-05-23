@@ -13,14 +13,15 @@ class PriceLevelService:
 
     @staticmethod
     def list_price_levels(
-        db: Session, user_id: int, variety_id: int | None = None, type: str | None = None
+        db: Session, user_id: int, variety_id: int | None = None, type: str | None = None,
+        skip: int = 0, limit: int = 100,
     ) -> list[PriceLevelDB]:
         query = db.query(PriceLevelDB).filter(PriceLevelDB.user_id == user_id)
         if variety_id:
             query = query.filter(PriceLevelDB.variety_id == variety_id)
         if type:
             query = query.filter(PriceLevelDB.type == type)
-        return query.order_by(PriceLevelDB.created_at.desc()).all()
+        return query.order_by(PriceLevelDB.created_at.desc()).offset(skip).limit(limit).all()
 
     @staticmethod
     def _get_and_check_owner(db: Session, user_id: int, price_level_id: int) -> PriceLevelDB:

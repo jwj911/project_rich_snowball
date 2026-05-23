@@ -12,7 +12,10 @@ class WatchlistService:
     """自选业务逻辑封装。路由层仅保留 HTTP 协议转换。"""
 
     @staticmethod
-    def list_watchlists(db: Session, user_id: int, variety_id: int | None = None) -> list[WatchlistDB]:
+    def list_watchlists(
+        db: Session, user_id: int, variety_id: int | None = None,
+        skip: int = 0, limit: int = 100,
+    ) -> list[WatchlistDB]:
         query = (
             db.query(WatchlistDB)
             .options(joinedload(WatchlistDB.variety))
@@ -20,7 +23,7 @@ class WatchlistService:
         )
         if variety_id:
             query = query.filter(WatchlistDB.variety_id == variety_id)
-        return query.order_by(WatchlistDB.created_at.desc()).all()
+        return query.order_by(WatchlistDB.created_at.desc()).offset(skip).limit(limit).all()
 
     @staticmethod
     def create_watchlist(db: Session, user_id: int, item: WatchlistCreate) -> WatchlistDB:

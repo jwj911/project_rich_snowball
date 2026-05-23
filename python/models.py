@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Float, DateTime,
+    create_engine, Column, Integer, String, Float, DateTime, Date,
     Text, ForeignKey, Boolean, UniqueConstraint, Index, text, Numeric, event
 )
 from sqlalchemy.orm import declarative_base
@@ -211,6 +211,7 @@ class KlineDataDB(Base):
     contract_id = Column(Integer, ForeignKey("fut_contracts.id", ondelete="CASCADE"), nullable=False, index=True)
     period = Column(String(10), nullable=False)
     trading_time = Column(DateTime(timezone=True), nullable=False)
+    trading_date = Column(Date, nullable=True, index=True)
     open_price = Column(Numeric(19, 4), nullable=False)
     high_price = Column(Numeric(19, 4), nullable=False)
     low_price = Column(Numeric(19, 4), nullable=False)

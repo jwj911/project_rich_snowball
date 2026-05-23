@@ -38,14 +38,14 @@ def get_kline(
             break
 
     return [
-        {
-            "time": k.trading_time.isoformat(),
-            "open": k.open_price,
-            "high": k.high_price,
-            "low": k.low_price,
-            "close": k.close_price,
-            "volume": k.volume,
-        }
+        KlineResponse(
+            time=k.trading_time.isoformat(),
+            open=k.open_price,
+            high=k.high_price,
+            low=k.low_price,
+            close=k.close_price,
+            volume=k.volume,
+        )
         for k in reversed(klines)
     ]
 

@@ -22,10 +22,12 @@ router = APIRouter(prefix="/api/price-levels", tags=["价位标注"])
 def list_price_levels(
     variety_id: int | None = Query(None),
     type: str | None = Query(None, pattern=r"^(support|resistance)$"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
-    items = PriceLevelService.list_price_levels(db, current_user.id, variety_id, type)
+    items = PriceLevelService.list_price_levels(db, current_user.id, variety_id, type, skip=skip, limit=limit)
     return [PriceLevelResponse.model_validate(i) for i in items]
 
 

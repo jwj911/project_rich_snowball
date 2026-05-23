@@ -181,6 +181,7 @@ class DataPipeline:
                     try:
                         db.rollback()
                     except Exception:
+                        # rollback 失败时不阻断后续 symbol 处理
                         pass
                     batch_counter = 0
 

@@ -3,6 +3,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from services.trading_calendar import to_trading_date
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,6 +90,7 @@ def clean_kline(rows: list[dict[str, Any]], contract_code: str) -> list[dict[str
                 "symbol": row.get("symbol"),
                 "period": row["period"],
                 "trading_time": row["trading_time"],
+                "trading_date": to_trading_date(row["trading_time"]),
                 "open_price": float(row["open_price"]),
                 "high_price": float(row["high_price"]),
                 "low_price": float(row["low_price"]),

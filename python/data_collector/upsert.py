@@ -141,6 +141,7 @@ def insert_kline_bulk(db: Session, rows: list[dict], period: str) -> int:
             "contract_id": contract_id,
             "period": period,
             "trading_time": row["trading_time"],
+            "trading_date": row.get("trading_date"),
             "open_price": row["open_price"],
             "high_price": row["high_price"],
             "low_price": row["low_price"],

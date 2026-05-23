@@ -363,11 +363,13 @@ def refresh_and_sync():
     try:
         refresh_realtime_quotes()
     except Exception:
+        # 调度器顶层保护：防止单任务失败导致整个 scheduler 崩溃
         logger.error("refresh_realtime_quotes failed, skipping sync_prices_to_products")
         return
     try:
         sync_prices_to_products()
     except Exception:
+        # 调度器顶层保护：防止单任务失败导致整个 scheduler 崩溃
         logger.error("sync_prices_to_products failed after realtime refresh")
 
 

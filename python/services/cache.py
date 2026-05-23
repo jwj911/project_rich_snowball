@@ -63,10 +63,10 @@ def _get_cached_redis(key: str, db_fetch_func: Callable[[], Any], ttl: int) -> A
             cache_operations_total.labels(operation="get", result="hit").inc()
             try:
                 return json.loads(val)
-            except Exception:
+            except json.JSONDecodeError:
                 return val
         cache_operations_total.labels(operation="get", result="miss").inc()
-    except Exception as exc:
+    except (OSError, ConnectionError) as exc:
         cache_operations_total.labels(operation="get", result="miss").inc()
         logger.warning("Redis get failed for key %s: %s", key, exc)
         mark_redis_unavailable()
@@ -82,9 +82,9 @@ def _get_cached_redis(key: str, db_fetch_func: Callable[[], Any], ttl: int) -> A
                 cache_operations_total.labels(operation="get", result="hit").inc()
                 try:
                     return json.loads(val)
-                except Exception:
+                except json.JSONDecodeError:
                     return val
-        except Exception as exc:
+        except (OSError, ConnectionError) as exc:
             logger.warning("Redis double-check get failed for key %s: %s", key, exc)
             mark_redis_unavailable()
 
@@ -94,7 +94,7 @@ def _get_cached_redis(key: str, db_fetch_func: Callable[[], Any], ttl: int) -> A
         try:
             client.setex(key, ttl, json.dumps(data, default=str))
             cache_operations_total.labels(operation="set", result="success").inc()
-        except Exception as exc:
+        except (OSError, ConnectionError) as exc:
             logger.warning("Redis set failed for key %s: %s", key, exc)
             mark_redis_unavailable()
 
@@ -155,7 +155,7 @@ def invalidate_cache(key: str | None = None):
                     # Redis 慎用 flushdb，这里只清理带特定前缀的键
                     for k in client.scan_iter(match="futures:*"):
                         client.delete(k)
-            except Exception as exc:
+            except (OSError, ConnectionError) as exc:
                 logger.warning("Redis invalidate failed: %s", exc)
                 mark_redis_unavailable()
 
@@ -180,7 +180,7 @@ def get_cache_stats() -> dict:
                     "used_memory_human": info.get("used_memory_human", "unknown"),
                     "connected_clients": client.info("clients").get("connected_clients", 0),
                 }
-            except Exception as exc:
+            except (OSError, ConnectionError) as exc:
                 logger.warning("Redis stats failed: %s", exc)
                 mark_redis_unavailable()
 

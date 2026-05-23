@@ -270,3 +270,26 @@ def trading_days_between(start: date | datetime | str, end: date | datetime | st
 def get_expected_kline_dates(start: date | datetime | str, end: date | datetime | str, period: str = "D") -> list[date]:
     _ensure_funcs()
     return _get_expected_kline_dates(start, end, period)
+
+
+def to_trading_date(dt: datetime) -> date:
+    """将实际时间戳映射到中国期货交易日。
+
+    规则（基于交易所普遍口径）：
+    - 夜盘开始时间（20:00 及以后）的数据归属到下一自然日。
+      例如 1 月 15 日 21:00 的夜盘数据 → 交易日 1 月 16 日。
+    - 凌晨（00:00 - 03:59）的数据属于夜盘延续，归属到当前自然日
+      （因为当前自然日已经是夜盘对应的交易日）。
+      例如 1 月 16 日 00:30 的数据 → 交易日 1 月 16 日。
+    - 白天数据（04:00 - 19:59）归属到当前自然日。
+
+    注意：本函数仅做时间到自然日的映射，不验证该自然日是否为实际交易日
+    （是否为节假日由 is_trading_day 判断）。
+    """
+    if dt.tzinfo is None:
+        # naive datetime 视为 UTC，向后兼容
+        dt = dt.replace(tzinfo=timezone.utc)
+    cn_dt = dt.astimezone(_CN_TZ)
+    if cn_dt.hour >= 20:
+        return (cn_dt + timedelta(days=1)).date()
+    return cn_dt.date()

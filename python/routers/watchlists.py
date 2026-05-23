@@ -14,10 +14,12 @@ router = APIRouter(prefix="/api/watchlists", tags=["自选"])
 @router.get("", response_model=list[WatchlistResponse])
 def list_watchlists(
     variety_id: int | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
-    items = WatchlistService.list_watchlists(db, current_user.id, variety_id)
+    items = WatchlistService.list_watchlists(db, current_user.id, variety_id, skip=skip, limit=limit)
     return [
         WatchlistResponse(
             id=w.id,

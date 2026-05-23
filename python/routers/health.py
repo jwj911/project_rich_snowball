@@ -29,6 +29,7 @@ def readiness_check(db: Session = Depends(get_db)):
         db.execute(text("SELECT 1"))
         db_ok = True
     except Exception:
+        # 数据库连接异常视为未就绪（不暴露具体错误给客户端）
         db_ok = False
 
     cache_stats = get_cache_stats()
@@ -55,7 +56,7 @@ def scheduler_check(db: Session = Depends(get_db)):
     try:
         from data_collector.scheduler import scheduler
         scheduler_running = scheduler.running
-    except Exception:
+    except (ImportError, AttributeError):
         scheduler_running = False
 
     # 最近 24 小时的任务统计（聚合全量，避免 limit 导致失真）

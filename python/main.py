@@ -37,7 +37,7 @@ if sys.platform == "win32":
                     if getattr(self, "_sock", None) is not None:
                         self._sock.close()
                         self._sock = None
-                except Exception:
+                except (OSError, AttributeError):
                     pass
                 return
             raise
@@ -215,12 +215,13 @@ async def prometheus_middleware(request: Request, call_next):
 
     method = request.method
     start = time.time()
+    status_code = "500"
     try:
         response = await call_next(request)
-        status_code = str(response.status_code)
     except Exception:
-        status_code = "500"
         raise
+    else:
+        status_code = str(response.status_code)
     finally:
         duration = time.time() - start
         # 使用路由模板路径而非完整解析路径，避免 cardinality 爆炸
