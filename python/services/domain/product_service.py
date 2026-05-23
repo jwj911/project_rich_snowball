@@ -1,7 +1,6 @@
 """Product domain service."""
-from fastapi import HTTPException
-
 from schemas import CommentResponse, ProductDetailResponse, ProductResponse
+from services.domain.exceptions import NotFoundError
 from services.domain.repositories.product_repository import ProductRepository
 
 
@@ -44,7 +43,7 @@ class ProductService:
     ) -> ProductDetailResponse:
         product = self._repo.get(product_id)
         if not product:
-            raise HTTPException(status_code=404, detail="品种不存在")
+            raise NotFoundError("品种不存在")
 
         comments = self._repo.list_comments(product_id, comment_skip, comment_limit)
 

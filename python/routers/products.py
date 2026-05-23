@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from dependencies import get_current_user_dependency, get_db
 from models import UserDB
 from schemas import ProductDetailResponse, ProductResponse
+from services.domain.exceptions import ServiceError
 from services.domain.product_service import ProductService
 
 router = APIRouter(prefix="/api/products", tags=["品种(兼容)"])
@@ -39,4 +40,7 @@ def get_product(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
-    return ProductService(db).get_product_detail(product_id, comment_skip, comment_limit)
+    try:
+        return ProductService(db).get_product_detail(product_id, comment_skip, comment_limit)
+    except ServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)

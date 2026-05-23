@@ -1,8 +1,7 @@
 """Comment domain service."""
-from fastapi import HTTPException
-
 from models import UserDB
 from schemas import CommentCreate, CommentResponse
+from services.domain.exceptions import NotFoundError
 from services.domain.repositories.comment_repository import CommentRepository
 
 
@@ -25,12 +24,12 @@ class CommentService:
     ) -> CommentResponse:
         product = self._repo.get_product(comment.product_id)
         if not product:
-            raise HTTPException(status_code=404, detail="品种不存在")
+            raise NotFoundError("品种不存在")
 
         if comment.price_level_id:
             pl = self._repo.get_price_level(comment.price_level_id, user_id)
             if not pl:
-                raise HTTPException(status_code=404, detail="关联的价位标注不存在")
+                raise NotFoundError("关联的价位标注不存在")
 
         db_comment = self._repo.create(
             product_id=comment.product_id,

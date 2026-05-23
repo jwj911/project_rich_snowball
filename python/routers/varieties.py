@@ -11,8 +11,8 @@ router = APIRouter(prefix="/api/varieties", tags=["品种"])
 
 @router.get("", response_model=list[VarietyResponse])
 def get_varieties(
-    category: str | None = None,
-    search: str | None = None,
+    category: str | None = Query(None, max_length=20),
+    search: str | None = Query(None, max_length=100),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),

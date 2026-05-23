@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/contracts", tags=["合约"])
 @router.get("", response_model=list[ContractResponse])
 def list_contracts(
     variety_id: int | None = Query(None, ge=1),
-    exchange: str | None = Query(None),
+    exchange: str | None = Query(None, max_length=20),
     active_only: bool = Query(False),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
