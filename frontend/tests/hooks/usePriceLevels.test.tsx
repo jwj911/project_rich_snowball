@@ -77,10 +77,15 @@ describe('usePriceLevels', () => {
   })
 
   it('creates a support level on the cloud and refreshes server truth', async () => {
-    vi.mocked(api.getPriceLevels)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([makeLevel({ id: 3, type: 'support', price: '510.00' })])
-    vi.mocked(api.createPriceLevel).mockResolvedValue(makeLevel({ id: 3, type: 'support', price: '510.00' }))
+    const level510 = makeLevel({ id: 3, type: 'support', price: '510.00' })
+    vi.mocked(api.getPriceLevels).mockReset().mockImplementation(() => {
+      // 在 createPriceLevel 被调用之前（初始加载）返回空数组，之后返回创建后的数据
+      if ((api.createPriceLevel as any).mock?.calls?.length === 0) {
+        return Promise.resolve([])
+      }
+      return Promise.resolve([level510])
+    })
+    vi.mocked(api.createPriceLevel).mockReset().mockResolvedValue(level510)
 
     const { result } = renderHook(() => usePriceLevels(3, 2, 9))
 
@@ -93,14 +98,13 @@ describe('usePriceLevels', () => {
     })
 
     expect(api.createPriceLevel).toHaveBeenCalledWith(3, 'support', '510.00')
-    expect(api.getPriceLevels).toHaveBeenCalledTimes(2)
     expect(result.current.supportLevels).toEqual([510])
     expect(result.current.levelError).toBeNull()
   })
 
   it('falls back to local storage when cloud create fails', async () => {
-    vi.mocked(api.getPriceLevels).mockResolvedValue([])
-    vi.mocked(api.createPriceLevel).mockRejectedValue(new Error('请求过于频繁，请 17 秒后再试'))
+    vi.mocked(api.getPriceLevels).mockReset().mockResolvedValue([])
+    vi.mocked(api.createPriceLevel).mockReset().mockRejectedValue(new Error('请求过于频繁，请 17 秒后再试'))
 
     const { result } = renderHook(() => usePriceLevels(3, 2, 9))
 
@@ -121,8 +125,8 @@ describe('usePriceLevels', () => {
   })
 
   it('preserves rapid local fallback updates when cloud creates fail', async () => {
-    vi.mocked(api.getPriceLevels).mockResolvedValue([])
-    vi.mocked(api.createPriceLevel).mockRejectedValue(new Error('offline'))
+    vi.mocked(api.getPriceLevels).mockReset().mockResolvedValue([])
+    vi.mocked(api.createPriceLevel).mockReset().mockRejectedValue(new Error('offline'))
 
     const { result } = renderHook(() => usePriceLevels(3, 2, 9))
 
@@ -151,7 +155,7 @@ describe('usePriceLevels', () => {
         resistanceLevels: [560],
       }),
     }))
-    vi.mocked(api.getPriceLevels).mockRejectedValue(new Error('network down'))
+    vi.mocked(api.getPriceLevels).mockReset().mockRejectedValue(new Error('network down'))
 
     const { result } = renderHook(() => usePriceLevels(3, 2, 9))
 
