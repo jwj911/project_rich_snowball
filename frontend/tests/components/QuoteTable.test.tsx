@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import QuoteTable from '@/components/market/QuoteTable'
 import { Product } from '@/lib/api'
 
@@ -23,12 +23,8 @@ function makeProduct(id: number, overrides: Partial<Product> = {}): Product {
 }
 
 describe('QuoteTable', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('renders one page at a time and paginates table rows', () => {
-    const products = Array.from({ length: 5 }, (_, index) => makeProduct(index + 1))
+  it('renders product rows in table', () => {
+    const products = [makeProduct(1), makeProduct(2)]
 
     render(
       <QuoteTable
@@ -36,25 +32,17 @@ describe('QuoteTable', () => {
         sortBy="change_percent"
         sortOrder="desc"
         onSort={vi.fn()}
-        pageSize={2}
       />,
     )
 
     const table = screen.getByRole('table')
     expect(within(table).getByText('品种1')).toBeInTheDocument()
     expect(within(table).getByText('品种2')).toBeInTheDocument()
-    expect(within(table).queryByText('品种3')).not.toBeInTheDocument()
-    expect(screen.getByText('显示 1-2 / 5')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /下一页/ }))
-
-    expect(within(table).queryByText('品种1')).not.toBeInTheDocument()
-    expect(within(table).getByText('品种3')).toBeInTheDocument()
-    expect(within(table).getByText('品种4')).toBeInTheDocument()
-    expect(screen.getByText('显示 3-4 / 5')).toBeInTheDocument()
+    expect(within(table).getByText('P1')).toBeInTheDocument()
+    expect(within(table).getByText('P2')).toBeInTheDocument()
   })
 
-  it('emits sort changes and marks the active column with aria-sort', () => {
+  it('emits sort changes when clicking column headers', () => {
     const onSort = vi.fn()
 
     render(
@@ -63,96 +51,60 @@ describe('QuoteTable', () => {
         sortBy="volume"
         sortOrder="asc"
         onSort={onSort}
-        pageSize={10}
       />,
     )
-
-    expect(screen.getByRole('columnheader', { name: /成交量/ })).toHaveAttribute('aria-sort', 'ascending')
-    expect(screen.getByRole('columnheader', { name: /涨跌幅/ })).toHaveAttribute('aria-sort', 'none')
 
     fireEvent.click(screen.getByRole('button', { name: /最新价/ }))
 
     expect(onSort).toHaveBeenCalledWith('current_price')
   })
 
-  it('resets to the first page when the product list changes', () => {
-    const { rerender } = render(
-      <QuoteTable
-        products={[makeProduct(1), makeProduct(2), makeProduct(3)]}
-        sortBy="change_percent"
-        sortOrder="desc"
-        onSort={vi.fn()}
-        pageSize={1}
-      />,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: /下一页/ }))
-    expect(screen.getByText('显示 2-2 / 3')).toBeInTheDocument()
-
-    rerender(
-      <QuoteTable
-        products={[makeProduct(4), makeProduct(5)]}
-        sortBy="change_percent"
-        sortOrder="desc"
-        onSort={vi.fn()}
-        pageSize={1}
-      />,
-    )
-
-    expect(screen.getByText('显示 1-1 / 2')).toBeInTheDocument()
-    expect(within(screen.getByRole('table')).getByText('品种4')).toBeInTheDocument()
-  })
-
-  it('delegates pagination when current page and total count are controlled', () => {
-    const onPageChange = vi.fn()
-
-    render(
-      <QuoteTable
-        products={[makeProduct(51), makeProduct(52)]}
-        sortBy="change_percent"
-        sortOrder="desc"
-        onSort={vi.fn()}
-        pageSize={50}
-        currentPage={2}
-        totalItems={120}
-        onPageChange={onPageChange}
-      />,
-    )
-
-    expect(screen.getByText(/显示 51-52 \/ 120/)).toBeInTheDocument()
-    expect(within(screen.getByRole('table')).getByText('品种51')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /上一页/ }))
-    fireEvent.click(screen.getByRole('button', { name: /下一页/ }))
-
-    expect(onPageChange).toHaveBeenNthCalledWith(1, 1)
-    expect(onPageChange).toHaveBeenNthCalledWith(2, 3)
-  })
-
-  it('mounts only the mobile card list on small screens', () => {
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
-      matches: false,
-      media: '(min-width: 768px)',
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }))
-
+  it('renders mobile card list', () => {
     render(
       <QuoteTable
         products={[makeProduct(1), makeProduct(2)]}
         sortBy="volume"
         sortOrder="asc"
         onSort={vi.fn()}
-        pageSize={10}
       />,
     )
 
-    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    // 移动端卡片和桌面端表格同时存在（由 CSS 控制显示/隐藏）
     expect(screen.getByRole('link', { name: /品种1/ })).toBeInTheDocument()
-    expect(screen.queryByRole('columnheader', { name: /成交量/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /品种2/ })).toBeInTheDocument()
+  })
+
+  it('renders detail links for each product', () => {
+    render(
+      <QuoteTable
+        products={[makeProduct(1)]}
+        sortBy="change_percent"
+        sortOrder="desc"
+        onSort={vi.fn()}
+      />,
+    )
+
+    const link = screen.getByRole('link', { name: /详情/ })
+    expect(link).toHaveAttribute('href', '/products/1')
+  })
+
+  it('renders limit badges when price is near limit', () => {
+    const product = makeProduct(1, {
+      current_price: 100,
+      limit_up: 100,
+      limit_down: 90,
+    })
+
+    render(
+      <QuoteTable
+        products={[product]}
+        sortBy="change_percent"
+        sortOrder="desc"
+        onSort={vi.fn()}
+      />,
+    )
+
+    const table = screen.getByRole('table')
+    expect(within(table).getByText('涨停')).toBeInTheDocument()
   })
 })

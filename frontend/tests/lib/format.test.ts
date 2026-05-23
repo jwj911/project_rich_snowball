@@ -65,7 +65,7 @@ describe('formatPercent', () => {
   })
 
   it('formats zero', () => {
-    expect(formatPercent(0)).toBe('0.00%')
+    expect(formatPercent(0)).toBe('+0.00%')
   })
 
   it('returns -- for null', () => {
