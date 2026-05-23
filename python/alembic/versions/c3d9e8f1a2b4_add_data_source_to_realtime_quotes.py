@@ -1,7 +1,7 @@
 """add data_source to realtime_quotes
 
 Revision ID: c3d9e8f1a2b4
-Revises: ab0c82d41a97
+Revises: 2f4b824f1162
 Create Date: 2026-05-22 17:30:00.000000
 
 """
