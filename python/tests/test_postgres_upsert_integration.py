@@ -38,17 +38,26 @@ from models import (
     FutSettleDB,
     KlineDataDB,
     RealtimeQuoteDB,
-    SessionLocal,
     VarietyDB,
-    engine,
     init_db,
 )
 
 
-pytestmark = pytest.mark.skipif(
-    engine.dialect.name != "postgresql",
-    reason="PostgreSQL upsert integration test requires PostgreSQL DATABASE_URL",
-)
+# 动态判断是否需要 PostgreSQL session。
+# 注意：不能依赖 models.engine（conftest 会强制设为 SQLite），
+# 所以根据原始 DATABASE_URL 环境变量重新创建 PG engine。
+_PG_URL = os.environ.get("_PYTEST_ORIGINAL_DATABASE_URL", "")
+_IS_PG = "postgresql" in _PG_URL
+
+if _IS_PG:
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    _pg_engine = create_engine(_PG_URL)
+    PgSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_pg_engine)
+else:
+    _pg_engine = None
+    PgSessionLocal = None
 
 
 SYMBOL = "TSTPG"
@@ -65,15 +74,18 @@ def _cleanup(db):
         db.query(FutDailyDataDB).filter(FutDailyDataDB.variety_id == variety.id).delete(synchronize_session=False)
         db.delete(variety)
 
+    db.query(FutContractDB).filter(FutContractDB.ts_code == TS_CODE).delete(synchronize_session=False)
     db.query(FutSettleDB).filter(FutSettleDB.ts_code == TS_CODE).delete(synchronize_session=False)
     db.query(FutPriceLimitDB).filter(FutPriceLimitDB.ts_code == TS_CODE).delete(synchronize_session=False)
     db.commit()
 
 
-@pytest.fixture()
-def db():
+@pytest.fixture(scope="module")
+def pg_db():
+    if not _IS_PG or _pg_engine is None:
+        pytest.skip("PostgreSQL upsert integration test requires PostgreSQL DATABASE_URL")
     init_db()
-    session = SessionLocal()
+    session = PgSessionLocal()
     _cleanup(session)
     variety = VarietyDB(
         symbol=SYMBOL,
@@ -103,7 +115,8 @@ def db():
         session.close()
 
 
-def test_postgres_realtime_upsert_updates_existing_row(db):
+def test_postgres_realtime_upsert_updates_existing_row(pg_db):
+    db = pg_db
     upsert_realtime(
         db,
         {
@@ -145,7 +158,8 @@ def test_postgres_realtime_upsert_updates_existing_row(db):
     assert quotes[0].volume == 1200
 
 
-def test_postgres_kline_insert_conflict_does_nothing(db):
+def test_postgres_kline_insert_conflict_does_nothing(pg_db):
+    db = pg_db
     rows = [
         {
             "symbol": SYMBOL,
@@ -175,7 +189,8 @@ def test_postgres_kline_insert_conflict_does_nothing(db):
     assert count == 1
 
 
-def test_postgres_fut_daily_upsert_updates_existing_row(db):
+def test_postgres_fut_daily_upsert_updates_existing_row(pg_db):
+    db = pg_db
     variety = db.query(VarietyDB).filter(VarietyDB.symbol == SYMBOL).one()
     base = {
         "variety_id": variety.id,
@@ -212,7 +227,8 @@ def test_postgres_fut_daily_upsert_updates_existing_row(db):
     assert row.volume == 1300
 
 
-def test_postgres_fut_settle_upsert_updates_existing_row(db):
+def test_postgres_fut_settle_upsert_updates_existing_row(pg_db):
+    db = pg_db
     base = {
         "ts_code": TS_CODE,
         "trade_date": TRADE_DATE,
@@ -238,7 +254,8 @@ def test_postgres_fut_settle_upsert_updates_existing_row(db):
     assert row.trading_fee == 2.5
 
 
-def test_postgres_fut_price_limit_upsert_updates_existing_row(db):
+def test_postgres_fut_price_limit_upsert_updates_existing_row(pg_db):
+    db = pg_db
     base = {
         "ts_code": TS_CODE,
         "trade_date": TRADE_DATE,

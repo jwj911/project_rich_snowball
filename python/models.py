@@ -367,6 +367,8 @@ class FutSettleDB(Base):
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     __table_args__ = (
         UniqueConstraint("ts_code", "trade_date", name="uix_fut_settle"),
+        Index("idx_fut_settle_ts_code", "ts_code"),
+        Index("idx_fut_settle_trade_date", "trade_date"),
     )
 
 
@@ -483,6 +485,8 @@ class FutIndexDB(Base):
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     __table_args__ = (
         UniqueConstraint("ts_code", "trade_date", name="uix_fut_index"),
+        Index("idx_fut_index_ts_code", "ts_code"),
+        Index("idx_fut_index_trade_date", "trade_date"),
     )
 
 

@@ -15,6 +15,8 @@ os.environ["DOTENV_PATH"] = "/nonexistent/.env"
 
 # 创建临时数据库文件，确保所有测试共享同一个物理数据库（避免 :memory: 多连接隔离问题）
 _TEST_DB_FILE = tempfile.mktemp(suffix="_test.db")
+# 保存原始 DATABASE_URL，供 PostgreSQL 专属测试读取
+os.environ["_PYTEST_ORIGINAL_DATABASE_URL"] = os.environ.get("DATABASE_URL", "")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_FILE}"
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
