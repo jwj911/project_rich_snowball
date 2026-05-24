@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import AppShell from '@/components/layout/AppShell'
 
 import LoginRequired from '@/components/auth/LoginRequired'
@@ -22,9 +23,13 @@ import {
 } from 'lucide-react'
 
 import WatchlistButton from '@/components/product/WatchlistButton'
-import KlineSection from '@/components/product/KlineSection'
 import { useProductKline } from '@/hooks/useProductKline'
 import TradingInfoPanel from '@/components/product/TradingInfoPanel'
+
+const KlineSection = dynamic(() => import('@/components/product/KlineSection'), {
+  ssr: false,
+  loading: () => <div className="h-[520px] animate-pulse rounded-lg bg-slate-800" />,
+})
 import LevelEditor from '@/components/product/LevelEditor'
 import CommentSection from '@/components/product/CommentSection'
 
