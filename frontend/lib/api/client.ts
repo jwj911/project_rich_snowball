@@ -1,4 +1,4 @@
-import { ApiError } from './errors'
+import { AuthCore } from './auth'
 import {
   createComment,
   getProduct,
@@ -51,200 +51,7 @@ import type {
   WorkspaceSummary,
 } from './types'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8200'
-
-class ApiService {
-  private token: string | null = null
-  private refreshPromise: Promise<boolean> | null = null
-
-  setToken(token: string | null) {
-    this.token = token
-  }
-
-  getToken(): string | null {
-    return this.token
-  }
-
-  setRefreshToken(_token: string | null) {
-    // Refresh tokens are intentionally stored in HttpOnly cookies by the API.
-    // This method remains as a no-op compatibility shim for older tests/callers.
-  }
-
-  getRefreshToken(): string | null {
-    return null
-  }
-
-  private clearAuthState() {
-    this.setToken(null)
-    this.setRefreshToken(null)
-  }
-
-  private emitAuthRequired() {
-    if (typeof window === 'undefined') return
-    window.dispatchEvent(new CustomEvent('auth-session-expired'))
-    window.dispatchEvent(new Event('open-login-modal'))
-  }
-
-  private buildApiError(response: Response, body: { message?: string; detail?: string; code?: string }) {
-    const retryAfterHeader = response.headers.get('Retry-After')
-    const retryAfter = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : undefined
-    const retryMessage = response.status === 429 && retryAfter && Number.isFinite(retryAfter)
-      ? `请求过于频繁，请 ${retryAfter} 秒后再试`
-      : null
-    return new ApiError(
-      retryMessage || body.message || body.detail || 'Request failed',
-      response.status,
-      body.code,
-      Number.isFinite(retryAfter) ? retryAfter : undefined,
-    )
-  }
-
-  async requestRaw(url: string, options: RequestInit = {}): Promise<Response> {
-    const buildHeaders = (token: string | null): Record<string, string> => {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...((options.headers as Record<string, string>) || {}),
-      }
-      if (token) {
-        headers.Authorization = `Bearer ${token}`
-      }
-      return headers
-    }
-
-    const controller = new AbortController()
-    let timedOut = false
-    const timeoutId = window.setTimeout(() => {
-      timedOut = true
-      controller.abort()
-    }, 15000)
-
-    if (options.signal) {
-      options.signal.addEventListener('abort', () => controller.abort())
-    }
-
-    let response: Response
-    try {
-      response = await fetch(`${API_BASE}${url}`, {
-        ...options,
-        signal: controller.signal,
-        headers: buildHeaders(this.getToken()),
-      })
-    } catch (err) {
-      window.clearTimeout(timeoutId)
-      if (err instanceof Error && err.name === 'AbortError') {
-        if (timedOut) {
-          throw new ApiError('请求超时，请检查网络连接', 0, 'TIMEOUT')
-        }
-        throw new ApiError('请求已取消', 0, 'ABORTED')
-      }
-      throw new ApiError(err instanceof Error ? err.message : 'Network request failed', 0, 'NETWORK_ERROR')
-    } finally {
-      window.clearTimeout(timeoutId)
-    }
-
-    // 401 时尝试通过 HttpOnly refresh cookie 自动刷新一次 access token。
-    if (response.status === 401) {
-      const refreshed = await this.tryRefresh()
-      if (refreshed) {
-        try {
-          response = await fetch(`${API_BASE}${url}`, {
-            ...options,
-            headers: buildHeaders(this.getToken()),
-          })
-        } catch (err) {
-          throw new ApiError(err instanceof Error ? err.message : 'Network request failed', 0, 'NETWORK_ERROR')
-        }
-      }
-    }
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Request failed' }))
-      if (response.status === 401) {
-        this.clearAuthState()
-        this.emitAuthRequired()
-      }
-      throw this.buildApiError(response, error)
-    }
-
-    return response
-  }
-
-  async request<T>(url: string, options: RequestInit = {}): Promise<T> {
-    const response = await this.requestRaw(url, options)
-    return response.json()
-  }
-
-  private async tryRefresh(): Promise<boolean> {
-    if (this.refreshPromise) return this.refreshPromise
-    this.refreshPromise = this.performRefresh().finally(() => {
-      this.refreshPromise = null
-    })
-    return this.refreshPromise
-  }
-
-  async refreshAccessToken(): Promise<boolean> {
-    return this.tryRefresh()
-  }
-
-  private async performRefresh(): Promise<boolean> {
-    try {
-      const res = await fetch(`${API_BASE}/api/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      })
-      if (!res.ok) return false
-      const data = await res.json()
-      this.setToken(data.access_token)
-      if (data.refresh_token) {
-        this.setRefreshToken(data.refresh_token)
-      }
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  async login(username: string, password: string): Promise<TokenResponse> {
-    const formData = new URLSearchParams()
-    formData.append('username', username)
-    formData.append('password', password)
-
-    let response: Response
-    try {
-      response = await fetch(`${API_BASE}/api/auth/login`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData,
-      })
-    } catch (err) {
-      throw new ApiError(err instanceof Error ? err.message : 'Network request failed', 0, 'NETWORK_ERROR')
-    }
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Login failed' }))
-      throw this.buildApiError(response, error)
-    }
-
-    const data: TokenResponse = await response.json()
-    this.setToken(data.access_token)
-    return data
-  }
-
-  async register(username: string, email: string, password: string): Promise<User> {
-    return this.request<User>('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ username, email, password }),
-    })
-  }
-
-  async getMe(): Promise<User> {
-    return this.request<User>('/api/auth/me')
-  }
-
+class ApiService extends AuthCore {
   getProducts(options: RequestInit = {}): Promise<Product[]> {
     return getProducts(this, options)
   }
@@ -402,19 +209,11 @@ class ApiService {
   getMarketStatus(): Promise<MarketStatusResponse> {
     return getMarketStatus(this)
   }
-
-  async logout(): Promise<void> {
-    this.refreshPromise = null
-    await fetch(`${API_BASE}/api/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.getToken() ?? ''}`,
-      },
-    }).catch(() => {})
-    this.setToken(null)
-  }
 }
 
 export const api = new ApiService()
+
+export type {
+  TokenResponse,
+  User,
+}
