@@ -48,6 +48,11 @@ python/*.log
 .DS_Store
 Thumbs.db
 
+# Environment secrets
+.env
+.env.local
+.env.*.local
+
 # pytest
 .pytest_cache/
 python/.pytest_cache/
