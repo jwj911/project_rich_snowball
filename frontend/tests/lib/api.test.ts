@@ -179,4 +179,39 @@ describe('api auth and errors', () => {
     expect(result.categories).toEqual(['贵金属', '黑色系'])
     expect(result.items[0].symbol).toBe('AG')
   })
+
+  it('aborts and throws TIMEOUT when fetch exceeds 15 seconds', async () => {
+    const callbacks: Function[] = []
+    vi.stubGlobal('setTimeout', (callback: Function) => {
+      callbacks.push(callback)
+      return 999 as unknown as ReturnType<typeof setTimeout>
+    })
+    vi.stubGlobal('clearTimeout', () => {})
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      return new Promise((_, reject) => {
+        const signal = init?.signal as AbortSignal | undefined
+        if (signal?.aborted) {
+          const err = new Error('AbortError')
+          err.name = 'AbortError'
+          reject(err)
+          return
+        }
+        signal?.addEventListener('abort', () => {
+          const err = new Error('AbortError')
+          err.name = 'AbortError'
+          reject(err)
+        })
+      })
+    })
+
+    const promise = api.getProducts()
+    callbacks.forEach((cb) => cb())
+
+    await expect(promise).rejects.toMatchObject({
+      code: 'TIMEOUT',
+      message: '请求超时，请检查网络连接',
+    })
+
+    vi.unstubAllGlobals()
+  })
 })

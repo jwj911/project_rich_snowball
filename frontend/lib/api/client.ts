@@ -122,14 +122,35 @@ class ApiService {
       return headers
     }
 
+    const controller = new AbortController()
+    let timedOut = false
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, 15000)
+
+    if (options.signal) {
+      options.signal.addEventListener('abort', () => controller.abort())
+    }
+
     let response: Response
     try {
       response = await fetch(`${API_BASE}${url}`, {
         ...options,
+        signal: controller.signal,
         headers: buildHeaders(this.getToken()),
       })
     } catch (err) {
+      window.clearTimeout(timeoutId)
+      if (err instanceof Error && err.name === 'AbortError') {
+        if (timedOut) {
+          throw new ApiError('请求超时，请检查网络连接', 0, 'TIMEOUT')
+        }
+        throw new ApiError('请求已取消', 0, 'ABORTED')
+      }
       throw new ApiError(err instanceof Error ? err.message : 'Network request failed', 0, 'NETWORK_ERROR')
+    } finally {
+      window.clearTimeout(timeoutId)
     }
 
     // 401 时尝试通过 HttpOnly refresh cookie 自动刷新一次 access token。
