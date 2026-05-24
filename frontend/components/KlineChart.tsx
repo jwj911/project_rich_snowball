@@ -11,21 +11,14 @@ import {
   ISeriesApi,
   LineStyle,
   Time,
-  UTCTimestamp,
   createChart,
 } from 'lightweight-charts'
 import EmptyState from '@/components/ui/EmptyState'
+import LevelChips from '@/components/kline/LevelChips'
 import { LineChart } from 'lucide-react'
 import { CHART } from '@/lib/constants'
-
-interface KlineData {
-  time: string
-  open: number
-  high: number
-  low: number
-  close: number
-  volume: number
-}
+import { KlineData } from '@/lib/api'
+import { CandlePoint, normalizeKlineData, maxOf, minOf } from '@/lib/klineData'
 
 interface KlineChartProps {
   data: KlineData[]
@@ -46,16 +39,6 @@ interface AnnotationMenu {
 
 interface CrosshairQuote {
   time: string
-  open: number
-  high: number
-  low: number
-  close: number
-  volume: number
-}
-
-type CandlePoint = {
-  time: Time
-  originalTime: string
   open: number
   high: number
   low: number
@@ -398,94 +381,3 @@ export default function KlineChart({
   )
 }
 
-function LevelChips({
-  title,
-  levels,
-  tone,
-  onRemove,
-}: {
-  title: string
-  levels: number[]
-  tone: 'support' | 'resistance'
-  onRemove?: (price: number) => void
-}) {
-  if (levels.length === 0) return null
-
-  const colorClass = tone === 'support'
-    ? 'border-green-400/30 bg-green-400/10 text-green-300'
-    : 'border-red-400/30 bg-red-400/10 text-red-300'
-
-  return (
-    <div>
-      <div className="mb-1 text-slate-500">{title}</div>
-      <div className="flex flex-wrap gap-1">
-        {levels.map((level) => (
-          <button
-            key={`${tone}-${level}`}
-            type="button"
-            onClick={() => onRemove?.(level)}
-            className={`rounded border px-1.5 py-1 font-mono transition hover:bg-slate-700/40 ${colorClass}`}
-            title="点击删除"
-          >
-            {level.toFixed(2)}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function normalizeKlineData(data: KlineData[]): CandlePoint[] {
-  const byTime = new Map<number, CandlePoint>()
-
-  data.forEach((item) => {
-    const timestamp = parseTimestamp(item.time)
-    if (timestamp === null) return
-
-    const open = Number(item.open)
-    const high = Number(item.high)
-    const low = Number(item.low)
-    const close = Number(item.close)
-    const volume = Number(item.volume)
-
-    if (![open, high, low, close].every(Number.isFinite)) return
-
-    const safeHigh = Math.max(high, open, close, low)
-    const safeLow = Math.min(low, open, close, high)
-
-    byTime.set(timestamp, {
-      time: timestamp as UTCTimestamp,
-      originalTime: item.time,
-      open,
-      high: safeHigh,
-      low: safeLow,
-      close,
-      volume: Number.isFinite(volume) ? Math.max(volume, 0) : 0,
-    })
-  })
-
-  return Array.from(byTime.values()).sort((a, b) => Number(a.time) - Number(b.time))
-}
-
-function parseTimestamp(value: string): number | null {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  const numeric = Number(trimmed)
-  if (Number.isFinite(numeric) && numeric > 0) {
-    return Math.floor(numeric > 10_000_000_000 ? numeric / 1000 : numeric)
-  }
-
-  const parsed = Date.parse(trimmed)
-  if (!Number.isFinite(parsed)) return null
-
-  return Math.floor(parsed / 1000)
-}
-
-function maxOf(points: CandlePoint[], key: 'high' | 'low') {
-  return Math.max(...points.map((point) => point[key]))
-}
-
-function minOf(points: CandlePoint[], key: 'high' | 'low') {
-  return Math.min(...points.map((point) => point[key]))
-}
