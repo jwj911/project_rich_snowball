@@ -1,3 +1,4 @@
+import { ApiError } from './errors'
 import {
   createComment,
   getProduct,
@@ -51,18 +52,6 @@ import type {
 } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8200'
-
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public code?: string,
-    public retryAfter?: number,
-  ) {
-    super(message)
-    this.name = 'ApiError'
-  }
-}
 
 class ApiService {
   private token: string | null = null
