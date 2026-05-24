@@ -8,6 +8,8 @@ vi.mock('@/lib/api', () => ({
     getProduct: vi.fn(),
     getRealtime: vi.fn(),
     getVariety: vi.fn(),
+    getToken: vi.fn().mockReturnValue(null),
+    getRealtimeBatch: vi.fn().mockResolvedValue({ quotes: [], not_found: [] }),
   },
 }))
 

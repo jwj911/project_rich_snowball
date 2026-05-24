@@ -68,7 +68,8 @@ export function useProductDetail(productId: number, enabled: boolean): UseProduc
 
   // SSE 实时价格订阅：只在 product.symbol 确定后启用
   const symbol = product?.symbol ?? ''
-  const { quotes: realtimeQuotes } = useRealtimeQuotes(symbol ? [symbol] : [])
+  const symbols = useMemo(() => (symbol ? [symbol] : []), [symbol])
+  const { quotes: realtimeQuotes } = useRealtimeQuotes(symbols)
 
   const sseRealtime = useMemo(() => {
     if (!symbol) return null
