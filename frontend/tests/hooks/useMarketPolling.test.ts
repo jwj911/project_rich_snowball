@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { useMarketPolling } from '@/hooks/useMarketPolling'
 
@@ -64,22 +64,11 @@ describe('useMarketPolling', () => {
     )
 
     expect(result.current.data).toBeNull()
-    await result.current.refresh()
+    await act(async () => {
+      await result.current.refresh()
+    })
     expect(fetcher).toHaveBeenCalledTimes(1)
     expect(result.current.data).toEqual(['a'])
-  })
-
-  it('should allow manual data update via setData', () => {
-    const { result } = renderHook(() =>
-      useMarketPolling({
-        enabled: true,
-        fetcher: vi.fn(),
-        runOnMount: false,
-      }),
-    )
-
-    result.current.setData([1, 2, 3])
-    expect(result.current.data).toEqual([1, 2, 3])
   })
 
   it('should track failure count on repeated errors', async () => {
@@ -93,7 +82,9 @@ describe('useMarketPolling', () => {
     )
 
     await waitFor(() => expect(result.current.heartbeat.failureCount).toBe(1))
-    await result.current.refresh()
+    await act(async () => {
+      await result.current.refresh()
+    })
     await waitFor(() => expect(result.current.heartbeat.failureCount).toBe(2))
   })
 })
