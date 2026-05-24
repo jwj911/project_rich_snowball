@@ -2,13 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import AppShell from '@/components/layout/AppShell'
 
-const KlineChart = dynamic(() => import('@/components/KlineChart'), {
-  ssr: false,
-  loading: () => <div className="h-[520px] animate-pulse rounded-lg bg-slate-800" />,
-})
 import LoginRequired from '@/components/auth/LoginRequired'
 import { useAuth } from '@/components/auth/AuthProvider'
 import EmptyState from '@/components/ui/EmptyState'
@@ -16,7 +11,7 @@ import ErrorState from '@/components/ui/ErrorState'
 import PriceChange from '@/components/market/PriceChange'
 import TechnicalAnalysisPanel from '@/components/market/TechnicalAnalysisPanel'
 import { usePriceLevels } from '@/hooks/usePriceLevels'
-import { api, Comment, KlineData, Product, RealtimeQuote } from '@/lib/api'
+import { api, Comment, Product, RealtimeQuote } from '@/lib/api'
 import { captureMessage } from '@/lib/sentry-lite'
 import { formatInteger, formatPrice, getChangeTone } from '@/lib/format'
 import { toast } from 'sonner'
@@ -27,50 +22,11 @@ import {
 } from 'lucide-react'
 
 import WatchlistButton from '@/components/product/WatchlistButton'
-import KlineToolbar, { KlinePeriod, KlineSource } from '@/components/product/KlineToolbar'
+import KlineSection from '@/components/product/KlineSection'
+import { useProductKline } from '@/hooks/useProductKline'
 import TradingInfoPanel from '@/components/product/TradingInfoPanel'
 import LevelEditor from '@/components/product/LevelEditor'
 import CommentSection from '@/components/product/CommentSection'
-
-const KLINE_PERIOD_LIMITS: Record<KlinePeriod, number> = {
-  '1m': 120, '5m': 120, '15m': 120, '30m': 120,
-  '1h': 100, '1d': 90, '1w': 90,
-}
-
-async function loadKlineBySource(
-  symbol: string,
-  source: KlineSource,
-  period: KlinePeriod,
-): Promise<{ rows: KlineData[]; period: KlinePeriod; notice: string | null }> {
-  const limit = KLINE_PERIOD_LIMITS[period]
-  try {
-    let rows: KlineData[]
-    switch (source) {
-      case 'continuous':
-        rows = await api.getContinuousKline(symbol, period, undefined, undefined, limit)
-        break
-      case 'main':
-        rows = await api.getMainContractKline(symbol, period, undefined, undefined, limit)
-        break
-      default:
-        rows = await api.getKline(symbol, period, limit)
-        break
-    }
-    if (rows.length > 0) return { rows, period, notice: null }
-
-    const sourceLabel = { continuous: '连续K线', main: '主力合约', single: '单合约' }[source]
-    let notice = `${sourceLabel}（${period}）暂无 K 线数据`
-    if (source === 'continuous') notice += '，可尝试切换至主力合约或单合约'
-    else if (source === 'main') notice += '，可尝试切换至单合约'
-    return { rows, period, notice }
-  } catch (err) {
-    return {
-      rows: [],
-      period,
-      notice: err instanceof Error ? err.message : 'K 线数据加载失败',
-    }
-  }
-}
 
 export default function ProductDetailPage({ params }: { params: { id: string } }) {
   const productId = Number.parseInt(params.id, 10)
@@ -84,18 +40,27 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [newSupport, setNewSupport] = useState('')
   const [newResistance, setNewResistance] = useState('')
-  const [klineData, setKlineData] = useState<KlineData[]>([])
-  const [selectedKlinePeriod, setSelectedKlinePeriod] = useState<KlinePeriod>('1d')
-  const [displayedKlinePeriod, setDisplayedKlinePeriod] = useState<KlinePeriod>('1d')
-  const [selectedKlineSource, setSelectedKlineSource] = useState<KlineSource>('continuous')
-  const [displayedKlineSource, setDisplayedKlineSource] = useState<KlineSource>('continuous')
-  const [klineNotice, setKlineNotice] = useState<string | null>(null)
-  const [isKlineLoading, setIsKlineLoading] = useState(false)
   const [realtime, setRealtime] = useState<RealtimeQuote | null>(null)
   const [varietyId, setVarietyId] = useState<number | null>(null)
   const pollingInFlightRef = useRef(false)
   const [isInWatchlist, setIsInWatchlist] = useState(false)
   const [watchlistId, setWatchlistId] = useState<number | null>(null)
+
+  const {
+    klineData,
+    contracts,
+    selectedContractId,
+    selectedKlinePeriod,
+    displayedKlinePeriod,
+    selectedKlineSource,
+    displayedKlineSource,
+    klineNotice,
+    isKlineLoading,
+    isContractsLoading,
+    setSelectedContractId,
+    setSelectedKlinePeriod,
+    setSelectedKlineSource,
+  } = useProductKline(product?.symbol, isAuthenticated, varietyId)
 
   const {
     supportLevels,
@@ -166,32 +131,6 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
     return () => clearInterval(interval)
   }, [authLoading, isAuthenticated, loadData, productId])
-
-  useEffect(() => {
-    if (!product?.symbol || !isAuthenticated) return
-    let cancelled = false
-    setIsKlineLoading(true)
-    setKlineNotice(null)
-
-    loadKlineBySource(product.symbol, selectedKlineSource, selectedKlinePeriod)
-      .then((kline) => {
-        if (cancelled) return
-        setKlineData(kline.rows)
-        setDisplayedKlinePeriod(kline.period)
-        setDisplayedKlineSource(selectedKlineSource)
-        setKlineNotice(kline.notice)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setKlineData([])
-        setKlineNotice(err instanceof Error ? err.message : 'K 线数据加载失败')
-      })
-      .finally(() => {
-        if (!cancelled) setIsKlineLoading(false)
-      })
-
-    return () => { cancelled = true }
-  }, [isAuthenticated, product?.symbol, selectedKlinePeriod, selectedKlineSource])
 
   useEffect(() => {
     if (!varietyId) return
@@ -308,27 +247,24 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
             <section className="min-w-0 space-y-5">
               <div className="min-h-[420px] space-y-3">
-                <KlineToolbar
+                <KlineSection
+                  data={klineData}
+                  symbol={product.symbol}
+                  contracts={contracts}
+                  selectedContractId={selectedContractId}
                   selectedSource={selectedKlineSource}
                   selectedPeriod={selectedKlinePeriod}
                   displayedSource={displayedKlineSource}
                   displayedPeriod={displayedKlinePeriod}
                   isLoading={isKlineLoading}
-                  onSourceChange={setSelectedKlineSource}
-                  onPeriodChange={setSelectedKlinePeriod}
-                />
-
-                {klineNotice && (
-                  <div className="mb-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-                    {klineNotice}
-                  </div>
-                )}
-
-                <KlineChart
-                  data={klineData}
-                  symbol={product.symbol}
+                  isContractsLoading={isContractsLoading}
+                  notice={klineNotice}
+                  viewportResetKey={`${product.symbol}:${displayedKlineSource}:${displayedKlinePeriod}:${selectedContractId ?? 'none'}`}
                   supportLevels={sortedSupportLevels}
                   resistanceLevels={sortedResistanceLevels}
+                  onSelectContract={setSelectedContractId}
+                  onSelectSource={setSelectedKlineSource}
+                  onSelectPeriod={setSelectedKlinePeriod}
                   onAddSupport={addSupport}
                   onAddResistance={addResistance}
                   onRemoveSupport={removeSupport}
