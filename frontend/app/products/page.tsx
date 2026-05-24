@@ -17,6 +17,8 @@ type DirectionFilter = 'all' | 'up' | 'down'
 
 const EMPTY_PRODUCTS: Product[] = []
 
+const PAGE_SIZE = 20
+
 export default function ProductsPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [sortBy, setSortBy] = useState<QuoteSortField>('change_percent')
@@ -24,70 +26,64 @@ export default function ProductsPage() {
   const [searchText, setSearchText] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all')
+  const [page, setPage] = useState(1)
+
+  const query = useMemo(() => ({
+    skip: (page - 1) * PAGE_SIZE,
+    limit: PAGE_SIZE,
+    search: searchText.trim() || undefined,
+    category: categoryFilter !== 'all' ? categoryFilter : undefined,
+    direction: directionFilter,
+    sortBy,
+    sortOrder,
+  }), [page, searchText, categoryFilter, directionFilter, sortBy, sortOrder])
 
   const {
     products,
+    total,
+    totalVolume,
+    upCount,
+    downCount,
+    categories,
     loading,
     error,
     heartbeat,
     refresh,
-  } = useProductListRealtime(!authLoading && isAuthenticated)
+  } = useProductListRealtime(!authLoading && isAuthenticated, query)
 
-  const categories = useMemo(() => {
-    return Array.from(new Set(products.map((product) => product.category).filter(Boolean) as string[])).sort()
-  }, [products])
-
-  const filteredProducts = useMemo(() => {
-    const keyword = searchText.trim().toLowerCase()
-
-    return products.filter((product) => {
-      const matchesKeyword = keyword.length === 0
-        || product.name.toLowerCase().includes(keyword)
-        || product.symbol.toLowerCase().includes(keyword)
-        || (product.category ?? '').toLowerCase().includes(keyword)
-      const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter
-      const change = product.change_percent ?? 0
-      const matchesDirection = directionFilter === 'all'
-        || (directionFilter === 'up' && change >= 0)
-        || (directionFilter === 'down' && change < 0)
-
-      return matchesKeyword && matchesCategory && matchesDirection
-    })
-  }, [categoryFilter, directionFilter, products, searchText])
-
-  const sortedProducts = useMemo(() => {
-    return [...filteredProducts].sort((a, b) => {
-      const aVal = a[sortBy] ?? 0
-      const bVal = b[sortBy] ?? 0
-      return sortOrder === 'desc' ? bVal - aVal : aVal - bVal
-    })
-  }, [filteredProducts, sortBy, sortOrder])
-
-  const upCount = useMemo(
-    () => products.filter((product) => (product.change_percent ?? 0) >= 0).length,
-    [products],
-  )
-  const downCount = Math.max(products.length - upCount, 0)
-  const totalVolume = useMemo(
-    () => products.reduce((sum, product) => sum + (product.volume ?? 0), 0),
-    [products],
-  )
   const hasActiveFilter = searchText.trim() !== '' || categoryFilter !== 'all' || directionFilter !== 'all'
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const handleSort = (field: QuoteSortField) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')
-      return
+    } else {
+      setSortBy(field)
+      setSortOrder('desc')
     }
+    setPage(1)
+  }
 
-    setSortBy(field)
-    setSortOrder('desc')
+  const handleSearchChange = (value: string) => {
+    setSearchText(value)
+    setPage(1)
+  }
+
+  const handleCategoryChange = (value: string) => {
+    setCategoryFilter(value)
+    setPage(1)
+  }
+
+  const handleDirectionChange = (value: DirectionFilter) => {
+    setDirectionFilter(value)
+    setPage(1)
   }
 
   const resetFilters = () => {
     setSearchText('')
     setCategoryFilter('all')
     setDirectionFilter('all')
+    setPage(1)
   }
 
   return (
@@ -112,7 +108,7 @@ export default function ProductsPage() {
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-4">
-              <Metric label="品种数" value={formatInteger(products.length)} />
+              <Metric label="品种数" value={formatInteger(total)} />
               <Metric label="上涨" value={formatInteger(upCount)} tone="up" />
               <Metric label="下跌" value={formatInteger(downCount)} tone="down" />
               <Metric label="总成交量" value={formatInteger(totalVolume)} />
@@ -124,7 +120,7 @@ export default function ProductsPage() {
                 <input
                   type="search"
                   value={searchText}
-                  onChange={(event) => setSearchText(event.target.value)}
+                  onChange={(event) => handleSearchChange(event.target.value)}
                   placeholder="搜索品种名称、代码或分类"
                   className="h-10 w-full rounded-lg border border-slate-700 bg-black/30 pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-red-800"
                 />
@@ -134,7 +130,7 @@ export default function ProductsPage() {
                 <Filter size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <select
                   value={categoryFilter}
-                  onChange={(event) => setCategoryFilter(event.target.value)}
+                  onChange={(event) => handleCategoryChange(event.target.value)}
                   className="h-10 w-full appearance-none rounded-lg border border-slate-700 bg-black/30 pl-9 pr-3 text-sm text-white outline-none transition focus:border-red-800"
                 >
                   <option value="all">全部分类</option>
@@ -148,7 +144,7 @@ export default function ProductsPage() {
               <select
                 id="direction-filter"
                 value={directionFilter}
-                onChange={(event) => setDirectionFilter(event.target.value as DirectionFilter)}
+                onChange={(event) => handleDirectionChange(event.target.value as DirectionFilter)}
                 className="h-10 rounded-lg border border-slate-700 bg-black/30 px-3 text-sm text-white outline-none transition focus:border-red-800"
               >
                 <option value="all">全部涨跌</option>
@@ -172,39 +168,66 @@ export default function ProductsPage() {
             <TableSkeleton />
           ) : error ? (
             <ErrorState message={error} onRetry={refresh} />
-          ) : products.length === 0 ? (
-            <EmptyState
-              icon={Search}
-              title="暂无品种数据"
-              description="当前没有可展示的期货品种，请稍后重试。"
-            />
-          ) : sortedProducts.length === 0 ? (
-            <EmptyState
-              icon={Search}
-              title="没有匹配的品种"
-              description="调整搜索词或筛选条件后再试。"
-              action={
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
-                >
-                  清除筛选
-                </button>
-              }
-            />
+          ) : total === 0 ? (
+            hasActiveFilter ? (
+              <EmptyState
+                icon={Search}
+                title="没有匹配的品种"
+                description="调整搜索词或筛选条件后再试。"
+                action={
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+                  >
+                    清除筛选
+                  </button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={Search}
+                title="暂无品种数据"
+                description="当前没有可展示的期货品种，请稍后重试。"
+              />
+            )
           ) : (
             <section className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
-                <span>当前显示 {sortedProducts.length} / {products.length} 个品种</span>
+                <span>
+                  共 {total} 个品种 · 当前显示 {(page - 1) * PAGE_SIZE + 1} – {Math.min(page * PAGE_SIZE, total)}
+                </span>
                 <span>每 30 秒自动刷新</span>
               </div>
               <QuoteTable
-                products={sortedProducts}
+                products={products}
                 sortBy={sortBy}
                 sortOrder={sortOrder}
                 onSort={handleSort}
               />
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <button
+                    type="button"
+                    disabled={page <= 1}
+                    onClick={() => setPage(page - 1)}
+                    className="inline-flex h-9 items-center rounded-lg border border-slate-700 px-3 text-sm text-slate-300 transition hover:border-red-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    上一页
+                  </button>
+                  <span className="text-sm text-slate-400">
+                    第 {page} / {totalPages} 页
+                  </span>
+                  <button
+                    type="button"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage(page + 1)}
+                    className="inline-flex h-9 items-center rounded-lg border border-slate-700 px-3 text-sm text-slate-300 transition hover:border-red-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    下一页
+                  </button>
+                </div>
+              )}
             </section>
           )}
         </div>

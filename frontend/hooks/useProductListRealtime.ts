@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { api, Product } from '@/lib/api'
+import { api, Product, ProductListResponse, ProductQuery } from '@/lib/api'
 import { useRealtimeQuotes } from './useRealtimeQuotes'
 import { MarketHeartbeat } from './useMarketPolling'
 
@@ -9,6 +9,11 @@ export type ProductListSource = 'sse' | 'polling' | 'initial'
 
 export interface UseProductListRealtimeResult {
   products: Product[]
+  total: number
+  totalVolume: number
+  upCount: number
+  downCount: number
+  categories: string[]
   loading: boolean
   source: ProductListSource
   error: string | null
@@ -28,8 +33,20 @@ export interface UseProductListRealtimeResult {
  * - 实时价格通过 SSE 推送，无需 30 秒轮询
  * - 服务端只在数据实际更新后才推送（变更感知），大幅降低 DB 查询压力
  */
-export function useProductListRealtime(enabled: boolean): UseProductListRealtimeResult {
-  const [products, setProducts] = useState<Product[]>([])
+const EMPTY_RESPONSE: ProductListResponse = {
+  items: [],
+  total: 0,
+  totalVolume: 0,
+  upCount: 0,
+  downCount: 0,
+  categories: [],
+}
+
+export function useProductListRealtime(
+  enabled: boolean,
+  query: ProductQuery = {},
+): UseProductListRealtimeResult {
+  const [response, setResponse] = useState<ProductListResponse>(EMPTY_RESPONSE)
   const [loading, setLoading] = useState(false)
   const [initialError, setInitialError] = useState<string | null>(null)
 
@@ -38,8 +55,8 @@ export function useProductListRealtime(enabled: boolean): UseProductListRealtime
     setLoading(true)
     setInitialError(null)
     try {
-      const items = await api.getProducts()
-      setProducts(items)
+      const result = await api.getProductsPage(query)
+      setResponse(result)
     } catch (err) {
       setInitialError(err instanceof Error ? err.message : '产品列表加载失败')
     } finally {
@@ -51,18 +68,18 @@ export function useProductListRealtime(enabled: boolean): UseProductListRealtime
     if (enabled) {
       loadProducts()
     } else {
-      setProducts([])
+      setResponse(EMPTY_RESPONSE)
       setInitialError(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled])
+  }, [enabled, query.skip, query.limit, query.search, query.category, query.direction, query.sortBy, query.sortOrder])
 
-  const symbols = useMemo(() => products.map((p) => p.symbol), [products])
+  const symbols = useMemo(() => response.items.map((p) => p.symbol), [response.items])
   const { quotes: realtimeQuotes, source: sseSource, error: sseError } = useRealtimeQuotes(symbols)
 
   const mergedProducts = useMemo(() => {
-    if (realtimeQuotes.size === 0) return products
-    return products.map((product) => {
+    if (realtimeQuotes.size === 0) return response.items
+    return response.items.map((product) => {
       const quote = realtimeQuotes.get(product.symbol)
       if (!quote) return product
       return {
@@ -76,7 +93,7 @@ export function useProductListRealtime(enabled: boolean): UseProductListRealtime
         updated_at: quote.updated_at ?? product.updated_at,
       }
     })
-  }, [products, realtimeQuotes])
+  }, [response.items, realtimeQuotes])
 
   const source: ProductListSource = useMemo(() => {
     if (loading) return 'initial'
@@ -111,6 +128,11 @@ export function useProductListRealtime(enabled: boolean): UseProductListRealtime
 
   return {
     products: mergedProducts,
+    total: response.total,
+    totalVolume: response.totalVolume,
+    upCount: response.upCount,
+    downCount: response.downCount,
+    categories: response.categories,
     loading,
     source,
     error: initialError || sseError,
