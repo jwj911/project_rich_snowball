@@ -103,7 +103,7 @@ describe('api auth and errors', () => {
     window.removeEventListener('open-login-modal', modalListener)
   })
 
-  it('uses cookie credentials on login and keeps refresh token out of localStorage', async () => {
+  it('uses cookie credentials on login and keeps both tokens out of localStorage', async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse({
       access_token: 'access-token',
       token_type: 'bearer',
@@ -120,8 +120,8 @@ describe('api auth and errors', () => {
         credentials: 'include',
       }),
     )
-    expect(localStorage.setItem).toHaveBeenCalledTimes(1)
-    expect(localStorage.setItem).toHaveBeenCalledWith('token', 'access-token')
+    expect(localStorage.setItem).not.toHaveBeenCalledWith('token', expect.anything())
+    expect(api.getToken()).toBe('access-token')
     expect(api.getRefreshToken()).toBeNull()
   })
 

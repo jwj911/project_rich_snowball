@@ -94,7 +94,7 @@ export function useRealtimeQuotes(symbols: string[]): UseRealtimeQuotesResult {
       if (!mountedRef.current || sseFailed) return
 
       try {
-        es = new EventSource(buildSseUrl(symbols))
+        es = new EventSource(buildSseUrl(symbols), { withCredentials: true })
 
         es.onopen = () => {
           if (!mountedRef.current) return
