@@ -216,25 +216,16 @@ def get_continuous_kline(
             if seg_rows:
                 break
 
-        # 若该 contract_id 下无数据，回退到不限制 contract_id（兼容历史数据不一致场景）
+        # 若该 contract_id 下无数据，不再回退到无 contract_id 过滤的查询，
+        # 避免混入相邻合约数据导致连续 K 线语义失真。
         if not seg_rows:
             logger.warning(
-                "Continuous kline fallback: no data for contract_id=%s variety_id=%s period=%s, "
-                "falling back to unfiltered query (risk of mixing adjacent contracts).",
+                "Continuous kline gap: no data for contract_id=%s variety_id=%s period=%s "
+                "segment [%s, %s). Skipping this segment.",
                 seg["contract_id"], variety_id, period,
+                query_start.isoformat(), query_end.isoformat(),
             )
-            for candidate in period_candidates(period):
-                q_fallback = (
-                    db.query(KlineDataDB)
-                    .filter(KlineDataDB.variety_id == variety_id)
-                    .filter(KlineDataDB.period == candidate)
-                    .filter(KlineDataDB.trading_time >= query_start)
-                    .filter(KlineDataDB.trading_time < query_end)
-                    .order_by(KlineDataDB.trading_time.asc())
-                )
-                seg_rows = q_fallback.limit(seg_limit).all()
-                if seg_rows:
-                    break
+            continue
 
         for row in seg_rows:
             # SQLite 读出 DateTime(timezone=True) 可能为 naive，需归一化
@@ -319,6 +310,7 @@ def get_main_contract_kline(
             ]
 
     # 回退：按 variety_id 查询，不限制 contract_id
+    # 此时返回的数据可能来自多个合约，必须标注每条数据的实际合约来源
     rows = []
     for candidate in period_candidates(period):
         q = (
@@ -333,16 +325,25 @@ def get_main_contract_kline(
         rows = q.order_by(KlineDataDB.trading_time.asc()).limit(limit).all()
         if rows:
             break
-    return [
-        {
+
+    # 预加载所有涉及的合约，避免 N+1
+    contract_ids = {r.contract_id for r in rows}
+    contracts = {
+        c.id: c
+        for c in db.query(FutContractDB).filter(FutContractDB.id.in_(contract_ids)).all()
+    } if contract_ids else {}
+
+    result = []
+    for r in rows:
+        actual_contract = contracts.get(r.contract_id)
+        result.append({
             "time": r.trading_time.isoformat(),
             "open": r.open_price,
             "high": r.high_price,
             "low": r.low_price,
             "close": r.close_price,
             "volume": r.volume,
-            "contract_code": contract.symbol if contract else variety.contract_code,
-            "contract_id": contract.id if contract else None,
-        }
-        for r in rows
-    ]
+            "contract_code": actual_contract.symbol if actual_contract else variety.contract_code,
+            "contract_id": actual_contract.id if actual_contract else r.contract_id,
+        })
+    return result

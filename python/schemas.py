@@ -295,6 +295,7 @@ class ContractRolloverResponse(BaseModel):
 
 class ContinuousKlineResponse(KlineResponse):
     contract_code: str | None
+    contract_id: int | None
 
 
 # ========== Batch Price Levels ==========

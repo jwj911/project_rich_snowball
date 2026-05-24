@@ -303,3 +303,80 @@ def test_continuous_and_main_kline_accept_period_aliases(client, db_session):
     contract = client.get(f"/api/contracts/{c1.id}/kline?period=1d", headers=headers)
     assert contract.status_code == 200
     assert len(contract.json()) == 1
+
+
+def test_continuous_kline_skips_missing_contract(client, db_session):
+    """连续 K 线某 segment 的 contract_id 无数据时，应跳过该 segment，不混入其他合约。"""
+    variety, c1, c2 = _setup_variety_and_contracts(db_session)
+    _create_test_user(db_session)
+
+    # 只给旧合约 c1 灌数据，新合约 c2 无数据
+    k1 = KlineDataDB(
+        variety_id=variety.id,
+        contract_id=c1.id,
+        period="D",
+        trading_time=datetime(2025, 1, 10),
+        open_price=100.0,
+        high_price=110.0,
+        low_price=95.0,
+        close_price=105.0,
+        volume=1000,
+    )
+    rollover = ContractRolloverDB(
+        variety_id=variety.id,
+        old_contract_id=c1.id,
+        new_contract_id=c2.id,
+        old_contract_code="TEST2501",
+        new_contract_code="TEST2502",
+        effective_date=datetime(2025, 2, 1),
+        source="test",
+    )
+    db_session.add_all([k1, rollover])
+    db_session.commit()
+
+    token = _login(client)
+    r = client.get(
+        "/api/klines/TEST/continuous?period=D",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert r.status_code == 200
+    data = r.json()
+    # 只应返回旧合约数据，新合约 segment 被跳过
+    assert len(data) == 1
+    assert data[0]["contract_code"] == "TEST2501"
+    assert data[0]["close"] == 105.0
+
+
+def test_main_contract_kline_fallback_labels_actual_contract(client, db_session):
+    """主力合约无数据 fallback 到 variety 查询时，应标注每条数据的实际合约来源。"""
+    variety, c1, c2 = _setup_variety_and_contracts(db_session)
+    _create_test_user(db_session)
+    # 主力设为 c2，但只给 c1 灌数据
+    variety.contract_code = "TEST2502"
+    db_session.commit()
+
+    k1 = KlineDataDB(
+        variety_id=variety.id,
+        contract_id=c1.id,
+        period="D",
+        trading_time=datetime(2025, 1, 10),
+        open_price=100.0,
+        high_price=110.0,
+        low_price=95.0,
+        close_price=105.0,
+        volume=1000,
+    )
+    db_session.add(k1)
+    db_session.commit()
+
+    token = _login(client)
+    r = client.get(
+        "/api/klines/TEST/main?period=D",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert len(data) == 1
+    # fallback 后应标注实际数据来源为 TEST2501，而不是当前主力 TEST2502
+    assert data[0]["contract_code"] == "TEST2501"
+    assert data[0]["contract_id"] == c1.id

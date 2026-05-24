@@ -77,6 +77,7 @@ def get_continuous_kline_api(
             close=r["close"],
             volume=r["volume"],
             contract_code=r.get("contract_code"),
+            contract_id=r.get("contract_id"),
         )
         for r in rows
     ]
@@ -109,6 +110,7 @@ def get_main_contract_kline_api(
             close=r["close"],
             volume=r["volume"],
             contract_code=r.get("contract_code"),
+            contract_id=r.get("contract_id"),
         )
         for r in rows
     ]
