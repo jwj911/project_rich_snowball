@@ -1,4 +1,5 @@
 """Map external market data rows to the internal collector schema."""
+import math
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
@@ -304,7 +305,6 @@ def _to_float(val: Any) -> float | None:
     if val in (None, "-", "", "None"):
         return None
     try:
-        import math
         f = float(val)
         if math.isnan(f):
             return None

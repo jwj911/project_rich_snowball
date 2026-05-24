@@ -238,16 +238,7 @@ async def prometheus_middleware(request: Request, call_next):
 def metrics(request: Request):
     """Prometheus 指标抓取端点。仅限本地/内网访问。"""
     client_host = request.client.host if request.client else ""
-    # 基础允许：localhost、127.0.0.1、内网段、IPv6 loopback/private
-    allowed = _is_trusted_proxy(client_host)
-    if not allowed:
-        # 仅当请求直接来自受信代理时，才参考 X-Forwarded-For
-        if _is_trusted_proxy(client_host):
-            forwarded_for = request.headers.get("X-Forwarded-For", "")
-            if forwarded_for:
-                first_hop = forwarded_for.split(",")[0].strip()
-                allowed = _is_trusted_proxy(first_hop)
-    if not allowed:
+    if not _is_trusted_proxy(client_host):
         raise HTTPException(status_code=403, detail="Forbidden")
     return Response(content=metrics_response(), media_type=get_content_type())
 

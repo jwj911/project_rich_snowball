@@ -6,78 +6,68 @@ from sqlalchemy.orm import Session
 from models import PriceLevelDB, VarietyDB
 from schemas import PriceLevelBatchCreate, PriceLevelCreate, PriceLevelUpdate
 from services.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
+from services.domain.repositories.price_level_repository import PriceLevelRepository
 
 
 class PriceLevelService:
-    """价位标注业务逻辑封装。"""
+    """价位标注业务逻辑封装。
 
-    @staticmethod
+    通过构造函数接收 Repository，支持在单元测试中注入 MockRepository
+    以脱离真实数据库进行测试。
+    """
+
+    def __init__(self, db: Session, repository: PriceLevelRepository | None = None):
+        self._db = db
+        self._repo = repository or PriceLevelRepository(db)
+
     def list_price_levels(
-        db: Session, user_id: int, variety_id: int | None = None, type: str | None = None,
-        skip: int = 0, limit: int = 100,
+        self,
+        user_id: int,
+        variety_id: int | None = None,
+        type: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[PriceLevelDB]:
-        query = db.query(PriceLevelDB).filter(PriceLevelDB.user_id == user_id)
-        if variety_id:
-            query = query.filter(PriceLevelDB.variety_id == variety_id)
-        if type:
-            query = query.filter(PriceLevelDB.type == type)
-        return query.order_by(PriceLevelDB.created_at.desc()).offset(skip).limit(limit).all()
+        return self._repo.list_by_user(user_id, variety_id, type, skip, limit)
 
-    @staticmethod
-    def _get_and_check_owner(db: Session, user_id: int, price_level_id: int) -> PriceLevelDB:
-        pl = db.query(PriceLevelDB).filter(PriceLevelDB.id == price_level_id).first()
+    def _get_and_check_owner(self, user_id: int, price_level_id: int) -> PriceLevelDB:
+        pl = self._repo.get_by_id(price_level_id)
         if not pl:
             raise NotFoundError("价位标注不存在")
         if pl.user_id != user_id:
             raise ForbiddenError("无权操作")
         return pl
 
-    @staticmethod
     def _check_duplicate(
-        db: Session, user_id: int, variety_id: int, type: str, price, exclude_id: int | None = None
+        self, user_id: int, variety_id: int, type: str, price, exclude_id: int | None = None
     ) -> bool:
-        query = db.query(PriceLevelDB).filter(
-            PriceLevelDB.user_id == user_id,
-            PriceLevelDB.variety_id == variety_id,
-            PriceLevelDB.type == type,
-            PriceLevelDB.price == price,
-        )
-        if exclude_id is not None:
-            query = query.filter(PriceLevelDB.id != exclude_id)
-        return query.first() is not None
+        return self._repo.check_duplicate(user_id, variety_id, type, price, exclude_id)
 
-    @staticmethod
-    def create_price_level(db: Session, user_id: int, item: PriceLevelCreate) -> PriceLevelDB:
-        variety = db.query(VarietyDB).filter(VarietyDB.id == item.variety_id).first()
+    def create_price_level(self, user_id: int, item: PriceLevelCreate) -> PriceLevelDB:
+        variety = self._db.query(VarietyDB).filter(VarietyDB.id == item.variety_id).first()
         if not variety:
             raise NotFoundError("品种不存在")
 
-        pl = PriceLevelDB(
-            user_id=user_id,
-            variety_id=item.variety_id,
-            type=item.type,
-            price=item.price,
-            note=item.note,
-            source="manual",
-        )
-        db.add(pl)
         try:
-            db.commit()
-            db.refresh(pl)
+            return self._repo.create(
+                user_id=user_id,
+                variety_id=item.variety_id,
+                type=item.type,
+                price=item.price,
+                note=item.note,
+            )
         except IntegrityError:
-            db.rollback()
+            self._db.rollback()
             raise ConflictError("该价位标注已存在")
-        return pl
 
-    @staticmethod
     def update_price_level(
-        db: Session, user_id: int, price_level_id: int, item: PriceLevelUpdate
+        self, user_id: int, price_level_id: int, item: PriceLevelUpdate
     ) -> PriceLevelDB:
-        pl = PriceLevelService._get_and_check_owner(db, user_id, price_level_id)
+        pl = self._get_and_check_owner(user_id, price_level_id)
 
         if item.price is not None:
-            if PriceLevelService._check_duplicate(
-                db, user_id, pl.variety_id, pl.type, item.price, exclude_id=price_level_id
+            if self._check_duplicate(
+                user_id, pl.variety_id, pl.type, item.price, exclude_id=price_level_id
             ):
                 raise ConflictError("该价位标注已存在")
             pl.price = item.price
@@ -85,22 +75,17 @@ class PriceLevelService:
             pl.note = item.note
 
         try:
-            db.commit()
-            db.refresh(pl)
+            return self._repo.update(pl)
         except IntegrityError:
-            db.rollback()
+            self._db.rollback()
             raise ConflictError("该价位标注已存在")
-        return pl
 
-    @staticmethod
-    def delete_price_level(db: Session, user_id: int, price_level_id: int) -> None:
-        pl = PriceLevelService._get_and_check_owner(db, user_id, price_level_id)
-        db.delete(pl)
-        db.commit()
+    def delete_price_level(self, user_id: int, price_level_id: int) -> None:
+        pl = self._get_and_check_owner(user_id, price_level_id)
+        self._repo.delete(pl)
 
-    @staticmethod
     def create_price_levels_batch(
-        db: Session, user_id: int, body: PriceLevelBatchCreate
+        self, user_id: int, body: PriceLevelBatchCreate
     ) -> tuple[list[PriceLevelDB], list[dict]]:
         """批量导入价位标注。
 
@@ -113,14 +98,11 @@ class PriceLevelService:
         variety_ids = {item.variety_id for item in body.items}
         varieties = {
             v.id: v
-            for v in db.query(VarietyDB).filter(VarietyDB.id.in_(variety_ids)).all()
+            for v in self._db.query(VarietyDB).filter(VarietyDB.id.in_(variety_ids)).all()
         }
         existing_keys = {
             (pl.variety_id, pl.type, float(pl.price))
-            for pl in db.query(PriceLevelDB).filter(
-                PriceLevelDB.user_id == user_id,
-                PriceLevelDB.variety_id.in_(variety_ids),
-            ).all()
+            for pl in self._repo.list_by_user_and_varieties(user_id, variety_ids)
         }
 
         pending: list[PriceLevelDB] = []
@@ -143,16 +125,16 @@ class PriceLevelService:
                 note=item.note,
                 source="manual",
             )
-            db.add(pl)
+            self._db.add(pl)
             pending.append(pl)
 
         try:
-            db.commit()
+            self._db.commit()
             for pl in pending:
-                db.refresh(pl)
+                self._db.refresh(pl)
                 success.append(pl)
         except IntegrityError:
-            db.rollback()
+            self._db.rollback()
             success = []
             for idx, item in enumerate(body.items):
                 if item.variety_id not in varieties:
@@ -165,13 +147,13 @@ class PriceLevelService:
                     note=item.note,
                     source="manual",
                 )
-                db.add(pl)
+                self._db.add(pl)
                 try:
-                    db.commit()
-                    db.refresh(pl)
+                    self._db.commit()
+                    self._db.refresh(pl)
                     success.append(pl)
                 except IntegrityError:
-                    db.rollback()
+                    self._db.rollback()
                     if {"index": idx, "reason": "该价位标注已存在"} not in failed:
                         failed.append({"index": idx, "reason": "该价位标注已存在"})
 

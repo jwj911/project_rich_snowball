@@ -14,12 +14,10 @@ from data_collector.upsert import (
     upsert_fut_holding_bulk, upsert_fut_price_limit_bulk,
 )
 from models import SessionLocal, DataIngestionRunDB, VarietyDB, ContractRolloverDB, FutContractDB
+from config import CIRCUIT_FAILURE_THRESHOLD, PIPELINE_COMMIT_BATCH_SIZE
 from services.circuit_breaker import is_circuit_open, record_failure, record_success
 
 logger = logging.getLogger(__name__)
-
-
-CIRCUIT_FAILURE_THRESHOLD = 0.5
 
 
 def _record_circuit_outcome(source_name: str, stats: dict, exc: Exception | None):
@@ -129,7 +127,7 @@ class DataPipeline:
         db = SessionLocal()
         exc = None
 
-        COMMIT_BATCH_SIZE = 50
+        COMMIT_BATCH_SIZE = PIPELINE_COMMIT_BATCH_SIZE
         batch_counter = 0
 
         try:

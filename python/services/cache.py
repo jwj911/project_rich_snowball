@@ -15,13 +15,13 @@ from threading import Lock, RLock
 from typing import Any
 from weakref import WeakValueDictionary
 
-from config import CACHE_MAX_SIZE
+from config import CACHE_DEFAULT_TTL_SECONDS, CACHE_MAX_SIZE
 from services.metrics import cache_operations_total
 from services.redis_client import get_redis_client, is_redis_available, mark_redis_unavailable
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TTL_SECONDS = 5
+DEFAULT_TTL_SECONDS = CACHE_DEFAULT_TTL_SECONDS
 _MAX_SIZE = CACHE_MAX_SIZE
 
 # 缓存穿透防护：空结果占位标记（Redis/内存通用）

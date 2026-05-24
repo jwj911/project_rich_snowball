@@ -17,12 +17,13 @@ from threading import Lock
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from config import RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS
 from services.redis_client import get_redis_client, is_redis_available
 
 # 配置
-_WINDOW_SECONDS = 60
-_MAX_REQUESTS_PER_WINDOW = 100
-_RETRY_AFTER_SECONDS = 60
+_WINDOW_SECONDS = RATE_LIMIT_WINDOW_SECONDS
+_MAX_REQUESTS_PER_WINDOW = RATE_LIMIT_MAX_REQUESTS
+_RETRY_AFTER_SECONDS = RATE_LIMIT_WINDOW_SECONDS
 
 # 不限流的路径前缀
 _EXCLUDED_PATHS = {

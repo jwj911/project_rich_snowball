@@ -11,14 +11,14 @@ from services.domain.exceptions import ServiceError
 router = APIRouter(prefix="/api/comments", tags=["评论"])
 
 
-@router.post("", response_model=CommentResponse)
+@router.post("", response_model=CommentResponse, status_code=201)
 def create_comment(
     comment: CommentCreate,
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
     try:
-        return CommentService(db).create_comment(current_user.id, current_user, comment)
+        return CommentService(db).create_comment(current_user, comment)
     except ServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 

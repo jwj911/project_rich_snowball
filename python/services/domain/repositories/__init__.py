@@ -4,6 +4,13 @@
 """
 
 from services.domain.repositories.comment_repository import CommentRepository
+from services.domain.repositories.price_level_repository import PriceLevelRepository
 from services.domain.repositories.product_repository import ProductRepository
+from services.domain.repositories.watchlist_repository import WatchlistRepository
 
-__all__ = ["CommentRepository", "ProductRepository"]
+__all__ = [
+    "CommentRepository",
+    "PriceLevelRepository",
+    "ProductRepository",
+    "WatchlistRepository",
+]

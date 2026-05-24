@@ -8,7 +8,7 @@ from models import KlineDataDB, UserDB, VarietyDB
 from schemas import ContinuousKlineResponse, KlineResponse
 from services.continuous_kline import get_continuous_kline, get_main_contract_kline
 from services.kline_period import period_candidates
-from utils import ensure_naive
+from utils import ensure_utc
 
 router = APIRouter(prefix="/api/klines", tags=["K线"])
 
@@ -66,7 +66,7 @@ def get_continuous_kline_api(
         raise HTTPException(status_code=404, detail="品种不存在")
 
     rows = get_continuous_kline(
-        db, variety.id, period=period, start=ensure_naive(start), end=ensure_naive(end), limit=limit, adjustment="backward"
+        db, variety.id, period=period, start=ensure_utc(start), end=ensure_utc(end), limit=limit, adjustment="backward"
     )
     return [
         ContinuousKlineResponse(
@@ -98,7 +98,7 @@ def get_main_contract_kline_api(
         raise HTTPException(status_code=404, detail="品种不存在")
 
     rows = get_main_contract_kline(
-        db, variety.id, period=period, start=ensure_naive(start), end=ensure_naive(end), limit=limit
+        db, variety.id, period=period, start=ensure_utc(start), end=ensure_utc(end), limit=limit
     )
     return [
         ContinuousKlineResponse(

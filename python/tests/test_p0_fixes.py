@@ -277,7 +277,7 @@ def test_login_rate_limit(client):
         "email": "rl@example.com",
         "password": "password123"
     })
-    assert r.status_code == 200
+    assert r.status_code == 201
 
     # 快速登录 11 次
     for i in range(11):
@@ -354,7 +354,7 @@ def test_register_and_login_flow(client):
         "email": "test@example.com",
         "password": "password123"
     })
-    assert r.status_code == 200, f"注册失败: {r.text}"
+    assert r.status_code == 201, f"注册失败: {r.text}"
     assert r.json()["username"] == "testuser_p0"
 
     # 登录

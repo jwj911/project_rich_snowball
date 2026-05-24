@@ -61,7 +61,7 @@ def auth_client(client, db):
         "email": "ws@example.com",
         "password": "password123"
     })
-    assert r.status_code == 200, f"注册失败: {r.text}"
+    assert r.status_code == 201, f"注册失败: {r.text}"
 
     r = client.post("/api/auth/login", data={
         "username": "workspace_user",
@@ -82,7 +82,7 @@ def auth_client(client, db):
 class TestWatchlists:
     def test_create_watchlist(self, auth_client):
         r = auth_client.post("/api/watchlists", json={"variety_id": 1, "notes": "关注黄金"})
-        assert r.status_code == 200
+        assert r.status_code == 201
         data = r.json()
         assert data["variety_id"] == 1
         assert data["notes"] == "关注黄金"
@@ -116,7 +116,7 @@ class TestPriceLevels:
             "price": 450.0,
             "note": "强支撑"
         })
-        assert r.status_code == 200
+        assert r.status_code == 201
         data = r.json()
         assert data["type"] == "support"
         assert float(data["price"]) == 450.0
@@ -169,7 +169,7 @@ class TestCommentsPriceLevel:
             "content": "测试评论关联价位",
             "price_level_id": pl.id
         })
-        assert r.status_code == 200, r.text
+        assert r.status_code == 201, r.text
         data = r.json()
         assert data["price_level_id"] == pl.id
 

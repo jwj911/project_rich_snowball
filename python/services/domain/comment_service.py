@@ -18,7 +18,6 @@ class CommentService:
 
     def create_comment(
         self,
-        user_id: int,
         user: UserDB,
         comment: CommentCreate,
     ) -> CommentResponse:
@@ -27,13 +26,13 @@ class CommentService:
             raise NotFoundError("品种不存在")
 
         if comment.price_level_id:
-            pl = self._repo.get_price_level(comment.price_level_id, user_id)
+            pl = self._repo.get_price_level(comment.price_level_id, user.id)
             if not pl:
                 raise NotFoundError("关联的价位标注不存在")
 
         db_comment = self._repo.create(
             product_id=comment.product_id,
-            user_id=user_id,
+            user_id=user.id,
             price_level_id=comment.price_level_id,
             content=comment.content,
         )

@@ -27,18 +27,18 @@ def list_price_levels(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
-    items = PriceLevelService.list_price_levels(db, current_user.id, variety_id, type, skip=skip, limit=limit)
+    items = PriceLevelService(db).list_price_levels(current_user.id, variety_id, type, skip=skip, limit=limit)
     return [PriceLevelResponse.model_validate(i) for i in items]
 
 
-@router.post("", response_model=PriceLevelResponse)
+@router.post("", response_model=PriceLevelResponse, status_code=201)
 def create_price_level(
     item: PriceLevelCreate,
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
     try:
-        pl = PriceLevelService.create_price_level(db, current_user.id, item)
+        pl = PriceLevelService(db).create_price_level(current_user.id, item)
     except (NotFoundError, ConflictError) as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return PriceLevelResponse.model_validate(pl)
@@ -52,7 +52,7 @@ def update_price_level(
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
     try:
-        pl = PriceLevelService.update_price_level(db, current_user.id, price_level_id, item)
+        pl = PriceLevelService(db).update_price_level(current_user.id, price_level_id, item)
     except (NotFoundError, ForbiddenError, ConflictError) as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return PriceLevelResponse.model_validate(pl)
@@ -65,7 +65,7 @@ def delete_price_level(
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
     try:
-        PriceLevelService.delete_price_level(db, current_user.id, price_level_id)
+        PriceLevelService(db).delete_price_level(current_user.id, price_level_id)
     except (NotFoundError, ForbiddenError) as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return {"detail": "已删除"}
@@ -77,8 +77,8 @@ def create_price_levels_batch(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
-    success_orm, failed = PriceLevelService.create_price_levels_batch(
-        db, current_user.id, body
+    success_orm, failed = PriceLevelService(db).create_price_levels_batch(
+        current_user.id, body
     )
     success = [PriceLevelResponse.model_validate(pl) for pl in success_orm]
     return PriceLevelBatchResponse(

@@ -7,7 +7,7 @@ from dependencies import get_current_user_dependency, get_db
 from models import ContractRolloverDB, FutContractDB, KlineDataDB, UserDB, VarietyDB
 from schemas import ContractResponse, ContractRolloverResponse, KlineResponse
 from services.kline_period import period_candidates
-from utils import ensure_naive
+from utils import ensure_utc
 
 router = APIRouter(prefix="/api/contracts", tags=["合约"])
 
@@ -91,9 +91,9 @@ def get_contract_kline(
             .filter(KlineDataDB.period == candidate)
         )
         if start:
-            q = q.filter(KlineDataDB.trading_time >= ensure_naive(start))
+            q = q.filter(KlineDataDB.trading_time >= ensure_utc(start))
         if end:
-            q = q.filter(KlineDataDB.trading_time <= ensure_naive(end))
+            q = q.filter(KlineDataDB.trading_time <= ensure_utc(end))
 
         rows = q.order_by(KlineDataDB.trading_time.asc()).limit(limit).all()
         if rows:

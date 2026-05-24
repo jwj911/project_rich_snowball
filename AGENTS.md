@@ -139,7 +139,7 @@ project_rich_snowball/
 - 路由按领域拆分为 `APIRouter`，在 `main.py` 统一挂载。
 - 当前有双数据层：
   - `ProductDB` + `/api/products/*` 是前端主流程仍在使用的兼容层。
-  - `VarietyDB` / `RealtimeQuoteDB` / `KlineDataDB` + `/api/varieties`、`/api/realtime`、`/api/kline` 是新行情数据层。
+  - `VarietyDB` / `RealtimeQuoteDB` / `KlineDataDB` + `/api/varieties`、`/api/realtime`、`/api/klines` 是新行情数据层。
   - `scheduler.sync_prices_to_products()` 每 60 秒把 `realtime_quotes` 同步回 `products`。
 - 数据采集遵循 `collector -> adapter -> cleaner -> pipeline -> upsert`。
 - upsert 逻辑在 `data_collector/upsert.py`，已兼容 SQLite / PostgreSQL 双方言。
@@ -353,7 +353,7 @@ pytest tests -v
 - 新增 `contract_rollovers` 表记录主力换月
 - `/api/contracts`、`/api/varieties/{id}/contracts`、`/api/varieties/{id}/rollovers` 路由
 - 连续 K 线服务 `services/continuous_kline.py`（主力切换拼接）
-- `/api/kline/{symbol}/continuous` 和 `/api/kline/{symbol}/main` 接口
+- `/api/klines/{symbol}/continuous` 和 `/api/klines/{symbol}/main` 接口
 - 全部有 pytest 覆盖
 
 **前端**

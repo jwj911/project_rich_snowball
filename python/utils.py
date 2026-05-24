@@ -43,7 +43,7 @@ def hash_refresh_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def ensure_naive(dt: datetime | None) -> datetime | None:
+def ensure_utc(dt: datetime | None) -> datetime | None:
     """将客户端传入的 datetime 统一转换为 UTC aware datetime。
 
     数据库列已全面使用 DateTime(timezone=True)，应保留 aware datetime。

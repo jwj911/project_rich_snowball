@@ -19,7 +19,7 @@ def list_watchlists(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
-    items = WatchlistService.list_watchlists(db, current_user.id, variety_id, skip=skip, limit=limit)
+    items = WatchlistService(db).list_watchlists(current_user.id, variety_id, skip=skip, limit=limit)
     return [
         WatchlistResponse(
             id=w.id,
@@ -35,14 +35,14 @@ def list_watchlists(
     ]
 
 
-@router.post("", response_model=WatchlistResponse)
+@router.post("", response_model=WatchlistResponse, status_code=201)
 def create_watchlist(
     item: WatchlistCreate,
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
     try:
-        w = WatchlistService.create_watchlist(db, current_user.id, item)
+        w = WatchlistService(db).create_watchlist(current_user.id, item)
     except (NotFoundError, ConflictError) as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
@@ -66,7 +66,7 @@ def update_watchlist(
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
     try:
-        w = WatchlistService.update_watchlist(db, current_user.id, watchlist_id, item)
+        w = WatchlistService(db).update_watchlist(current_user.id, watchlist_id, item)
     except (NotFoundError, ForbiddenError) as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
@@ -89,7 +89,7 @@ def delete_watchlist(
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
     try:
-        WatchlistService.delete_watchlist(db, current_user.id, watchlist_id)
+        WatchlistService(db).delete_watchlist(current_user.id, watchlist_id)
     except (NotFoundError, ForbiddenError) as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 

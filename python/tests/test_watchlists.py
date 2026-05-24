@@ -45,7 +45,7 @@ def test_create_watchlist():
         "variety_id": 1,
         "notes": "关注黄金"
     }, headers={"Authorization": f"Bearer {token}"})
-    assert r.status_code == 200, r.text
+    assert r.status_code == 201, r.text
     data = r.json()
     assert data["variety_id"] == 1
     assert data["notes"] == "关注黄金"

@@ -154,7 +154,7 @@ npx tsc --noEmit
 | `GET /api/comments/user/{username}` | 用户评论历史 |
 | `GET /api/varieties` | 新数据层品种列表 |
 | `GET /api/realtime/{symbol}` | 实时行情，带内存缓存 |
-| `GET /api/kline/{symbol}` | K 线数据，支持 `period` 和 `limit` |
+| `GET /api/klines/{symbol}` | K 线数据，支持 `period` 和 `limit` |
 | `GET /health` / `/health/ready` / `/health/scheduler` | 存活、就绪、调度器状态 |
 
 ---

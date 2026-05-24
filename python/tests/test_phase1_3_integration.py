@@ -110,7 +110,7 @@ class TestLegacyApiCompatibility:
             "email": "integration@test.com",
             "password": "password123"
         })
-        assert r.status_code == 200, r.text
+        assert r.status_code == 201, r.text
 
         # 登录
         r = client.post("/api/auth/login", data={

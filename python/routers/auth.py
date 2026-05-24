@@ -98,7 +98,7 @@ def _check_rate_limit(client_ip: str) -> bool:
         return True
 
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register", response_model=UserResponse, status_code=201)
 def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     client_ip = _get_client_ip(request)
     if not _check_rate_limit(client_ip):

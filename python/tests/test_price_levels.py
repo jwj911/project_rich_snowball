@@ -46,7 +46,7 @@ def test_create_price_level():
         "price": "550.50",
         "note": "强支撑"
     }, headers={"Authorization": f"Bearer {token}"})
-    assert r.status_code == 200, r.text
+    assert r.status_code == 201, r.text
     data = r.json()
     assert data["type"] == "support"
     assert data["price"] == "550.5000"

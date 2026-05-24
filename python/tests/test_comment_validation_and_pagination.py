@@ -15,7 +15,7 @@ def test_blank_comment_rejected(client):
         "email": f"{username}@example.com",
         "password": "password123"
     })
-    assert r.status_code == 200, r.text
+    assert r.status_code == 201, r.text
 
     r = client.post("/api/auth/login", data={
         "username": username,
