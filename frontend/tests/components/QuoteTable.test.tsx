@@ -18,6 +18,9 @@ function makeProduct(id: number, overrides: Partial<Product> = {}): Product {
     margin: null,
     commission: null,
     updated_at: '2026-05-16T10:00:00',
+    limit_up: null,
+    limit_down: null,
+    price_precision: 2,
     ...overrides,
   }
 }

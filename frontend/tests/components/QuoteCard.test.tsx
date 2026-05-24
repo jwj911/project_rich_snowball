@@ -17,6 +17,9 @@ const mockProduct: Product = {
   margin: 10,
   commission: 5,
   updated_at: '2026-05-22T08:00:00.000Z',
+  limit_up: 3800,
+  limit_down: 3200,
+  price_precision: 2,
 }
 
 describe('QuoteCard', () => {

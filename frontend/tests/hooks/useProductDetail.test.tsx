@@ -25,6 +25,9 @@ const product = {
   margin: 12,
   commission: 3,
   updated_at: '2026-05-16T01:00:00.000Z',
+  limit_up: 3800,
+  limit_down: 3200,
+  price_precision: 2,
 }
 
 const comment = {
@@ -55,6 +58,8 @@ describe('useProductDetail', () => {
       low: 3490,
       volume: 11000,
       updated_at: '2026-05-16T01:01:00.000Z',
+      limit_up: 3800,
+      limit_down: 3200,
     })
     vi.mocked(api.getVariety).mockResolvedValue({
       id: 99,
@@ -65,6 +70,8 @@ describe('useProductDetail', () => {
       category: '黑色系',
       margin_rate: 12,
       commission: 3,
+      tick_size: 1,
+      price_precision: 2,
     })
 
     const { result } = renderHook(() => useProductDetail(1, true))

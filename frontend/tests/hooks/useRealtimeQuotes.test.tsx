@@ -20,6 +20,8 @@ function createQuote(overrides: Partial<import('@/lib/api').RealtimeQuote> = {})
     low: 3480,
     volume: 1000,
     updated_at: '2026-05-16T10:00:00',
+    limit_up: null,
+    limit_down: null,
     ...overrides,
   }
 }
