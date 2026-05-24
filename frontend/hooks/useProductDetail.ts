@@ -1,13 +1,8 @@
 'use client'
 
-import { Dispatch, SetStateAction, useCallback, useEffect, useState } from 'react'
-import { useMarketPolling } from '@/hooks/useMarketPolling'
+import { Dispatch, SetStateAction, useCallback, useEffect, useMemo, useState } from 'react'
+import { useRealtimeQuotes } from '@/hooks/useRealtimeQuotes'
 import { api, Comment, Product, RealtimeQuote } from '@/lib/api'
-
-interface ProductRefreshSnapshot {
-  product: Product
-  realtime: RealtimeQuote | null
-}
 
 interface UseProductDetailResult {
   product: Product | null
@@ -71,34 +66,14 @@ export function useProductDetail(productId: number, enabled: boolean): UseProduc
     }
   }, [productId])
 
-  const refreshProductSnapshot = useCallback(async (signal: AbortSignal): Promise<ProductRefreshSnapshot> => {
-    if (!Number.isFinite(productId)) {
-      throw new Error('无效的品种 ID')
-    }
+  // SSE 实时价格订阅：只在 product.symbol 确定后启用
+  const symbol = product?.symbol ?? ''
+  const { quotes: realtimeQuotes } = useRealtimeQuotes(symbol ? [symbol] : [])
 
-    const data = await api.getProduct(productId, { signal })
-    let quote: RealtimeQuote | null = null
-
-    if (data.product?.symbol) {
-      try {
-        quote = await api.getRealtime(data.product.symbol, { signal })
-      } catch (err) {
-        if (signal.aborted) throw err
-      }
-    }
-
-    return {
-      product: data.product,
-      realtime: quote,
-    }
-  }, [productId])
-
-  const { data: refreshedProduct } = useMarketPolling<ProductRefreshSnapshot>({
-    enabled,
-    fetcher: refreshProductSnapshot,
-    runOnMount: false,
-    errorMessage: '品种详情刷新失败',
-  })
+  const sseRealtime = useMemo(() => {
+    if (!symbol) return null
+    return realtimeQuotes.get(symbol) ?? null
+  }, [symbol, realtimeQuotes])
 
   useEffect(() => {
     if (!enabled) {
@@ -112,11 +87,12 @@ export function useProductDetail(productId: number, enabled: boolean): UseProduc
     return () => abortController.abort()
   }, [enabled, loadData])
 
+  // 当 SSE 推送新的实时价格时，覆盖本地状态
   useEffect(() => {
-    if (!refreshedProduct) return
-    setProduct(refreshedProduct.product)
-    setRealtime(refreshedProduct.realtime)
-  }, [refreshedProduct])
+    if (sseRealtime) {
+      setRealtime(sseRealtime)
+    }
+  }, [sseRealtime])
 
   return {
     product,

@@ -88,16 +88,18 @@ export function useRealtimeQuotes(symbols: string[]): UseRealtimeQuotesResult {
     let es: EventSource | null = null
     let reconnectTimer: number | null = null
     let pollInterval: number | null = null
-    let sseFailed = false
+    let reconnectAttempts = 0
+    const MAX_RECONNECT_DELAY = 30000
 
     const connectSse = () => {
-      if (!mountedRef.current || sseFailed) return
+      if (!mountedRef.current) return
 
       try {
         es = new EventSource(buildSseUrl(symbols), { withCredentials: true })
 
         es.onopen = () => {
           if (!mountedRef.current) return
+          reconnectAttempts = 0
           sourceRef.current = 'sse'
           setSource('sse')
           setError(null)
@@ -125,13 +127,12 @@ export function useRealtimeQuotes(symbols: string[]): UseRealtimeQuotesResult {
 
         es.onerror = () => {
           if (!mountedRef.current) return
-          // SSE 出错：关闭连接，标记失败，启动轮询作为 fallback
+          // SSE 出错：关闭连接，启动轮询作为 fallback，并计划重连
           if (es) {
             es.close()
             es = null
           }
-          if (!sseFailed) {
-            sseFailed = true
+          if (!pollInterval) {
             sourceRef.current = 'polling'
             setSource('polling')
             setError('SSE 连接失败，已降级到轮询')
@@ -140,11 +141,20 @@ export function useRealtimeQuotes(symbols: string[]): UseRealtimeQuotesResult {
             // 启动轮询定时器
             pollInterval = window.setInterval(poll, POLL_INTERVAL_MS)
           }
+          // 指数退避重连
+          reconnectAttempts += 1
+          const delay = Math.min(
+            SSE_RETRY_DELAY_MS * 2 ** (reconnectAttempts - 1),
+            MAX_RECONNECT_DELAY,
+          )
+          if (reconnectTimer) {
+            window.clearTimeout(reconnectTimer)
+          }
+          reconnectTimer = window.setTimeout(connectSse, delay)
         }
       } catch {
         // EventSource 构造失败（如浏览器不支持）
-        if (!sseFailed) {
-          sseFailed = true
+        if (!pollInterval) {
           poll()
           pollInterval = window.setInterval(poll, POLL_INTERVAL_MS)
         }
@@ -153,6 +163,26 @@ export function useRealtimeQuotes(symbols: string[]): UseRealtimeQuotesResult {
 
     // 启动 SSE
     connectSse()
+
+    const handleVisibilityChange = () => {
+      if (!mountedRef.current) return
+      if (document.hidden) {
+        // 页面隐藏时关闭 SSE，节省资源
+        if (es) {
+          es.close()
+          es = null
+        }
+      } else if (api.getToken() && !es) {
+        // 页面恢复时立即尝试重连
+        reconnectAttempts = 0
+        if (reconnectTimer) {
+          window.clearTimeout(reconnectTimer)
+          reconnectTimer = null
+        }
+        connectSse()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       if (es) {
@@ -165,6 +195,7 @@ export function useRealtimeQuotes(symbols: string[]): UseRealtimeQuotesResult {
       if (pollInterval) {
         window.clearInterval(pollInterval)
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [symbols, poll])
 

@@ -14,6 +14,7 @@ from schemas import (
 )
 from services.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
 from services.domain.price_level_service import PriceLevelService
+from services.metrics import price_level_operations_total
 
 router = APIRouter(prefix="/api/price-levels", tags=["价位标注"])
 
@@ -28,6 +29,7 @@ def list_price_levels(
     current_user: UserDB = Depends(get_current_user_dependency)
 ):
     items = PriceLevelService(db).list_price_levels(current_user.id, variety_id, type, skip=skip, limit=limit)
+    price_level_operations_total.labels(action="list", result="success").inc()
     return [PriceLevelResponse.model_validate(i) for i in items]
 
 
@@ -39,7 +41,9 @@ def create_price_level(
 ):
     try:
         pl = PriceLevelService(db).create_price_level(current_user.id, item)
+        price_level_operations_total.labels(action="create", result="success").inc()
     except (NotFoundError, ConflictError) as exc:
+        price_level_operations_total.labels(action="create", result="failure").inc()
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return PriceLevelResponse.model_validate(pl)
 
@@ -53,7 +57,9 @@ def update_price_level(
 ):
     try:
         pl = PriceLevelService(db).update_price_level(current_user.id, price_level_id, item)
+        price_level_operations_total.labels(action="update", result="success").inc()
     except (NotFoundError, ForbiddenError, ConflictError) as exc:
+        price_level_operations_total.labels(action="update", result="failure").inc()
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return PriceLevelResponse.model_validate(pl)
 
@@ -66,7 +72,9 @@ def delete_price_level(
 ):
     try:
         PriceLevelService(db).delete_price_level(current_user.id, price_level_id)
+        price_level_operations_total.labels(action="delete", result="success").inc()
     except (NotFoundError, ForbiddenError) as exc:
+        price_level_operations_total.labels(action="delete", result="failure").inc()
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return {"detail": "已删除"}
 
@@ -80,6 +88,7 @@ def create_price_levels_batch(
     success_orm, failed = PriceLevelService(db).create_price_levels_batch(
         current_user.id, body
     )
+    price_level_operations_total.labels(action="batch_create", result="success").inc()
     success = [PriceLevelResponse.model_validate(pl) for pl in success_orm]
     return PriceLevelBatchResponse(
         success=success,

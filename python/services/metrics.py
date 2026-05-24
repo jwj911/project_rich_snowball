@@ -43,6 +43,46 @@ cache_operations_total = Counter(
     ["operation", "result"],
 )
 
+# 业务级操作计数器
+auth_operations_total = Counter(
+    "auth_operations_total",
+    "Total auth operations",
+    ["operation", "result"],
+)
+
+comment_operations_total = Counter(
+    "comment_operations_total",
+    "Total comment operations",
+    ["action", "result"],
+)
+
+price_level_operations_total = Counter(
+    "price_level_operations_total",
+    "Total price level operations",
+    ["action", "result"],
+)
+
+watchlist_operations_total = Counter(
+    "watchlist_operations_total",
+    "Total watchlist operations",
+    ["action", "result"],
+)
+
+# 外部 API 调用延迟
+external_api_duration_seconds = Histogram(
+    "external_api_duration_seconds",
+    "External data source API call duration in seconds",
+    ["source", "operation"],
+    buckets=[0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0],
+)
+
+# HTTP 异常分类计数
+http_exceptions_total = Counter(
+    "http_exceptions_total",
+    "Total HTTP exceptions by type",
+    ["exception_type", "endpoint"],
+)
+
 
 def metrics_response():
     """返回 Prometheus 指标文本。"""

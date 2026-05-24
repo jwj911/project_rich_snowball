@@ -14,36 +14,29 @@ import PriceChange from '@/components/market/PriceChange'
 import QuoteCard from '@/components/market/QuoteCard'
 import { api, Product } from '@/lib/api'
 import { formatInteger, formatPrice } from '@/lib/format'
-import { useMarketPolling } from '@/hooks/useMarketPolling'
+import { useProductListRealtime } from '@/hooks/useProductListRealtime'
 import { ArrowRight, BarChart3, Search } from 'lucide-react'
 
 const EMPTY_PRODUCTS: Product[] = []
 
 export default function HomePage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
-  const fetchProducts = useCallback(() => {
-    return api.getProducts()
-  }, [])
   const {
-    data,
+    products,
     loading,
     error,
     heartbeat,
     refresh,
-  } = useMarketPolling<Product[]>({
-    enabled: !authLoading && isAuthenticated,
-    fetcher: fetchProducts,
-    errorMessage: '行情数据加载失败',
-  })
-  const products = data ?? EMPTY_PRODUCTS
+  } = useProductListRealtime(!authLoading && isAuthenticated)
+  const displayedProducts = products ?? EMPTY_PRODUCTS
 
-  const hotProducts = useMemo(() => products.slice(0, 6), [products])
+  const hotProducts = useMemo(() => displayedProducts.slice(0, 6), [displayedProducts])
   const leader = hotProducts[0]
   const totalVolume = useMemo(
-    () => products.reduce((sum, product) => sum + (product.volume ?? 0), 0),
-    [products],
+    () => displayedProducts.reduce((sum, product) => sum + (product.volume ?? 0), 0),
+    [displayedProducts],
   )
-  const upCount = products.filter((product) => (product.change_percent ?? 0) >= 0).length
+  const upCount = displayedProducts.filter((product) => (product.change_percent ?? 0) >= 0).length
 
   return (
     <AppShell>
@@ -77,8 +70,8 @@ export default function HomePage() {
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                <Metric label="品种数" value={formatInteger(products.length)} />
-                <Metric label="上涨品种" value={`${upCount}/${products.length || 0}`} tone="up" />
+                <Metric label="品种数" value={formatInteger(displayedProducts.length)} />
+                <Metric label="上涨品种" value={`${upCount}/${displayedProducts.length || 0}`} tone="up" />
                 <Metric label="总成交量" value={formatInteger(totalVolume)} />
               </div>
             </div>

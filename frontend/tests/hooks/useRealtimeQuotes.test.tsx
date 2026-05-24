@@ -117,6 +117,67 @@ describe('useRealtimeQuotes', () => {
   })
 })
 
+describe('useRealtimeQuotes SSE reconnect', () => {
+  let timeoutCallbacks: Function[] = []
+
+  beforeEach(() => {
+    timeoutCallbacks = []
+    MockEventSource.instances = []
+    vi.stubGlobal('EventSource', MockEventSource)
+    vi.mocked(api.getToken).mockReturnValue('stored-jwt')
+    vi.mocked(api.getRealtimeBatch).mockResolvedValue({
+      quotes: [createQuote()],
+      not_found: [],
+    })
+
+    vi.stubGlobal('setTimeout', (callback: Function, _delay?: number) => {
+      timeoutCallbacks.push(callback)
+      return timeoutCallbacks.length as unknown as ReturnType<typeof setTimeout>
+    })
+    vi.stubGlobal('clearTimeout', () => {})
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  it('recovers SSE after error via exponential backoff and stops polling', async () => {
+    const symbols = ['RB']
+    const { result, unmount } = renderHook(() => useRealtimeQuotes(symbols))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(MockEventSource.instances).toHaveLength(1)
+    const firstSource = MockEventSource.instances[0]
+
+    await act(async () => {
+      firstSource.onerror?.()
+      await Promise.resolve()
+    })
+
+    expect(result.current.source).toBe('polling')
+
+    await act(async () => {
+      timeoutCallbacks[0]?.()
+      await Promise.resolve()
+    })
+
+    expect(MockEventSource.instances).toHaveLength(2)
+    const secondSource = MockEventSource.instances[1]
+
+    await act(async () => {
+      secondSource.onopen?.()
+      await Promise.resolve()
+    })
+
+    expect(result.current.source).toBe('sse')
+    unmount()
+  })
+})
+
 describe('useRealtimeQuotes polling mode', () => {
   let intervalCallbacks: Array<{ id: number; callback: Function; delay: number }> = []
   let nextIntervalId = 1

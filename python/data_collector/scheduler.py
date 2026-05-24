@@ -12,8 +12,10 @@ from models import SessionLocal, VarietyDB, ProductDB
 from data_collector.base import BaseCollector
 from data_collector.pipeline import DataPipeline
 from data_collector.cleaner import clean_realtime, clean_kline
+import time
 from config import DATA_SOURCE, ENV, REALTIME_REFRESH_INTERVAL_SECONDS
-from services.metrics import data_collection_runs_total, data_collection_duration_seconds
+from services.metrics import data_collection_runs_total, data_collection_duration_seconds, external_api_duration_seconds
+from services.realtime_state import mark_realtime_updated
 from services.trading_calendar import is_trading_day, _cn_date
 
 logger = logging.getLogger("data.scheduler")
@@ -37,19 +39,24 @@ class _MappedFallbackCollector(BaseCollector):
 
     def fetch_realtime(self, symbol: str):
         for name, collector, realtime_adapter, _ in self.entries:
+            start = time.time()
             try:
                 raw = collector.fetch_realtime(symbol)
+                external_api_duration_seconds.labels(source=name, operation="fetch_realtime").observe(time.time() - start)
                 if raw is None:
                     continue
                 return realtime_adapter(raw, symbol)
             except Exception as e:
+                external_api_duration_seconds.labels(source=name, operation="fetch_realtime").observe(time.time() - start)
                 logger.warning("%s realtime failed for %s, trying next source: %s", name, symbol, e)
         return None
 
     def fetch_kline(self, contract_code: str, period: str, limit: int = 100):
         for name, collector, _, kline_adapter in self.entries:
+            start = time.time()
             try:
                 raw_rows = collector.fetch_kline(contract_code, period, limit=limit)
+                external_api_duration_seconds.labels(source=name, operation="fetch_kline").observe(time.time() - start)
                 if not raw_rows:
                     continue
                 adapted = []
@@ -60,6 +67,7 @@ class _MappedFallbackCollector(BaseCollector):
                         logger.warning("%s kline adapter failed for %s/%s row: %s", name, contract_code, period, e)
                 return adapted
             except Exception as e:
+                external_api_duration_seconds.labels(source=name, operation="fetch_kline").observe(time.time() - start)
                 logger.warning("%s kline failed for %s/%s, trying next source: %s", name, contract_code, period, e)
         return []
 
@@ -245,6 +253,7 @@ def refresh_realtime_quotes():
         symbols = [v.symbol for v in varieties]
         stats = _pipeline_realtime.run_realtime(symbols)
         logger.info(f"Refreshed realtime: {stats}")
+        mark_realtime_updated()
         data_collection_runs_total.labels(task_name="refresh_realtime", status="success").inc()
     except Exception as e:
         logger.error(f"Refresh realtime failed: {e}")

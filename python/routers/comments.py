@@ -7,6 +7,7 @@ from models import UserDB
 from schemas import CommentCreate, CommentResponse
 from services.domain.comment_service import CommentService
 from services.domain.exceptions import ServiceError
+from services.metrics import comment_operations_total
 
 router = APIRouter(prefix="/api/comments", tags=["评论"])
 
@@ -18,8 +19,11 @@ def create_comment(
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
     try:
-        return CommentService(db).create_comment(current_user, comment)
+        result = CommentService(db).create_comment(current_user, comment)
+        comment_operations_total.labels(action="create", result="success").inc()
+        return result
     except ServiceError as exc:
+        comment_operations_total.labels(action="create", result="failure").inc()
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 

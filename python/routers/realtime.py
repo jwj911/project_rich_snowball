@@ -18,6 +18,7 @@ from dependencies import get_current_user_dependency, get_db
 from models import RealtimeQuoteDB, SessionLocal, UserDB, VarietyDB
 from schemas import RealtimeBatchResponse, RealtimeResponse
 from services.cache import get_cached
+from services.realtime_state import get_last_update_time
 
 router = APIRouter(prefix="/api/realtime", tags=["实时行情"])
 
@@ -180,29 +181,44 @@ def _sse_fetch_once(symbols: list[str], token: str):
 
 
 async def _sse_realtime_generator(symbols: list[str], token: str, user_id: int):
-    """SSE 推送生成器：每 5 秒查询一次批量行情并推送。
-    包含心跳、最大推送次数限制和优雅退出。
-    所有同步 DB 调用均通过 run_in_threadpool 放入线程池，避免阻塞事件循环。"""
+    """SSE 推送生成器：基于数据变更感知的智能推送。
+
+    - 首次连接无条件推送初始数据
+    - 后续只在 scheduler 更新 realtime_quotes 后才查询并推送
+    - 心跳每 30 秒发送一次，保持连接活跃
+    - 所有同步 DB 调用均通过 run_in_threadpool 放入线程池
+
+    效果：将数据库查询频率从"每 5 秒"降到"每 60 秒 + 新连接时"。
+    """
     push_count = 0
+    last_sent_time = datetime.min.replace(tzinfo=UTC)
+    last_heartbeat_time = datetime.now(UTC)
     try:
         while push_count < SSE_MAX_PUSHES:
-            # 心跳：每 SSE_HEARTBEAT_INTERVAL 次推送发送一次 comment
-            if push_count > 0 and push_count % SSE_HEARTBEAT_INTERVAL == 0:
+            now = datetime.now(UTC)
+
+            # 心跳：每 30 秒发送一次 comment
+            if (now - last_heartbeat_time).total_seconds() >= SSE_HEARTBEAT_INTERVAL * SSE_PUSH_INTERVAL_SECONDS:
                 yield ":heartbeat\n\n"
+                last_heartbeat_time = now
 
-            try:
-                user, quotes, not_found = await run_in_threadpool(_sse_fetch_once, symbols, token)
-            except HTTPException:
-                yield f"event: error\ndata: {json.dumps({'code': 'unauthorized'})}\n\n"
-                break
+            last_update = get_last_update_time()
+            # 首次连接 或 数据已更新 时才查询推送
+            if last_update > last_sent_time or last_sent_time == datetime.min.replace(tzinfo=UTC):
+                try:
+                    user, quotes, not_found = await run_in_threadpool(_sse_fetch_once, symbols, token)
+                except HTTPException:
+                    yield f"event: error\ndata: {json.dumps({'code': 'unauthorized'})}\n\n"
+                    break
 
-            payload = json.dumps({"quotes": quotes, "not_found": not_found}, default=str)
-            yield f"data: {payload}\n\n"
-            push_count += 1
+                payload = json.dumps({"quotes": quotes, "not_found": not_found}, default=str)
+                yield f"data: {payload}\n\n"
+                last_sent_time = now
+                push_count += 1
 
-            # 测试模式下只推送一次，避免 TestClient 无限等待
-            if _sse_test_mode():
-                break
+                # 测试模式下只推送一次，避免 TestClient 无限等待
+                if _sse_test_mode():
+                    break
 
             await asyncio.sleep(SSE_PUSH_INTERVAL_SECONDS)
     except asyncio.CancelledError:
@@ -231,8 +247,16 @@ async def get_realtime_stream(
             status_code=400,
             detail=f"订阅品种数超过上限 {SSE_MAX_SYMBOLS}"
         )
+    # symbols 为空时自动订阅全部活跃品种
     if len(symbols) == 0:
-        raise HTTPException(status_code=400, detail="请至少订阅一个品种")
+        db = SessionLocal()
+        try:
+            all_symbols = [v.symbol for v in db.query(VarietyDB).all()]
+            symbols = all_symbols[:SSE_MAX_SYMBOLS]
+        finally:
+            db.close()
+        if len(symbols) == 0:
+            raise HTTPException(status_code=400, detail="系统中暂无活跃品种")
 
     # 验证 token 并获取 user_id
     try:

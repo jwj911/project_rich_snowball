@@ -24,6 +24,7 @@ from utils import (
     hash_refresh_token,
     verify_password,
 )
+from services.metrics import auth_operations_total
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
 REFRESH_TOKEN_COOKIE_NAME = "refresh_token"
@@ -112,6 +113,7 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
         (UserDB.username == user.username) | (UserDB.email == user.email)
     ).first()
     if existing:
+        auth_operations_total.labels(operation="register", result="failure").inc()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="用户名或邮箱已存在")
 
     db_user = UserDB(
@@ -122,6 +124,7 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    auth_operations_total.labels(operation="register", result="success").inc()
     return db_user
 
 
@@ -147,12 +150,14 @@ def login(
     password_ok = verify_password(form_data.password, password_hash)
 
     if not user or not password_ok:
+        auth_operations_total.labels(operation="login", result="failure").inc()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误"
         )
 
     access_token = create_access_token(data={"sub": str(user.id)})
+    auth_operations_total.labels(operation="login", result="success").inc()
 
     # 设置 access token cookie（支持 SSE 等无 Header 场景）
     response.set_cookie(
@@ -211,6 +216,7 @@ def refresh_token(
     ).first()
 
     if not rt:
+        auth_operations_total.labels(operation="refresh", result="failure").inc()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token 无效或已过期"
@@ -232,6 +238,7 @@ def refresh_token(
 
     access_token = create_access_token(data={"sub": str(rt.user_id)})
     _set_refresh_cookie(response, new_raw_refresh)
+    auth_operations_total.labels(operation="refresh", result="success").inc()
     return {
         "access_token": access_token,
         "token_type": "bearer",

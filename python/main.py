@@ -66,6 +66,7 @@ from routers import (  # noqa: E402
 )
 from services.metrics import (  # noqa: E402
     get_content_type,
+    http_exceptions_total,
     http_request_duration_seconds,
     http_requests_total,
     metrics_response,
@@ -218,7 +219,11 @@ async def prometheus_middleware(request: Request, call_next):
     status_code = "500"
     try:
         response = await call_next(request)
-    except Exception:
+    except Exception as exc:
+        status_code = "500"
+        route = request.scope.get("route")
+        endpoint = getattr(route, "path", None) or path
+        http_exceptions_total.labels(exception_type=type(exc).__name__, endpoint=endpoint).inc()
         raise
     else:
         status_code = str(response.status_code)

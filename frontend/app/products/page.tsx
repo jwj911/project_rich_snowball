@@ -10,7 +10,7 @@ import RefreshStatus from '@/components/activity/RefreshStatus'
 import QuoteTable, { QuoteSortField, QuoteSortOrder } from '@/components/market/QuoteTable'
 import { api, Product } from '@/lib/api'
 import { formatInteger } from '@/lib/format'
-import { useMarketPolling } from '@/hooks/useMarketPolling'
+import { useProductListRealtime } from '@/hooks/useProductListRealtime'
 import { Filter, Search, X } from 'lucide-react'
 
 type DirectionFilter = 'all' | 'up' | 'down'
@@ -25,21 +25,13 @@ export default function ProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all')
 
-  const fetchProducts = useCallback(() => {
-    return api.getProducts()
-  }, [])
   const {
-    data,
+    products,
     loading,
     error,
     heartbeat,
     refresh,
-  } = useMarketPolling<Product[]>({
-    enabled: !authLoading && isAuthenticated,
-    fetcher: fetchProducts,
-    errorMessage: '品种列表加载失败',
-  })
-  const products = data ?? EMPTY_PRODUCTS
+  } = useProductListRealtime(!authLoading && isAuthenticated)
 
   const categories = useMemo(() => {
     return Array.from(new Set(products.map((product) => product.category).filter(Boolean) as string[])).sort()
