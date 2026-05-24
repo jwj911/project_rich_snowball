@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { api, PriceLevel } from '@/lib/api'
+import { captureMessage } from '@/lib/sentry-lite'
 
 export function usePriceLevels(varietyId: number | null, userId: number | null, productId: number) {
   const [supportLevels, setSupportLevels] = useState<number[]>([])
@@ -216,6 +217,7 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
         const pl = levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
         if (pl) {
           await api.deletePriceLevel(pl.id)
+          captureMessage(`删除支撑位: 品种#${varietyId} @ ${price}`, 'info')
           const refreshed = await api.getPriceLevels(varietyId)
           updateLevelsFromData(refreshed)
           syncToLocalStorage(refreshed)
@@ -238,6 +240,7 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
         const pl = levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
         if (pl) {
           await api.deletePriceLevel(pl.id)
+          captureMessage(`删除阻力位: 品种#${varietyId} @ ${price}`, 'info')
           const refreshed = await api.getPriceLevels(varietyId)
           updateLevelsFromData(refreshed)
           syncToLocalStorage(refreshed)

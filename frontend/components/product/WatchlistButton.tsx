@@ -3,6 +3,7 @@
 import { Bookmark, BookmarkCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { captureMessage } from '@/lib/sentry-lite'
 
 interface WatchlistButtonProps {
   varietyId: number
@@ -23,14 +24,17 @@ export default function WatchlistButton({
         await api.deleteWatchlist(watchlistId)
         onToggle(false, null)
         toast.success('已取消自选')
+        captureMessage(`取消自选: 品种#${varietyId}`, 'info')
       } else {
         const item = await api.createWatchlist(varietyId)
         onToggle(true, item.id)
         toast.success('已加入自选')
+        captureMessage(`加入自选: 品种#${varietyId}`, 'info')
       }
     } catch (err) {
       console.error('自选操作失败:', err)
       toast.error('自选操作失败')
+      captureMessage(`自选操作失败: 品种#${varietyId}`, 'error')
     }
   }
 

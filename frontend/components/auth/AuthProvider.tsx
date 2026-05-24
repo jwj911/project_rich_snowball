@@ -2,6 +2,7 @@
 
 import { ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { api, User } from '@/lib/api'
+import { captureMessage } from '@/lib/sentry-lite'
 
 interface AuthContextValue {
   user: User | null
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   const logout = useCallback(() => {
+    captureMessage(`用户退出登录`, 'info')
     api.logout()
     setUser(null)
     setError(null)
