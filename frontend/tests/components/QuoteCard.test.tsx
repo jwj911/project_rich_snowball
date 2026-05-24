@@ -1,26 +1,17 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect } from 'vitest'
 import QuoteCard from '@/components/market/QuoteCard'
-import { Product } from '@/lib/api'
+import { makeProduct } from '@/tests/fixtures'
 
-const mockProduct: Product = {
+const mockProduct = makeProduct({
   id: 1,
   name: '螺纹钢主力',
   symbol: 'RB2501',
   current_price: 3500.5,
   change_percent: 1.25,
-  open_price: 3450,
-  high: 3520,
-  low: 3440,
-  volume: 1234567,
   category: '黑色金属',
-  margin: 10,
-  commission: 5,
-  updated_at: '2026-05-22T08:00:00.000Z',
-  limit_up: 3800,
-  limit_down: 3200,
-  price_precision: 2,
-}
+  volume: 1234567,
+})
 
 describe('QuoteCard', () => {
   it('renders product name and symbol', () => {

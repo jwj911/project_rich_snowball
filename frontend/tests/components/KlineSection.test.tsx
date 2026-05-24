@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import KlineSection from '@/components/product/KlineSection'
-import { FutContract } from '@/lib/api'
+import { makeFutContract, makeKline } from '@/tests/fixtures'
 
 vi.mock('@/components/KlineChart', () => ({
   default: ({ symbol, data }: { symbol: string; data: unknown[] }) => (
@@ -11,36 +11,14 @@ vi.mock('@/components/KlineChart', () => ({
   ),
 }))
 
-const contracts: FutContract[] = [
-  {
-    id: 12,
-    ts_code: 'RB2609.SHF',
-    symbol: 'RB2609',
-    name: '螺纹钢2609',
-    fut_code: 'RB',
-    exchange: 'SHFE',
-    list_date: null,
-    delist_date: null,
-    contract_type: null,
-    is_active: true,
-  },
-  {
-    id: 13,
-    ts_code: 'RB2610.SHF',
-    symbol: 'RB2610',
-    name: null,
-    fut_code: 'RB',
-    exchange: 'SHFE',
-    list_date: null,
-    delist_date: null,
-    contract_type: null,
-    is_active: true,
-  },
+const contracts = [
+  makeFutContract(),
+  makeFutContract({ id: 13, ts_code: 'RB2610.SHF', symbol: 'RB2610', name: null }),
 ]
 
 function renderKlineSection(overrides: Partial<React.ComponentProps<typeof KlineSection>> = {}) {
   const props: React.ComponentProps<typeof KlineSection> = {
-    data: [{ time: '2026-05-01', open: 1, high: 2, low: 1, close: 2, volume: 100 }],
+    data: [makeKline()],
     symbol: 'RB',
     contracts,
     selectedContractId: 12,

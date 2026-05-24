@@ -1,33 +1,23 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import QuoteTable from '@/components/market/QuoteTable'
-import { Product } from '@/lib/api'
+import { makeProduct } from '@/tests/fixtures'
 
-function makeProduct(id: number, overrides: Partial<Product> = {}): Product {
-  return {
+function makeTestProduct(id: number, overrides: Partial<ReturnType<typeof makeProduct>> = {}) {
+  return makeProduct({
     id,
     name: `品种${id}`,
     symbol: `P${id}`,
     current_price: 100 + id,
     change_percent: id % 2 === 0 ? 1.2 : -0.8,
-    open_price: 100,
-    high: 110,
-    low: 90,
     volume: id * 1000,
-    category: '测试',
-    margin: null,
-    commission: null,
-    updated_at: '2026-05-16T10:00:00',
-    limit_up: null,
-    limit_down: null,
-    price_precision: 2,
     ...overrides,
-  }
+  })
 }
 
 describe('QuoteTable', () => {
   it('renders product rows in table', () => {
-    const products = [makeProduct(1), makeProduct(2)]
+    const products = [makeTestProduct(1), makeTestProduct(2)]
 
     render(
       <QuoteTable
@@ -50,7 +40,7 @@ describe('QuoteTable', () => {
 
     render(
       <QuoteTable
-        products={[makeProduct(1), makeProduct(2)]}
+        products={[makeTestProduct(1), makeTestProduct(2)]}
         sortBy="volume"
         sortOrder="asc"
         onSort={onSort}
@@ -65,7 +55,7 @@ describe('QuoteTable', () => {
   it('renders mobile card list', () => {
     render(
       <QuoteTable
-        products={[makeProduct(1), makeProduct(2)]}
+        products={[makeTestProduct(1), makeTestProduct(2)]}
         sortBy="volume"
         sortOrder="asc"
         onSort={vi.fn()}
@@ -80,7 +70,7 @@ describe('QuoteTable', () => {
   it('renders detail links for each product', () => {
     render(
       <QuoteTable
-        products={[makeProduct(1)]}
+        products={[makeTestProduct(1)]}
         sortBy="change_percent"
         sortOrder="desc"
         onSort={vi.fn()}
@@ -92,7 +82,7 @@ describe('QuoteTable', () => {
   })
 
   it('renders limit badges when price is near limit', () => {
-    const product = makeProduct(1, {
+    const product = makeTestProduct(1, {
       current_price: 100,
       limit_up: 100,
       limit_down: 90,

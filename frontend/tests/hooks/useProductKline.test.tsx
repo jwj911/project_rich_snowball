@@ -2,6 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useProductKline } from '@/hooks/useProductKline'
 import { api } from '@/lib/api'
+import { makeFutContract, makeKline } from '@/tests/fixtures'
 
 vi.mock('@/lib/api', () => ({
   api: {
@@ -13,9 +14,7 @@ vi.mock('@/lib/api', () => ({
   },
 }))
 
-const rows = [
-  { time: '2026-05-01', open: 1, high: 2, low: 1, close: 2, volume: 100 },
-]
+const rows = [makeKline()]
 
 describe('useProductKline', () => {
   afterEach(() => {
@@ -68,18 +67,7 @@ describe('useProductKline', () => {
 
   it('loads a selected contract kline', async () => {
     vi.mocked(api.getContracts).mockResolvedValue([
-      {
-        id: 12,
-        ts_code: 'RB2609.SHF',
-        symbol: 'RB2609',
-        name: '螺纹钢2609',
-        fut_code: 'RB',
-        exchange: 'SHFE',
-        list_date: null,
-        delist_date: null,
-        contract_type: null,
-        is_active: true,
-      },
+      makeFutContract(),
     ])
     vi.mocked(api.getContinuousKline).mockResolvedValue(rows)
     vi.mocked(api.getContractKline).mockResolvedValue(rows)

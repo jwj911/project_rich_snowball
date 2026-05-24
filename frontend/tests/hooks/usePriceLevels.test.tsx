@@ -1,7 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePriceLevels } from '@/hooks/usePriceLevels'
-import { api, PriceLevel } from '@/lib/api'
+import { api } from '@/lib/api'
+import { makePriceLevel } from '@/tests/fixtures'
 
 vi.mock('@/lib/api', () => ({
   api: {
@@ -28,21 +29,15 @@ function createLocalStorageMock(seed: Record<string, string> = {}) {
   }
 }
 
-function makeLevel(overrides: Partial<PriceLevel>): PriceLevel {
-  return {
-    id: 1,
+function makeLevel(overrides: Partial<ReturnType<typeof makePriceLevel>> = {}) {
+  return makePriceLevel({
     user_id: 2,
     variety_id: 3,
     variety_symbol: 'AU',
     variety_name: '黄金',
-    type: 'support',
     price: '500.00',
-    note: null,
-    source: 'manual',
-    created_at: '2026-05-17T00:00:00',
-    updated_at: '2026-05-17T00:00:00',
     ...overrides,
-  }
+  })
 }
 
 describe('usePriceLevels', () => {

@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRealtimeQuotes } from '@/hooks/useRealtimeQuotes'
 import { api } from '@/lib/api'
+import { makeRealtimeQuote } from '@/tests/fixtures'
 
 vi.mock('@/lib/api', () => ({
   api: {
@@ -11,19 +12,7 @@ vi.mock('@/lib/api', () => ({
 }))
 
 function createQuote(overrides: Partial<import('@/lib/api').RealtimeQuote> = {}) {
-  return {
-    symbol: 'RB',
-    current_price: 3600,
-    change_percent: 1.2,
-    open_price: 3500,
-    high: 3620,
-    low: 3480,
-    volume: 1000,
-    updated_at: '2026-05-16T10:00:00',
-    limit_up: null,
-    limit_down: null,
-    ...overrides,
-  }
+  return makeRealtimeQuote(overrides)
 }
 
 class MockEventSource {

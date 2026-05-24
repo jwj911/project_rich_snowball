@@ -2,6 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useProductDetail } from '@/hooks/useProductDetail'
 import { api } from '@/lib/api'
+import { makeComment, makeProduct } from '@/tests/fixtures'
 
 vi.mock('@/lib/api', () => ({
   api: {
@@ -13,36 +14,8 @@ vi.mock('@/lib/api', () => ({
   },
 }))
 
-const product = {
-  id: 1,
-  name: '螺纹钢',
-  symbol: 'RB',
-  current_price: 3600,
-  change_percent: 1.2,
-  open_price: 3500,
-  high: 3650,
-  low: 3490,
-  volume: 10000,
-  category: '黑色系',
-  margin: 12,
-  commission: 3,
-  updated_at: '2026-05-16T01:00:00.000Z',
-  limit_up: 3800,
-  limit_down: 3200,
-  price_precision: 2,
-}
-
-const comment = {
-  id: 1,
-  product_id: 1,
-  product_symbol: 'RB',
-  product_name: '螺纹钢',
-  user_id: 1,
-  username: 'trader001',
-  content: '观察回踩',
-  price_level_id: null,
-  created_at: '2026-05-16T01:00:00.000Z',
-}
+const product = makeProduct()
+const comment = makeComment()
 
 describe('useProductDetail', () => {
   afterEach(() => {
