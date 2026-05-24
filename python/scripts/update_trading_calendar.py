@@ -2,11 +2,11 @@
 """交易日历自动更新脚本。
 
 从 AKShare 拉取中国交易日历（A 股与期货交易日历基本一致），
-写入 data/trading_calendar.json，供 TradingCalendar 优先加载。
+增量更新 data/trading_calendar.json，供 TradingCalendar 优先加载。
 
-建议在以下时机运行：
-    - 每年年初国务院公布新年度节假日安排后
-    - 发现 fallback 硬编码假期与实际不符时
+调度建议：
+    - 每月 1 日自动运行（scheduler 已集成）
+    - 每年年初国务院公布新年度节假日安排后手动触发
     - 部署新环境时初始化最新日历
 
 用法:
@@ -44,20 +44,54 @@ def fetch_trading_days() -> list[str]:
     return dates
 
 
-def main():
+def load_existing_dates() -> set[str]:
+    """加载本地已存在的交易日历。"""
+    if os.path.exists(_OUTPUT_PATH):
+        with open(_OUTPUT_PATH, encoding="utf-8") as f:
+            return set(json.load(f))
+    return set()
+
+
+def main(force_full: bool = False):
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    existing = load_existing_dates()
+    if existing and not force_full:
+        logger.info("Existing calendar: %s dates (up to %s)", len(existing), max(existing))
 
     logger.info("Fetching trading calendar from AKShare...")
     dates = fetch_trading_days()
     logger.info("Fetched %s trading days (from %s to %s)", len(dates), dates[0], dates[-1])
 
+    if not force_full and existing:
+        merged = sorted(existing | set(dates))
+        added = len(merged) - len(existing)
+        if added == 0:
+            logger.info("No new dates to add. Calendar is up to date.")
+            return merged
+        logger.info("Incremental update: added %s new dates.", added)
+    else:
+        merged = dates
+        logger.info("Full refresh: wrote %s dates.", len(merged))
+
     # 确保输出目录存在
     os.makedirs(os.path.dirname(_OUTPUT_PATH), exist_ok=True)
 
     with open(_OUTPUT_PATH, "w", encoding="utf-8") as f:
-        json.dump(dates, f, ensure_ascii=False, indent=2)
+        json.dump(merged, f, ensure_ascii=False, indent=2)
 
     logger.info("Saved to %s", _OUTPUT_PATH)
+
+    # 尝试热刷新内存中的 TradingCalendar
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from services.trading_calendar import TradingCalendar
+        TradingCalendar().reload()
+        logger.info("TradingCalendar reloaded in memory.")
+    except Exception as e:
+        logger.warning("Failed to reload TradingCalendar: %s", e)
+
+    return merged
 
 
 if __name__ == "__main__":

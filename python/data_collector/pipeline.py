@@ -16,6 +16,7 @@ from data_collector.upsert import (
 from models import SessionLocal, DataIngestionRunDB, VarietyDB, ContractRolloverDB, FutContractDB
 from config import CIRCUIT_FAILURE_THRESHOLD, PIPELINE_COMMIT_BATCH_SIZE
 from services.circuit_breaker import is_circuit_open, record_failure, record_success
+from sqlalchemy.exc import SQLAlchemyError, OperationalError, IntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +98,10 @@ def _record_run(job_name: str, source: str, stats: dict, exc: Exception = None, 
         )
         run_db.add(run)
         run_db.commit()
-    except Exception as e:
+    except (OperationalError, IntegrityError, TypeError, ValueError) as e:
         logger.error(f"Failed to record ingestion run: {e}", exc_info=True)
         # OperationalError（如 database locked、连接断开）属于数据库层面问题，
         # 不应导致采集任务失败；其他异常应抛出以便排查。
-        from sqlalchemy.exc import OperationalError
         if not isinstance(e, OperationalError):
             raise
     finally:
@@ -173,12 +173,12 @@ class DataPipeline:
                         db.commit()
                         batch_counter = 0
 
-                except Exception as e:
+                except (KeyError, TypeError, ValueError, IndexError) as e:
                     stats["failed"] += 1
                     logger.error(f"Pipeline failed for {symbol}: {e}", exc_info=True)
                     try:
                         db.rollback()
-                    except Exception:
+                    except SQLAlchemyError:
                         # rollback 失败时不阻断后续 symbol 处理
                         pass
                     batch_counter = 0
@@ -190,7 +190,7 @@ class DataPipeline:
             logger.info(f"Realtime pipeline completed: {stats}")
             return stats
 
-        except Exception as e:
+        except SQLAlchemyError as e:
             db.rollback()
             exc = e
             logger.critical(f"Realtime pipeline aborted: {e}", exc_info=True)
@@ -229,7 +229,7 @@ class DataPipeline:
                 for row in raw_rows:
                     try:
                         adapted_rows.append(self.adapter(row, contract_code, period))
-                    except Exception as e:
+                    except (KeyError, TypeError, ValueError, IndexError) as e:
                         stats["failed"] += 1
                         logger.warning(f"Kline adapter failed for {contract_code} {period}: {e}, row={row}")
                 raw_rows = adapted_rows
@@ -248,7 +248,7 @@ class DataPipeline:
             logger.info(f"K-line pipeline completed: {stats}")
             return stats
 
-        except Exception as e:
+        except SQLAlchemyError as e:
             db.rollback()
             exc = e
             logger.critical(f"K-line pipeline aborted: {e}", exc_info=True)
@@ -294,7 +294,7 @@ class DataPipeline:
                         mapped = self.adapter(raw, variety_id, period)
                     else:
                         mapped = raw
-                except Exception as e:
+                except (KeyError, TypeError, ValueError, IndexError) as e:
                     stats["failed"] += 1
                     logger.warning(f"FutDaily adapter failed: row={raw}, error={e}")
                     continue
@@ -312,7 +312,7 @@ class DataPipeline:
             stats["skipped"] += missing_variety + (len(rows) - inserted)
             logger.info(f"FutDaily pipeline ({period}) completed: {stats}")
             return stats
-        except Exception as e:
+        except SQLAlchemyError as e:
             db.rollback()
             exc = e
             record_failure(self.collector.__class__.__name__)
@@ -344,7 +344,7 @@ class DataPipeline:
                 for row in raw_rows:
                     try:
                         rows.append(self.adapter(row))
-                    except Exception as e:
+                    except (KeyError, TypeError, ValueError, IndexError) as e:
                         adapter_failed += 1
                         logger.warning(f"FutSettle adapter failed: row={row}, error={e}")
             else:
@@ -360,7 +360,7 @@ class DataPipeline:
             else:
                 logger.info(f"FutSettle pipeline completed: {stats}")
             return stats
-        except Exception as e:
+        except SQLAlchemyError as e:
             db.rollback()
             exc = e
             record_failure(self.collector.__class__.__name__)
@@ -392,7 +392,7 @@ class DataPipeline:
                 for row in raw_rows:
                     try:
                         rows.append(self.adapter(row))
-                    except Exception as e:
+                    except (KeyError, TypeError, ValueError, IndexError) as e:
                         adapter_failed += 1
                         logger.warning(f"FutWeeklyDetail adapter failed: row={row}, error={e}")
             else:
@@ -411,7 +411,7 @@ class DataPipeline:
             else:
                 logger.info(f"FutWeeklyDetail pipeline completed: {stats}")
             return stats
-        except Exception as e:
+        except SQLAlchemyError as e:
             db.rollback()
             exc = e
             record_failure(self.collector.__class__.__name__)
@@ -443,7 +443,7 @@ class DataPipeline:
                 for row in raw_rows:
                     try:
                         rows.append(self.adapter(row))
-                    except Exception as e:
+                    except (KeyError, TypeError, ValueError, IndexError) as e:
                         adapter_failed += 1
                         logger.warning(f"FutWsr adapter failed: row={row}, error={e}")
             else:
@@ -462,7 +462,7 @@ class DataPipeline:
             else:
                 logger.info(f"FutWsr pipeline completed: {stats}")
             return stats
-        except Exception as e:
+        except SQLAlchemyError as e:
             db.rollback()
             exc = e
             record_failure(self.collector.__class__.__name__)
@@ -494,7 +494,7 @@ class DataPipeline:
                 for row in raw_rows:
                     try:
                         rows.append(self.adapter(row))
-                    except Exception as e:
+                    except (KeyError, TypeError, ValueError, IndexError) as e:
                         adapter_failed += 1
                         logger.warning(f"FutHolding adapter failed: row={row}, error={e}")
             else:
@@ -513,7 +513,7 @@ class DataPipeline:
             else:
                 logger.info(f"FutHolding pipeline completed: {stats}")
             return stats
-        except Exception as e:
+        except SQLAlchemyError as e:
             db.rollback()
             exc = e
             record_failure(self.collector.__class__.__name__)
@@ -545,7 +545,7 @@ class DataPipeline:
                 for row in raw_rows:
                     try:
                         rows.append(self.adapter(row))
-                    except Exception as e:
+                    except (KeyError, TypeError, ValueError, IndexError) as e:
                         adapter_failed += 1
                         logger.warning(f"FutPriceLimit adapter failed: row={row}, error={e}")
             else:
@@ -561,7 +561,7 @@ class DataPipeline:
             else:
                 logger.info(f"FutPriceLimit pipeline completed: {stats}")
             return stats
-        except Exception as e:
+        except SQLAlchemyError as e:
             db.rollback()
             exc = e
             record_failure(self.collector.__class__.__name__)
@@ -596,7 +596,7 @@ class DataPipeline:
                 for row in raw_rows:
                     try:
                         rows.append(self.adapter(row))
-                    except Exception as e:
+                    except (KeyError, TypeError, ValueError, IndexError) as e:
                         adapter_failed += 1
                         logger.warning(f"FutMapping adapter failed: row={row}, error={e}")
             else:
@@ -673,7 +673,7 @@ class DataPipeline:
             stats["skipped"] = skipped
             logger.info(f"FutMapping pipeline completed: {stats}")
             return stats
-        except Exception as e:
+        except SQLAlchemyError as e:
             db.rollback()
             exc = e
             record_failure(self.collector.__class__.__name__)

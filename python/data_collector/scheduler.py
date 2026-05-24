@@ -2,11 +2,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 import logging
+import requests
 import threading
 import time
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import SQLAlchemyError
 
 from models import SessionLocal, VarietyDB, ProductDB
 from data_collector.base import BaseCollector
@@ -46,7 +48,7 @@ class _MappedFallbackCollector(BaseCollector):
                 if raw is None:
                     continue
                 return realtime_adapter(raw, symbol)
-            except Exception as e:
+            except (requests.RequestException, ConnectionError, TimeoutError, OSError, KeyError, TypeError, ValueError) as e:
                 external_api_duration_seconds.labels(source=name, operation="fetch_realtime").observe(time.time() - start)
                 logger.warning("%s realtime failed for %s, trying next source: %s", name, symbol, e)
         return None
@@ -63,10 +65,10 @@ class _MappedFallbackCollector(BaseCollector):
                 for row in raw_rows:
                     try:
                         adapted.append(kline_adapter(row, contract_code, period))
-                    except Exception as e:
+                    except (KeyError, TypeError, ValueError, IndexError) as e:
                         logger.warning("%s kline adapter failed for %s/%s row: %s", name, contract_code, period, e)
                 return adapted
-            except Exception as e:
+            except (requests.RequestException, ConnectionError, TimeoutError, OSError, KeyError, TypeError, ValueError) as e:
                 external_api_duration_seconds.labels(source=name, operation="fetch_kline").observe(time.time() - start)
                 logger.warning("%s kline failed for %s/%s, trying next source: %s", name, contract_code, period, e)
         return []
@@ -75,7 +77,7 @@ class _MappedFallbackCollector(BaseCollector):
 def _try_create(name, factory, realtime_adapter, kline_adapter):
     try:
         return name, factory(), realtime_adapter, kline_adapter
-    except Exception as e:
+    except (ImportError, TypeError, ValueError, ConnectionError) as e:
         logger.warning("%s collector unavailable: %s", name, e)
         return None
 
@@ -229,7 +231,7 @@ def _ensure_collectors():
                 cleaner=clean_kline,
             )
             logger.info("AkShare minute pipeline ready")
-        except Exception as e:
+        except (SQLAlchemyError, OSError, requests.RequestException) as e:
             logger.warning("AkShare minute pipeline unavailable: %s", e)
 
         _initialized = True
@@ -255,7 +257,7 @@ def refresh_realtime_quotes():
         logger.info(f"Refreshed realtime: {stats}")
         mark_realtime_updated()
         data_collection_runs_total.labels(task_name="refresh_realtime", status="success").inc()
-    except Exception as e:
+    except (SQLAlchemyError, OSError, requests.RequestException) as e:
         logger.error(f"Refresh realtime failed: {e}")
         data_collection_runs_total.labels(task_name="refresh_realtime", status="failed").inc()
         raise
@@ -286,7 +288,7 @@ def sync_daily_kline():
                 # Use 1d to avoid ft_mins quota limits on free-tier Tushare
                 _pipeline_kline.run_kline(v.contract_code, "1d", limit=30)
                 success_count += 1
-            except Exception as e:
+            except (SQLAlchemyError, OSError, requests.RequestException) as e:
                 logger.error(f"Failed to sync kline for {v.contract_code}: {e}")
                 fail_count += 1
         logger.info(f"Synced kline for {len(varieties)} varieties")
@@ -294,7 +296,7 @@ def sync_daily_kline():
             data_collection_runs_total.labels(task_name="sync_kline", status="success").inc()
         else:
             data_collection_runs_total.labels(task_name="sync_kline", status="partial").inc()
-    except Exception as e:
+    except (SQLAlchemyError, OSError, requests.RequestException) as e:
         logger.error(f"Sync kline failed: {e}")
         data_collection_runs_total.labels(task_name="sync_kline", status="failed").inc()
         raise
@@ -350,7 +352,7 @@ def sync_prices_to_products():
         db.commit()
         logger.info(f"Synced {synced} prices to products")
         data_collection_runs_total.labels(task_name="sync_prices", status="success").inc()
-    except Exception as e:
+    except (SQLAlchemyError, OSError, requests.RequestException) as e:
         logger.error(f"Sync prices failed: {e}")
         data_collection_runs_total.labels(task_name="sync_prices", status="failed").inc()
         raise
@@ -371,13 +373,13 @@ def refresh_and_sync():
     """
     try:
         refresh_realtime_quotes()
-    except Exception:
+    except (SQLAlchemyError, OSError, requests.RequestException):
         # 调度器顶层保护：防止单任务失败导致整个 scheduler 崩溃
         logger.error("refresh_realtime_quotes failed, skipping sync_prices_to_products")
         return
     try:
         sync_prices_to_products()
-    except Exception:
+    except (SQLAlchemyError, OSError, requests.RequestException):
         # 调度器顶层保护：防止单任务失败导致整个 scheduler 崩溃
         logger.error("sync_prices_to_products failed after realtime refresh")
 
@@ -410,6 +412,15 @@ def start_scheduler():
         max_instances=1,
         coalesce=True,
         misfire_grace_time=60,
+    )
+    scheduler.add_job(
+        sync_trading_calendar,
+        CronTrigger(day=1, hour=3, minute=0, timezone="Asia/Shanghai"),
+        id="trading_calendar",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
     )
     scheduler.add_job(
         sync_variety_metadata,
@@ -504,7 +515,7 @@ def sync_minute_kline():
         for v in varieties:
             try:
                 _pipeline_akshare_minute.run_kline(v.contract_code, "1m", limit=15)
-            except Exception as e:
+            except (SQLAlchemyError, OSError, requests.RequestException) as e:
                 logger.error(f"Failed to sync minute kline for {v.contract_code}: {e}")
         logger.info(f"Synced minute kline for {len(varieties)} varieties")
     finally:
@@ -554,7 +565,7 @@ def sync_fut_daily():
                 ts_code = _get_ts_code(v)
                 stats = _pipeline_fut_daily.run_fut_daily(ts_code, start_date, end_date, period="D")
                 total += stats.get("processed", 0)
-            except Exception as e:
+            except (SQLAlchemyError, OSError, requests.RequestException) as e:
                 logger.error(f"Failed to sync daily for {v.symbol}: {e}")
         logger.info(f"Synced {total} daily rows for {len(varieties)} varieties")
     finally:
@@ -575,7 +586,7 @@ def sync_fut_settle():
         trade_date = _cn_date().strftime("%Y%m%d")
         stats = _pipeline_fut_settle.run_fut_settle(trade_date)
         logger.info(f"Synced settle: {stats}")
-    except Exception as e:
+    except (SQLAlchemyError, OSError, requests.RequestException) as e:
         logger.error(f"Failed to sync settle: {e}")
 
 
@@ -595,7 +606,7 @@ def sync_fut_weekly_detail():
         start_date = (_cn_date() - timedelta(days=30)).strftime("%Y%m%d")
         stats = _pipeline_fut_weekly_detail.run_fut_weekly_detail(start_date, end_date)
         logger.info(f"Synced weekly detail: {stats}")
-    except Exception as e:
+    except (SQLAlchemyError, OSError, requests.RequestException) as e:
         logger.error(f"Failed to sync weekly detail: {e}")
 
 
@@ -613,7 +624,7 @@ def sync_fut_wsr():
         trade_date = _cn_date().strftime("%Y%m%d")
         stats = _pipeline_fut_wsr.run_fut_wsr(trade_date)
         logger.info(f"Synced WSR: {stats}")
-    except Exception as e:
+    except (SQLAlchemyError, OSError, requests.RequestException) as e:
         logger.error(f"Failed to sync WSR: {e}")
 
 
@@ -631,7 +642,7 @@ def sync_fut_holding():
         trade_date = _cn_date().strftime("%Y%m%d")
         stats = _pipeline_fut_holding.run_fut_holding(trade_date)
         logger.info(f"Synced holding: {stats}")
-    except Exception as e:
+    except (SQLAlchemyError, OSError, requests.RequestException) as e:
         logger.error(f"Failed to sync holding: {e}")
 
 
@@ -649,8 +660,38 @@ def sync_fut_price_limit():
         trade_date = _cn_date().strftime("%Y%m%d")
         stats = _pipeline_fut_price_limit.run_fut_price_limit(trade_date=trade_date)
         logger.info(f"Synced price limit: {stats}")
-    except Exception as e:
+    except (SQLAlchemyError, OSError, requests.RequestException) as e:
         logger.error(f"Failed to sync price limit: {e}")
+
+
+def sync_trading_calendar():
+    """自动同步交易日历：每月 1 日从 AKShare 增量更新 JSON 并热刷新内存缓存。"""
+    logger.info("Syncing trading calendar...")
+    try:
+        # 动态导入避免启动时 AKShare 未安装导致崩溃
+        import importlib.util
+        script_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "scripts", "update_trading_calendar.py"
+        )
+        if not os.path.exists(script_path):
+            logger.warning("update_trading_calendar.py not found at %s", script_path)
+            return
+
+        spec = importlib.util.spec_from_file_location("update_trading_calendar", script_path)
+        if spec is None or spec.loader is None:
+            logger.warning("Cannot load update_trading_calendar module")
+            return
+
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["update_trading_calendar"] = mod
+        spec.loader.exec_module(mod)
+        mod.main(force_full=False)
+        logger.info("Trading calendar sync completed")
+    except ImportError as e:
+        logger.warning("AKShare not available, skipping trading calendar sync: %s", e)
+    except (ImportError, ConnectionError, TypeError, ValueError, OSError) as e:
+        logger.error("Failed to sync trading calendar: %s", e)
 
 
 def sync_variety_metadata():
@@ -664,7 +705,7 @@ def sync_variety_metadata():
         trade_date = _cn_date().strftime("%Y%m%d")
         stats = _pipeline_fut_mapping.run_fut_mapping(trade_date=trade_date)
         logger.info(f"Synced variety metadata: {stats}")
-    except Exception as e:
+    except (SQLAlchemyError, OSError, requests.RequestException) as e:
         logger.error(f"Failed to sync variety metadata: {e}")
 
 

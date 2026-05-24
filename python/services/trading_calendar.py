@@ -130,10 +130,7 @@ class TradingCalendar:
 
     def _load(self):
         """加载交易日历。"""
-        json_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "data", "trading_calendar.json"
-        )
+        json_path = self._json_path()
         if os.path.exists(json_path):
             with open(json_path, encoding="utf-8") as f:
                 dates_str = json.load(f)
@@ -147,6 +144,24 @@ class TradingCalendar:
             self._trading_days = set()
             self._min_date = date(1900, 1, 1)
             self._max_date = date(2100, 12, 31)
+
+    @staticmethod
+    def _json_path() -> str:
+        return os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "data", "trading_calendar.json"
+        )
+
+    def reload(self):
+        """重新加载交易日历 JSON（用于外部更新后热刷新）。"""
+        logger.info("Reloading trading calendar...")
+        self._load()
+        # 同步刷新模块级缓存函数指针
+        global _is_trading_day, _get_trading_days, _trading_days_between, _get_expected_kline_dates
+        _is_trading_day = self.is_trading_day
+        _get_trading_days = self.get_trading_days
+        _trading_days_between = self.trading_days_between
+        _get_expected_kline_dates = self.get_expected_kline_dates
 
     def is_trading_day(self, d: date | datetime | str) -> bool:
         """判断某日是否为期货交易日。
