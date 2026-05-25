@@ -1,4 +1,4 @@
-import { RequestCore, API_BASE } from './request'
+import { RequestCore, API_BASE, fetchWithTimeout } from './request'
 import { ApiError } from './errors'
 import type { TokenResponse, User } from './types'
 
@@ -48,7 +48,7 @@ export class AuthCore extends RequestCore {
 
   private async performRefresh(): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -60,7 +60,10 @@ export class AuthCore extends RequestCore {
         this.setRefreshToken(data.refresh_token)
       }
       return true
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'TIMEOUT') {
+        return false
+      }
       return false
     }
   }
@@ -70,19 +73,14 @@ export class AuthCore extends RequestCore {
     formData.append('username', username)
     formData.append('password', password)
 
-    let response: Response
-    try {
-      response = await fetch(`${API_BASE}/api/auth/login`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData,
-      })
-    } catch (err) {
-      throw new ApiError(err instanceof Error ? err.message : 'Network request failed', 0, 'NETWORK_ERROR')
-    }
+    const response = await fetchWithTimeout(`${API_BASE}/api/auth/login`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData,
+    })
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Login failed' }))
@@ -107,7 +105,7 @@ export class AuthCore extends RequestCore {
 
   async logout(): Promise<void> {
     this.refreshPromise = null
-    await fetch(`${API_BASE}/api/auth/logout`, {
+    await fetchWithTimeout(`${API_BASE}/api/auth/logout`, {
       method: 'POST',
       credentials: 'include',
       headers: {

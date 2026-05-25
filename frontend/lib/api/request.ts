@@ -2,6 +2,43 @@ import { ApiError } from './errors'
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8200'
 
+const DEFAULT_TIMEOUT_MS = 15_000
+
+export async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController()
+  let timedOut = false
+  const timeoutId = window.setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, timeoutMs)
+
+  if (options.signal) {
+    options.signal.addEventListener('abort', () => controller.abort())
+  }
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+    return response
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      if (timedOut) {
+        throw new ApiError('请求超时，请检查网络连接', 0, 'TIMEOUT')
+      }
+      throw new ApiError('请求已取消', 0, 'ABORTED')
+    }
+    throw new ApiError(err instanceof Error ? err.message : 'Network request failed', 0, 'NETWORK_ERROR')
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+}
+
 export abstract class RequestCore {
   protected abstract getToken(): string | null
   protected abstract tryRefresh(): Promise<boolean>
@@ -38,49 +75,19 @@ export abstract class RequestCore {
       return headers
     }
 
-    const controller = new AbortController()
-    let timedOut = false
-    const timeoutId = window.setTimeout(() => {
-      timedOut = true
-      controller.abort()
-    }, 15000)
-
-    if (options.signal) {
-      options.signal.addEventListener('abort', () => controller.abort())
-    }
-
-    let response: Response
-    try {
-      response = await fetch(`${API_BASE}${url}`, {
-        ...options,
-        signal: controller.signal,
-        headers: buildHeaders(this.getToken()),
-      })
-    } catch (err) {
-      window.clearTimeout(timeoutId)
-      if (err instanceof Error && err.name === 'AbortError') {
-        if (timedOut) {
-          throw new ApiError('请求超时，请检查网络连接', 0, 'TIMEOUT')
-        }
-        throw new ApiError('请求已取消', 0, 'ABORTED')
-      }
-      throw new ApiError(err instanceof Error ? err.message : 'Network request failed', 0, 'NETWORK_ERROR')
-    } finally {
-      window.clearTimeout(timeoutId)
-    }
+    let response = await fetchWithTimeout(`${API_BASE}${url}`, {
+      ...options,
+      headers: buildHeaders(this.getToken()),
+    })
 
     // 401 时尝试通过 HttpOnly refresh cookie 自动刷新一次 access token。
     if (response.status === 401) {
       const refreshed = await this.tryRefresh()
       if (refreshed) {
-        try {
-          response = await fetch(`${API_BASE}${url}`, {
-            ...options,
-            headers: buildHeaders(this.getToken()),
-          })
-        } catch (err) {
-          throw new ApiError(err instanceof Error ? err.message : 'Network request failed', 0, 'NETWORK_ERROR')
-        }
+        response = await fetchWithTimeout(`${API_BASE}${url}`, {
+          ...options,
+          headers: buildHeaders(this.getToken()),
+        })
       }
     }
 
