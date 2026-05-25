@@ -5,7 +5,7 @@ import { useAuth } from '@/components/auth/AuthProvider'
 import { captureMessage } from '@/lib/sentry-lite'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import ModalShell from './ModalShell'
+import AuthModalShell from './AuthModalShell'
 
 interface RegisterForm {
   username: string
@@ -41,7 +41,7 @@ export default function RegisterModal({ onClose, onSuccess }: RegisterModalProps
   })
 
   return (
-    <ModalShell title="注册" onClose={onClose}>
+    <AuthModalShell title="注册" onClose={onClose}>
       <form onSubmit={onSubmit} className="space-y-4">
         {errors.root && (
           <div className="rounded-lg bg-red-500/10 p-2 text-sm text-red-300">{errors.root.message}</div>
@@ -51,6 +51,8 @@ export default function RegisterModal({ onClose, onSuccess }: RegisterModalProps
           <Input
             id="register-username"
             type="text"
+            autoFocus
+            data-autofocus
             {...register('username', { required: '请输入用户名' })}
           />
           {errors.username && <p className="mt-1 text-xs text-red-400">{errors.username.message}</p>}
@@ -96,6 +98,6 @@ export default function RegisterModal({ onClose, onSuccess }: RegisterModalProps
           去登录
         </button>
       </div>
-    </ModalShell>
+    </AuthModalShell>
   )
 }
