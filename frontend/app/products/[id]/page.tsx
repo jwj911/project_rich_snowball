@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import AppShell from '@/components/layout/AppShell'
@@ -12,7 +12,7 @@ import ErrorState from '@/components/ui/ErrorState'
 import PriceChange from '@/components/market/PriceChange'
 import TechnicalAnalysisPanel from '@/components/market/TechnicalAnalysisPanel'
 import { usePriceLevels } from '@/hooks/usePriceLevels'
-import { api, Comment, Product, RealtimeQuote } from '@/lib/api'
+import { api, Comment } from '@/lib/api'
 import { captureMessage } from '@/lib/sentry-lite'
 import { formatInteger, formatPrice, getChangeTone } from '@/lib/format'
 import { toast } from 'sonner'
@@ -24,6 +24,7 @@ import {
 
 import WatchlistButton from '@/components/product/WatchlistButton'
 import { useProductKline } from '@/hooks/useProductKline'
+import { useProductPolling } from '@/hooks/useProductPolling'
 import TradingInfoPanel from '@/components/product/TradingInfoPanel'
 
 const KlineSection = dynamic(() => import('@/components/product/KlineSection'), {
@@ -36,18 +37,23 @@ import CommentSection from '@/components/product/CommentSection'
 export default function ProductDetailPage({ params }: { params: { id: string } }) {
   const productId = Number.parseInt(params.id, 10)
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
-  const [product, setProduct] = useState<Product | null>(null)
+
+  const {
+    productDetail,
+    product,
+    realtime,
+    varietyId,
+    loading: isLoading,
+    error,
+    refresh: refreshProduct,
+  } = useProductPolling(productId, !authLoading && isAuthenticated)
+
   const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState('')
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [commentError, setCommentError] = useState<string | null>(null)
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [newSupport, setNewSupport] = useState('')
   const [newResistance, setNewResistance] = useState('')
-  const [realtime, setRealtime] = useState<RealtimeQuote | null>(null)
-  const [varietyId, setVarietyId] = useState<number | null>(null)
-  const pollingInFlightRef = useRef(false)
   const [isInWatchlist, setIsInWatchlist] = useState(false)
   const [watchlistId, setWatchlistId] = useState<number | null>(null)
 
@@ -77,65 +83,11 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     removeResistance,
   } = usePriceLevels(varietyId, user?.id ?? null, productId)
 
-  const loadData = useCallback(async (showLoading = true) => {
-    if (!Number.isFinite(productId)) {
-      setError('无效的品种 ID')
-      setIsLoading(false)
-      return
-    }
-    if (showLoading) setIsLoading(true)
-
-    try {
-      setError(null)
-      const data = await api.getProduct(productId)
-      setProduct(data.product)
-      setComments(data.comments)
-
-      if (data.product?.symbol) {
-        const quote = await api.getRealtime(data.product.symbol).catch(() => null)
-        setRealtime(quote)
-        try {
-          const variety = await api.getVariety(data.product.symbol)
-          setVarietyId(variety.id)
-        } catch {
-          setVarietyId(null)
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '品种详情加载失败')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [productId])
-
   useEffect(() => {
-    if (authLoading) return
-    if (!isAuthenticated) {
-      setIsLoading(false)
-      return
+    if (productDetail?.comments) {
+      setComments(productDetail.comments)
     }
-    loadData()
-    if (!Number.isFinite(productId)) return
-
-    const interval = setInterval(async () => {
-      if (pollingInFlightRef.current) return
-      pollingInFlightRef.current = true
-      try {
-        const data = await api.getProduct(productId)
-        setProduct(data.product)
-        if (data.product?.symbol) {
-          const quote = await api.getRealtime(data.product.symbol)
-          setRealtime(quote)
-        }
-      } catch (err) {
-        console.error('品种详情轮询失败:', err)
-      } finally {
-        pollingInFlightRef.current = false
-      }
-    }, 30000)
-
-    return () => clearInterval(interval)
-  }, [authLoading, isAuthenticated, loadData, productId])
+  }, [productDetail])
 
   useEffect(() => {
     if (!varietyId) return
@@ -211,7 +163,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
         <StatePanel>正在加载品种详情...</StatePanel>
       ) : !product ? (
         error ? (
-          <ErrorState message={error} onRetry={() => loadData()} />
+          <ErrorState message={error} onRetry={() => refreshProduct()} />
         ) : (
           <EmptyState title="品种不存在" description="没有找到对应的期货品种，请返回行情中心重新选择。" />
         )
