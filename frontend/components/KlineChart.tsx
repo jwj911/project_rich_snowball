@@ -47,10 +47,10 @@ interface CrosshairQuote {
 }
 
 const CHART_HEIGHT = CHART.HEIGHT
-const SUPPORT_COLOR = '#4ade80'
-const RESISTANCE_COLOR = '#ff6b6b'
-const UP_COLOR = '#ff6b6b'
-const DOWN_COLOR = '#4ade80'
+const SUPPORT_COLOR = CHART.SUPPORT_COLOR
+const RESISTANCE_COLOR = CHART.RESISTANCE_COLOR
+const UP_COLOR = CHART.UP_COLOR
+const DOWN_COLOR = CHART.DOWN_COLOR
 
 export default function KlineChart({
   data: externalData,
@@ -87,7 +87,7 @@ export default function KlineChart({
     () => points.map((point) => ({
       time: point.time,
       value: Math.max(point.volume, 0),
-      color: point.close >= point.open ? 'rgba(255, 107, 107, 0.38)' : 'rgba(74, 222, 128, 0.38)',
+      color: point.close >= point.open ? `${CHART.UP_COLOR}61` : `${CHART.DOWN_COLOR}61`,
     })),
     [points],
   )
@@ -107,25 +107,25 @@ export default function KlineChart({
       width: container.clientWidth,
       height: CHART_HEIGHT,
       layout: {
-        background: { type: ColorType.Solid, color: '#131722' },
-        textColor: '#94a3b8',
+        background: { type: ColorType.Solid, color: CHART.BG_COLOR },
+        textColor: CHART.TEXT_COLOR,
         fontFamily: 'JetBrains Mono, Consolas, monospace',
       },
       grid: {
-        vertLines: { color: '#263244' },
-        horzLines: { color: '#263244' },
+        vertLines: { color: CHART.GRID_COLOR },
+        horzLines: { color: CHART.GRID_COLOR },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#64748b', style: LineStyle.Dashed, labelBackgroundColor: '#1e293b' },
-        horzLine: { color: '#64748b', style: LineStyle.Dashed, labelBackgroundColor: '#1e293b' },
+        vertLine: { color: CHART.CROSSHAIR_COLOR, style: LineStyle.Dashed, labelBackgroundColor: CHART.TOOLTIP_BG },
+        horzLine: { color: CHART.CROSSHAIR_COLOR, style: LineStyle.Dashed, labelBackgroundColor: CHART.TOOLTIP_BG },
       },
       rightPriceScale: {
-        borderColor: '#263244',
+        borderColor: CHART.GRID_COLOR,
         scaleMargins: { top: 0.08, bottom: 0.25 },
       },
       timeScale: {
-        borderColor: '#263244',
+        borderColor: CHART.GRID_COLOR,
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 6,
@@ -154,7 +154,7 @@ export default function KlineChart({
       borderDownColor: DOWN_COLOR,
       wickUpColor: UP_COLOR,
       wickDownColor: DOWN_COLOR,
-      priceLineColor: '#f8fafc',
+      priceLineColor: CHART.TEXT_COLOR,
       lastValueVisible: true,
       priceLineVisible: true,
     })

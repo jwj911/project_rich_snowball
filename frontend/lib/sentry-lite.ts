@@ -1,10 +1,12 @@
 /**
  * 轻量级 Sentry 兼容层
- * 生产环境替换为 @sentry/nextjs 完整集成
+ * TODO: 当前为开发占位实现，仅输出到 console。
+ *       生产环境需替换为 @sentry/nextjs 完整集成或接入真实上报端点。
  */
 interface SentryConfig {
   dsn?: string
   enabled?: boolean
+  reportUri?: string
 }
 
 let config: SentryConfig = { enabled: false }
@@ -18,7 +20,7 @@ export function captureException(error: unknown, context?: Record<string, unknow
     console.error('[Sentry]', error, context)
     return
   }
-  // 生产环境发送给 Sentry
+  // TODO: 生产环境发送给真实 Sentry 端点
 }
 
 export function captureMessage(message: string, level: 'info' | 'warning' | 'error' = 'info') {
@@ -26,4 +28,5 @@ export function captureMessage(message: string, level: 'info' | 'warning' | 'err
     console.log(`[Sentry ${level}]`, message)
     return
   }
+  // TODO: 生产环境发送给真实 Sentry 端点
 }

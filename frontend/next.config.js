@@ -1,4 +1,12 @@
-/** @type {import('next').NextConfig} */
+/**
+ * @type {import('next').NextConfig}
+ *
+ * Bundle Budget 基线（2026-05-25）：
+ * - Shared JS:   ~87 kB
+ * - /products:   ~124 kB FLJS
+ * - /products/[id]: ~135 kB FLJS
+ * 红线：任意路由 First Load JS 不得超过 180 kB。
+ */
 const withBundleAnalyzer = require('@next/bundle-analyzer')({
   enabled: process.env.ANALYZE === 'true',
 })
