@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { api, RealtimeQuote } from '@/lib/api'
+import { captureMessage } from '@/lib/sentry-lite'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8200'
 import { MARKET } from '@/lib/constants'
@@ -115,13 +116,15 @@ export function useRealtimeQuotes(symbols: string[]): UseRealtimeQuotesResult {
           try {
             const data = JSON.parse(event.data)
             const batchQuotes: RealtimeQuote[] = data.quotes ?? []
-            const next = new Map<string, RealtimeQuote>()
-            for (const quote of batchQuotes) {
-              next.set(quote.symbol, quote)
-            }
-            setQuotes(next)
-          } catch {
-            // 忽略解析失败的推送
+            setQuotes((prev) => {
+              const next = new Map(prev)
+              for (const quote of batchQuotes) {
+                next.set(quote.symbol, quote)
+              }
+              return next
+            })
+          } catch (err) {
+            captureMessage('SSE 消息解析失败', 'error')
           }
         }
 

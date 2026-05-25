@@ -1,4 +1,5 @@
 import { api, KlineData } from '@/lib/api'
+import { KLINE } from '@/lib/constants'
 
 export type KlinePeriod = '1m' | '5m' | '15m' | '30m' | '1h' | '1d' | '1w'
 export type KlineSource = 'continuous' | 'main' | 'single'
@@ -20,13 +21,13 @@ export const KLINE_PERIODS: Array<{ value: KlinePeriod; label: string }> = [
 ]
 
 export const KLINE_PERIOD_LIMITS: Record<KlinePeriod, number> = {
-  '1m': 120,
-  '5m': 120,
-  '15m': 120,
-  '30m': 120,
-  '1h': 100,
-  '1d': 90,
-  '1w': 90,
+  '1m': KLINE.SHORT_PERIOD_LIMIT,
+  '5m': KLINE.SHORT_PERIOD_LIMIT,
+  '15m': KLINE.SHORT_PERIOD_LIMIT,
+  '30m': KLINE.SHORT_PERIOD_LIMIT,
+  '1h': KLINE.MEDIUM_PERIOD_LIMIT,
+  '1d': KLINE.LONG_PERIOD_LIMIT,
+  '1w': KLINE.LONG_PERIOD_LIMIT,
 }
 
 const CONTRACT_PERIOD_MAP: Record<KlinePeriod, string> = {
