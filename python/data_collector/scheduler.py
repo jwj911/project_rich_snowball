@@ -73,6 +73,37 @@ def _pipeline(name: str):
     return _pipelines.get(name)
 
 
+def _get_active_varieties(db):
+    """获取活跃品种列表，避免全量加载已下架/不活跃品种。"""
+    return db.query(VarietyDB).filter(VarietyDB.is_active == True).all()  # noqa: E712
+
+
+def _should_skip_daily_task(job_name: str, trade_date: str, db) -> bool:
+    """幂等检查：同一天同一任务已成功执行过则跳过。
+
+    防止手动重试或 misfire 补执行时产生重复数据。
+    """
+    from datetime import datetime
+
+    from models import DataIngestionRunDB
+    try:
+        dt = datetime.strptime(trade_date, "%Y%m%d")
+        exists = (
+            db.query(DataIngestionRunDB)
+            .filter(DataIngestionRunDB.job_name == job_name)
+            .filter(DataIngestionRunDB.status == "success")
+            .filter(DataIngestionRunDB.started_at >= dt)
+            .filter(DataIngestionRunDB.started_at < _cn_date() + timedelta(days=1))
+            .first()
+        )
+        if exists:
+            logger.info("Idempotent skip: %s for %s already succeeded", job_name, trade_date)
+            return True
+    except Exception as e:
+        logger.warning("Idempotency check failed for %s: %s", job_name, e)
+    return False
+
+
 def _get_ts_code(variety):
     """Build a Tushare continuous ts_code from a VarietyDB row."""
     exchange_map = {
@@ -108,7 +139,7 @@ def refresh_realtime_quotes():
     start = time.time()
     db = SessionLocal()
     try:
-        varieties = db.query(VarietyDB).all()
+        varieties = _get_active_varieties(db)
         symbols = [v.symbol for v in varieties]
         stats = pipeline.run_realtime(symbols)
         logger.info("Refreshed realtime: %s", stats)
@@ -139,7 +170,7 @@ def sync_daily_kline():
     success_count = 0
     fail_count = 0
     try:
-        varieties = db.query(VarietyDB).all()
+        varieties = _get_active_varieties(db)
         for v in varieties:
             try:
                 pipeline.run_kline(v.contract_code, "1d", limit=30)
@@ -244,7 +275,7 @@ def sync_minute_kline():
     logger.info("Syncing minute kline via AkShare...")
     db = SessionLocal()
     try:
-        varieties = db.query(VarietyDB).all()
+        varieties = _get_active_varieties(db)
         for v in varieties:
             try:
                 _pipeline_akshare_minute.run_kline(v.contract_code, "1m", limit=15)
@@ -269,7 +300,7 @@ def sync_fut_daily():
     try:
         end_date = _cn_date().strftime("%Y%m%d")
         start_date = (_cn_date() - timedelta(days=10)).strftime("%Y%m%d")
-        varieties = db.query(VarietyDB).all()
+        varieties = _get_active_varieties(db)
         total = 0
         for v in varieties:
             try:
@@ -292,9 +323,15 @@ def sync_fut_settle():
     if not pipeline:
         logger.debug("sync_fut_settle skipped: not tushare source")
         return
+    trade_date = _cn_date().strftime("%Y%m%d")
+    db = SessionLocal()
+    try:
+        if _should_skip_daily_task("sync_fut_settle", trade_date, db):
+            return
+    finally:
+        db.close()
     logger.info("Syncing futures settle data...")
     try:
-        trade_date = _cn_date().strftime("%Y%m%d")
         stats = pipeline.run_fut_settle(trade_date)
         logger.info("Synced settle: %s", stats)
     except (SQLAlchemyError, OSError) as e:
@@ -310,10 +347,17 @@ def sync_fut_weekly_detail():
     if not pipeline:
         logger.debug("sync_fut_weekly_detail skipped: not tushare source")
         return
+    end_date = _cn_date().strftime("%Y%m%d")
+    start_date = (_cn_date() - timedelta(days=30)).strftime("%Y%m%d")
+    param_key = f"{start_date}_{end_date}"
+    db = SessionLocal()
+    try:
+        if _should_skip_daily_task("sync_fut_weekly_detail", param_key, db):
+            return
+    finally:
+        db.close()
     logger.info("Syncing futures weekly detail...")
     try:
-        end_date = _cn_date().strftime("%Y%m%d")
-        start_date = (_cn_date() - timedelta(days=30)).strftime("%Y%m%d")
         stats = pipeline.run_fut_weekly_detail(start_date, end_date)
         logger.info("Synced weekly detail: %s", stats)
     except (SQLAlchemyError, OSError) as e:
@@ -329,9 +373,15 @@ def sync_fut_wsr():
     if not pipeline:
         logger.debug("sync_fut_wsr skipped: not tushare source")
         return
+    trade_date = _cn_date().strftime("%Y%m%d")
+    db = SessionLocal()
+    try:
+        if _should_skip_daily_task("sync_fut_wsr", trade_date, db):
+            return
+    finally:
+        db.close()
     logger.info("Syncing futures warehouse receipts...")
     try:
-        trade_date = _cn_date().strftime("%Y%m%d")
         stats = pipeline.run_fut_wsr(trade_date)
         logger.info("Synced WSR: %s", stats)
     except (SQLAlchemyError, OSError) as e:
@@ -347,9 +397,15 @@ def sync_fut_holding():
     if not pipeline:
         logger.debug("sync_fut_holding skipped: not tushare source")
         return
+    trade_date = _cn_date().strftime("%Y%m%d")
+    db = SessionLocal()
+    try:
+        if _should_skip_daily_task("sync_fut_holding", trade_date, db):
+            return
+    finally:
+        db.close()
     logger.info("Syncing futures holding data...")
     try:
-        trade_date = _cn_date().strftime("%Y%m%d")
         stats = pipeline.run_fut_holding(trade_date)
         logger.info("Synced holding: %s", stats)
     except (SQLAlchemyError, OSError) as e:
@@ -365,9 +421,15 @@ def sync_fut_price_limit():
     if not pipeline:
         logger.debug("sync_fut_price_limit skipped: not tushare source")
         return
+    trade_date = _cn_date().strftime("%Y%m%d")
+    db = SessionLocal()
+    try:
+        if _should_skip_daily_task("sync_fut_price_limit", trade_date, db):
+            return
+    finally:
+        db.close()
     logger.info("Syncing futures price limit data...")
     try:
-        trade_date = _cn_date().strftime("%Y%m%d")
         stats = pipeline.run_fut_price_limit(trade_date=trade_date)
         logger.info("Synced price limit: %s", stats)
     except (SQLAlchemyError, OSError) as e:
