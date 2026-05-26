@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { FutContract, KlineData, api } from '@/lib/api'
+import { captureMessage } from '@/lib/sentry-lite'
 import { KlinePeriod, KlineSource, loadKlineBySource } from '@/lib/kline'
 
 interface UseProductKlineResult {
@@ -62,8 +63,12 @@ export function useProductKline(
           return rows[0]?.id ?? null
         })
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled || abortController.signal.aborted) return
+        captureMessage(
+          `合约列表加载失败: varietyId=${varietyId}, ${err instanceof Error ? err.message : '未知错误'}`,
+          'error',
+        )
         setContracts([])
         setSelectedContractId(null)
       })

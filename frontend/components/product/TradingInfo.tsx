@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { CircleDollarSign } from 'lucide-react'
 import { api, Product } from '@/lib/api'
+import { captureMessage } from '@/lib/sentry-lite'
 import { formatDateTime, formatNumber, formatPrice } from '@/lib/format'
 
 interface TradingInfoProps {
@@ -29,8 +30,8 @@ export default function TradingInfo({ product, displayPrice }: TradingInfoProps)
       .then((data) => {
         if (!cancelled) setFees(data)
       })
-      .catch(() => {
-        // 静默失败，仍展示 product 的保底数据
+      .catch((err) => {
+        captureMessage(`品种费率查询失败: ${product.symbol}, ${err instanceof Error ? err.message : '未知错误'}`, 'warning')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)

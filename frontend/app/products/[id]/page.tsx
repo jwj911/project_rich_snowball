@@ -103,8 +103,12 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           setWatchlistId(null)
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
+          captureMessage(
+            `自选状态查询失败: varietyId=${varietyId}, ${err instanceof Error ? err.message : '未知错误'}`,
+            'warning',
+          )
           setIsInWatchlist(false)
           setWatchlistId(null)
         }

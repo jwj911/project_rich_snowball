@@ -32,9 +32,8 @@ export default function WatchlistButton({
         captureMessage(`加入自选: 品种#${varietyId}`, 'info')
       }
     } catch (err) {
-      console.error('自选操作失败:', err)
       toast.error('自选操作失败')
-      captureMessage(`自选操作失败: 品种#${varietyId}`, 'error')
+      captureMessage(`自选操作失败: 品种#${varietyId}, ${err instanceof Error ? err.message : '未知错误'}`, 'error')
     }
   }
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
+import { captureMessage } from '@/lib/sentry-lite'
 import { getMarketStatusMessage } from '@/lib/trading-calendar'
 
 export default function MarketClosedBanner() {
@@ -25,9 +26,9 @@ export default function MarketClosedBanner() {
           setMessage(null)
         }
       })
-      .catch(() => {
-        // 后端不可用，回退到本地硬编码日历
+      .catch((err) => {
         if (!cancelled) {
+          captureMessage(`交易状态查询失败: ${err instanceof Error ? err.message : '未知错误'}`, 'warning')
           setMessage(getMarketStatusMessage())
         }
       })

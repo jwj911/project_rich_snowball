@@ -102,12 +102,12 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
             const resistance = normalizeLevels(parsed.resistanceLevels)
             for (const price of support) {
               await api.createPriceLevel(varietyId, 'support', price.toFixed(2)).catch((err) => {
-                console.error('导入支撑位失败:', err)
+                captureMessage(`导入支撑位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'warning')
               })
             }
             for (const price of resistance) {
               await api.createPriceLevel(varietyId, 'resistance', price.toFixed(2)).catch((err) => {
-                console.error('导入阻力位失败:', err)
+                captureMessage(`导入阻力位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'warning')
               })
             }
             const imported = await api.getPriceLevels(varietyId)
@@ -118,7 +118,7 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
           }
         }
       } catch (err) {
-        console.error('加载价位标注失败:', err)
+        captureMessage(`加载价位标注失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
         if (!cancelled) {
           loadFromLocalStorage()
           setLevelError('云端价位加载失败，已使用本地缓存。')
@@ -149,7 +149,7 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
           setLevelError(null)
           return
         } catch (err) {
-          console.error('添加支撑位失败:', err)
+          captureMessage(`添加支撑位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
           setLevelError(`添加失败：${err instanceof Error ? err.message : '未知错误'}，已临时保存到本地。`)
         }
       }
@@ -187,7 +187,7 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
           setLevelError(null)
           return
         } catch (err) {
-          console.error('添加阻力位失败:', err)
+          captureMessage(`添加阻力位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
           setLevelError(`添加失败：${err instanceof Error ? err.message : '未知错误'}，已临时保存到本地。`)
         }
       }
@@ -225,7 +225,7 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
         setLevelError(null)
         return
       } catch (err) {
-        console.error('删除支撑位失败:', err)
+        captureMessage(`删除支撑位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
         setLevelError(`删除失败：${err instanceof Error ? err.message : '未知错误'}`)
         return
       }
@@ -248,7 +248,7 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
         setLevelError(null)
         return
       } catch (err) {
-        console.error('删除阻力位失败:', err)
+        captureMessage(`删除阻力位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
         setLevelError(`删除失败：${err instanceof Error ? err.message : '未知错误'}`)
         return
       }

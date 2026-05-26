@@ -11,6 +11,8 @@ import MyAnnotationsPanel, { WorkspaceAnnotation } from '@/components/workspace/
 import MyResearchTimeline from '@/components/workspace/MyResearchTimeline'
 import WatchlistPanel from '@/components/workspace/WatchlistPanel'
 import { api, Comment, Product, PriceLevel, Watchlist, Variety } from '@/lib/api'
+import { captureMessage } from '@/lib/sentry-lite'
+import { toast } from 'sonner'
 import { useMarketPolling } from '@/hooks/useMarketPolling'
 import { useWatchlistRealtime } from '@/hooks/useWatchlistRealtime'
 import { Briefcase } from 'lucide-react'
@@ -88,7 +90,8 @@ export default function WorkspacePage() {
       await api.deleteWatchlist(id)
       refresh()
     } catch (err) {
-      console.error('删除自选失败:', err)
+      toast.error('删除自选失败')
+      captureMessage(`删除自选失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
     }
   }, [refresh])
 
