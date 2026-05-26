@@ -1,17 +1,36 @@
+import ipaddress
 import os
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import case, func, text
 from sqlalchemy.orm import Session
 
-from config import ENABLE_SCHEDULER
+from config import ENABLE_SCHEDULER, ENV
 from dependencies import get_db
 from models import DataIngestionRunDB, get_engine_info
 from services.cache import get_cache_stats
 from services.circuit_breaker import get_circuit_status
 
 router = APIRouter(prefix="/health", tags=["健康检查"])
+
+
+def _is_trusted_health_client(request: Request) -> bool:
+    """判断请求是否来自受信内网或本地地址。
+
+    生产环境下 /health/scheduler 仅允许内网/本机访问，
+    避免暴露调度任务历史、熔断状态等内部信息。
+    """
+    client_host = request.client.host if request.client else ""
+    if not client_host:
+        return False
+    if client_host in ("127.0.0.1", "localhost"):
+        return True
+    try:
+        ip = ipaddress.ip_address(client_host.split("%")[0])
+        return ip.is_loopback or ip.is_private
+    except ValueError:
+        return False
 
 
 @router.get("")
@@ -61,8 +80,13 @@ def readiness_check(db: Session = Depends(get_db)):
 
 
 @router.get("/scheduler")
-def scheduler_check(db: Session = Depends(get_db)):
-    """返回调度器状态与最近任务历史。API 进程本身不运行 scheduler 时也返回信息。"""
+def scheduler_check(request: Request, db: Session = Depends(get_db)):
+    """返回调度器状态与最近任务历史。API 进程本身不运行 scheduler 时也返回信息。
+
+    生产环境限制为内网/本机访问，防止敏感内部状态外泄。
+    """
+    if ENV == "production" and not _is_trusted_health_client(request):
+        raise HTTPException(status_code=403, detail="Access denied")
     try:
         from data_collector.scheduler import scheduler
         scheduler_running = scheduler.running
