@@ -38,6 +38,12 @@ def clear_rate_limit_store():
     """清空限流计数器，供测试使用。"""
     with _rate_limit_lock:
         _rate_limit_store.clear()
+    # 同步清理中间件全局限流存储，避免测试间状态泄漏
+    try:
+        from middleware.rate_limit import clear_rate_limit_store as _middleware_clear
+        _middleware_clear()
+    except ImportError:
+        pass
 
 _RATE_LIMIT_WINDOW_SECONDS = 60
 _RATE_LIMIT_MAX_REQUESTS = 10

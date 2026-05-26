@@ -106,3 +106,17 @@ class TestRealtimeSse:
         """无效 token 时应在端点入口处拒绝，返回 401，避免建立 SSE 连接消耗资源。"""
         r = client.get("/api/realtime/stream?symbols=AU&token=invalid-token")
         assert r.status_code == 401
+
+    def test_stream_with_cookie_only_token(self, client, seed_user, seed_varieties, seed_realtime_quotes):
+        """仅通过 cookie 传递 access_token 时 SSE 应正常工作（不依赖 query token）。"""
+        r = client.post("/api/auth/login", data={"username": "sse_tester", "password": "password123"})
+        assert r.status_code == 200
+        # login 已自动设置 access_token cookie
+
+        # 不带 token query param，仅靠 cookie
+        r = client.get("/api/realtime/stream?symbols=AU&symbols=AG")
+        assert r.status_code == 200
+        assert "text/event-stream" in r.headers.get("content-type", "")
+        body = r.text
+        assert "data:" in body
+        assert "AU" in body
