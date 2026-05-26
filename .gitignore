@@ -13,6 +13,7 @@ ENV/
 python/venv/
 python/ENV/
 python/.venv/
+python/venv_old/
 
 # Node / Next.js
 node_modules/
@@ -43,6 +44,7 @@ python/*.log
 .vscode/
 *.swp
 *.swo
+.claude/
 
 # OS
 .DS_Store
@@ -78,3 +80,11 @@ python/routers/__pycache__/
 
 # Root level Python pycache
 python/__pycache__/
+
+# Next.js build info
+frontend/tsconfig.tsbuildinfo
+
+# Temporary data / reports
+python/*.csv
+*_REVIEW_*.md
+*_AUDIT_*.md
