@@ -27,7 +27,9 @@ jobs:
         with:
           python-version: '3.12'
           cache: 'pip'
-          cache-dependency-path: './python/requirements.txt'
+          cache-dependency-path: |
+            ./python/requirements.txt
+            ./python/requirements.lock
 
       - name: Install dependencies
         run: |
@@ -50,3 +52,12 @@ jobs:
         # Step 1 的核心目标是确保测试可信；lint 债务将在后续迭代中逐步清理。
         continue-on-error: true
         run: ruff check .
+
+      - name: Security audit with pip-audit
+        # 基于 requirements.lock（精确版本）执行依赖漏洞扫描。
+        # 当前存在 12 个已知漏洞（pyjwt/pytest/python-dotenv/python-multipart/starlette），
+        # 暂设为 continue-on-error，避免阻塞测试流程；将在后续迭代中升级修复。
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.lock --no-deps --disable-pip

@@ -190,7 +190,7 @@ urllib3==2.7.0
     # via
     #   akshare
     #   requests
-uvicorn==0.30.6
+uvicorn[standard]==0.30.6
     # via -r requirements.txt
 watchfiles==1.2.0
     # via uvicorn
