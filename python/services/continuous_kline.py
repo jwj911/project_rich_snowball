@@ -165,7 +165,7 @@ def query_segment_klines(
     return rows
 
 
-def _apply_backward_adjustment(all_rows: list[dict], segments: list[dict]) -> None:
+def apply_backward_adjustment(all_rows: list[dict], segments: list[dict]) -> None:
     """对 all_rows 应用反向调整（Backward Adjustment），消除换月跳空。
 
     逻辑：从最新 segment 开始向前遍历，每遇到一个换月点，
@@ -255,11 +255,56 @@ def get_continuous_kline(
     all_rows.sort(key=lambda x: x["_dt"])
 
     if adjustment == "backward":
-        _apply_backward_adjustment(all_rows, segments)
+        apply_backward_adjustment(all_rows, segments)
 
     for r in all_rows[:limit]:
         del r["_dt"]
     return all_rows[:limit]
+
+
+def _fetch_kline_rows(db: Session, base_filters: list, period: str, start: datetime | None, end: datetime | None, limit: int):
+    """通用 K 线查询：先按 period 候选列表 fallback，再应用时间过滤和 limit。"""
+    for candidate in period_candidates(period):
+        q = db.query(KlineDataDB).filter(*base_filters).filter(KlineDataDB.period == candidate)
+        if start:
+            q = q.filter(KlineDataDB.trading_time >= start)
+        if end:
+            q = q.filter(KlineDataDB.trading_time <= end)
+        rows = q.order_by(KlineDataDB.trading_time.asc()).limit(limit).all()
+        if rows:
+            return rows
+    return []
+
+
+def attach_contract_metadata(rows: list, db: Session, default_contract_code: str | None = None) -> list[dict]:
+    """为原始 K 线行附加 contract 元数据，返回标准 dict 列表。
+
+    如果行中 contract_id 能在 FutContractDB 中找到，则使用真实合约信息；
+    否则使用 default_contract_code 和原始 contract_id。
+    """
+    if not rows:
+        return []
+
+    contract_ids = {r.contract_id for r in rows}
+    contracts = {
+        c.id: c
+        for c in db.query(FutContractDB).filter(FutContractDB.id.in_(contract_ids)).all()
+    } if contract_ids else {}
+
+    result = []
+    for r in rows:
+        actual = contracts.get(r.contract_id)
+        result.append({
+            "time": r.trading_time.isoformat(),
+            "open": r.open_price,
+            "high": r.high_price,
+            "low": r.low_price,
+            "close": r.close_price,
+            "volume": r.volume,
+            "contract_code": actual.symbol if actual else default_contract_code,
+            "contract_id": actual.id if actual else r.contract_id,
+        })
+    return result
 
 
 def get_main_contract_kline(
@@ -285,68 +330,14 @@ def get_main_contract_kline(
     )
 
     if contract:
-        rows = []
-        for candidate in period_candidates(period):
-            q = (
-                db.query(KlineDataDB)
-                .filter(KlineDataDB.contract_id == contract.id)
-                .filter(KlineDataDB.period == candidate)
-            )
-            if start:
-                q = q.filter(KlineDataDB.trading_time >= start)
-            if end:
-                q = q.filter(KlineDataDB.trading_time <= end)
-            rows = q.order_by(KlineDataDB.trading_time.asc()).limit(limit).all()
-            if rows:
-                break
+        rows = _fetch_kline_rows(
+            db, [KlineDataDB.contract_id == contract.id], period, start, end, limit
+        )
         if rows:
-            return [
-                {
-                    "time": r.trading_time.isoformat(),
-                    "open": r.open_price,
-                    "high": r.high_price,
-                    "low": r.low_price,
-                    "close": r.close_price,
-                    "volume": r.volume,
-                    "contract_code": contract.symbol,
-                    "contract_id": contract.id,
-                }
-                for r in rows
-            ]
+            return attach_contract_metadata(rows, db, default_contract_code=contract.symbol)
 
     # 回退：按 variety_id 查询，不限制 contract_id
-    rows = []
-    for candidate in period_candidates(period):
-        q = (
-            db.query(KlineDataDB)
-            .filter(KlineDataDB.variety_id == variety_id)
-            .filter(KlineDataDB.period == candidate)
-        )
-        if start:
-            q = q.filter(KlineDataDB.trading_time >= start)
-        if end:
-            q = q.filter(KlineDataDB.trading_time <= end)
-        rows = q.order_by(KlineDataDB.trading_time.asc()).limit(limit).all()
-        if rows:
-            break
-
-    contract_ids = {r.contract_id for r in rows}
-    contracts = {
-        c.id: c
-        for c in db.query(FutContractDB).filter(FutContractDB.id.in_(contract_ids)).all()
-    } if contract_ids else {}
-
-    result = []
-    for r in rows:
-        actual_contract = contracts.get(r.contract_id)
-        result.append({
-            "time": r.trading_time.isoformat(),
-            "open": r.open_price,
-            "high": r.high_price,
-            "low": r.low_price,
-            "close": r.close_price,
-            "volume": r.volume,
-            "contract_code": actual_contract.symbol if actual_contract else variety.contract_code,
-            "contract_id": actual_contract.id if actual_contract else r.contract_id,
-        })
-    return result
+    rows = _fetch_kline_rows(
+        db, [KlineDataDB.variety_id == variety_id], period, start, end, limit
+    )
+    return attach_contract_metadata(rows, db, default_contract_code=variety.contract_code)
