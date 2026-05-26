@@ -1,22 +1,28 @@
 """数据采集 Pipeline：extract → map → clean → load。
 Scheduler 只调用 Pipeline.run()，不直接操作 Collector/Cleaner/Upsert。
 """
+import contextlib
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
+
+from config import CIRCUIT_FAILURE_THRESHOLD, PIPELINE_COMMIT_BATCH_SIZE
 from data_collector.base import BaseCollector
 from data_collector.upsert import (
-    upsert_realtime, insert_kline_bulk,
-    upsert_fut_daily_bulk, upsert_fut_settle_bulk,
-    upsert_fut_weekly_detail_bulk, upsert_fut_wsr_bulk,
-    upsert_fut_holding_bulk, upsert_fut_price_limit_bulk,
+    insert_kline_bulk,
+    upsert_fut_daily_bulk,
+    upsert_fut_holding_bulk,
+    upsert_fut_price_limit_bulk,
+    upsert_fut_settle_bulk,
+    upsert_fut_weekly_detail_bulk,
+    upsert_fut_wsr_bulk,
+    upsert_realtime,
 )
-from models import SessionLocal, DataIngestionRunDB, VarietyDB, ContractRolloverDB, FutContractDB
-from config import CIRCUIT_FAILURE_THRESHOLD, PIPELINE_COMMIT_BATCH_SIZE
+from models import DataIngestionRunDB, SessionLocal
 from services.circuit_breaker import is_circuit_open, record_failure, record_success
-from sqlalchemy.exc import SQLAlchemyError, OperationalError, IntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +51,7 @@ def _record_circuit_outcome(source_name: str, stats: dict, exc: Exception | None
         return
 
     total_failed = failed + adapter_failed
-    if total_failed == total_attempted:
-        record_failure(source_name)
-    elif total_failed / total_attempted >= CIRCUIT_FAILURE_THRESHOLD:
+    if total_failed == total_attempted or total_failed / total_attempted >= CIRCUIT_FAILURE_THRESHOLD:
         record_failure(source_name)
     else:
         record_success(source_name)
@@ -64,8 +68,8 @@ def _record_run(job_name: str, source: str, stats: dict, exc: Exception = None, 
     记录失败时至少记录 error 日志，不静默吞异常。"""
     run_db = SessionLocal()
     try:
-        started_at = stats.get("_started_at", datetime.now(timezone.utc))
-        finished_at = datetime.now(timezone.utc)
+        started_at = stats.get("_started_at", datetime.now(UTC))
+        finished_at = datetime.now(UTC)
         duration_ms = None
         if isinstance(started_at, datetime):
             duration_ms = int((finished_at - started_at).total_seconds() * 1000)
@@ -123,11 +127,11 @@ class DataPipeline:
             logger.warning("Circuit breaker open for %s, skipping realtime", source_name)
             return {"processed": 0, "failed": 0, "skipped": len(symbols), "circuit_open": True}
 
-        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(timezone.utc)}
+        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(UTC)}
         db = SessionLocal()
         exc = None
 
-        COMMIT_BATCH_SIZE = PIPELINE_COMMIT_BATCH_SIZE
+        commit_batch_size = PIPELINE_COMMIT_BATCH_SIZE
         batch_counter = 0
 
         try:
@@ -169,18 +173,15 @@ class DataPipeline:
                     stats["processed"] += 1
 
                     # 批量 commit，减少事务开销
-                    if batch_counter >= COMMIT_BATCH_SIZE:
+                    if batch_counter >= commit_batch_size:
                         db.commit()
                         batch_counter = 0
 
                 except (KeyError, TypeError, ValueError, IndexError) as e:
                     stats["failed"] += 1
                     logger.error(f"Pipeline failed for {symbol}: {e}", exc_info=True)
-                    try:
+                    with contextlib.suppress(SQLAlchemyError):
                         db.rollback()
-                    except SQLAlchemyError:
-                        # rollback 失败时不阻断后续 symbol 处理
-                        pass
                     batch_counter = 0
 
             # 提交剩余未 commit 的数据
@@ -214,7 +215,7 @@ class DataPipeline:
             logger.warning("Circuit breaker open for %s, skipping kline", source_name)
             return {"processed": 0, "failed": 0, "skipped": 0, "circuit_open": True}
 
-        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(timezone.utc)}
+        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(UTC)}
         db = SessionLocal()
         exc = None
 
@@ -235,10 +236,7 @@ class DataPipeline:
                 raw_rows = adapted_rows
 
             # Cleaner 校验
-            if self.cleaner:
-                rows = self.cleaner(raw_rows, contract_code)
-            else:
-                rows = raw_rows
+            rows = self.cleaner(raw_rows, contract_code) if self.cleaner else raw_rows
 
             inserted = insert_kline_bulk(db, rows, period)
             db.commit()
@@ -270,7 +268,7 @@ class DataPipeline:
     # ------------------------------------------------------------------
 
     def run_fut_daily(self, ts_code: str, start_date: str, end_date: str, period: str = "D") -> dict:
-        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(timezone.utc)}
+        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(UTC)}
         db = SessionLocal()
         exc = None
         try:
@@ -290,10 +288,7 @@ class DataPipeline:
             missing_variety = 0
             for raw in raw_rows:
                 try:
-                    if self.adapter:
-                        mapped = self.adapter(raw, variety_id, period)
-                    else:
-                        mapped = raw
+                    mapped = self.adapter(raw, variety_id, period) if self.adapter else raw
                 except (KeyError, TypeError, ValueError, IndexError) as e:
                     stats["failed"] += 1
                     logger.warning(f"FutDaily adapter failed: row={raw}, error={e}")
@@ -330,7 +325,7 @@ class DataPipeline:
             _record_circuit_outcome(self.collector.__class__.__name__, stats, exc)
 
     def run_fut_settle(self, trade_date: str, exchange: str = None) -> dict:
-        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(timezone.utc)}
+        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(UTC)}
         db = SessionLocal()
         exc = None
         try:
@@ -378,7 +373,7 @@ class DataPipeline:
             _record_circuit_outcome(self.collector.__class__.__name__, stats, exc)
 
     def run_fut_weekly_detail(self, start_date: str, end_date: str) -> dict:
-        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(timezone.utc)}
+        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(UTC)}
         db = SessionLocal()
         exc = None
         try:
@@ -429,7 +424,7 @@ class DataPipeline:
             _record_circuit_outcome(self.collector.__class__.__name__, stats, exc)
 
     def run_fut_wsr(self, trade_date: str, symbol: str = None) -> dict:
-        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(timezone.utc)}
+        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(UTC)}
         db = SessionLocal()
         exc = None
         try:
@@ -480,7 +475,7 @@ class DataPipeline:
             _record_circuit_outcome(self.collector.__class__.__name__, stats, exc)
 
     def run_fut_holding(self, trade_date: str, symbol: str = None, exchange: str = None) -> dict:
-        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(timezone.utc)}
+        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(UTC)}
         db = SessionLocal()
         exc = None
         try:
@@ -531,7 +526,7 @@ class DataPipeline:
             _record_circuit_outcome(self.collector.__class__.__name__, stats, exc)
 
     def run_fut_price_limit(self, trade_date: str = None, ts_code: str = None) -> dict:
-        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(timezone.utc)}
+        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(UTC)}
         db = SessionLocal()
         exc = None
         try:
@@ -580,113 +575,9 @@ class DataPipeline:
 
     def run_fut_mapping(self, trade_date: str = None, db=None) -> dict:
         """Update VarietyDB.contract_code from fut_mapping (main contract rollover).
-        Also records rollover history to ContractRolloverDB when a switch is detected."""
-        stats = {"processed": 0, "failed": 0, "skipped": 0, "_started_at": datetime.now(timezone.utc)}
-        close_db = db is None
-        db = db if db is not None else SessionLocal()
-        exc = None
-        try:
-            raw_rows = self.collector.fetch_mapping(trade_date=trade_date)
-            if not raw_rows:
-                return stats
+        Also records rollover history to ContractRolloverDB when a switch is detected.
 
-            rows = []
-            adapter_failed = 0
-            if self.adapter:
-                for row in raw_rows:
-                    try:
-                        rows.append(self.adapter(row))
-                    except (KeyError, TypeError, ValueError, IndexError) as e:
-                        adapter_failed += 1
-                        logger.warning(f"FutMapping adapter failed: row={row}, error={e}")
-            else:
-                rows = raw_rows
-
-            # 批量预查，消除 N+1
-            symbols = set()
-            contract_codes = set()
-            for row in rows:
-                ts_code = row.get("ts_code", "")
-                mapping_ts_code = row.get("mapping_ts_code", "")
-                symbols.add(ts_code.split(".")[0])
-                contract_codes.add(mapping_ts_code.split(".")[0])
-
-            variety_map = {
-                v.symbol: v
-                for v in db.query(VarietyDB).filter(VarietyDB.symbol.in_(symbols)).all()
-            }
-            # 旧合约代码也需要参与预查，否则 rollover 记录中的 old_contract_id 会丢失
-            for v in variety_map.values():
-                if v.contract_code:
-                    contract_codes.add(v.contract_code)
-            from models import FutContractDB
-            contract_map = {
-                c.symbol: c
-                for c in db.query(FutContractDB).filter(FutContractDB.symbol.in_(contract_codes)).all()
-            }
-
-            updated = 0
-            skipped = 0
-            for row in rows:
-                ts_code = row.get("ts_code")
-                mapping_ts_code = row.get("mapping_ts_code")
-                if not ts_code or not mapping_ts_code:
-                    skipped += 1
-                    continue
-                symbol = ts_code.split(".")[0]
-                variety = variety_map.get(symbol)
-                if not variety:
-                    skipped += 1
-                    continue
-                contract_code = mapping_ts_code.split(".")[0]
-                old_contract_code = variety.contract_code
-                if old_contract_code != contract_code:
-                    old_contract = contract_map.get(old_contract_code) if old_contract_code else None
-                    new_contract = contract_map.get(contract_code)
-                    if not new_contract:
-                        logger.error(
-                            f"FutMapping abort: new contract {contract_code} not found for variety {variety.symbol}"
-                        )
-                        skipped += 1
-                        continue
-
-                    effective_date = datetime.now(timezone.utc)
-                    if trade_date and len(trade_date) == 8 and trade_date.isdigit():
-                        effective_date = datetime.strptime(trade_date, "%Y%m%d")
-
-                    from models import ContractRolloverDB
-                    rollover = ContractRolloverDB(
-                        variety_id=variety.id,
-                        old_contract_id=old_contract.id if old_contract else None,
-                        new_contract_id=new_contract.id,
-                        old_contract_code=old_contract_code,
-                        new_contract_code=contract_code,
-                        effective_date=effective_date,
-                        source="mapping_pipeline",
-                    )
-                    db.add(rollover)
-
-                    variety.contract_code = contract_code
-                    updated += 1
-            db.commit()
-            stats["processed"] = updated
-            stats["skipped"] = skipped
-            logger.info(f"FutMapping pipeline completed: {stats}")
-            return stats
-        except SQLAlchemyError as e:
-            db.rollback()
-            exc = e
-            record_failure(self.collector.__class__.__name__)
-            logger.critical(f"FutMapping pipeline aborted: {e}", exc_info=True)
-            raise
-        finally:
-            if close_db:
-                db.close()
-            _record_run(
-                job_name="sync_fut_mapping",
-                source=self.collector.__class__.__name__,
-                stats=stats,
-                exc=exc,
-                meta={"trade_date": trade_date},
-            )
-            _record_circuit_outcome(self.collector.__class__.__name__, stats, exc)
+        内部实现已下沉到 pipeline_tasks.fut_mapping_task，此处保留为兼容代理。
+        """
+        from data_collector.pipeline_tasks.fut_mapping_task import run_fut_mapping_task
+        return run_fut_mapping_task(self.collector, self.adapter, trade_date=trade_date, db=db)

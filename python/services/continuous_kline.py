@@ -1,5 +1,4 @@
-"""
-连续 K 线服务（Continuous K-line Service）
+"""连续 K 线服务（Continuous K-line Service）
 ============================================
 将不同交割月份的合约 K 线，按主力切换日期拼接成一条连续时间序列。
 
@@ -14,20 +13,19 @@
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger(__name__)
-
 from models import ContractRolloverDB, FutContractDB, KlineDataDB, VarietyDB
 from services.kline_period import period_candidates
 
+logger = logging.getLogger(__name__)
 
 # 用于 segment 边界的 aware 常量，避免 naive/aware 比较错误
-_MIN_DT = datetime(1970, 1, 1, tzinfo=timezone.utc)
-_MAX_DT = datetime(2099, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+_MIN_DT = datetime(1970, 1, 1, tzinfo=UTC)
+_MAX_DT = datetime(2099, 12, 31, 23, 59, 59, tzinfo=UTC)
 
 
 def _ensure_aware(dt: datetime | None) -> datetime | None:
@@ -35,8 +33,136 @@ def _ensure_aware(dt: datetime | None) -> datetime | None:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
     return dt
+
+
+def build_rollover_segments(
+    db: Session,
+    variety_id: int,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> list[dict]:
+    """根据品种 rollover 历史构建时间段 → 合约映射（segments）。
+
+    返回 segment 列表，每个 segment 为 dict：
+        {start, end, contract_id, contract_code}
+    """
+    variety = db.query(VarietyDB).filter(VarietyDB.id == variety_id).first()
+    if not variety:
+        return []
+
+    rollovers = (
+        db.query(ContractRolloverDB)
+        .filter(ContractRolloverDB.variety_id == variety_id)
+        .order_by(ContractRolloverDB.effective_date.asc())
+        .all()
+    )
+    for r in rollovers:
+        r.effective_date = _ensure_aware(r.effective_date)
+
+    variety_start = _MIN_DT
+    if variety.listing_date:
+        variety_start = _ensure_aware(variety.listing_date)
+
+    segments = []
+    if rollovers:
+        segments.append({
+            "start": variety_start,
+            "end": rollovers[0].effective_date,
+            "contract_id": rollovers[0].old_contract_id,
+            "contract_code": rollovers[0].old_contract_code,
+        })
+        for i in range(len(rollovers)):
+            r = rollovers[i]
+            seg_end = rollovers[i + 1].effective_date if i + 1 < len(rollovers) else _MAX_DT
+            segments.append({
+                "start": r.effective_date,
+                "end": seg_end,
+                "contract_id": r.new_contract_id,
+                "contract_code": r.new_contract_code,
+            })
+    else:
+        if variety.contract_code:
+            contract = (
+                db.query(FutContractDB)
+                .filter(FutContractDB.symbol == variety.contract_code)
+                .first()
+            )
+            if contract:
+                segments.append({
+                    "start": variety_start,
+                    "end": _MAX_DT,
+                    "contract_id": contract.id,
+                    "contract_code": contract.symbol,
+                })
+
+    # 与外部 start/end 取交集，提前过滤无数据区间
+    filtered = []
+    for seg in segments:
+        seg_start = max(start, seg["start"]) if start else seg["start"]
+        seg_end = min(end, seg["end"]) if end else seg["end"]
+        if seg_start < seg_end:
+            seg["query_start"] = seg_start
+            seg["query_end"] = seg_end
+            filtered.append(seg)
+    return filtered
+
+
+def query_segment_klines(
+    db: Session,
+    variety_id: int,
+    segment: dict,
+    period: str,
+    limit: int,
+) -> list[dict]:
+    """查询单个 segment 内的 K 线数据。
+
+    返回内部行列表，每条包含 _dt 字段用于后续排序。
+    """
+    query_start = segment["query_start"]
+    query_end = segment["query_end"]
+    seg_limit = limit * 2
+
+    seg_rows = []
+    for candidate in period_candidates(period):
+        q = (
+            db.query(KlineDataDB)
+            .filter(KlineDataDB.variety_id == variety_id)
+            .filter(KlineDataDB.period == candidate)
+            .filter(KlineDataDB.contract_id == segment["contract_id"])
+            .filter(KlineDataDB.trading_time >= query_start)
+            .filter(KlineDataDB.trading_time < query_end)
+            .order_by(KlineDataDB.trading_time.asc())
+        )
+        seg_rows = q.limit(seg_limit).all()
+        if seg_rows:
+            break
+
+    if not seg_rows:
+        logger.warning(
+            "Continuous kline gap: no data for contract_id=%s variety_id=%s period=%s "
+            "segment [%s, %s). Skipping this segment.",
+            segment["contract_id"], variety_id, period,
+            query_start.isoformat(), query_end.isoformat(),
+        )
+        return []
+
+    rows = []
+    for row in seg_rows:
+        dt = _ensure_aware(row.trading_time)
+        rows.append({
+            "time": dt.isoformat(),
+            "open": row.open_price,
+            "high": row.high_price,
+            "low": row.low_price,
+            "close": row.close_price,
+            "volume": row.volume,
+            "contract_code": segment["contract_code"],
+            "contract_id": segment["contract_id"],
+            "_dt": dt,
+        })
+    return rows
 
 
 def _apply_backward_adjustment(all_rows: list[dict], segments: list[dict]) -> None:
@@ -49,10 +175,7 @@ def _apply_backward_adjustment(all_rows: list[dict], segments: list[dict]) -> No
     if len(segments) <= 1:
         return
 
-    # 按 segment start 排序（从旧到新）
     sorted_segments = sorted(segments, key=lambda s: s["start"])
-
-    # 从最新向最旧计算累积调整值
     segment_adj = {seg["contract_id"]: Decimal(0) for seg in segments}
     total_gap = Decimal(0)
 
@@ -60,14 +183,12 @@ def _apply_backward_adjustment(all_rows: list[dict], segments: list[dict]) -> No
         curr_seg = sorted_segments[i]
         prev_seg = sorted_segments[i - 1]
 
-        # 找到 curr_seg 的第一个 close（切换后）
         curr_first = next(
             (r for r in all_rows
              if r.get("contract_id") == curr_seg["contract_id"]
              and r["_dt"] >= curr_seg["start"]),
             None,
         )
-        # 找到 prev_seg 的最后一个 close（切换前）
         prev_last = next(
             (r for r in reversed(all_rows)
              if r.get("contract_id") == prev_seg["contract_id"]
@@ -81,7 +202,6 @@ def _apply_backward_adjustment(all_rows: list[dict], segments: list[dict]) -> No
 
         segment_adj[prev_seg["contract_id"]] = total_gap
 
-    # 应用调整
     for r in all_rows:
         adj = segment_adj.get(r.get("contract_id"), Decimal(0))
         if adj:
@@ -120,136 +240,23 @@ def get_continuous_kline(
         按 trading_time 升序排列的 dict 列表，每条包含:
         {time, open, high, low, close, volume, contract_code, contract_id}
     """
-    # 归一化 start/end，避免 naive/aware 混用
     start = _ensure_aware(start)
     end = _ensure_aware(end)
 
-    variety = db.query(VarietyDB).filter(VarietyDB.id == variety_id).first()
-    if not variety:
-        return []
-
-    # 1. 读取该品种的切换历史（按时间升序）
-    rollovers = (
-        db.query(ContractRolloverDB)
-        .filter(ContractRolloverDB.variety_id == variety_id)
-        .order_by(ContractRolloverDB.effective_date.asc())
-        .all()
-    )
-
-    # SQLite 读出 DateTime(timezone=True) 可能为 naive，需归一化
-    for r in rollovers:
-        r.effective_date = _ensure_aware(r.effective_date)
-
-    # 构建时间段 → 合约映射
-    # 每个 rollover 的 effective_date 是切换点：
-    #   [prev_effective, effective_date) → old_contract
-    #   [effective_date, next_effective) → new_contract
-    # 确定品种的起始边界（避免从 1970 年开始查询）
-    # 使用上市日期作为起点；若无上市日期则回退到最小时间
-    variety_start = _MIN_DT
-    if variety.listing_date:
-        variety_start = _ensure_aware(variety.listing_date)
-
-    segments = []
-    if rollovers:
-        # 第一段：从品种上市时间到第一个 rollover 生效日期之前
-        segments.append({
-            "start": variety_start,
-            "end": rollovers[0].effective_date,
-            "contract_id": rollovers[0].old_contract_id,
-            "contract_code": rollovers[0].old_contract_code,
-        })
-        # 中间段：每个 rollover 生效日期到下一个 rollover 生效日期之前
-        for i in range(len(rollovers)):
-            r = rollovers[i]
-            seg_start = r.effective_date
-            seg_end = rollovers[i + 1].effective_date if i + 1 < len(rollovers) else _MAX_DT
-            segments.append({
-                "start": seg_start,
-                "end": seg_end,
-                "contract_id": r.new_contract_id,
-                "contract_code": r.new_contract_code,
-            })
-    else:
-        # 没有切换记录时，回退到当前品种 contract_code 对应的合约
-        if variety.contract_code:
-            contract = (
-                db.query(FutContractDB)
-                .filter(FutContractDB.symbol == variety.contract_code)
-                .first()
-            )
-            if contract:
-                segments.append({
-                    "start": variety_start,
-                    "end": _MAX_DT,
-                    "contract_id": contract.id,
-                    "contract_code": contract.symbol,
-                })
-
+    segments = build_rollover_segments(db, variety_id, start, end)
     if not segments:
         return []
 
-    # 2. 对每个时间段查询 K 线
     all_rows = []
     for seg in segments:
-        # 与外部 start/end 取交集
-        query_start = max(start, seg["start"]) if start else seg["start"]
-        query_end = min(end, seg["end"]) if end else seg["end"]
+        seg_rows = query_segment_klines(db, variety_id, seg, period, limit)
+        all_rows.extend(seg_rows)
 
-        if query_start >= query_end:
-            continue
-
-        # 给单段查询加 LIMIT，避免某段数据异常庞大时内存爆炸
-        seg_limit = limit * 2  # 留足余量供多段合并后截断
-        seg_rows = []
-        for candidate in period_candidates(period):
-            q = (
-                db.query(KlineDataDB)
-                .filter(KlineDataDB.variety_id == variety_id)
-                .filter(KlineDataDB.period == candidate)
-                .filter(KlineDataDB.contract_id == seg["contract_id"])
-                .filter(KlineDataDB.trading_time >= query_start)
-                .filter(KlineDataDB.trading_time < query_end)
-                .order_by(KlineDataDB.trading_time.asc())
-            )
-            seg_rows = q.limit(seg_limit).all()
-            if seg_rows:
-                break
-
-        # 若该 contract_id 下无数据，不再回退到无 contract_id 过滤的查询，
-        # 避免混入相邻合约数据导致连续 K 线语义失真。
-        if not seg_rows:
-            logger.warning(
-                "Continuous kline gap: no data for contract_id=%s variety_id=%s period=%s "
-                "segment [%s, %s). Skipping this segment.",
-                seg["contract_id"], variety_id, period,
-                query_start.isoformat(), query_end.isoformat(),
-            )
-            continue
-
-        for row in seg_rows:
-            # SQLite 读出 DateTime(timezone=True) 可能为 naive，需归一化
-            dt = _ensure_aware(row.trading_time)
-            all_rows.append({
-                "time": dt.isoformat(),
-                "open": row.open_price,
-                "high": row.high_price,
-                "low": row.low_price,
-                "close": row.close_price,
-                "volume": row.volume,
-                "contract_code": seg["contract_code"],
-                "contract_id": seg["contract_id"],
-                "_dt": dt,
-            })
-
-    # 3. 按时间排序（使用 datetime 对象而非字符串，避免混合时区格式排序错误）
     all_rows.sort(key=lambda x: x["_dt"])
 
-    # 4. 换月价差调整（默认反向调整，消除换月跳空）
     if adjustment == "backward":
         _apply_backward_adjustment(all_rows, segments)
 
-    # 截断后移除内部排序字段
     for r in all_rows[:limit]:
         del r["_dt"]
     return all_rows[:limit]
@@ -277,8 +284,6 @@ def get_main_contract_kline(
         .first()
     )
 
-    # 优先按 contract_id 精确查询；若该 contract 下无数据，回退到按 variety_id 查询
-    # 以兼容历史数据 contract_id 可能不一致的场景
     if contract:
         rows = []
         for candidate in period_candidates(period):
@@ -310,7 +315,6 @@ def get_main_contract_kline(
             ]
 
     # 回退：按 variety_id 查询，不限制 contract_id
-    # 此时返回的数据可能来自多个合约，必须标注每条数据的实际合约来源
     rows = []
     for candidate in period_candidates(period):
         q = (
@@ -326,7 +330,6 @@ def get_main_contract_kline(
         if rows:
             break
 
-    # 预加载所有涉及的合约，避免 N+1
     contract_ids = {r.contract_id for r in rows}
     contracts = {
         c.id: c
