@@ -1,6 +1,7 @@
 # ProductDB 兼容层退场计划
 
 > 制定日期：2026-05-26
+> 更新日期：2026-05-26（Step 6 迭代补充精确依赖清单）
 > 目标：消除 `ProductDB` 与新行情数据层（`VarietyDB`/`RealtimeQuoteDB`/`KlineDataDB`）长期并存造成的双写/双读债务。
 
 ---
@@ -15,31 +16,132 @@
 
 ---
 
-## 二、依赖清单
+## 二、依赖清单（精确到文件）
 
 ### 2.1 前端依赖
 
-| 前端文件 | 使用方式 | 依赖的 API |
-|----------|----------|------------|
-| `app/products/page.tsx` | 行情中心页面 | `GET /api/products?search=&category=&direction=&sort_by=` |
-| `app/products/[id]/page.tsx` | 品种详情页 | `GET /api/products/{id}` |
-| `app/page.tsx` | 行情工作台（领涨卡片链接） | `GET /api/products` → 跳转 `/products/{id}` |
-| `app/workspace/page.tsx` | 工作区（自选/标注/评论链接） | 跳转 `/products/{id}` |
-| `app/my-comments/page.tsx` | 我的评论（跳转链接） | 跳转 `/products/{id}` |
-| `lib/api/products.ts` | API 客户端封装 | `/api/products`, `/api/products/{id}`, `/api/comments` |
-| `hooks/useProductListRealtime.ts` | 实时行情轮询 | `GET /api/products` + SWR |
+#### API 端点调用
+
+| API 端点 | 前端封装文件 | 调用方 |
+|----------|-------------|--------|
+| `GET /api/products` | `frontend/lib/api/products.ts` | `useProductListRealtime`, `useProducts`, `Workspace`, `MyComments` |
+| `GET /api/products?skip=&limit=&search=&category=&direction=&sort_by=&sort_order=` | `frontend/lib/api/products.ts:getProductsPage` | `app/products/page.tsx` |
+| `GET /api/products/{id}` | `frontend/lib/api/products.ts:getProduct` | `useProductPolling`, `useProductDetail`, `app/products/[id]/page.tsx` |
+
+#### 类型定义
+
+| 类型 | 定义文件 | 使用场景 |
+|------|----------|----------|
+| `Product` | `frontend/lib/api/types.ts:1` | 所有行情卡片、表格、详情组件 |
+| `ProductQuery` | `frontend/lib/api/types.ts:20` | 行情中心筛选参数 |
+| `ProductListResponse` | `frontend/lib/api/types.ts:30` | 列表分页响应 |
+| `ProductDetail` | `frontend/lib/api/types.ts:51` | 详情页响应 |
+
+#### Hooks
+
+| Hook | 文件 | API 方法 |
+|------|------|----------|
+| `useProducts` | `frontend/lib/swr-hooks.ts:10` | `api.getProducts()` |
+| `useProduct` | `frontend/lib/swr-hooks.ts:14` | `api.getProduct(id)` |
+| `useProductListRealtime` | `frontend/hooks/useProductListRealtime.ts:58` | `api.getProductsPage(query)` |
+| `useProductPolling` | `frontend/hooks/useProductPolling.ts:49` | `api.getProduct(productId)` |
+| `useProductDetail` | `frontend/hooks/useProductDetail.ts:37` | `api.getProduct(productId)` |
+
+#### 页面
+
+| 页面 | 文件 | 依赖说明 |
+|------|------|----------|
+| 行情工作台 | `frontend/app/page.tsx` | `Product` 类型、`useProductListRealtime`、领涨卡片链接 `/products/{id}` |
+| 行情中心 | `frontend/app/products/page.tsx` | `Product` 类型、`useProductListRealtime`、路由 `/products` |
+| 品种详情 | `frontend/app/products/[id]/page.tsx` | `useProductPolling`、`product` 对象 |
+| 工作区 | `frontend/app/workspace/page.tsx` | `api.getProducts()`、`Product` 类型、链接 `/products/{id}` |
+| 我的评论 | `frontend/app/my-comments/page.tsx` | `api.getProducts()`、`Product` 类型、链接 `/products/{id}` |
+
+#### 组件
+
+| 组件 | 文件 |
+|------|------|
+| `QuoteCard` | `frontend/components/market/QuoteCard.tsx` |
+| `QuoteTable` | `frontend/components/market/QuoteTable.tsx` |
+| `QuoteDesktopTable` | `frontend/components/market/QuoteDesktopTable.tsx` |
+| `QuoteMobileList` | `frontend/components/market/QuoteMobileList.tsx` |
+| `ProductHeader` | `frontend/components/product/ProductHeader.tsx` |
+| `TradingInfoPanel` | `frontend/components/product/TradingInfoPanel.tsx` |
+| `TradingInfo` | `frontend/components/product/TradingInfo.tsx` |
+| `WatchlistPanel` | `frontend/components/workspace/WatchlistPanel.tsx` |
+| `MyResearchTimeline` | `frontend/components/workspace/MyResearchTimeline.tsx` |
+
+#### UI 路由链接（非 API，但需同步迁移）
+
+所有指向品种详情的 Next.js Link 使用 `/products/{id}` 路由：
+- `frontend/app/page.tsx:94`（领涨卡片）
+- `frontend/app/products/page.tsx`（行情中心）
+- `frontend/components/market/QuoteCard.tsx:18`
+- `frontend/components/market/QuoteTable.tsx:100`
+- `frontend/components/market/QuoteDesktopTable.tsx:116`
+- `frontend/components/workspace/WatchlistPanel.tsx:55`
+- `frontend/components/workspace/MyResearchTimeline.tsx:43`
+- `frontend/components/workspace/MyAnnotationsPanel.tsx:38`
+- `frontend/app/my-comments/page.tsx:129`
+
+#### 前端测试
+
+| 测试文件 | 依赖内容 |
+|----------|----------|
+| `frontend/tests/lib/api.test.ts` | `api.getProductsPage()`, `api.getProducts()`, `/api/products` 断言 |
+| `frontend/tests/hooks/useProductDetail.test.tsx` | `api.getProduct`, `makeProduct` |
+| `frontend/tests/components/QuoteTable.test.tsx` | `makeProduct`, `makeTestProduct`, `products` prop |
+| `frontend/tests/components/QuoteCard.test.tsx` | `makeProduct`, `mockProduct` |
+| `frontend/tests/fixtures/index.ts` | `Product` import, `makeProduct()` factory |
 
 ### 2.2 后端依赖
 
-| 后端模块 | 使用方式 |
+#### API 路由
+
+| 路由文件 | 端点 | 说明 |
+|----------|------|------|
+| `routers/products.py` | `GET /api/products` | 列表查询（分页/搜索/分类/涨跌筛选/排序） |
+| `routers/products.py` | `GET /api/products/{id}` | 详情查询（含评论分页） |
+
+> 注：`routers/products.py` 自身不直接导入 `ProductDB`，而是通过 `ProductService` → `ProductRepository` 间接依赖。
+
+#### 领域服务与仓储
+
+| 文件 | 依赖方式 |
+|------|----------|
+| `services/domain/product_service.py` | 包装 `ProductRepository` 的业务层 |
+| `services/domain/repositories/product_repository.py` | 直接查询 `ProductDB`（get/list/filter/stats/sort/pagination） |
+| `services/domain/repositories/comment_repository.py` | `get_product(product_id)` 验证产品存在性 |
+
+#### 数据采集与调度
+
+| 文件 | 依赖方式 |
+|------|----------|
+| `data_collector/scheduler.py:195-246` | `sync_prices_to_products()` 定义：每 60 秒将 `RealtimeQuoteDB` 同步回 `ProductDB` |
+| `data_collector/scheduler.py:249-259` | `refresh_and_sync()` 调用 `sync_prices_to_products()` |
+| `data_collector/init_mock_data.py` | 初始化 Mock 数据时写入 `ProductDB`，并读取 `ProductDB` 初始化 `RealtimeQuoteDB`/`CommentDB` |
+
+#### 模型定义
+
+| 文件 | 依赖方式 |
+|------|----------|
+| `models.py:97-116` | `ProductDB` 表定义（22 个字段） |
+| `models.py:122,129` | `CommentDB.product_id` 外键 + `product` relationship |
+
+#### 脚本与运维
+
+| 文件 | 依赖方式 |
+|------|----------|
+| `scripts/data_quality_report.py:31,214` | 数据质量检查包含 `ProductDB` |
+
+#### 后端测试
+
+| 测试文件 | 依赖方式 |
 |----------|----------|
-| `routers/products.py` | `/api/products` 路由，调用 `ProductService` → `ProductRepository` → `ProductDB` |
-| `services/domain/product_service.py` | 品种领域服务，依赖 `ProductRepository` |
-| `services/domain/repositories/product_repository.py` | 直接查询 `ProductDB` |
-| `models.py:ProductDB` | 旧品种表，22 个字段 |
-| `data_collector/scheduler.py:sync_prices_to_products()` | 每 60 秒将 `RealtimeQuoteDB` 同步回 `ProductDB` |
-| `models.py:CommentDB` | `product_id` 外键指向 `ProductDB.id` |
-| `data_collector/init_mock_data.py` | 初始化 Mock 数据时写入 `ProductDB` |
+| `tests/test_products_query.py` | `ProductDB` fixture 设置 |
+| `tests/test_workspace_api.py` | 动态创建 `ProductDB` 行 |
+| `tests/test_phase1_3_integration.py` | 查询 `ProductDB` count |
+| `tests/test_ondelete_cascade.py` | `ProductDB` fixture + 级联行为测试 |
 
 ---
 
@@ -55,7 +157,7 @@
 
 ### 3.2 需新建/扩展的接口
 
-1. **`GET /api/varieties`** 增强
+1. **`GET /api/varieties` 增强**
    - 添加 `search`, `category`, `direction`, `sort_by`, `sort_order` 参数
    - 响应头携带 `X-Total-Count`, `X-Total-Volume`, `X-Up-Count`, `X-Down-Count`, `X-Categories`
    - 后端实现：联合查询 `VarietyDB` + `RealtimeQuoteDB`
@@ -87,8 +189,8 @@
 - [ ] 新建 `lib/api/varieties.ts` 替代 `lib/api/products.ts`
 - [ ] `app/products/page.tsx` 切换到 `/api/varieties`
 - [ ] `app/products/[id]/page.tsx` 切换到 `/api/varieties/{id}`
-- [ ] 所有 `/products/{id}` 链接改为 `/products/{symbol}` 或保持 ID（需确认路由策略）
-- [ ] 工作区、评论页等链接更新
+- [ ] 所有 `/products/{id}` 链接保持路由不变（前端路由与后端 API 解耦），仅 API 调用切换
+- [ ] 工作区、评论页等引用更新
 - [ ] 前端测试回归
 
 ### Phase 3：双写停止（1 天）
@@ -127,7 +229,7 @@
 |------|----------|
 | 新接口联合查询性能下降 | 预先在 `RealtimeQuoteDB.variety_id` + `VarietyDB.symbol` 上加索引；必要时引入物化视图 |
 | 评论数据迁移丢失 | 迁移脚本使用幂等键（`product_id` + `symbol` 映射），先 dry-run 再执行 |
-| 前端路由 `/products/{id}` 变为 `/products/{symbol}` 导致外链失效 | 保留 `/products/{id}` 路由做 302 重定向到 `/products/{symbol}`，持续 1-2 个版本 |
+| 前端路由 `/products/{id}` 变为 `/products/{symbol}` 导致外链失效 | **保持 `/products/{id}` 路由不变**，仅切换内部 API 调用源，避免外链和书签失效 |
 | 第三方/移动客户端未同步更新 | 旧 `/api/products` 保留只读代理 1-2 个版本，返回 410 Gone + 新路径提示 |
 
 ---
@@ -142,4 +244,12 @@
 
 ---
 
-*本计划随迭代进展更新。当前阶段：文档先行，尚未进入实施。*
+## 八、本次 Step 6 更新说明
+
+本次迭代对原退场计划进行了以下增强：
+
+- **前端依赖精确到文件级**：补充了 hooks（`useProductPolling`、`useProductDetail`、`useProductListRealtime`）、类型定义（`lib/api/types.ts`）、测试 fixtures、UI 路由链接分布等细节。
+- **后端依赖精确到文件级**：补充了 `comment_repository.py`、`scripts/data_quality_report.py`、以及所有引用 `ProductDB` 的测试文件。
+- **修正路由策略**：明确前端 Next.js 路由 `/products/{id}` **保持不变**，仅 API 层从 `/api/products/*` 切换到 `/api/varieties/*`，降低外链/书签失效风险。
+
+*当前阶段：文档完备，尚未进入实施。建议待后续大功能窗口（如 Admin 后台）时同步推进 Phase 1。*
