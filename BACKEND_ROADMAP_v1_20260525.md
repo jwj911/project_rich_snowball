@@ -114,5 +114,8 @@
 | 2026-05-27 | 线 A 验收：`pipeline.py` 212 行（原 ~692），`scheduler.py` 510 行（原 ~716） | ✅ |
 | 2026-05-27 | 线 A 验收：collector_registry / job_registry / pipeline_tasks 已落地并接入 | ✅ |
 | 2026-05-27 | 进入第二阶段（架构减负 P1）：线 C — ProductDB 退场计划（文档先行） | 🔄 |
+| 2026-05-27 | 线 C 验收：`python/docs/productdb_sunset_plan.md` 已完备（依赖清单/替代路径/迁移阶段/前置条件/风险/验收标准） | ✅ |
+| 2026-05-27 | **第二阶段验收：collector_registry / job_registry / pipeline_tasks 落地；continuous_kline 拆分达标；ProductDB 退场文档完备** | ✅ |
+| 2026-05-27 | 进入第三阶段（观测性与安全加固 P1~P2）：健康接口收敛 | 🔄 |
 
 *文档随迭代进展更新。*
