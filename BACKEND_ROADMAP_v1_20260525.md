@@ -100,9 +100,15 @@
 | 日期 | 完成项 | 状态 |
 |------|--------|------|
 | 2026-05-25 | 路线图文档定稿 | ✅ |
-| 2026-05-25 | P0：修复 SSE cookie-only bug | 🔄 |
-| 2026-05-25 | P0：重建 venv + 测试通过 | 🔄 |
-| 2026-05-25 | P0：Backend CI workflow | 🔄 |
-| 2026-05-25 | P0：依赖 lock 文件 | 🔄 |
+| 2026-05-25 | P0：修复 SSE cookie-only bug | ✅ |
+| 2026-05-25 | P0：重建 venv + 测试通过 | ✅ |
+| 2026-05-25 | P0：Backend CI workflow | ✅ |
+| 2026-05-25 | P0：依赖 lock 文件 | ✅ |
+| 2026-05-27 | P0 收尾：12 个测试文件 SECRET_KEY 加长（消除 489 个 PyJWT 警告） | ✅ |
+| 2026-05-27 | P0 收尾：修复 `comment_service.py` F821 运行时 bug | ✅ |
+| 2026-05-27 | P0 收尾：更新 `backend-ci.yml`（SECRET_KEY 加固 + pip-audit 去 continue-on-error） | ✅ |
+| 2026-05-27 | P0 收尾：清理 `tsconfig.tsbuildinfo` 跟踪 + 更新 `.gitignore` | ✅ |
+| 2026-05-27 | **第一阶段验收：pytest 201 passed, 6 skipped, 0 warnings** | ✅ |
+| 2026-05-27 | 进入第二阶段（架构减负 P1）：线 B — 连续 K 线拆分 | 🔄 |
 
 *文档随迭代进展更新。*
