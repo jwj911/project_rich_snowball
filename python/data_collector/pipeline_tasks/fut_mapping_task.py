@@ -12,7 +12,10 @@ from datetime import UTC, datetime
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from data_collector.pipeline import _record_circuit_outcome, _record_run
+from data_collector.pipeline_tasks._common import (
+    _record_circuit_outcome,
+    _record_run,
+)
 from models import ContractRolloverDB, FutContractDB, SessionLocal, VarietyDB
 from services.circuit_breaker import record_failure
 
