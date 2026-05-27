@@ -120,6 +120,7 @@ class CommentDB(Base):
     __tablename__ = "comments"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="SET NULL"), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     price_level_id = Column(Integer, ForeignKey("price_levels.id", ondelete="SET NULL"), nullable=True, index=True)
     content = Column(Text, nullable=False)
@@ -127,6 +128,7 @@ class CommentDB(Base):
     __table_args__ = (Index("idx_comments_created_at", "created_at"),)
     user = relationship("UserDB", back_populates="comments")
     product = relationship("ProductDB", back_populates="comments")
+    variety = relationship("VarietyDB", back_populates="comments")
     price_level = relationship("PriceLevelDB", back_populates="comments")
 
 
@@ -155,6 +157,7 @@ class VarietyDB(Base):
     watchlists = relationship("WatchlistDB", back_populates="variety", passive_deletes=True)
     opinions = relationship("OpinionDB", back_populates="variety", passive_deletes=True)
     price_levels = relationship("PriceLevelDB", back_populates="variety", passive_deletes=True)
+    comments = relationship("CommentDB", back_populates="variety", passive_deletes=True)
 
 
 class FutContractDB(Base):

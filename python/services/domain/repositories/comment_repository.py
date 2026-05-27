@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Session, joinedload
 
-from models import CommentDB, PriceLevelDB, ProductDB, UserDB
+from models import CommentDB, PriceLevelDB, ProductDB, UserDB, VarietyDB
 
 
 class CommentRepository:
@@ -31,12 +31,14 @@ class CommentRepository:
     def create(
         self,
         product_id: int,
+        variety_id: int | None,
         user_id: int,
         price_level_id: int | None,
         content: str,
     ) -> CommentDB:
         db_comment = CommentDB(
             product_id=product_id,
+            variety_id=variety_id,
             user_id=user_id,
             price_level_id=price_level_id,
             content=content,
@@ -49,7 +51,7 @@ class CommentRepository:
     def list_by_user(self, user_id: int, skip: int, limit: int) -> list[CommentDB]:
         return (
             self._db.query(CommentDB)
-            .options(joinedload(CommentDB.product))
+            .options(joinedload(CommentDB.product), joinedload(CommentDB.variety))
             .filter(CommentDB.user_id == user_id)
             .order_by(CommentDB.created_at.desc())
             .offset(skip)

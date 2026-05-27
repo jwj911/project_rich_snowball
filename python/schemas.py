@@ -81,6 +81,7 @@ class ProductResponse(BaseModel):
 
 class CommentCreate(BaseModel):
     product_id: int = Field(..., ge=1)
+    variety_id: int | None = Field(None, ge=1)
     content: str = Field(..., min_length=1, max_length=2000)
     price_level_id: int | None = Field(None, ge=1)
 
@@ -96,8 +97,11 @@ class CommentCreate(BaseModel):
 class CommentResponse(BaseModel):
     id: int
     product_id: int
+    variety_id: int | None = None
     product_symbol: str | None = None
     product_name: str | None = None
+    variety_symbol: str | None = None
+    variety_name: str | None = None
     user_id: int
     username: str
     content: str
@@ -136,6 +140,26 @@ class VarietyResponse(BaseModel):
         if "." in s:
             return len(s.split(".")[1])
         return 0
+
+
+class VarietyWithQuoteResponse(BaseModel):
+    """品种列表项（含实时行情），用于替代 ProductResponse。"""
+
+    id: int
+    symbol: str
+    name: str
+    category: str | None
+    current_price: float | None = None
+    change_percent: float | None = None
+    open_price: float | None = None
+    high: float | None = None
+    low: float | None = None
+    volume: int | None = None
+    limit_up: float | None = None
+    limit_down: float | None = None
+    price_precision: int = 2
+
+    model_config = ConfigDict(from_attributes=True)
 
     model_config = ConfigDict(from_attributes=True)
 

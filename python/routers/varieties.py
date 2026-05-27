@@ -1,33 +1,146 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy.orm import Session
+from sqlalchemy import asc, case, desc, func, or_
+from sqlalchemy.orm import Session, joinedload
 
 from dependencies import get_current_user_dependency, get_db
-from models import ContractRolloverDB, FutContractDB, FutTradeFeeDB, UserDB, VarietyDB
-from schemas import ContractResponse, ContractRolloverResponse, VarietyFeeResponse, VarietyResponse
+from models import ContractRolloverDB, FutContractDB, FutTradeFeeDB, RealtimeQuoteDB, UserDB, VarietyDB
+from schemas import (
+    ContractResponse,
+    ContractRolloverResponse,
+    VarietyFeeResponse,
+    VarietyResponse,
+    VarietyWithQuoteResponse,
+)
 
 router = APIRouter(prefix="/api/varieties", tags=["品种"])
 
 
-@router.get("", response_model=list[VarietyResponse])
+@router.get("", response_model=list[VarietyWithQuoteResponse])
 def get_varieties(
-    category: str | None = Query(None, max_length=20),
-    search: str | None = Query(None, max_length=100),
+    response: Response,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(1000, ge=1, le=1000),
+    search: str | None = Query(None, max_length=100),
+    category: str | None = Query(None, max_length=50),
+    direction: str = Query("all", pattern="^(all|up|down)$"),
+    sort_by: str = Query("change_percent", pattern="^(change_percent|volume|current_price)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency),
-    response: Response = None,
 ):
-    q = db.query(VarietyDB)
-    if category:
+    """品种列表（含实时行情），用于替代 /api/products。
+
+    联合查询 VarietyDB + RealtimeQuoteDB，支持搜索/分类/涨跌筛选/排序/分页。
+    """
+    from urllib.parse import quote
+
+    # 基础查询：只查活跃品种
+    q = db.query(VarietyDB).filter(VarietyDB.is_active.is_(True))
+
+    keyword = search.strip() if search else ""
+    if keyword:
+        pattern = f"%{keyword}%"
+        q = q.filter(
+            or_(
+                VarietyDB.name.ilike(pattern),
+                VarietyDB.symbol.ilike(pattern),
+                VarietyDB.category.ilike(pattern),
+            )
+        )
+
+    if category and category != "all":
         q = q.filter(VarietyDB.category == category)
-    if search:
-        q = q.filter(VarietyDB.name.contains(search))
-    total = q.count()
-    if response is not None:
-        response.headers["X-Total-Count"] = str(total)
-    return q.offset(skip).limit(limit).all()
+
+    # 涨跌筛选需要在 RealtimeQuoteDB 上过滤
+    if direction == "up":
+        q = q.join(RealtimeQuoteDB).filter(
+            func.coalesce(RealtimeQuoteDB.change_percent, 0) >= 0
+        )
+    elif direction == "down":
+        q = q.join(RealtimeQuoteDB).filter(
+            func.coalesce(RealtimeQuoteDB.change_percent, 0) < 0
+        )
+    else:
+        q = q.outerjoin(RealtimeQuoteDB)
+
+    # 统计（基于当前过滤条件）
+    stats_query = q.with_entities(
+        func.count(VarietyDB.id),
+        func.sum(func.coalesce(RealtimeQuoteDB.volume, 0)),
+        func.sum(case((func.coalesce(RealtimeQuoteDB.change_percent, 0) >= 0, 1), else_=0)),
+        func.sum(case((func.coalesce(RealtimeQuoteDB.change_percent, 0) < 0, 1), else_=0)),
+    )
+    total_count, total_volume, up_count, down_count = stats_query.one()
+
+    categories = [
+        row[0]
+        for row in db.query(VarietyDB.category)
+        .filter(VarietyDB.is_active.is_(True), VarietyDB.category.isnot(None), VarietyDB.category != "")
+        .distinct()
+        .order_by(VarietyDB.category.asc())
+        .all()
+    ]
+
+    # 排序
+    sort_column_map = {
+        "change_percent": RealtimeQuoteDB.change_percent,
+        "volume": RealtimeQuoteDB.volume,
+        "current_price": RealtimeQuoteDB.current_price,
+    }
+    sort_col = sort_column_map[sort_by]
+    sort_expr = (
+        desc(func.coalesce(sort_col, 0))
+        if sort_order == "desc"
+        else asc(func.coalesce(sort_col, 0))
+    )
+
+    # 分页取结果，并预加载 realtime
+    results = (
+        q.options(joinedload(VarietyDB.realtime))
+        .order_by(sort_expr, VarietyDB.id.asc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    response.headers["X-Total-Count"] = str(total_count or 0)
+    response.headers["X-Total-Volume"] = str(total_volume or 0)
+    response.headers["X-Up-Count"] = str(up_count or 0)
+    response.headers["X-Down-Count"] = str(down_count or 0)
+    response.headers["X-Categories"] = ",".join(quote(c) for c in categories)
+
+    # 构造响应（手动映射，因为 VarietyDB 字段名与 VarietyWithQuoteResponse 不完全一致）
+    def _to_float(v):
+        return float(v) if v is not None else None
+
+    def _price_precision(tick_size):
+        if not tick_size:
+            return 2
+        ts = float(tick_size)
+        s = f"{ts:.10f}".rstrip("0")
+        if "." in s:
+            return len(s.split(".")[1])
+        return 0
+
+    return [
+        VarietyWithQuoteResponse(
+            id=v.id,
+            symbol=v.symbol,
+            name=v.name,
+            category=v.category,
+            current_price=_to_float(v.realtime.current_price) if v.realtime else None,
+            change_percent=_to_float(v.realtime.change_percent) if v.realtime else None,
+            open_price=_to_float(v.realtime.open_price) if v.realtime else None,
+            high=_to_float(v.realtime.high) if v.realtime else None,
+            low=_to_float(v.realtime.low) if v.realtime else None,
+            volume=v.realtime.volume if v.realtime else None,
+            limit_up=_to_float(v.realtime.limit_up) if v.realtime else None,
+            limit_down=_to_float(v.realtime.limit_down) if v.realtime else None,
+            price_precision=_price_precision(v.tick_size),
+        )
+        for v in results
+    ]
 
 
 @router.get("/{symbol}", response_model=VarietyResponse)

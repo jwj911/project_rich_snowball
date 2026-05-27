@@ -32,6 +32,7 @@ class CommentService:
 
         db_comment = self._repo.create(
             product_id=comment.product_id,
+            variety_id=comment.variety_id,
             user_id=user.id,
             price_level_id=comment.price_level_id,
             content=comment.content,
@@ -40,6 +41,7 @@ class CommentService:
         return CommentResponse(
             id=db_comment.id,
             product_id=db_comment.product_id,
+            variety_id=db_comment.variety_id,
             product_symbol=product.symbol if product else None,
             product_name=product.name if product else None,
             user_id=db_comment.user_id,
@@ -65,8 +67,11 @@ class CommentService:
             CommentResponse(
                 id=c.id,
                 product_id=c.product_id,
+                variety_id=c.variety_id,
                 product_symbol=c.product.symbol if c.product else None,
                 product_name=c.product.name if c.product else None,
+                variety_symbol=c.variety.symbol if c.variety else None,
+                variety_name=c.variety.name if c.variety else None,
                 user_id=c.user_id,
                 username=user.username,
                 content=c.content,

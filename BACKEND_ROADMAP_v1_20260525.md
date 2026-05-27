@@ -133,6 +133,13 @@
 | 2026-05-27 | P1：消除 fut_mapping_task ↔ pipeline 循环依赖，改从 _common.py 导入 | ✅ |
 | 2026-05-27 | P3：README/AGENTS 技术栈版本、Redis、price-levels 描述与实际代码同步 | ✅ |
 | 2026-05-27 | **第五阶段验收：v5 P0/P1 差距关闭，pytest 211 passed，前端 build 通过** | ✅ |
+| 2026-05-27 | 进入第六阶段（ProductDB 退场 Phase 1）：扩展 varieties API、评论 variety_id 迁移 | 🔄 |
+| 2026-05-27 | Phase 1：扩展 /api/varieties 列表查询（搜索/筛选/涨跌/排序/统计），联合 VarietyDB+RealtimeQuoteDB | ✅ |
+| 2026-05-27 | Phase 1：CommentDB 增加 variety_id + Alembic 迁移 + 模型/Schema 更新 | ✅ |
+| 2026-05-27 | Phase 1：评论接口支持 variety_id（CommentService/CommentRepository/routers） | ✅ |
+| 2026-05-27 | Phase 1：数据迁移脚本 migrate_comment_variety_id.py（product_id→variety_id 映射填充） | ✅ |
+| 2026-05-27 | Phase 1：补充 test_varieties_enhanced.py（7 个测试覆盖列表查询+评论 variety_id） | ✅ |
+| 2026-05-27 | **第六阶段验收：pytest 218 passed，前端 build 通过，/api/varieties 具备替代 /api/products 列表能力** | ✅ |
 
 ---
 
