@@ -36,6 +36,8 @@ class MockEventSource {
 }
 
 describe('useRealtimeQuotes', () => {
+  const SYMBOLS_RB = ['RB']
+
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: false })
     MockEventSource.instances = []
@@ -55,7 +57,7 @@ describe('useRealtimeQuotes', () => {
   })
 
   it('opens SSE when a token is available', async () => {
-    const { unmount } = renderHook(() => useRealtimeQuotes(['RB']))
+    const { unmount } = renderHook(() => useRealtimeQuotes(SYMBOLS_RB))
 
     await act(async () => {
       await Promise.resolve()
@@ -68,7 +70,7 @@ describe('useRealtimeQuotes', () => {
   })
 
   it('updates quotes from SSE messages', async () => {
-    const { result, unmount } = renderHook(() => useRealtimeQuotes(['RB']))
+    const { result, unmount } = renderHook(() => useRealtimeQuotes(SYMBOLS_RB))
 
     await act(async () => {
       await Promise.resolve()
@@ -91,7 +93,7 @@ describe('useRealtimeQuotes', () => {
   })
 
   it('falls back to polling when SSE errors', async () => {
-    const { result, unmount } = renderHook(() => useRealtimeQuotes(['RB']))
+    const { result, unmount } = renderHook(() => useRealtimeQuotes(SYMBOLS_RB))
 
     await act(async () => {
       await Promise.resolve()
@@ -111,11 +113,13 @@ describe('useRealtimeQuotes', () => {
 })
 
 describe('useRealtimeQuotes SSE reconnect', () => {
+  const SYMBOLS_RB = ['RB']
   let timeoutCallbacks: Function[] = []
 
   beforeEach(() => {
     timeoutCallbacks = []
     MockEventSource.instances = []
+    vi.useFakeTimers({ shouldAdvanceTime: false })
     vi.stubGlobal('EventSource', MockEventSource)
     vi.mocked(api.getToken).mockReturnValue('stored-jwt')
     vi.mocked(api.getRealtimeBatch).mockResolvedValue({
@@ -132,13 +136,13 @@ describe('useRealtimeQuotes SSE reconnect', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.clearAllMocks()
   })
 
   it('recovers SSE after error via exponential backoff and stops polling', async () => {
-    const symbols = ['RB']
-    const { result, unmount } = renderHook(() => useRealtimeQuotes(symbols))
+    const { result, unmount } = renderHook(() => useRealtimeQuotes(SYMBOLS_RB))
 
     await act(async () => {
       await Promise.resolve()
@@ -173,6 +177,7 @@ describe('useRealtimeQuotes SSE reconnect', () => {
 })
 
 describe('useRealtimeQuotes polling mode', () => {
+  const SYMBOLS_RB = ['RB']
   let intervalCallbacks: Array<{ id: number; callback: Function; delay: number }> = []
   let nextIntervalId = 1
   let originalSetInterval: typeof window.setInterval
@@ -182,6 +187,7 @@ describe('useRealtimeQuotes polling mode', () => {
     intervalCallbacks = []
     nextIntervalId = 1
     MockEventSource.instances = []
+    vi.useFakeTimers({ shouldAdvanceTime: false })
     vi.stubGlobal('EventSource', MockEventSource)
     vi.mocked(api.getToken).mockReturnValue(null)
     vi.mocked(api.getRealtimeBatch).mockResolvedValue({
@@ -205,13 +211,13 @@ describe('useRealtimeQuotes polling mode', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.clearAllMocks()
   })
 
   it('falls back to polling when no token is available', async () => {
-    const symbols = ['RB']
-    const { unmount } = renderHook(() => useRealtimeQuotes(symbols))
+    const { unmount } = renderHook(() => useRealtimeQuotes(SYMBOLS_RB))
 
     await act(async () => {
       await Promise.resolve()
@@ -224,8 +230,7 @@ describe('useRealtimeQuotes polling mode', () => {
   })
 
   it('polls periodically in polling mode', async () => {
-    const symbols = ['RB']
-    const { unmount } = renderHook(() => useRealtimeQuotes(symbols))
+    const { unmount } = renderHook(() => useRealtimeQuotes(SYMBOLS_RB))
 
     await act(async () => {
       await Promise.resolve()
@@ -244,6 +249,7 @@ describe('useRealtimeQuotes polling mode', () => {
 })
 
 describe('useRealtimeQuotes resource cleanup', () => {
+  const SYMBOLS_RB = ['RB']
   let clearedIntervals: number[] = []
   let clearedTimeouts: number[] = []
   let nextIntervalId = 1
@@ -255,6 +261,7 @@ describe('useRealtimeQuotes resource cleanup', () => {
     nextIntervalId = 1
     nextTimeoutId = 1
     MockEventSource.instances = []
+    vi.useFakeTimers({ shouldAdvanceTime: false })
     vi.stubGlobal('EventSource', MockEventSource)
     vi.mocked(api.getToken).mockReturnValue('stored-jwt')
     vi.mocked(api.getRealtimeBatch).mockResolvedValue({
@@ -283,12 +290,13 @@ describe('useRealtimeQuotes resource cleanup', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.clearAllMocks()
   })
 
   it('closes EventSource and clears timers on unmount', async () => {
-    const { unmount } = renderHook(() => useRealtimeQuotes(['RB']))
+    const { unmount } = renderHook(() => useRealtimeQuotes(SYMBOLS_RB))
 
     await act(async () => {
       await Promise.resolve()
@@ -312,11 +320,13 @@ describe('useRealtimeQuotes resource cleanup', () => {
 })
 
 describe('useRealtimeQuotes visibility handling', () => {
+  const SYMBOLS_RB = ['RB']
   let visibilityHidden = false
   let visibilityCallback: (() => void) | null = null
 
   beforeEach(() => {
     MockEventSource.instances = []
+    vi.useFakeTimers({ shouldAdvanceTime: false })
     vi.stubGlobal('EventSource', MockEventSource)
     vi.mocked(api.getToken).mockReturnValue('stored-jwt')
     vi.mocked(api.getRealtimeBatch).mockResolvedValue({
@@ -343,12 +353,13 @@ describe('useRealtimeQuotes visibility handling', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.clearAllMocks()
   })
 
   it('closes SSE when document becomes hidden', async () => {
-    const { result } = renderHook(() => useRealtimeQuotes(['RB']))
+    const { result } = renderHook(() => useRealtimeQuotes(SYMBOLS_RB))
 
     await act(async () => {
       await Promise.resolve()
@@ -375,7 +386,7 @@ describe('useRealtimeQuotes visibility handling', () => {
   })
 
   it('reconnects SSE when document becomes visible', async () => {
-    const { result } = renderHook(() => useRealtimeQuotes(['RB']))
+    const { result } = renderHook(() => useRealtimeQuotes(SYMBOLS_RB))
 
     await act(async () => {
       await Promise.resolve()
@@ -420,6 +431,7 @@ describe('useRealtimeQuotes visibility handling', () => {
 describe('useRealtimeQuotes symbol changes', () => {
   beforeEach(() => {
     MockEventSource.instances = []
+    vi.useFakeTimers({ shouldAdvanceTime: false })
     vi.stubGlobal('EventSource', MockEventSource)
     vi.mocked(api.getToken).mockReturnValue('stored-jwt')
     vi.mocked(api.getRealtimeBatch).mockResolvedValue({
@@ -430,6 +442,7 @@ describe('useRealtimeQuotes symbol changes', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.clearAllMocks()
   })
@@ -478,6 +491,7 @@ describe('useRealtimeQuotes symbol changes', () => {
         data: JSON.stringify({ quotes: [createQuote({ current_price: 3612 })] }),
       }))
       vi.advanceTimersByTime(100)
+      await Promise.resolve()
     })
 
     expect(result.current.quotes.size).toBe(1)

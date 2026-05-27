@@ -1,4 +1,8 @@
 """Scheduler 健康检查与任务状态测试。"""
+import os
+import subprocess
+import sys
+
 import pytest
 from datetime import datetime, timezone, timedelta
 
@@ -100,3 +104,26 @@ def test_scheduler_check_runs_list_limited(client, db_session):
     assert len(data["runs"]) == 10
     # recent_runs 统计基于最近 20 条
     assert data["recent_runs"]["total"] == 15
+
+
+def test_scheduler_check_denied_in_production_for_untrusted_ip():
+    """生产环境下，非受信 IP 访问 /health/scheduler 应返回 403。"""
+    env = os.environ.copy()
+    env["ENV"] = "production"
+    env["DATABASE_URL"] = "postgresql://user:pass@localhost/db"
+    env["SECRET_KEY"] = "this-is-a-very-long-secret-key-for-production-testing"
+    env["DOTENV_PATH"] = "/nonexistent/.env"
+    env["CORS_ORIGINS"] = "https://example.com"
+    env.pop("ALLOW_ORIGINS", None)
+    env["SSE_TEST_MODE"] = "1"
+
+    script = os.path.join(os.path.dirname(__file__), "_health_scheduler_403.py")
+    result = subprocess.run(
+        [sys.executable, script],
+        capture_output=True,
+        text=True,
+        cwd=os.path.dirname(os.path.dirname(__file__)),
+        env=env,
+    )
+    combined = result.stdout + result.stderr
+    assert "403" in combined, f"Expected 403, got stdout={result.stdout!r} stderr={result.stderr!r}"
