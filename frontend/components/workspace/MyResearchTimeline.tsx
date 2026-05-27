@@ -12,7 +12,7 @@ export default function MyResearchTimeline({
   productMap: Map<number, Product>
 }) {
   return (
-    <section className="rounded-lg border border-slate-800 bg-[#10161d] p-4">
+    <section className="rounded-lg border border-slate-800 bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-white">研究时间线</h2>

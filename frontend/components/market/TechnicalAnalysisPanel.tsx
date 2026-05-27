@@ -21,7 +21,7 @@ export default function TechnicalAnalysisPanel({
 
   if (!analysis) {
     return (
-      <section className="rounded-lg border border-slate-800 bg-[#10161d] p-4">
+      <section className="rounded-lg border border-slate-800 bg-surface p-4">
         <h2 className="flex items-center gap-2 text-base font-semibold text-slate-200">
           <LineChart size={17} />
           技术分析与策略
@@ -36,7 +36,7 @@ export default function TechnicalAnalysisPanel({
   const TrendIcon = analysis.tone === 'up' ? TrendingUp : analysis.tone === 'down' ? TrendingDown : Activity
 
   return (
-    <section className="rounded-lg border border-slate-800 bg-[#10161d] p-4">
+    <section className="rounded-lg border border-slate-800 bg-surface p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-base font-semibold text-slate-200">

@@ -10,7 +10,7 @@ export default function TrendBars({ data, label, colorClass = 'bg-red-500' }: Tr
   const max = Math.max(...data.map((d) => d.count), 1)
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-[#10161d] p-5">
+    <div className="rounded-xl border border-slate-800 bg-surface p-5">
       <h3 className="text-sm font-semibold text-white">{label}</h3>
       <div className="mt-4 flex items-end gap-2">
         {data.map((item) => {

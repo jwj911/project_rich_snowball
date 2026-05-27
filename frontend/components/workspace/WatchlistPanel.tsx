@@ -17,7 +17,7 @@ export default function WatchlistPanel({ watchlists, products, realtimeQuotes, o
   const hasRealtime = realtimeQuotes && realtimeQuotes.size > 0
 
   return (
-    <section className="rounded-lg border border-slate-800 bg-[#10161d] p-4">
+    <section className="rounded-lg border border-slate-800 bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-white">自选观察</h2>

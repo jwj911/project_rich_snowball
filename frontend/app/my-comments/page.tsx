@@ -44,7 +44,7 @@ export default function MyCommentsPage() {
         <LoginRequired />
       ) : (
         <div className="space-y-5">
-          <section className="rounded-lg border border-slate-800 bg-[#10161d] p-5">
+          <section className="rounded-lg border border-slate-800 bg-surface p-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h1 className="text-2xl font-bold">我的评论</h1>
@@ -106,7 +106,7 @@ export default function MyCommentsPage() {
 
 function StatePanel({ children }: { children: string }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-[#10161d] p-8 text-center text-slate-400">
+    <div className="rounded-lg border border-slate-800 bg-surface p-8 text-center text-slate-400">
       {children}
     </div>
   )
@@ -127,7 +127,7 @@ function CommentCard({ comment, product }: { comment: { id: number; product_id: 
   return (
     <Link
       href={`/products/${comment.product_id}`}
-      className="group block rounded-lg border border-slate-800 bg-[#10161d] p-4 transition hover:border-red-800/80 hover:bg-[#121b24]"
+      className="group block rounded-lg border border-slate-800 bg-surface p-4 transition hover:border-red-800/80 hover:bg-[#121b24]"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -151,7 +151,7 @@ function CommentSkeleton() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 4 }).map((_, index) => (
-        <div key={index} className="h-28 animate-pulse rounded-lg border border-slate-800 bg-[#10161d] p-4">
+        <div key={index} className="h-28 animate-pulse rounded-lg border border-slate-800 bg-surface p-4">
           <div className="h-4 w-32 rounded bg-slate-800" />
           <div className="mt-4 h-3 w-3/4 rounded bg-slate-800" />
           <div className="mt-2 h-3 w-1/2 rounded bg-slate-800" />

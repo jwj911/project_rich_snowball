@@ -11,6 +11,14 @@ module.exports = {
         down: '#22c55e',
         card: '#1e293b',
         background: '#0f172a',
+        surface: {
+          DEFAULT: '#10161d',
+          elevated: '#1e222d',
+          inset: '#131722',
+        },
+        border: {
+          DEFAULT: '#2a2e39',
+        },
       },
       fontFamily: {
         mono: ['JetBrains Mono', 'monospace'],

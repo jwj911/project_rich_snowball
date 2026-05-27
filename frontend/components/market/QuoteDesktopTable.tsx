@@ -21,7 +21,7 @@ export default function QuoteDesktopTable({
   onSort,
 }: QuoteDesktopTableProps) {
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-800 bg-[#10161d]">
+    <div className="overflow-hidden rounded-lg border border-slate-800 bg-surface">
       <table className="w-full table-fixed">
         <thead>
           <tr className="border-b border-slate-800 bg-black/20">

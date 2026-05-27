@@ -103,7 +103,7 @@ export default function WorkspacePage() {
         <LoginRequired />
       ) : (
         <div className="space-y-5">
-          <section className="rounded-lg border border-slate-800 bg-[#10161d] p-5">
+          <section className="rounded-lg border border-slate-800 bg-surface p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <div className="flex items-center gap-2 text-sm text-slate-400">
@@ -205,7 +205,7 @@ function buildAnnotations(
 
 function StatePanel({ children }: { children: string }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-[#10161d] p-8 text-center text-slate-400">
+    <div className="rounded-lg border border-slate-800 bg-surface p-8 text-center text-slate-400">
       {children}
     </div>
   )
@@ -215,10 +215,10 @@ function WorkspaceSkeleton() {
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-5">
-        <div className="h-72 animate-pulse rounded-lg border border-slate-800 bg-[#10161d]" />
-        <div className="h-72 animate-pulse rounded-lg border border-slate-800 bg-[#10161d]" />
+        <div className="h-72 animate-pulse rounded-lg border border-slate-800 bg-surface" />
+        <div className="h-72 animate-pulse rounded-lg border border-slate-800 bg-surface" />
       </div>
-      <div className="h-80 animate-pulse rounded-lg border border-slate-800 bg-[#10161d]" />
+      <div className="h-80 animate-pulse rounded-lg border border-slate-800 bg-surface" />
     </div>
   )
 }

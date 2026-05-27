@@ -41,7 +41,7 @@ export default function HomePage() {
   return (
     <AppShell>
       {authLoading ? (
-        <div className="rounded-lg border border-slate-800 bg-[#10161d] p-8 text-center text-slate-400">
+        <div className="rounded-lg border border-slate-800 bg-surface p-8 text-center text-slate-400">
           正在确认登录状态...
         </div>
       ) : !isAuthenticated ? (
@@ -51,7 +51,7 @@ export default function HomePage() {
           <MarketClosedBanner />
 
           <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-            <div className="rounded-lg border border-slate-800 bg-[#10161d] p-5">
+            <div className="rounded-lg border border-slate-800 bg-surface p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="flex items-center gap-3 text-sm text-slate-400">
@@ -165,7 +165,7 @@ function QuoteCardSkeleton({ count }: { count: number }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {Array.from({ length: count }).map((_, index) => (
-        <div key={index} className="h-48 animate-pulse rounded-lg border border-slate-800 bg-[#10161d] p-4">
+        <div key={index} className="h-48 animate-pulse rounded-lg border border-slate-800 bg-surface p-4">
           <div className="h-4 w-1/3 rounded bg-slate-800" />
           <div className="mt-5 h-8 w-1/2 rounded bg-slate-800" />
           <div className="mt-6 grid grid-cols-2 gap-3">

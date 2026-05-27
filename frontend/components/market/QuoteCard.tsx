@@ -16,7 +16,7 @@ function QuoteCard({ product }: QuoteCardProps) {
   return (
     <Link
       href={`/products/${product.id}`}
-      className="group block rounded-lg border border-slate-800 bg-[#10161d] p-4 transition hover:border-red-800/80 hover:bg-[#121b24]"
+      className="group block rounded-lg border border-slate-800 bg-surface p-4 transition hover:border-red-800/80 hover:bg-[#121b24]"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

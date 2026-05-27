@@ -10,7 +10,7 @@ interface TradingInfoPanelProps {
 
 export default function TradingInfoPanel({ product, displayPrice, marginCost }: TradingInfoPanelProps) {
   return (
-    <section className="rounded-lg border border-slate-800 bg-[#10161d] p-4">
+    <section className="rounded-lg border border-slate-800 bg-surface p-4">
       <h2 className="flex items-center gap-2 text-base font-semibold">
         <CircleDollarSign size={18} />
         交易信息

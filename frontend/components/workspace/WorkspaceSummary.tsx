@@ -35,7 +35,7 @@ function Metric({
   muted?: boolean
 }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-[#10161d] p-4">
+    <div className="rounded-lg border border-slate-800 bg-surface p-4">
       <div className="flex items-center gap-2 text-xs text-slate-500">
         <Icon size={15} />
         {label}

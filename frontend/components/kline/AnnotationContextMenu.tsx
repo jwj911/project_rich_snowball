@@ -19,11 +19,11 @@ export default function AnnotationContextMenu({
 }: AnnotationContextMenuProps) {
   return (
     <div
-      className="absolute z-20 w-40 rounded-lg border border-[#2a2e39] bg-[#1e222d] p-2 text-xs shadow-xl"
+      className="absolute z-20 w-40 rounded-lg border border-border bg-surface-elevated p-2 text-xs shadow-xl"
       style={{ left: menu.x, top: menu.y }}
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="mb-2 border-b border-[#2a2e39] pb-2 font-mono text-slate-200">
+      <div className="mb-2 border-b border-border pb-2 font-mono text-slate-200">
         {menu.price.toFixed(2)}
       </div>
       <button

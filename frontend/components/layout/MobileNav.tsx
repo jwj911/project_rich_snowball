@@ -17,7 +17,7 @@ export default function MobileNav({
   onLogout,
 }: MobileNavProps) {
   return (
-    <nav className="sticky top-0 z-40 border-b border-slate-800 bg-[#10161d] md:hidden">
+    <nav className="sticky top-0 z-40 border-b border-slate-800 bg-surface md:hidden">
       <div className="flex h-14 min-w-0 items-center justify-between gap-3 px-4">
         <Link href="/" className="min-w-0">
           <span className="block text-sm font-semibold leading-tight text-white">倍增计划</span>

@@ -194,7 +194,7 @@ export default function MetricsPage() {
                 </div>
 
                 {collection.recent_runs.length > 0 && (
-                  <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800 bg-[#10161d]">
+                  <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800 bg-surface">
                     <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-slate-800 text-xs uppercase text-slate-500">

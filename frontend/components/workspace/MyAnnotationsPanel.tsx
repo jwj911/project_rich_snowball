@@ -14,7 +14,7 @@ export interface WorkspaceAnnotation {
 
 export default function MyAnnotationsPanel({ annotations }: { annotations: WorkspaceAnnotation[] }) {
   return (
-    <section className="rounded-lg border border-slate-800 bg-[#10161d] p-4">
+    <section className="rounded-lg border border-slate-800 bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-white">我的标注</h2>

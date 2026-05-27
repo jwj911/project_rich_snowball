@@ -89,14 +89,14 @@ export default function ProductsPage() {
   return (
     <AppShell>
       {authLoading ? (
-        <div className="rounded-lg border border-slate-800 bg-[#10161d] p-8 text-center text-slate-400">
+        <div className="rounded-lg border border-slate-800 bg-surface p-8 text-center text-slate-400">
           正在确认登录状态...
         </div>
       ) : !isAuthenticated ? (
         <LoginRequired />
       ) : (
         <div className="space-y-5">
-          <section className="rounded-lg border border-slate-800 bg-[#10161d] p-5">
+          <section className="rounded-lg border border-slate-800 bg-surface p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-white">行情中心</h1>
@@ -247,7 +247,7 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: '
 
 function TableSkeleton() {
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-800 bg-[#10161d] p-4">
+    <div className="overflow-hidden rounded-lg border border-slate-800 bg-surface p-4">
       <div className="space-y-3">
         {Array.from({ length: 8 }).map((_, index) => (
           <div key={index} className="h-12 animate-pulse rounded bg-slate-800" />

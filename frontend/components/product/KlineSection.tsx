@@ -82,7 +82,7 @@ export default function KlineSection({
               value={selectedContractId ?? ''}
               disabled={isLoading || isContractsLoading || contracts.length === 0}
               onChange={(event) => onSelectContract(event.target.value ? Number(event.target.value) : null)}
-              className="h-8 min-w-[180px] rounded border border-slate-700 bg-[#10161d] px-2 text-sm text-slate-200 outline-none transition focus:border-amber-500 disabled:cursor-wait disabled:opacity-60"
+              className="h-8 min-w-[180px] rounded border border-slate-700 bg-surface px-2 text-sm text-slate-200 outline-none transition focus:border-amber-500 disabled:cursor-wait disabled:opacity-60"
               aria-label="选择具体合约"
             >
               {contracts.length === 0 ? (

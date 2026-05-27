@@ -21,7 +21,7 @@ export default function ProductHeader({
   watchlistAction,
 }: ProductHeaderProps) {
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-[#10161d] p-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-surface p-4 lg:flex-row lg:items-center lg:justify-between">
       <div className="min-w-0">
         <Link href="/products" className="inline-flex items-center gap-2 text-sm text-slate-400 transition hover:text-white">
           <ArrowLeft size={15} />

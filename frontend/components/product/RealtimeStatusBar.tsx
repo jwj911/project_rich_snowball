@@ -19,7 +19,7 @@ export default function RealtimeStatusBar({
   usingLiveQuote,
 }: RealtimeStatusBarProps) {
   const sourceLabel = getSourceLabel(source, usingLiveQuote)
-  const tone = error ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-slate-800 bg-[#10161d] text-slate-300'
+  const tone = error ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-slate-800 bg-surface text-slate-300'
 
   return (
     <div className={`flex flex-col gap-3 rounded-lg border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between ${tone}`}>

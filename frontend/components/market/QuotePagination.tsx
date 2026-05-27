@@ -20,7 +20,7 @@ export default function QuotePagination({
   onNext,
 }: QuotePaginationProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-[#10161d] px-3 py-2 text-sm text-slate-400">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-surface px-3 py-2 text-sm text-slate-400">
       <span>
         显示 {rangeStart}-{rangeEnd} / {totalItems}
       </span>

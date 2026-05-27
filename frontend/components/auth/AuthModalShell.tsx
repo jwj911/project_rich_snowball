@@ -72,7 +72,7 @@ export default function AuthModalShell({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-sm rounded-lg border border-slate-800 bg-[#10161d] p-5 shadow-2xl outline-none"
+        className="w-full max-w-sm rounded-lg border border-slate-800 bg-surface p-5 shadow-2xl outline-none"
       >
         <div className="mb-5 flex items-center justify-between gap-3">
           <h2 id={titleId} className="text-lg font-bold text-white">{title}</h2>

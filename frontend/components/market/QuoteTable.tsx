@@ -39,7 +39,7 @@ export default function QuoteTable({ products, sortBy, sortOrder, onSort }: Quot
         ))}
       </div>
 
-      <div className="hidden overflow-hidden rounded-lg border border-slate-800 bg-[#10161d] md:block">
+      <div className="hidden overflow-hidden rounded-lg border border-slate-800 bg-surface md:block">
         <table className="w-full table-fixed">
           <thead>
             <tr className="border-b border-slate-800 bg-black/20">

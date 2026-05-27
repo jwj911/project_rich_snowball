@@ -90,7 +90,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="fixed inset-y-0 left-0 z-40 hidden w-48 border-r border-slate-800 bg-[#10161d] text-slate-300 md:flex md:flex-col">
+      <nav className="fixed inset-y-0 left-0 z-40 hidden w-48 border-r border-slate-800 bg-surface text-slate-300 md:flex md:flex-col">
         <div className="flex h-20 items-center gap-2.5 border-b border-slate-800 px-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-900/60 bg-red-950/40 text-red-300">
             <Bot size={20} />
@@ -163,7 +163,7 @@ export default function Navbar() {
         </div>
       </nav>
 
-      <nav className="sticky top-0 z-40 border-b border-slate-800 bg-[#10161d] md:hidden">
+      <nav className="sticky top-0 z-40 border-b border-slate-800 bg-surface md:hidden">
         <div className="flex h-14 min-w-0 items-center justify-between gap-3 px-4">
           <Link href="/" className="font-semibold text-white">
             倍增计划

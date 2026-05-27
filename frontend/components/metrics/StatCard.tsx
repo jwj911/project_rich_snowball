@@ -15,7 +15,7 @@ export default function StatCard({ title, value, subtitle, trend, icon }: StatCa
   const trendColor = trend === 'up' ? 'text-red-400' : trend === 'down' ? 'text-emerald-400' : 'text-slate-500'
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-[#10161d] p-5">
+    <div className="rounded-xl border border-slate-800 bg-surface p-5">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{title}</p>

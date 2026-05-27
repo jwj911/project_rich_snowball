@@ -21,7 +21,7 @@ export default function CommentPanel({
   onSubmit,
 }: CommentPanelProps) {
   return (
-    <section className="rounded-lg border border-slate-800 bg-[#10161d] p-4">
+    <section className="rounded-lg border border-slate-800 bg-surface p-4">
       <h2 className="flex items-center gap-2 text-base font-semibold text-slate-200">
         <Send size={17} />
         评论区

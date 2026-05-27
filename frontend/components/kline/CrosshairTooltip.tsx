@@ -9,7 +9,7 @@ export default function CrosshairTooltip({ quote, latestPoint }: CrosshairToolti
   const contractCode = quote?.contractCode ?? latestPoint.contractCode
 
   return (
-    <div className="absolute left-3 top-12 rounded border border-[#2a2e39] bg-[#1e222d]/95 px-3 py-2 text-xs shadow-lg">
+    <div className="absolute left-3 top-12 rounded border border-border bg-surface-elevated/95 px-3 py-2 text-xs shadow-lg">
       <div className="grid grid-cols-[42px_minmax(72px,auto)] gap-x-3 gap-y-1">
         <span className="text-slate-500">时间</span>
         <span className="font-mono text-slate-200">{quote?.time ?? latestPoint.originalTime}</span>

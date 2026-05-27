@@ -291,12 +291,12 @@ export default function KlineChart({
 
   if (points.length === 0) {
     return (
-      <div className="w-full rounded-lg border border-[#2a2e39] bg-[#131722] p-4">
+      <div className="w-full rounded-lg border border-border bg-surface-inset p-4">
         <EmptyState
           icon={LineChart}
           title="暂无 K 线数据"
           description="当前品种还没有可展示的 K 线数据，等待数据同步后会自动展示。"
-          className="border-[#2a2e39] bg-[#1e222d]"
+          className="border-border bg-surface-elevated"
         />
       </div>
     )
@@ -309,9 +309,9 @@ export default function KlineChart({
       aria-label={`${symbol} K线图，最新价 ${latestPoint.close.toFixed(2)}，最高 ${maxOf(points, 'high').toFixed(2)}，最低 ${minOf(points, 'low').toFixed(2)}`}
       onContextMenu={openAnnotationMenu}
       onClick={annotationMenu ? closeAnnotationMenu : undefined}
-      className="relative w-full select-none overflow-hidden rounded-lg border border-[#2a2e39] bg-[#131722]"
+      className="relative w-full select-none overflow-hidden rounded-lg border border-border bg-surface-inset"
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[#2a2e39] px-3 py-2 text-xs text-slate-400">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-3 py-2 text-xs text-slate-400">
         <span className="mr-auto font-semibold text-white">{symbol}</span>
         <span>
           最新 <span className={`font-mono ${latestColor}`}>{latestPoint.close.toFixed(2)}</span>
@@ -323,7 +323,7 @@ export default function KlineChart({
 
       <div ref={chartContainerRef} className="h-[520px] w-full cursor-crosshair" />
 
-      <div className="absolute left-3 top-12 rounded border border-[#2a2e39] bg-[#1e222d]/95 px-3 py-2 text-xs shadow-lg">
+      <div className="absolute left-3 top-12 rounded border border-border bg-surface-elevated/95 px-3 py-2 text-xs shadow-lg">
         <div className="grid grid-cols-[42px_minmax(72px,auto)] gap-x-3 gap-y-1">
           <span className="text-slate-500">时间</span>
           <span className="font-mono text-slate-200">{crosshairQuote?.time ?? latestPoint.originalTime}</span>
@@ -335,7 +335,7 @@ export default function KlineChart({
       </div>
 
       {(supportLevels.length > 0 || resistanceLevels.length > 0) && (
-        <div className="absolute right-3 top-12 max-w-[220px] space-y-2 rounded border border-[#2a2e39] bg-[#1e222d]/95 p-2 text-xs shadow-lg">
+        <div className="absolute right-3 top-12 max-w-[220px] space-y-2 rounded border border-border bg-surface-elevated/95 p-2 text-xs shadow-lg">
           <LevelChips title="支撑" levels={supportLevels} tone="support" onRemove={onRemoveSupport} />
           <LevelChips title="阻力" levels={resistanceLevels} tone="resistance" onRemove={onRemoveResistance} />
         </div>
@@ -343,11 +343,11 @@ export default function KlineChart({
 
       {annotationMenu && (
         <div
-          className="absolute z-20 w-40 rounded-lg border border-[#2a2e39] bg-[#1e222d] p-2 text-xs shadow-xl"
+          className="absolute z-20 w-40 rounded-lg border border-border bg-surface-elevated p-2 text-xs shadow-xl"
           style={{ left: annotationMenu.x, top: annotationMenu.y }}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="mb-2 border-b border-[#2a2e39] pb-2 font-mono text-slate-200">
+          <div className="mb-2 border-b border-border pb-2 font-mono text-slate-200">
             {annotationMenu.price.toFixed(2)}
           </div>
           <button
