@@ -1,156 +1,170 @@
 # PostgreSQL 备份与恢复 Runbook
 
-> 制定日期：2026-05-26
-> 适用环境：生产环境 PostgreSQL 16（docker-compose 或独立部署）
+> 目标：建立可复现的备份策略和恢复演练流程，防止数据丢失。
+> 适用环境：生产环境 PostgreSQL（docker-compose 或独立部署）。
+> 更新日期：2026-05-27
 
 ---
 
 ## 一、备份策略
 
-### 1.1 逻辑备份（pg_dump）
+### 1.1 物理备份（推荐：pg_basebackup）
 
-**频率**：每日凌晨 03:00（交易结束后）
-**保留期**：30 天滚动删除
-**存储**：本地 + 对象存储（S3/OSS）双副本
+适用于：全量备份，Point-in-Time Recovery (PITR)
 
 ```bash
-# 每日全量逻辑备份
-pg_dump -h localhost -p 15432 -U futures -d futures_community \
-  -Fc -f /backup/futures_community_$(date +%Y%m%d_%H%M%S).dump
-
-# 压缩后上传对象存储
-aws s3 cp /backup/*.dump s3://your-backup-bucket/futures/ \
-  --storage-class STANDARD_IA
+# 在 PostgreSQL 容器内或宿主机执行
+pg_basebackup -h localhost -p 15432 -U futures -D /backup/pg_base/$(date +%Y%m%d_%H%M%S) -Ft -z -P -X stream
 ```
 
-### 1.2 物理备份（pg_basebackup）
+**参数说明**：
+- `-Ft`：tar 格式
+- `-z`：gzip 压缩
+- `-P`：显示进度
+- `-X stream`：同时备份 WAL
 
-**频率**：每周日全量，其余时间增量（WAL 归档）
-**保留期**：14 天
-**前提**：`postgresql.conf` 中启用 `wal_level = replica`, `archive_mode = on`
+**保留策略**：保留最近 7 天全量 + WAL 归档。
+
+### 1.2 逻辑备份（pg_dump）
+
+适用于：跨版本迁移、单表恢复、开发环境数据脱敏。
 
 ```bash
-# 全量物理备份
-pg_basebackup -h localhost -p 15432 -U futures \
-  -D /backup/base/$(date +%Y%m%d) -Ft -z -P
+# 全库逻辑备份
+pg_dump -h localhost -p 15432 -U futures -d futures_community -Fc -f /backup/pg_dump/futures_community_$(date +%Y%m%d).dump
+
+# 仅核心表（快速恢复测试用）
+pg_dump -h localhost -p 15432 -U futures -d futures_community \
+  --table=users --table=products --table=varieties --table=realtime_quotes \
+  --table=comments --table=price_levels --table=watchlists \
+  -Fc -f /backup/pg_dump/futures_core_$(date +%Y%m%d).dump
 ```
 
-### 1.3 关键表单独导出（快速恢复用）
+**参数说明**：
+- `-Fc`：自定义格式（支持选择性恢复）
+
+**保留策略**：保留最近 30 天逻辑备份。
+
+### 1.3 定时任务（crontab 示例）
 
 ```bash
-# 交易日历、品种元数据等低频变更但高依赖的表
-pg_dump -h localhost -p 15432 -U futures -d futures_community \
-  --table=varieties --table=trading_calendar --data-only \
-  -f /backup/metadata_$(date +%Y%m%d).sql
+# 每天 02:00 执行逻辑备份
+0 2 * * * /usr/local/bin/pg_dump -h localhost -p 15432 -U futures -d futures_community -Fc -f /backup/pg_dump/futures_community_$(date +\%Y\%m\%d).dump && find /backup/pg_dump -name "*.dump" -mtime +30 -delete
+
+# 每周日 03:00 执行物理备份
+0 3 * * 0 /usr/local/bin/pg_basebackup -h localhost -p 15432 -U futures -D /backup/pg_base/$(date +\%Y\%m\%d_\%H\%M\%S) -Ft -z -P -X stream && find /backup/pg_base -maxdepth 1 -type d -mtime +7 -exec rm -rf {} +
 ```
 
 ---
 
 ## 二、恢复演练
 
-### 2.1 演练频率
+### 2.1 逻辑备份恢复（单表/全库）
 
-**每季度至少一次**，选择非交易日晚间或周末。
-
-### 2.2 逻辑备份恢复步骤
+**场景**：误删数据、开发环境同步、跨版本迁移。
 
 ```bash
-# 1. 停止应用写入（或切换维护模式）
-# 2. 创建新数据库用于验证
-psql -h localhost -p 15432 -U futures -c "CREATE DATABASE futures_recovery;"
+# 1. 创建新数据库（恢复目标）
+createdb -h localhost -p 15432 -U futures futures_community_restore
 
-# 3. 恢复备份
-pg_restore -h localhost -p 15432 -U futures -d futures_recovery \
-  /backup/futures_community_20260526_030000.dump
+# 2. 恢复全库
+pg_restore -h localhost -p 15432 -U futures -d futures_community_restore /backup/pg_dump/futures_community_20260527.dump
 
-# 4. 验证核心表行数
-psql -h localhost -p 15432 -U futures -d futures_recovery -c \
-  "SELECT COUNT(*) FROM varieties; SELECT COUNT(*) FROM kline_data;"
-
-# 5. 运行数据质量检查
-python scripts/data_quality_report.py --db-url postgresql://.../futures_recovery
-
-# 6. 确认无误后如需切换，重命名数据库
-psql -h localhost -p 15432 -U futures -c \
-  "ALTER DATABASE futures_community RENAME TO futures_community_old;"
-psql -h localhost -p 15432 -U futures -c \
-  "ALTER DATABASE futures_recovery RENAME TO futures_community;"
+# 3. 仅恢复特定表（自定义格式支持）
+pg_restore -h localhost -p 15432 -U futures -d futures_community_restore \
+  --table=users --table=comments \
+  /backup/pg_dump/futures_community_20260527.dump
 ```
 
-### 2.3 点-in-time 恢复（PITR）
+**验证清单**：
+- [ ] 表数量与生产一致：`\dt` 或 `SELECT count(*) FROM information_schema.tables WHERE table_schema='public';`
+- [ ] 核心表行数一致：`SELECT count(*) FROM users;` 等
+- [ ] 索引和约束存在：`\d tablename`
+- [ ] 应用连接测试：`/health/ready` 返回 200
 
-基于 WAL 归档恢复到指定时间点：
+### 2.2 物理备份恢复（PITR）
+
+**场景**：数据库崩溃、硬件故障、需要恢复到特定时间点。
 
 ```bash
-# 1. 解压基础备份
-tar -xzf /backup/base/20260526/base.tar.gz -C /var/lib/postgresql/recovery
+# 1. 停止 PostgreSQL 服务（如果是容器则停止容器）
+docker-compose stop postgres
 
-# 2. 配置 recovery.conf / postgresql.auto.conf
-cat >> /var/lib/postgresql/recovery/postgresql.auto.conf <<EOF
-restore_command = 'cp /archive/wal/%f %p'
-recovery_target_time = '2026-05-26 14:30:00'
-recovery_target_action = 'promote'
-EOF
+# 2. 备份当前数据目录（防止进一步损坏）
+mv /var/lib/postgresql/data /var/lib/postgresql/data_corrupted_$(date +%Y%m%d_%H%M%S)
 
-# 3. 启动 PostgreSQL 进入恢复模式
-docker-compose restart postgres
-# 或
-pg_ctl start -D /var/lib/postgresql/recovery
+# 3. 解压物理备份
+mkdir -p /var/lib/postgresql/data
+tar -xzf /backup/pg_base/20260527_030000/base.tar.gz -C /var/lib/postgresql/data
 
-# 4. 验证数据后提升为主库
+# 4. 恢复 WAL（如果使用了 PITR）
+# 编辑 recovery.signal 和 postgresql.conf 中的 restore_command
+# 详见 PostgreSQL 官方 PITR 文档
+
+# 5. 启动 PostgreSQL
+docker-compose start postgres
 ```
+
+**验证清单**：
+- [ ] PostgreSQL 日志无 ERROR
+- [ ] 连接池可正常获取连接
+- [ ] 全量 pytest 通过
+- [ ] `/health/ready` 返回 ready=True
 
 ---
 
-## 三、自动化脚本建议
+## 三、Docker Compose 环境备份恢复
 
-### backup.sh
-
-```bash
-#!/bin/bash
-set -euo pipefail
-
-DB_NAME="futures_community"
-BACKUP_DIR="/backup"
-RETENTION_DAYS=30
-DATE=$(date +%Y%m%d_%H%M%S)
-
-echo "[$(date)] Starting backup..."
-pg_dump -h localhost -p 15432 -U futures -d "$DB_NAME" \
-  -Fc -f "$BACKUP_DIR/${DB_NAME}_${DATE}.dump"
-
-echo "[$(date)] Cleaning up backups older than $RETENTION_DAYS days..."
-find "$BACKUP_DIR" -name "${DB_NAME}_*.dump" -mtime +$RETENTION_DAYS -delete
-
-echo "[$(date)] Backup completed."
-```
-
-### 添加到 crontab
+项目使用 `docker-compose.yml` 部署 PostgreSQL，以下为 compose 环境的快速操作：
 
 ```bash
-0 3 * * * /opt/futures/backup.sh >> /var/log/futures_backup.log 2>&1
+# 备份数据卷
+docker run --rm -v project_rich_snowball_postgres_data:/data -v $(pwd)/backup:/backup alpine tar czf /backup/postgres_data_$(date +%Y%m%d_%H%M%S).tar.gz -C /data .
+
+# 恢复数据卷（先停止服务）
+docker-compose stop postgres
+docker run --rm -v project_rich_snowball_postgres_data:/data -v $(pwd)/backup:/backup alpine sh -c "rm -rf /data/* && tar xzf /backup/postgres_data_20260527_030000.tar.gz -C /data"
+docker-compose start postgres
 ```
 
 ---
 
 ## 四、RTO / RPO 目标
 
-| 场景 | RTO（恢复时间目标） | RPO（数据丢失目标） |
-|------|-------------------|-------------------|
-| 单表误删 | < 30 分钟 | 0（可精确恢复单表） |
-| 全库损坏 | < 2 小时 | < 24 小时（日备份） |
-| 服务器整机故障 | < 4 小时 | < 1 小时（WAL 归档） |
+| 场景 | RTO（恢复时间） | RPO（数据丢失） | 备份方式 |
+|------|----------------|----------------|----------|
+| 单表误删 | < 30 分钟 | 0（可精确到行） | 逻辑备份 + WAL |
+| 数据库崩溃 | < 2 小时 | < 15 分钟 | 物理备份 + WAL |
+| 硬件故障 | < 4 小时 | < 1 小时 | 物理备份 + 异地副本 |
+| 迁移/升级 | < 4 小时 | 0（可控窗口） | 逻辑备份 |
 
 ---
 
-## 五、检查清单（Checklist）
+## 五、恢复演练计划
 
-- [ ] 备份脚本已配置 cron 并验证执行成功
-- [ ] 备份文件可定期下载到异地（对象存储）
-- [ ] 本季度恢复演练已完成并记录结果
-- [ ] 备份磁盘容量监控已配置（> 80% 告警）
-- [ ] pg_dump 版本与 PostgreSQL 服务端版本一致
+**频率**：每季度一次（或每次重大发布前）。
+
+**演练步骤**：
+1. 在 staging 环境执行完整恢复流程。
+2. 验证数据完整性（行数、校验和抽样）。
+3. 运行全量 pytest 和 Playwright E2E。
+4. 记录耗时和遇到的问题。
+5. 更新本 runbook。
+
+**上次演练记录**：
+| 日期 | 演练类型 | 结果 | 耗时 | 问题 |
+|------|----------|------|------|------|
+| — | — | — | — | 尚未执行 |
 
 ---
 
-*本 runbook 随备份策略变更更新。*
+## 六、注意事项
+
+1. **备份存储**：备份文件应存储在与数据库不同的磁盘/机器上，最好是异地。
+2. **加密**：生产环境备份文件建议加密存储（`gpg` 或云存储服务端加密）。
+3. **权限**：备份目录权限设为 700，仅 postgres/备份用户可访问。
+4. **测试恢复**：备份的唯一价值在于可恢复。没有验证过的备份等于没有备份。
+
+---
+
+*本文档随备份策略调整和演练结果更新。*
