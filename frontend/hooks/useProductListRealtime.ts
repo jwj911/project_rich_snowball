@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { api, Product, ProductListResponse, ProductQuery } from '@/lib/api'
+import { useMemo } from 'react'
+import { Product, ProductQuery } from '@/lib/api'
+import { useProductsPage } from '@/lib/swr-hooks'
 import { useRealtimeQuotes } from './useRealtimeQuotes'
 import { MarketHeartbeat } from './useMarketPolling'
 
@@ -21,65 +22,34 @@ export interface UseProductListRealtimeResult {
   refresh: () => Promise<void>
 }
 
-/**
- * 产品列表 + SSE 实时价格推送
- *
- * 1. 首次加载时通过 REST API 获取完整产品列表（含 name/category 等元数据）
- * 2. 通过 SSE 订阅全部品种的实时价格更新
- * 3. 将 SSE 推送的实时价格合并到产品列表，实现无轮询刷新
- *
- * 优势：
- * - 元数据（name/category）只加载一次，不重复请求
- * - 实时价格通过 SSE 推送，无需 30 秒轮询
- * - 服务端只在数据实际更新后才推送（变更感知），大幅降低 DB 查询压力
- */
-const EMPTY_RESPONSE: ProductListResponse = {
-  items: [],
+const EMPTY_RESPONSE = {
+  items: [] as Product[],
   total: 0,
   totalVolume: 0,
   upCount: 0,
   downCount: 0,
-  categories: [],
+  categories: [] as string[],
 }
 
 export function useProductListRealtime(
   enabled: boolean,
   query: ProductQuery = {},
 ): UseProductListRealtimeResult {
-  const [response, setResponse] = useState<ProductListResponse>(EMPTY_RESPONSE)
-  const [loading, setLoading] = useState(false)
-  const [initialError, setInitialError] = useState<string | null>(null)
+  const {
+    data: response,
+    error: swrError,
+    isLoading,
+    mutate,
+  } = useProductsPage(enabled ? query : null)
 
-  const loadProducts = async () => {
-    if (!enabled) return
-    setLoading(true)
-    setInitialError(null)
-    try {
-      const result = await api.getProductsPage(query)
-      setResponse(result)
-    } catch (err) {
-      setInitialError(err instanceof Error ? err.message : '产品列表加载失败')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const resolvedResponse = response ?? EMPTY_RESPONSE
 
-  useEffect(() => {
-    if (enabled) {
-      loadProducts()
-    } else {
-      setResponse(EMPTY_RESPONSE)
-      setInitialError(null)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, query.skip, query.limit, query.search, query.category, query.direction, query.sortBy, query.sortOrder])
-
-  const symbols = useMemo(() => response.items.map((p) => p.symbol), [response.items])
+  const symbols = useMemo(() => resolvedResponse.items.map((p) => p.symbol), [resolvedResponse.items])
   const { quotes: realtimeQuotes, source: sseSource, error: sseError } = useRealtimeQuotes(symbols)
 
   const mergedProducts = useMemo(() => {
-    if (realtimeQuotes.size === 0) return response.items
-    return response.items.map((product) => {
+    if (realtimeQuotes.size === 0) return resolvedResponse.items
+    return resolvedResponse.items.map((product) => {
       const quote = realtimeQuotes.get(product.symbol)
       if (!quote) return product
       return {
@@ -93,19 +63,20 @@ export function useProductListRealtime(
         updated_at: quote.updated_at ?? product.updated_at,
       }
     })
-  }, [response.items, realtimeQuotes])
+  }, [resolvedResponse.items, realtimeQuotes])
 
   const source: ProductListSource = useMemo(() => {
-    if (loading) return 'initial'
+    if (isLoading) return 'initial'
     if (sseSource === 'sse') return 'sse'
     if (sseSource === 'polling') return 'polling'
     return 'initial'
-  }, [loading, sseSource])
+  }, [isLoading, sseSource])
+
+  const error = swrError ? (swrError instanceof Error ? swrError.message : '产品列表加载失败') : sseError
 
   const heartbeat: MarketHeartbeat = useMemo(() => {
-    if (loading) return { status: 'refreshing', failureCount: 0 }
-    if (initialError) return { status: 'error', failureCount: 1, message: initialError }
-    if (sseError) return { status: 'error', failureCount: 1, message: sseError }
+    if (isLoading) return { status: 'refreshing', failureCount: 0 }
+    if (error) return { status: 'error', failureCount: 1, message: error }
     if (source === 'sse') {
       return {
         status: 'healthy',
@@ -124,19 +95,19 @@ export function useProductListRealtime(
       }
     }
     return { status: 'idle', failureCount: 0 }
-  }, [loading, initialError, sseError, source])
+  }, [isLoading, error, source])
 
   return {
     products: mergedProducts,
-    total: response.total,
-    totalVolume: response.totalVolume,
-    upCount: response.upCount,
-    downCount: response.downCount,
-    categories: response.categories,
-    loading,
+    total: resolvedResponse.total,
+    totalVolume: resolvedResponse.totalVolume,
+    upCount: resolvedResponse.upCount,
+    downCount: resolvedResponse.downCount,
+    categories: resolvedResponse.categories,
+    loading: isLoading,
     source,
-    error: initialError || sseError,
+    error,
     heartbeat,
-    refresh: loadProducts,
+    refresh: async () => { await mutate() },
   }
 }
