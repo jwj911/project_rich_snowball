@@ -22,7 +22,7 @@ import time
 from datetime import timedelta, datetime, timezone
 
 # 确保 SECRET_KEY 在导入 main 前已设置
-os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-local-development")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

@@ -38,7 +38,7 @@ jobs:
 
       - name: Run tests
         env:
-          SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: test-secret-key-for-ci-local-development-42
           ENABLE_SCHEDULER: "0"
           SSE_TEST_MODE: "1"
         run: pytest tests -q --tb=short
@@ -55,9 +55,6 @@ jobs:
 
       - name: Security audit with pip-audit
         # 基于 requirements.lock（精确版本）执行依赖漏洞扫描。
-        # 当前存在 12 个已知漏洞（pyjwt/pytest/python-dotenv/python-multipart/starlette），
-        # 暂设为 continue-on-error，避免阻塞测试流程；将在后续迭代中升级修复。
-        continue-on-error: true
         run: |
           pip install pip-audit
           pip-audit -r requirements.lock --no-deps --disable-pip

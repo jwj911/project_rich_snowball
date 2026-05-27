@@ -50,9 +50,8 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 
-from sqlalchemy import or_
-
 from common import (
+    TUSHARE_EXCHANGES,
     IngestStats,
     TushareClient,
     add_common_args,
@@ -63,6 +62,7 @@ from common import (
     records_from_df,
     variety_id_for_ts_code,
 )
+from sqlalchemy import or_
 
 
 def _ingest_direct(
@@ -161,6 +161,7 @@ def _ingest_via_contracts(
     from data_collector.adapters import map_tushare_fut_daily
     from data_collector.upsert import upsert_fut_daily_bulk
     from models import FutContractDB, VarietyDB
+    from services.trading_calendar import get_trading_days
 
     start_dt = datetime.strptime(start_date, "%Y%m%d")
     end_dt = datetime.strptime(end_date, "%Y%m%d")
@@ -188,7 +189,7 @@ def _ingest_via_contracts(
         stats.skipped += 1
         return
 
-    print(f"[INFO] {len(contracts)} contract(s) to query")
+    print(f"[INFO] {len(contracts)} contract(s) matched filters")
 
     # Preload all varieties and build a flexible lookup map.
     # Keys: original symbol (upper) AND alphabetic-only version (upper).
@@ -219,65 +220,178 @@ def _ingest_via_contracts(
                 return v
         return None
 
-    for contract in contracts:
-        ts_code = contract.ts_code
-        variety = _lookup_variety(contract)
-        if not variety:
-            # Auto-create VarietyDB from FutContractDB info so we don't depend on
-            # a separate ingest_basic.py run.
-            symbol = "".join(ch for ch in (contract.fut_code or "") if ch.isalpha()).upper()
-            if not symbol:
-                symbol = (contract.fut_code or "").upper()
-            if not symbol:
+    def _auto_insert_variety(contract) -> VarietyDB | None:
+        """Create a ``VarietyDB`` row from ``FutContractDB`` info and index it."""
+        symbol = "".join(ch for ch in (contract.fut_code or "") if ch.isalpha()).upper()
+        if not symbol:
+            symbol = (contract.fut_code or "").upper()
+        if not symbol:
+            return None
+        variety = VarietyDB(
+            symbol=symbol,
+            contract_code=contract.symbol or symbol,
+            name=contract.name or symbol,
+            exchange=contract.exchange or "",
+            category="期货",
+        )
+        db.add(variety)
+        db.flush()  # Obtain variety.id immediately
+        variety_map[symbol] = variety
+        if contract.fut_code:
+            variety_map[contract.fut_code.upper()] = variety
+        clean = "".join(ch for ch in contract.fut_code if ch.isalpha()) if contract.fut_code else ""
+        if clean and clean != symbol:
+            variety_map[clean] = variety
+        print(f"[AUTO-INSERT] {contract.ts_code} -> VarietyDB symbol={symbol} id={variety.id}")
+        return variety
+
+    if period == "D":
+        # ------------------------------------------------------------------
+        # Daily bars: batch by trade_date + exchange (far fewer API calls).
+        # ------------------------------------------------------------------
+        # Build ts_code -> variety mapping for filtering when the user has
+        # narrowed the scope with --symbols / --contract-type.
+        has_user_filter = bool(symbols or contract_types)
+        allowed_ts_codes: set[str] = set()
+        ts_code_to_variety: dict[str, VarietyDB] = {}
+        for contract in contracts:
+            allowed_ts_codes.add(contract.ts_code)
+            variety = _lookup_variety(contract)
+            if not variety:
+                variety = _auto_insert_variety(contract)
+            if variety:
+                ts_code_to_variety[contract.ts_code] = variety
+
+        target_exchanges = exchanges or TUSHARE_EXCHANGES
+        trading_days = get_trading_days(
+            f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]}",
+            f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]}",
+        )
+        if not trading_days:
+            print("[SKIP] no trading days in the given date range")
+            stats.skipped += 1
+            return
+
+        print(f"[INFO] daily batch mode: {len(trading_days)} trading day(s), "
+              f"{len(target_exchanges)} exchange(s)")
+
+        rows_buffer: list[dict] = []
+        commit_batch = 300
+
+        for trade_day in trading_days:
+            date_str = trade_day.strftime("%Y%m%d")
+            for exchange in target_exchanges:
+                try:
+                    df = client.query("fut_daily", trade_date=date_str, exchange=exchange)
+                except Exception as e:
+                    print(f"[FAIL] {date_str} {exchange}: {e}")
+                    stats.failed += 1
+                    continue
+
+                raw_rows = records_from_df(df)
+                stats.fetched += len(raw_rows)
+                mapped = 0
+                for raw in raw_rows:
+                    ts_code = raw.get("ts_code")
+                    if not ts_code:
+                        stats.skipped += 1
+                        continue
+
+                    # When filters are active, skip contracts outside the scope.
+                    if has_user_filter and ts_code not in allowed_ts_codes:
+                        stats.skipped += 1
+                        continue
+
+                    variety = ts_code_to_variety.get(ts_code)
+                    if not variety:
+                        # Attempt a late VarietyDB lookup / auto-insert for contracts
+                        # that were not in the initial FutContractDB query (e.g. newly listed).
+                        symbol = "".join(ch for ch in ts_code.split(".")[0] if ch.isalpha()).upper()
+                        if symbol:
+                            variety = variety_map.get(symbol) or variety_map.get(
+                                "".join(ch for ch in symbol if ch.isalpha())
+                            )
+                        if not variety and symbol:
+                            variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
+                        if not variety and symbol:
+                            variety = VarietyDB(
+                                symbol=symbol,
+                                contract_code=symbol,
+                                name=symbol,
+                                exchange=exchange,
+                                category="期货",
+                            )
+                            db.add(variety)
+                            db.flush()
+                            variety_map[symbol] = variety
+                            print(f"[AUTO-INSERT] {ts_code} -> VarietyDB symbol={symbol} id={variety.id}")
+                        if variety:
+                            ts_code_to_variety[ts_code] = variety
+
+                    if not variety:
+                        stats.skipped += 1
+                        continue
+
+                    row = map_tushare_fut_daily(raw, variety.id, "D")
+                    if row.get("trade_date") and row.get("variety_id"):
+                        rows_buffer.append(row)
+                        mapped += 1
+                        # Flush immediately when batch is full to stay under Postgres param limit.
+                        if len(rows_buffer) >= commit_batch and not dry_run:
+                            stats.written += upsert_fut_daily_bulk(db, rows_buffer)
+                            db.commit()
+                            rows_buffer = []
+                    else:
+                        stats.skipped += 1
+
+                print(f"[OK] {date_str} {exchange}: fetched={len(raw_rows)} mapped={mapped}")
+
+        if rows_buffer and not dry_run:
+            stats.written += upsert_fut_daily_bulk(db, rows_buffer)
+            db.commit()
+
+    else:
+        # ------------------------------------------------------------------
+        # Weekly / monthly: keep the per-contract path (data volume is low).
+        # ------------------------------------------------------------------
+        for contract in contracts:
+            ts_code = contract.ts_code
+            variety = _lookup_variety(contract)
+            if not variety:
+                variety = _auto_insert_variety(contract)
+            if not variety:
                 print(f"[SKIP] {ts_code}: cannot determine symbol from contract")
                 stats.skipped += 1
                 continue
 
-            variety = VarietyDB(
-                symbol=symbol,
-                contract_code=contract.symbol or symbol,
-                name=contract.name or symbol,
-                exchange=contract.exchange or "",
-                category="期货",
-            )
-            db.add(variety)
-            db.flush()  # Obtain variety.id immediately
-
-            # Index the newly created variety for subsequent lookups
-            variety_map[symbol] = variety
-            if contract.fut_code:
-                variety_map[contract.fut_code.upper()] = variety
-            clean = "".join(ch for ch in contract.fut_code if ch.isalpha()) if contract.fut_code else ""
-            if clean and clean != symbol:
-                variety_map[clean] = variety
-            print(f"[AUTO-INSERT] {ts_code} -> VarietyDB symbol={symbol} id={variety.id}")
-
-        if period == "D":
-            df = client.query("fut_daily", ts_code=ts_code, start_date=start_date, end_date=end_date)
-        else:
             freq = "week" if period == "W" else "month"
-            df = client.query(
-                "fut_weekly_monthly",
-                ts_code=ts_code,
-                freq=freq,
-                start_date=start_date,
-                end_date=end_date,
-            )
+            try:
+                df = client.query(
+                    "fut_weekly_monthly",
+                    ts_code=ts_code,
+                    freq=freq,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+            except Exception as e:
+                print(f"[FAIL] {ts_code} {period}: {e}")
+                stats.failed += 1
+                continue
 
-        raw_rows = records_from_df(df)
-        stats.fetched += len(raw_rows)
-        rows = [
-            row
-            for row in (map_tushare_fut_daily(raw, variety.id, period) for raw in raw_rows)
-            if row.get("trade_date") and row.get("variety_id")
-        ]
-        stats.skipped += len(raw_rows) - len(rows)
-        if dry_run:
-            print(f"[DRY] {ts_code} {period}: fetched={len(raw_rows)} mapped={len(rows)}")
-            continue
-        stats.written += upsert_fut_daily_bulk(db, rows)
-        db.commit()
-        print(f"[OK] {ts_code} {period}: fetched={len(raw_rows)}")
+            raw_rows = records_from_df(df)
+            stats.fetched += len(raw_rows)
+            rows = [
+                row
+                for row in (map_tushare_fut_daily(raw, variety.id, period) for raw in raw_rows)
+                if row.get("trade_date") and row.get("variety_id")
+            ]
+            stats.skipped += len(raw_rows) - len(rows)
+            if dry_run:
+                print(f"[DRY] {ts_code} {period}: fetched={len(raw_rows)} mapped={len(rows)}")
+                continue
+            stats.written += upsert_fut_daily_bulk(db, rows)
+            db.commit()
+            print(f"[OK] {ts_code} {period}: fetched={len(raw_rows)}")
 
 
 def ingest(args: argparse.Namespace) -> IngestStats:

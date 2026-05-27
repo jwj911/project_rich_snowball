@@ -7,7 +7,7 @@
 import os
 import sys
 
-os.environ.setdefault("SECRET_KEY", "test-secret-key-for-metrics")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-metrics-local-development")
 os.environ["ENABLE_SCHEDULER"] = "0"
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

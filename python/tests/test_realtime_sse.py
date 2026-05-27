@@ -7,7 +7,7 @@ SSE 实时行情推送测试
 import os
 import sys
 
-os.environ.setdefault("SECRET_KEY", "test-secret-key-for-realtime-sse")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-realtime-sse-local-development")
 os.environ.setdefault("SSE_TEST_MODE", "1")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

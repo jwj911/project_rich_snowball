@@ -14,7 +14,7 @@ import pytest
 from datetime import datetime
 from sqlalchemy import inspect, text
 
-os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-local-development")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models import engine, Base, init_db, SessionLocal, VarietyDB, KlineDataDB, RealtimeQuoteDB, WatchlistDB, OpinionDB, FutTradeFeeDB

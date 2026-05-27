@@ -57,7 +57,7 @@ class CommentService:
     ) -> list[CommentResponse]:
         user = self._repo.get_user(username)
         if not user:
-            raise HTTPException(status_code=404, detail="用户不存在")
+            raise NotFoundError("用户不存在")
 
         comments = self._repo.list_by_user(user.id, skip, limit)
 

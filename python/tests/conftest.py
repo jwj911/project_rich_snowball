@@ -9,7 +9,7 @@ import atexit
 from typing import Generator
 
 # 确保在导入任何项目模块前设置测试环境变量
-os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-local-development")
 os.environ["ENABLE_SCHEDULER"] = "0"
 os.environ["DOTENV_PATH"] = "/nonexistent/.env"
 

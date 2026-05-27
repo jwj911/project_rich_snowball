@@ -21,7 +21,7 @@ import sys
 
 import pytest
 
-os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-local-development")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from data_collector.upsert import (

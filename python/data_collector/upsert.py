@@ -1,17 +1,24 @@
 """批量写入。本模块不执行 commit，commit 由 Pipeline/Scheduler 控制。"""
+import logging
+
+from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+
 from models import (
-    RealtimeQuoteDB, KlineDataDB, VarietyDB,
-    FutDailyDataDB, FutSettleDB, FutWeeklyDetailDB,
-    FutWsrDB, FutHoldingDB, FutPriceLimitDB,
     FutContractDB,
+    FutDailyDataDB,
+    FutHoldingDB,
+    FutPriceLimitDB,
+    FutSettleDB,
+    FutWeeklyDetailDB,
+    FutWsrDB,
+    KlineDataDB,
+    RealtimeQuoteDB,
+    VarietyDB,
     engine,
 )
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -168,30 +175,37 @@ def insert_kline_bulk(db: Session, rows: list[dict], period: str) -> int:
 
 
 def upsert_fut_daily_bulk(db: Session, rows: list[dict]) -> int:
-    """批量写入期货日线/周线/月线数据。"""
+    """批量写入期货日线/周线/月线数据。自动拆批避免 PostgreSQL 参数上限。"""
     if not rows:
         return 0
-    stmt = _dialect_insert(FutDailyDataDB).values(rows)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=["variety_id", "period", "trade_date"],
-        set_={
-            "pre_close": stmt.excluded.pre_close,
-            "pre_settle": stmt.excluded.pre_settle,
-            "open_price": stmt.excluded.open_price,
-            "high_price": stmt.excluded.high_price,
-            "low_price": stmt.excluded.low_price,
-            "close_price": stmt.excluded.close_price,
-            "settle": stmt.excluded.settle,
-            "change1": stmt.excluded.change1,
-            "change2": stmt.excluded.change2,
-            "volume": stmt.excluded.volume,
-            "amount": stmt.excluded.amount,
-            "open_interest": stmt.excluded.open_interest,
-            "oi_chg": stmt.excluded.oi_chg,
-        },
-    )
-    result = db.execute(stmt)
-    return result.rowcount if hasattr(result, "rowcount") else len(rows)
+    # PostgreSQL 协议参数上限 32767；FutDailyDataDB 每条约 18 个字段，
+    # 300 条 ≈ 5400 个参数，留足安全余量。
+    batch_size = 300
+    total = 0
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i:i + batch_size]
+        stmt = _dialect_insert(FutDailyDataDB).values(batch)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["variety_id", "period", "trade_date"],
+            set_={
+                "pre_close": stmt.excluded.pre_close,
+                "pre_settle": stmt.excluded.pre_settle,
+                "open_price": stmt.excluded.open_price,
+                "high_price": stmt.excluded.high_price,
+                "low_price": stmt.excluded.low_price,
+                "close_price": stmt.excluded.close_price,
+                "settle": stmt.excluded.settle,
+                "change1": stmt.excluded.change1,
+                "change2": stmt.excluded.change2,
+                "volume": stmt.excluded.volume,
+                "amount": stmt.excluded.amount,
+                "open_interest": stmt.excluded.open_interest,
+                "oi_chg": stmt.excluded.oi_chg,
+            },
+        )
+        result = db.execute(stmt)
+        total += result.rowcount if hasattr(result, "rowcount") else len(batch)
+    return total
 
 
 def upsert_fut_settle_bulk(db: Session, rows: list[dict]) -> int:

@@ -71,13 +71,13 @@ def ingest(args: argparse.Namespace) -> IngestStats:
     stats = IngestStats()
     db = SessionLocal()
     try:
+        seen_symbols: set[str] = set()
         for exchange in parse_exchanges(args.exchanges):
             # Query Tushare for contract metadata on this exchange.
             df = client.query("fut_basic", exchange=exchange, fut_type=args.fut_type, list_date=args.list_date)
             raw_rows = records_from_df(df)
             stats.fetched += len(raw_rows)
 
-            seen_symbols: set[str] = set()
             for raw in raw_rows:
                 # Derive the canonical symbol.  ``ts_code`` is the full code
                 # (e.g. "AU.SHF"); ``fut_code`` is the base variety code.
