@@ -44,8 +44,8 @@
 | 消息提示 | sonner | ^2.0.7 |
 | 前端测试 | Vitest + @testing-library/react + jsdom | Vitest 4.1.6 |
 | E2E 测试 | Playwright | ^1.60.0 |
-| 后端框架 | Python + FastAPI | Python >=3.11，FastAPI 0.115 |
-| 后端服务器 | Uvicorn | 0.27.0 |
+| 后端框架 | Python + FastAPI | Python >=3.11，FastAPI 0.136 |
+| 后端服务器 | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.25 |
 | 数据库 | SQLite / PostgreSQL | SQLite 开发零配置；PG 16 通过 compose 提供，映射端口 15432 |
 | 迁移 | Alembic | 1.13.1，当前共 28 个迁移文件 |
@@ -53,7 +53,7 @@
 | 数据校验 | Pydantic v2 | 2.9.0 |
 | 数据采集 | Mock / AkShare / Tushare | `DATA_SOURCE` 控制，非生产可降级 Mock |
 | 定时任务 | APScheduler | BackgroundScheduler |
-| 缓存 | 内存 LRU | `services/cache.py` 线程安全实现；Redis 预留但未接入运行时代码 |
+| 缓存 | Redis 优先 + 内存 LRU 降级 | `services/cache.py` 线程安全实现；Redis 可接入，内存作为降级 |
 | 可观测性 | Prometheus 风格指标 + structlog 结构化日志 | `services/metrics.py` + `services/logging_config.py` |
 | 限流 | 内存滑动窗口 | `middleware/rate_limit.py`，覆盖所有写入端点 |
 
@@ -407,7 +407,7 @@ ruff format .
 - 前端端口不是默认 3000，而是 `127.0.0.1:3200`。
 - 后端端口不是 8000，而是 `127.0.0.1:8200`，除非 `HOST` / `PORT` 覆盖。
 - `docker-compose.yml` 的 PostgreSQL 暴露端口是 15432。
-- Redis 服务可以启动，但应用代码当前使用内存缓存。
+- Redis 服务可以启动，缓存层已实现 Redis 优先 + 内存 LRU 降级。
 - `node_modules`、`.next`、`venv`、数据库文件和日志可能在工作区中产生大量噪声，提交时不要顺手纳入。
 - 当前仓库可能已有用户或其他助手留下的未提交变更，修改前后都要用 `git status --short` 观察，不要回滚无关改动。
 

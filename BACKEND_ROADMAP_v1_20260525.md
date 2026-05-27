@@ -127,5 +127,39 @@
 | 2026-05-27 | 后端：新增 /metrics/dashboard 系列聚合 API + 测试覆盖 | ✅ |
 | 2026-05-27 | 前端：新增 /metrics 运营指标面板页面 + 统计卡片 + 趋势图 + Navbar 入口 | ✅ |
 | 2026-05-27 | **第四阶段验收：指标面板增强前后端闭环，pytest 211 passed，前端 build 通过** | ✅ |
+| 2026-05-27 | 进入第五阶段（v5 审计 P0/P1 修复迭代）：venv 重建、CI 源统一、循环依赖消除、文档同步 | 🔄 |
+
+---
+
+## 五、第五阶段：v5 审计债务修复（P0~P1，1~2 天）
+
+> 基于《后端整体架构审计报告 v5》（评分 6.9/10）制定。  
+> 目标：**关闭 v5 审计中明确的 P0 和 P1 差距，提升工程可验证性。**
+
+### 5.1 P0 — 本地测试环境可复现
+
+| 行动项 | 关键动作 | 验收标准 |
+|--------|----------|----------|
+| 重建 venv | 删除绑定旧绝对路径的 venv，用当前 Python 重新创建 | `python\venv\Scripts\python.exe --version` 可执行 |
+| 安装依赖 | 基于 `requirements.lock` 精确安装 | `pip list` 包含 pytest/ruff/pip-audit/python-dotenv |
+| 本地验证 | 跑通 pytest + ruff + pip-audit | `pytest tests -q` 通过；ruff 可运行；pip-audit 无异常 |
+
+### 5.2 P1 — CI 安装源与审计源统一
+
+| 行动项 | 关键动作 | 验收标准 |
+|--------|----------|----------|
+| 统一安装源 | `.github/workflows/backend-ci.yml` 中 `pip install -r requirements.txt` 改为 `requirements.lock` | CI 安装与审计使用同一份 lock |
+| 消除循环依赖 | `fut_mapping_task.py` 不再从 `data_collector.pipeline` 导入 `_record_run` / `_record_circuit_outcome`，改从 `_common.py` 导入 | 静态 import 无循环；`compileall` 通过 |
+
+### 5.3 P1~P3 — 文档同步
+
+| 行动项 | 关键动作 | 验收标准 |
+|--------|----------|----------|
+| README 更新 | FastAPI 版本、Redis 状态、price-levels 后端同步状态与实际一致 | 无过期技术栈描述 |
+| AGENTS 更新 | 同上，确保 agent 上下文准确 | 无过期技术栈描述 |
+
+**产出物**：本地可复现的 venv、CI 源统一的 workflow、无循环依赖的 pipeline、同步的文档。
+
+---
 
 *文档随迭代进展更新。*
