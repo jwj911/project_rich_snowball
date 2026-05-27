@@ -128,6 +128,11 @@
 | 2026-05-27 | 前端：新增 /metrics 运营指标面板页面 + 统计卡片 + 趋势图 + Navbar 入口 | ✅ |
 | 2026-05-27 | **第四阶段验收：指标面板增强前后端闭环，pytest 211 passed，前端 build 通过** | ✅ |
 | 2026-05-27 | 进入第五阶段（v5 审计 P0/P1 修复迭代）：venv 重建、CI 源统一、循环依赖消除、文档同步 | 🔄 |
+| 2026-05-27 | P0：重建 venv（Python 3.12），requirements.lock 精确安装，pytest/ruff/pip-audit 本地可复现 | ✅ |
+| 2026-05-27 | P1：backend-ci.yml 安装源统一为 requirements.lock | ✅ |
+| 2026-05-27 | P1：消除 fut_mapping_task ↔ pipeline 循环依赖，改从 _common.py 导入 | ✅ |
+| 2026-05-27 | P3：README/AGENTS 技术栈版本、Redis、price-levels 描述与实际代码同步 | ✅ |
+| 2026-05-27 | **第五阶段验收：v5 P0/P1 差距关闭，pytest 211 passed，前端 build 通过** | ✅ |
 
 ---
 
