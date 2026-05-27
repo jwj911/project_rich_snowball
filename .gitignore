@@ -84,6 +84,9 @@ python/__pycache__/
 # Next.js build info
 frontend/tsconfig.tsbuildinfo
 
+# Playwright test results
+frontend/test-results/
+
 # Temporary data / reports
 python/*.csv
 *_REVIEW_*.md

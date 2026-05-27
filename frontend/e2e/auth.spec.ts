@@ -61,4 +61,90 @@ test.describe('登录与权限', () => {
     await page.getByRole('button', { name: '去登录' }).click()
     await expect(page.getByRole('dialog', { name: '登录' })).toBeVisible()
   })
+
+  test('键盘导航可完成登录流程', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: '登录' }).click()
+
+    const dialog = page.getByRole('dialog', { name: '登录' })
+    await expect(dialog).toBeVisible()
+
+    // Tab to username (should already be focused), type
+    await expect(page.getByLabel('用户名')).toBeFocused()
+    await page.keyboard.type('trader001')
+
+    // Tab to password, type
+    await page.keyboard.press('Tab')
+    await expect(page.getByLabel('密码')).toBeFocused()
+    await page.keyboard.type('password123')
+
+    // Tab to submit button, Enter to submit
+    await page.keyboard.press('Tab')
+    await page.keyboard.press('Enter')
+
+    await expect(page.getByRole('heading', { name: '行情工作台' })).toBeVisible({ timeout: 10000 })
+  })
+
+  test('注册弹窗应具备标准 dialog 语义与焦点管理', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: '登录' }).click()
+    await page.getByRole('button', { name: '注册' }).click()
+
+    const dialog = page.getByRole('dialog', { name: '注册' })
+    await expect(dialog).toBeVisible()
+    await expect(dialog).toHaveAttribute('aria-modal', 'true')
+    await expect(page.getByLabel('用户名')).toBeFocused()
+
+    await page.keyboard.press('Escape')
+    await expect(dialog).not.toBeVisible()
+  })
+
+  test('登录弹窗 Tab 焦点应被限制在弹窗内部', async ({ page }) => {
+    await openLoginModal(page)
+    const dialog = page.getByRole('dialog', { name: '登录' })
+    await expect(dialog).toBeVisible()
+
+    const username = page.getByLabel('用户名')
+    const password = page.getByLabel('密码')
+    const submit = page.getByRole('button', { name: '登录' })
+    const close = page.getByRole('button', { name: '关闭' })
+    const register = page.getByRole('button', { name: '注册' })
+
+    // Initial focus should be on username
+    await expect(username).toBeFocused()
+
+    // Tab through all focusable elements
+    await page.keyboard.press('Tab')
+    await expect(password).toBeFocused()
+
+    await page.keyboard.press('Tab')
+    await expect(submit).toBeFocused()
+
+    await page.keyboard.press('Tab')
+    await expect(close).toBeFocused()
+
+    await page.keyboard.press('Tab')
+    await expect(register).toBeFocused()
+
+    // Tab from last element should cycle back to first
+    await page.keyboard.press('Tab')
+    await expect(username).toBeFocused()
+  })
+
+  test('登录弹窗 Shift+Tab 焦点应反向循环', async ({ page }) => {
+    await openLoginModal(page)
+    const dialog = page.getByRole('dialog', { name: '登录' })
+    await expect(dialog).toBeVisible()
+
+    const username = page.getByLabel('用户名')
+    const register = page.getByRole('button', { name: '注册' })
+
+    // Focus first element
+    await username.focus()
+    await expect(username).toBeFocused()
+
+    // Shift+Tab from first should go to last
+    await page.keyboard.press('Shift+Tab')
+    await expect(register).toBeFocused()
+  })
 })
