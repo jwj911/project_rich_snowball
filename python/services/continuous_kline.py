@@ -165,18 +165,19 @@ def query_segment_klines(
     return rows
 
 
-def apply_backward_adjustment(all_rows: list[dict], segments: list[dict]) -> None:
-    """对 all_rows 应用反向调整（Backward Adjustment），消除换月跳空。
+def _compute_segment_gaps(
+    sorted_segments: list[dict],
+    all_rows: list[dict],
+) -> dict[int | None, Decimal]:
+    """计算每个 segment（除最新外）的向后累计调整量。
 
-    逻辑：从最新 segment 开始向前遍历，每遇到一个换月点，
-    计算新旧合约在切换时的 close 价差，并将更早的历史价格平移该价差。
-    这样可保证最新合约的价格与真实市场一致，技术指标不会因换月跳空失真。
+    从最新 segment 开始向前遍历，每遇到一个换月点，
+    计算新旧合约在切换时的 close 价差，并将更早的历史价格累计该价差。
+    返回 {contract_id: total_gap} 映射。
     """
-    if len(segments) <= 1:
-        return
-
-    sorted_segments = sorted(segments, key=lambda s: s["start"])
-    segment_adj = {seg["contract_id"]: Decimal(0) for seg in segments}
+    segment_adj: dict[int | None, Decimal] = {
+        seg["contract_id"]: Decimal(0) for seg in sorted_segments
+    }
     total_gap = Decimal(0)
 
     for i in range(len(sorted_segments) - 1, 0, -1):
@@ -197,23 +198,37 @@ def apply_backward_adjustment(all_rows: list[dict], segments: list[dict]) -> Non
         )
 
         if curr_first and prev_last:
-            gap = curr_first["close"] - prev_last["close"]
-            total_gap += gap
+            total_gap += curr_first["close"] - prev_last["close"]
 
         segment_adj[prev_seg["contract_id"]] = total_gap
 
+    return segment_adj
+
+
+def apply_backward_adjustment(all_rows: list[dict], segments: list[dict]) -> None:
+    """对 all_rows 应用反向调整（Backward Adjustment），消除换月跳空。
+
+    这样可保证最新合约的价格与真实市场一致，技术指标不会因换月跳空失真。
+    """
+    if len(segments) <= 1:
+        return
+
+    sorted_segments = sorted(segments, key=lambda s: s["start"])
+    segment_adj = _compute_segment_gaps(sorted_segments, all_rows)
+
     for r in all_rows:
         adj = segment_adj.get(r.get("contract_id"), Decimal(0))
-        if adj:
-            r["open"] -= adj
-            r["high"] -= adj
-            r["low"] -= adj
-            r["close"] -= adj
-            if any(r[k] <= 0 for k in ("open", "high", "low", "close")):
-                logger.warning(
-                    "Backward adjustment produced non-positive price for contract_id=%s: %s",
-                    r.get("contract_id"), {k: r[k] for k in ("open", "high", "low", "close")}
-                )
+        if not adj:
+            continue
+        r["open"] -= adj
+        r["high"] -= adj
+        r["low"] -= adj
+        r["close"] -= adj
+        if any(r[k] <= 0 for k in ("open", "high", "low", "close")):
+            logger.warning(
+                "Backward adjustment produced non-positive price for contract_id=%s: %s",
+                r.get("contract_id"), {k: r[k] for k in ("open", "high", "low", "close")}
+            )
 
 
 def get_continuous_kline(

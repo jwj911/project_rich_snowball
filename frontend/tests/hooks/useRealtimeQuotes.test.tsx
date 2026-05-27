@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRealtimeQuotes } from '@/hooks/useRealtimeQuotes'
 import { api } from '@/lib/api'
+import { realtimeStore } from '@/lib/realtimeStore'
 import { makeRealtimeQuote } from '@/tests/fixtures'
 
 vi.mock('@/lib/api', () => ({
@@ -44,6 +45,7 @@ describe('useRealtimeQuotes', () => {
       quotes: [createQuote()],
       not_found: [],
     })
+    realtimeStore.resetForTest()
   })
 
   afterEach(() => {
@@ -74,11 +76,13 @@ describe('useRealtimeQuotes', () => {
 
     const source = MockEventSource.instances[0]
 
-    act(() => {
+    await act(async () => {
       source.onopen?.()
       source.onmessage?.(new MessageEvent('message', {
         data: JSON.stringify({ quotes: [createQuote({ current_price: 3612 })] }),
       }))
+      vi.advanceTimersByTime(100)
+      await Promise.resolve()
     })
 
     expect(result.current.quotes.get('RB')?.current_price).toBe(3612)
@@ -118,6 +122,7 @@ describe('useRealtimeQuotes SSE reconnect', () => {
       quotes: [createQuote()],
       not_found: [],
     })
+    realtimeStore.resetForTest()
 
     vi.stubGlobal('setTimeout', (callback: Function, _delay?: number) => {
       timeoutCallbacks.push(callback)
@@ -183,6 +188,7 @@ describe('useRealtimeQuotes polling mode', () => {
       quotes: [createQuote()],
       not_found: [],
     })
+    realtimeStore.resetForTest()
 
     originalSetInterval = window.setInterval
     originalClearInterval = window.clearInterval
@@ -255,6 +261,7 @@ describe('useRealtimeQuotes resource cleanup', () => {
       quotes: [createQuote()],
       not_found: [],
     })
+    realtimeStore.resetForTest()
 
     vi.stubGlobal('setInterval', (callback: Function, delay?: number) => {
       const id = nextIntervalId++
@@ -316,6 +323,7 @@ describe('useRealtimeQuotes visibility handling', () => {
       quotes: [createQuote()],
       not_found: [],
     })
+    realtimeStore.resetForTest()
 
     visibilityHidden = false
     visibilityCallback = null
@@ -418,6 +426,7 @@ describe('useRealtimeQuotes symbol changes', () => {
       quotes: [createQuote()],
       not_found: [],
     })
+    realtimeStore.resetForTest()
   })
 
   afterEach(() => {
@@ -463,11 +472,12 @@ describe('useRealtimeQuotes symbol changes', () => {
     })
 
     const source = MockEventSource.instances[0]
-    await act(() => {
+    await act(async () => {
       source.onopen?.()
       source.onmessage?.(new MessageEvent('message', {
         data: JSON.stringify({ quotes: [createQuote({ current_price: 3612 })] }),
       }))
+      vi.advanceTimersByTime(100)
     })
 
     expect(result.current.quotes.size).toBe(1)
