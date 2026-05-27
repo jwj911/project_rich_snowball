@@ -110,5 +110,9 @@
 | 2026-05-27 | P0 收尾：清理 `tsconfig.tsbuildinfo` 跟踪 + 更新 `.gitignore` | ✅ |
 | 2026-05-27 | **第一阶段验收：pytest 201 passed, 6 skipped, 0 warnings** | ✅ |
 | 2026-05-27 | 进入第二阶段（架构减负 P1）：线 B — 连续 K 线拆分 | 🔄 |
+| 2026-05-27 | 线 B 验收：`get_continuous_kline` 43→44 行，复杂度 5；提取 `_compute_segment_gaps` | ✅ |
+| 2026-05-27 | 线 A 验收：`pipeline.py` 212 行（原 ~692），`scheduler.py` 510 行（原 ~716） | ✅ |
+| 2026-05-27 | 线 A 验收：collector_registry / job_registry / pipeline_tasks 已落地并接入 | ✅ |
+| 2026-05-27 | 进入第二阶段（架构减负 P1）：线 C — ProductDB 退场计划（文档先行） | 🔄 |
 
 *文档随迭代进展更新。*
