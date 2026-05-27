@@ -100,11 +100,11 @@ def build_rollover_segments(
     # 与外部 start/end 取交集，提前过滤无数据区间
     filtered = []
     for seg in segments:
-        seg_start = max(start, seg["start"]) if start else seg["start"]
-        seg_end = min(end, seg["end"]) if end else seg["end"]
-        if seg_start < seg_end:
-            seg["query_start"] = seg_start
-            seg["query_end"] = seg_end
+        qs = max(start, seg["start"]) if start is not None else seg["start"]
+        qe = min(end, seg["end"]) if end is not None else seg["end"]
+        if qs < qe:
+            seg["query_start"] = qs
+            seg["query_end"] = qe
             filtered.append(seg)
     return filtered
 

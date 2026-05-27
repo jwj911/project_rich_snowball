@@ -13,7 +13,7 @@ import json
 import logging
 import os
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -260,10 +260,10 @@ class TradingCalendar:
 
 
 # 模块级便捷函数（无需显式实例化）
-_is_trading_day = None
-_get_trading_days = None
-_trading_days_between = None
-_get_expected_kline_dates = None
+_is_trading_day: Callable[[date | datetime | str], bool] | None = None
+_get_trading_days: Callable[[date | datetime | str, date | datetime | str], list[date]] | None = None
+_trading_days_between: Callable[[date | datetime | str, date | datetime | str], int] | None = None
+_get_expected_kline_dates: Callable[[date | datetime | str, date | datetime | str, str], list[date]] | None = None
 
 
 def _ensure_funcs():

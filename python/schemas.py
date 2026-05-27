@@ -86,7 +86,7 @@ class CommentCreate(BaseModel):
 
     @field_validator("content", mode="before")
     @classmethod
-    def sanitize_content(cls, v: str) -> str:
+    def sanitize_content(cls, v: str | None) -> str:
         v = sanitize_html_text(v)
         if v is None or not v:
             raise ValueError("评论内容不能为空")
@@ -125,7 +125,7 @@ class VarietyResponse(BaseModel):
     commission: float | None
     tick_size: float | None = None
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def price_precision(self) -> int:
         """根据 tick_size 推导价格精度（小数位数）。"""
