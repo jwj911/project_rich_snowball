@@ -88,3 +88,7 @@ frontend/tsconfig.tsbuildinfo
 python/*.csv
 *_REVIEW_*.md
 *_AUDIT_*.md
+
+# Commission data files
+python/data/commission/
+
