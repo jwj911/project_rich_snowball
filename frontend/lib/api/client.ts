@@ -21,6 +21,11 @@ import {
   getVarietyFees,
 } from './market'
 import {
+  getDashboardActivity,
+  getDashboardCollection,
+  getDashboardOverview,
+} from './metrics'
+import {
   createPriceLevel,
   createPriceLevelsBatch,
   createWatchlist,
@@ -34,6 +39,9 @@ import {
 } from './workspace'
 import type {
   Comment,
+  DashboardActivity,
+  DashboardCollection,
+  DashboardOverview,
   FutContract,
   KlineData,
   MarketStatusResponse,
@@ -208,6 +216,18 @@ class ApiService extends AuthCore {
 
   getMarketStatus(): Promise<MarketStatusResponse> {
     return getMarketStatus(this)
+  }
+
+  getDashboardOverview(): Promise<DashboardOverview> {
+    return getDashboardOverview(this)
+  }
+
+  getDashboardActivity(): Promise<DashboardActivity> {
+    return getDashboardActivity(this)
+  }
+
+  getDashboardCollection(): Promise<DashboardCollection> {
+    return getDashboardCollection(this)
   }
 }
 
