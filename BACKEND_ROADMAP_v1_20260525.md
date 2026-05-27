@@ -117,5 +117,11 @@
 | 2026-05-27 | 线 C 验收：`python/docs/productdb_sunset_plan.md` 已完备（依赖清单/替代路径/迁移阶段/前置条件/风险/验收标准） | ✅ |
 | 2026-05-27 | **第二阶段验收：collector_registry / job_registry / pipeline_tasks 落地；continuous_kline 拆分达标；ProductDB 退场文档完备** | ✅ |
 | 2026-05-27 | 进入第三阶段（观测性与安全加固 P1~P2）：健康接口收敛 | 🔄 |
+| 2026-05-27 | 第三阶段：补充 /health/scheduler 生产环境 403 鉴权测试 | ✅ |
+| 2026-05-27 | 第三阶段：mypy 分阶段收紧 — 修复 schemas/trading_calendar/continuous_kline 真正类型问题 | ✅ |
+| 2026-05-27 | 第三阶段：可观测性运维手册（PromQL 告警规则、SLO、排查手册、Dashboard 建议） | ✅ |
+| 2026-05-27 | 第三阶段：PostgreSQL 备份与恢复 Runbook（物理/逻辑备份、PITR、RTO/RPO） | ✅ |
+| 2026-05-27 | 第三阶段：熔断器 Redis 化 — 已支持（Redis 优先 + 内存降级），无需额外工作 | ✅ |
+| 2026-05-27 | **第三阶段验收：生产有据可查、有险可防** | ✅ |
 
 *文档随迭代进展更新。*
