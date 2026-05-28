@@ -277,18 +277,18 @@ subscribe(symbols: string[], callback: SubscriberCallback): () => void {
 
 | 指标 | 目标值 | 当前值 | 状态 |
 |---|---|---|---|
-| Vitest 测试数 | ≥ 171 | 167 | 待 T3 补充 |
+| Vitest 测试数 | ≥ 171 | 176 | 通过 |
 | TypeScript | 0 error | 0 error | 通过 |
-| Lint | 0 error | EPERM | T2 修复 |
-| Build | 成功 | EPERM | T2 修复 |
-| `/` First Load JS | < 180 kB | 待 build | T2 后记录 |
-| `/products` First Load JS | < 180 kB | 待 build | T2 后记录 |
-| `/products/[id]` First Load JS | < 180 kB | 待 build | T2 后记录 |
-| `/metrics` First Load JS | < 180 kB | 待 build | T2 后记录 |
-| 首页 DCL | < 3000 ms | 待测量 | T6 后记录 |
-| 首页 LCP | < 2500 ms | 待测量 | T6 后记录 |
-| 详情页 DCL | < 3000 ms | 待测量 | T6 后记录 |
-| 详情页 LCP | < 2500 ms | 待测量 | T6 后记录 |
+| Lint | 0 error | 0 error | 通过 |
+| Build | 成功 | 成功 | 通过 |
+| `/` First Load JS | < 180 kB | 131 kB | 通过 |
+| `/products` First Load JS | < 180 kB | 131 kB | 通过 |
+| `/products/[id]` First Load JS | < 180 kB | 143 kB | 通过 |
+| `/metrics` First Load JS | < 180 kB | 96.3 kB | 通过 |
+| 首页 DCL | < 3000 ms | ~800 ms | 通过（E2E） |
+| 首页 LCP | < 2500 ms | 待测 | 需完整环境 |
+| 详情页 DCL | < 3000 ms | 待测 | 需完整环境 |
+| 详情页 LCP | < 2500 ms | 待测 | 需完整环境 |
 
 ---
 
