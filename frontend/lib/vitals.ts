@@ -57,10 +57,15 @@ async function sendToEndpoint(config: VitalsConfig, metric: { name: string; valu
 }
 
 function sendToAnalytics(metric: { name: string; value: number; id: string }) {
-  console.log('[Web Vitals]', metric.name, metric.value, metric.id)
-
   const config = getConfig()
-  if (shouldReport(config)) {
+  const enabled = shouldReport(config)
+
+  // 开发环境或上报开启时输出日志，避免生产环境噪音
+  if (process.env.NODE_ENV === 'development' || enabled) {
+    console.log('[Web Vitals]', metric.name, metric.value, metric.id)
+  }
+
+  if (enabled) {
     void sendToEndpoint(config, metric)
   }
 }

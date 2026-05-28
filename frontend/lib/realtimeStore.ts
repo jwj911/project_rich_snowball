@@ -5,8 +5,8 @@ import { MARKET } from '@/lib/constants'
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8200'
 const SSE_RETRY_DELAY_MS = MARKET.SSE_RETRY_DELAY_MS
 const POLL_INTERVAL_MS = MARKET.SSE_FALLBACK_INTERVAL_MS
-const BATCH_INTERVAL_MS = 100
-const MAX_RECONNECT_DELAY = 30_000
+const BATCH_INTERVAL_MS = MARKET.BATCH_INTERVAL_MS
+const MAX_RECONNECT_DELAY = MARKET.MAX_RECONNECT_DELAY
 
 export interface RealtimeStoreState {
   quotes: Map<string, RealtimeQuote>
@@ -35,6 +35,7 @@ class RealtimeStore {
   private pollInterval: number | null = null
   private activeSymbols: string[] = []
   private visibilityHandler: (() => void) | null = null
+  private _quotes = new Map<string, RealtimeQuote>()
 
   private get allSymbols(): string[] {
     const set = new Set<string>()
@@ -59,8 +60,15 @@ class RealtimeStore {
     }
     this.subscribers.push(subscriber)
 
+    // 新 subscriber 立即收到已有 quote 的快照
+    const snapshot = new Map<string, RealtimeQuote>()
+    symbols.forEach((sym) => {
+      const q = this._quotes.get(sym)
+      if (q) snapshot.set(sym, q)
+    })
+
     callback({
-      quotes: new Map(),
+      quotes: snapshot,
       source: this._source,
       error: this._error,
       loading: this._loading,
@@ -156,6 +164,7 @@ class RealtimeStore {
     this._error = null
     this._loading = false
     this.reconnectAttempts = 0
+    this._quotes.clear()
   }
 
   private disconnectInternals(): void {
@@ -193,6 +202,7 @@ class RealtimeStore {
       const { quotes } = await api.getRealtimeBatch(this.activeSymbols)
       this._loading = false
       this._error = null
+      quotes.forEach((q) => { this._quotes.set(q.symbol, q) })
       this.enqueue(quotes)
     } catch (err) {
       this._error = err instanceof Error ? err.message : '轮询失败'
@@ -246,7 +256,10 @@ class RealtimeStore {
     if (this.batchQueue.length === 0) return
 
     const batchMap = new Map<string, RealtimeQuote>()
-    this.batchQueue.forEach((q) => { batchMap.set(q.symbol, q) })
+    this.batchQueue.forEach((q) => {
+      batchMap.set(q.symbol, q)
+      this._quotes.set(q.symbol, q)
+    })
     this.batchQueue = []
     this.notifyAll(batchMap)
   }
@@ -281,6 +294,11 @@ class RealtimeStore {
   /** 仅用于测试。 */
   resetForTest(): void {
     this.disconnect()
+  }
+
+  /** 仅用于测试：获取内部 quotes 缓存。 */
+  getQuotesForTest(): Map<string, RealtimeQuote> {
+    return new Map(this._quotes)
   }
 }
 

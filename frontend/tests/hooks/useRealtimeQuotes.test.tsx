@@ -625,4 +625,38 @@ describe('useRealtimeQuotes multi-subscriber reuse', () => {
 
     vi.unstubAllGlobals()
   })
+
+  it('新 subscriber 能收到已有 quotes 快照', async () => {
+    const { result: result1, unmount: unmount1 } = renderHook(() => useRealtimeQuotes(['RB']))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const source = MockEventSource.instances[MockEventSource.instances.length - 1]
+
+    // 第一个 subscriber 收到报价更新
+    await act(async () => {
+      source.onopen?.()
+      source.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({ quotes: [createQuote({ current_price: 3612 })] }),
+      }))
+      vi.advanceTimersByTime(100)
+      await Promise.resolve()
+    })
+
+    expect(result1.current.quotes.get('RB')?.current_price).toBe(3612)
+
+    // 第二个 subscriber 订阅同 symbol，应能立即收到快照
+    const { result: result2, unmount: unmount2 } = renderHook(() => useRealtimeQuotes(['RB']))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(result2.current.quotes.get('RB')?.current_price).toBe(3612)
+
+    unmount1()
+    unmount2()
+  })
 })

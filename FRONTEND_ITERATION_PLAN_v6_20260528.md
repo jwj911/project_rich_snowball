@@ -263,8 +263,8 @@ subscribe(symbols: string[], callback: SubscriberCallback): () => void {
 ```
 
 **验收标准：**
-- [ ] 新 subscriber 能收到已有 quotes 快照
-- [ ] 相关测试通过
+- [x] 新 subscriber 能收到已有 quotes 快照
+- [x] 相关测试通过（新增 1 个快照语义测试，总测试 177）
 
 **涉及文件：**
 - `frontend/lib/realtimeStore.ts`
@@ -338,10 +338,28 @@ npm.cmd run build
 
 | v5 # | 问题 | 优先级 | 对应本轮任务 | 状态 |
 |---|---|---|---|---|
-| 1 | SSE 订阅稳定性（数组依赖导致退订/重连） | P0 | T1 | 待修复 |
-| 2 | 监控默认 endpoint 不存在 | P1 | T4 | 待修复 |
-| 3 | build/lint 门禁不可证明 | P0 | T2 | 待修复 |
-| 4 | RealtimeStore 测试不够锋利 | P1 | T3 | 待修复 |
-| 5 | 性能基线半闭环 | P2 | T6 | 待执行 |
-| 6 | 运营指标页无前端测试 | P2 | T5 | 待修复 |
-| 7 | RealtimeStore 快照语义缺失 | P2 | T7 | 可选 |
+| 1 | SSE 订阅稳定性（数组依赖导致退订/重连） | P0 | T1 | 已完成 |
+| 2 | 监控默认 endpoint 不存在 | P1 | T4 | 已完成 |
+| 3 | build/lint 门禁不可证明 | P0 | T2 | 已完成 |
+| 4 | RealtimeStore 测试不够锋利 | P1 | T3 | 已完成 |
+| 5 | 性能基线半闭环 | P2 | T6 | 部分完成（2/5 E2E，待后端就绪补跑登录场景） |
+| 6 | 运营指标页无前端测试 | P2 | T5 | 已完成 |
+| 7 | RealtimeStore 快照语义缺失 | P2 | T7 | 已完成 |
+| 8 | 魔法数字未提取 | P2 | T8 | 已完成 |
+| 9 | Vitals 生产环境 console 噪音 | P2 | T9 | 已完成 |
+
+---
+
+## 后端 Agent 待办事项
+
+以下事项依赖后端数据或接口，前端代码已就绪，待后端完成后验证：
+
+| 编号 | 需求 | 前端状态 | 后端需完成 | 验证方式 |
+|---|---|---|---|---|
+| FUT-07 | 涨跌停视觉标识 | `LimitBadge.tsx`、`isLimitUp`/`isLimitDown` 已实现，`Product`/`RealtimeQuote` 类型已有 `limit_up`/`limit_down` | `RealtimeQuoteDB` 增加 `limit_up`/`limit_down` 字段；采集任务写入；`/api/realtime/*` 返回新字段 | 浏览器验证 QuoteCard/详情页涨跌停标签 |
+| FUT-08 | 价格精度按品种 | `formatPrice(value, precision)` 已实现，`Product`/`Variety` 类型已有 `price_precision` | `ProductDB` 增加 `price_precision` 字段；从 `VarietyDB.tick_size` 计算写入 | 浏览器验证所有价格显示位数正确 |
+| FUT-10 | 休市提示 | `MarketClosedBanner.tsx` 已调用 `api.getMarketStatus()`，fallback 到本地日历 | 新增 `TradingCalendarDB` + `/api/market/status` 接口 | 浏览器验证非交易日显示提示条 |
+| SEC-02 | Cookie 鉴权 | 前端已移除 SSE URL token，使用 `withCredentials=true` | `auth.py` login 返回 `Set-Cookie: access_token`; `dependencies.py` 读取 Cookie; SSE 接口读取 Cookie | E2E 登录场景验证 |
+| DB-01 | PostgreSQL 迁移 | 前端无直接改动 | 合并 Alembic 多 head（`7e710d06887b` + `e4d030205a0e`）；确保 `alembic_version` 表存在并 stamp 到最新 | 后端启动后前端 E2E 全量通过 |
+
+> **给后端 agent 的参考：** 前端迭代文档 `BACKEND_ITERATION_FOR_FRONTEND_FIXES.md` 已详细列出后端修改步骤，包括模型、Schema、Router、Alembic 迁移。当前前端代码已与该文档对齐，后端完成后前端无需额外修改。
