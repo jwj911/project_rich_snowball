@@ -153,6 +153,33 @@
 | 2026-05-27 | Phase 3：补充 `GET /api/varieties/by-product-id/{product_id}` 过渡 API | ✅ |
 | 2026-05-27 | Phase 3：`VarietyWithQuoteResponse` 补充 `margin_rate/commission/updated_at` | ✅ |
 | 2026-05-27 | **Phase 3 验收：pytest 218 passed，前端 167 tests passed，dual-write 已停止** | ✅ |
+| 2026-05-27 | 进入 Phase 4：删除 ProductDB 物理表 | 🔄 |
+| 2026-05-27 | Phase 4 Step 1：删除废弃 `routers/products.py`、`product_service.py`、`product_repository.py`、ProductResponse/ProductDetailResponse schema、相关测试 | ✅ |
+| 2026-05-27 | Phase 4 Step 2-3：CommentDB 全面解耦 ProductDB；`comment_service`/`workspace_service`/10 个测试文件改为 `variety_id` 驱动；Alembic 迁移回填 + variety_id NOT NULL | ✅ |
+| 2026-05-27 | **Phase 4 Step 3 验收：pytest 214 passed, 6 skipped；CommentDB 零 ProductDB 依赖** | ✅ |
+| 2026-05-28 | Phase 4 Step 4：前端全面迁移 symbol-based 路由 | 🔄 |
+| 2026-05-28 | Phase 4 Step 4：`lib/api/products.ts` `getProduct(id)` → `getProductBySymbol(symbol)`；`createComment` 移除 `productId` 参数 | ✅ |
+| 2026-05-28 | Phase 4 Step 4：`hooks/useProductPolling.ts`/`useProductDetail.ts`/`usePriceLevels.ts` 入参从 `productId: number` → `symbol: string` | ✅ |
+| 2026-05-28 | Phase 4 Step 4：`app/products/[id]/page.tsx` 内部 params.id 直接作为 symbol，不再 parseInt | ✅ |
+| 2026-05-28 | Phase 4 Step 4：所有 `/products/` 链接改为 symbol-based（8 个组件/页面同步更新） | ✅ |
+| 2026-05-28 | Phase 4 Step 4：删除后端 `/by-product-id/` 过渡 API；删除 `models.py` ProductDB 类；Alembic 迁移 `5b2bada50d93` 删除 products 表 | ✅ |
+| 2026-05-28 | Phase 4 Step 4：清理 `init_mock_data.py` 和 `data_quality_report.py` 中的 ProductDB 引用 | ✅ |
+| 2026-05-28 | **Phase 4 Step 4 验收：pytest 219 passed, 1 skipped；前端 tsc + lint + build 通过；ProductDB 物理表已删除** | ✅ |
+| 2026-05-28 | 进入 v5 审计债务修复收尾：venv 验证、CI 安装源确认、循环依赖确认 | 🔄 |
+| 2026-05-28 | v5 P0 验证：本地 venv 可执行（`venv\Scripts\python.exe --version` → Python 3.12.9；pytest 214 passed） | ✅ |
+| 2026-05-28 | v5 P1 验证：CI 已使用 `requirements.lock` 安装（backend-ci.yml 第37行） | ✅ |
+| 2026-05-28 | v5 P1 验证：pipeline/task 循环依赖已消除（`fut_mapping_task.py` 从 `_common.py` 导入） | ✅ |
+| 2026-05-28 | v5 P1 验证：`tushare_batch_tasks.py` 模板抽象已完成（377→175 行） | ✅ |
+| 2026-05-28 | v5 P1 验证：ruff 质量门禁已生效（backend-ci.yml 移除 `continue-on-error`） | ✅ |
+| 2026-05-28 | v5 P2 验证：数据库连接池监控已落地（models.py 事件监听 + services/metrics.py Gauge + `/metrics` 暴露） | ✅ |
+| 2026-05-28 | 前端 build 验证：`npm run build` 通过，First Load JS 最大 143 kB（/products/[id]），低于 180 kB 红线 | ✅ |
+| 2026-05-28 | **v5 审计债务修复验收：后端全部 P0/P1 已关闭；前端 build 通过** | ✅ |
+| 2026-05-28 | 进入前端监控闭环（v5 审计遗留 P1→按 P0 执行） | 🔄 |
+| 2026-05-28 | 后端：`schemas.py` 新增 `FrontendLogCreate`；`models.py` 新增 `FrontendLogDB` | ✅ |
+| 2026-05-28 | 后端：新建 `routers/frontend_logs.py` `POST /api/log/frontend` 接收端点 | ✅ |
+| 2026-05-28 | 后端：`main.py` 挂载路由；Alembic 迁移 `71cca1a466b4` 创建 `frontend_logs` 表 | ✅ |
+| 2026-05-28 | 后端：`test_frontend_logs.py` 4 个测试覆盖正常写入、Web Vitals、无 meta、限流可达 | ✅ |
+| 2026-05-28 | **前端监控闭环验收：pytest 223 passed, 1 skipped；sentry-lite/vitals 默认 reportUri 有后端落盘** | ✅ |
 
 ---
 

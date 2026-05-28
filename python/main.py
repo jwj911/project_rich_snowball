@@ -54,6 +54,7 @@ from routers import (  # noqa: E402
     auth,
     comments,
     contracts,
+    frontend_logs,
     health,
     kline,
     market,
@@ -186,6 +187,7 @@ app.include_router(watchlists.router)
 app.include_router(price_levels.router)
 app.include_router(workspace.router)
 app.include_router(contracts.router)
+app.include_router(frontend_logs.router)
 app.include_router(health.router)
 app.include_router(market.router)
 app.include_router(metrics_dashboard.router)

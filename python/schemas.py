@@ -375,3 +375,19 @@ class MarketStatusResponse(BaseModel):
     remark: str | None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ========== Frontend Logs ==========
+
+class FrontendLogCreate(BaseModel):
+    type: str = Field(..., max_length=20)
+    payload: dict = Field(default_factory=dict)
+    level: str | None = Field(default=None, max_length=20)
+    meta: dict = Field(default_factory=dict)
+
+    @field_validator("type", "level", mode="before")
+    @classmethod
+    def _strip_strings(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v

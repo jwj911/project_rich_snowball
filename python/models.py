@@ -591,3 +591,16 @@ class TradingCalendarDB(Base):
     __table_args__ = (
         UniqueConstraint("trade_date", "exchange", name="uix_calendar_date_exchange"),
     )
+
+
+class FrontendLogDB(Base):
+    __tablename__ = "frontend_logs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    log_type = Column("type", String(20), nullable=False, index=True)
+    level = Column(String(20), nullable=True, index=True)
+    url = Column(String(500), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    release = Column(String(50), nullable=True)
+    environment = Column(String(20), nullable=True)
+    payload_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime(timezone=True), default=_utc_now, index=True)
