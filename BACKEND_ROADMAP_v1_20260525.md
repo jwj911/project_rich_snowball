@@ -140,6 +140,19 @@
 | 2026-05-27 | Phase 1：数据迁移脚本 migrate_comment_variety_id.py（product_id→variety_id 映射填充） | ✅ |
 | 2026-05-27 | Phase 1：补充 test_varieties_enhanced.py（7 个测试覆盖列表查询+评论 variety_id） | ✅ |
 | 2026-05-27 | **第六阶段验收：pytest 218 passed，前端 build 通过，/api/varieties 具备替代 /api/products 列表能力** | ✅ |
+| 2026-05-27 | 进入 Phase 2：前端 API 切换（lib/api/products.ts → /api/varieties） | 🔄 |
+| 2026-05-27 | Phase 2：前端 `getProductsPage()` 迁移到 `/api/varieties`，字段映射兼容 | ✅ |
+| 2026-05-27 | Phase 2：前端 `getProduct(id)` 迁移到 `/api/varieties/by-product-id/{id}` | ✅ |
+| 2026-05-27 | Phase 2：前端 `createComment()` 支持 `variety_id` | ✅ |
+| 2026-05-27 | Phase 2：前端 `Comment` 类型扩展 `variety_id/symbol/name` | ✅ |
+| 2026-05-27 | Phase 2：前端类型检查通过 + Vitest 167 passed | ✅ |
+| 2026-05-27 | 进入 Phase 3：停止 dual-write | 🔄 |
+| 2026-05-27 | Phase 3：删除 `sync_prices_to_products()` 和 `refresh_and_sync()` | ✅ |
+| 2026-05-27 | Phase 3：`init_mock_data.py` 不再以 ProductDB 作为 RealtimeQuoteDB 数据源 | ✅ |
+| 2026-05-27 | Phase 3：`/api/products` 标记 `Deprecation` 响应头 | ✅ |
+| 2026-05-27 | Phase 3：补充 `GET /api/varieties/by-product-id/{product_id}` 过渡 API | ✅ |
+| 2026-05-27 | Phase 3：`VarietyWithQuoteResponse` 补充 `margin_rate/commission/updated_at` | ✅ |
+| 2026-05-27 | **Phase 3 验收：pytest 218 passed，前端 167 tests passed，dual-write 已停止** | ✅ |
 
 ---
 

@@ -15,6 +15,10 @@ export interface Product {
   limit_up: number | null
   limit_down: number | null
   price_precision: number
+  margin_rate?: number | null
+  contract_code?: string
+  exchange?: string
+  tick_size?: number | null
 }
 
 export interface ProductQuery {
@@ -41,6 +45,9 @@ export interface Comment {
   product_id: number
   product_symbol: string | null
   product_name: string | null
+  variety_id: number | null
+  variety_symbol: string | null
+  variety_name: string | null
   user_id: number
   username: string
   content: string

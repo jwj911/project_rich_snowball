@@ -145,7 +145,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     try {
       setIsSubmittingComment(true)
       setCommentError(null)
-      const comment = await api.createComment(productId, newComment.trim())
+      const comment = await api.createComment(productId, newComment.trim(), undefined, varietyId ?? undefined)
       setComments((current) => [comment, ...current])
       setNewComment('')
       toast.success('评论已发表')

@@ -1,6 +1,5 @@
 """Watchlist 数据访问层。"""
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from models import WatchlistDB

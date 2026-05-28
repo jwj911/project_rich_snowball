@@ -2,13 +2,26 @@ import datetime
 import logging
 import os
 import time
+
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Float, DateTime, Date,
-    Text, ForeignKey, Boolean, UniqueConstraint, Index, text, Numeric, event
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    create_engine,
+    event,
+    text,
 )
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
-from config import DATABASE_URL
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+
+from config import DATABASE_URL, ENV
 
 logger = logging.getLogger(__name__)
 SLOW_QUERY_THRESHOLD_SECONDS = float(os.getenv("SLOW_QUERY_THRESHOLD_SECONDS", "1.0"))
@@ -40,7 +53,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def _utc_now():
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 # ========== 慢查询日志 ==========
@@ -56,8 +69,6 @@ def _after_cursor_execute(conn, cursor, statement, parameters, context, executem
     if total > SLOW_QUERY_THRESHOLD_SECONDS:
         logger.warning(f"Slow query ({total:.2f}s): {statement[:500]}")
 
-
-from config import ENV
 
 def init_db():
     # 生产环境不自动建表，依赖 alembic upgrade head 管理 schema

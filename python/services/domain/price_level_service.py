@@ -56,9 +56,9 @@ class PriceLevelService:
                 price=item.price,
                 note=item.note,
             )
-        except IntegrityError:
+        except IntegrityError as err:
             self._db.rollback()
-            raise ConflictError("该价位标注已存在")
+            raise ConflictError("该价位标注已存在") from err
 
     def update_price_level(
         self, user_id: int, price_level_id: int, item: PriceLevelUpdate
@@ -76,9 +76,9 @@ class PriceLevelService:
 
         try:
             return self._repo.update(pl)
-        except IntegrityError:
+        except IntegrityError as err:
             self._db.rollback()
-            raise ConflictError("该价位标注已存在")
+            raise ConflictError("该价位标注已存在") from err
 
     def delete_price_level(self, user_id: int, price_level_id: int) -> None:
         pl = self._get_and_check_owner(user_id, price_level_id)

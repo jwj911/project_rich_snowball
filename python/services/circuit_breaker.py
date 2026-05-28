@@ -39,6 +39,8 @@ def _redis_get_state(source: str) -> tuple[int, float] | None:
         data = client.hgetall(key)
         if not data:
             return 0, 0.0
+        if not isinstance(data, dict):
+            return 0, 0.0
         count = int(data.get("count", 0))
         last = float(data.get("last", 0.0))
         return count, last

@@ -11,7 +11,8 @@
 注意：内存降级模式下多实例部署不共享限流状态。
 """
 
-from datetime import datetime, timedelta, timezone
+import ipaddress
+from datetime import UTC, datetime, timedelta
 from threading import Lock
 
 from fastapi import Request
@@ -41,8 +42,6 @@ _EXCLUDED_METHODS = {"GET", "HEAD", "OPTIONS"}
 _rate_limit_store: dict[str, list[datetime]] = {}
 _rate_limit_lock = Lock()
 
-
-import ipaddress
 
 def _is_trusted_proxy(host: str) -> bool:
     """判断 host 是否为受信代理（内网段 / localhost / IPv6 loopback）。
@@ -100,7 +99,7 @@ def _check_rate_limit_redis(client_ip: str, method: str, path: str) -> bool:
         return _check_rate_limit_memory(client_ip, method, path)
 
     key = f"futures:ratelimit:{client_ip}:{method}:{path}"
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     window_start = (now - timedelta(seconds=_WINDOW_SECONDS)).timestamp()
 
     try:
@@ -123,7 +122,7 @@ def _check_rate_limit_redis(client_ip: str, method: str, path: str) -> bool:
 # ---- 内存降级实现 ----
 def _cleanup_stale_rate_limit_keys():
     """清理内存限流存储中已完全过期的 key，防止字典无限增长。"""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     window_start = now - timedelta(seconds=_WINDOW_SECONDS)
     with _rate_limit_lock:
         stale_keys = [
@@ -136,7 +135,7 @@ def _cleanup_stale_rate_limit_keys():
 
 def _check_rate_limit_memory(client_ip: str, method: str, path: str) -> bool:
     """内存滑动窗口限流（Redis 不可用时降级）。"""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     window_start = now - timedelta(seconds=_WINDOW_SECONDS)
     key = f"{client_ip}:{method}:{path}"
 

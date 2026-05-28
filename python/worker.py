@@ -7,10 +7,10 @@
 开发环境（API + scheduler 同进程）：
   ENABLE_SCHEDULER=1 python main.py
 """
-import os
-import sys
 import logging
+import os
 import signal
+import sys
 import time
 
 # 先加载 config，确保 .env 被解析（与 main.py 行为一致）
@@ -48,8 +48,8 @@ def main():
 
     logger.info("Starting standalone scheduler worker...")
 
-    from data_collector.scheduler import start_scheduler, shutdown_scheduler
     from data_collector.init_varieties import init_varieties
+    from data_collector.scheduler import shutdown_scheduler, start_scheduler
     from models import init_db
 
     init_db()

@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Session, joinedload
 
-from models import CommentDB, PriceLevelDB, ProductDB, UserDB, VarietyDB
+from models import CommentDB, PriceLevelDB, ProductDB, UserDB
 
 
 class CommentRepository:

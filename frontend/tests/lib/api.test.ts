@@ -164,7 +164,7 @@ describe('api auth and errors', () => {
     })
 
     const requestUrl = String(vi.mocked(fetch).mock.calls[0][0])
-    expect(requestUrl).toContain('/api/products?')
+    expect(requestUrl).toContain('/api/varieties?')
     expect(requestUrl).toContain('skip=50')
     expect(requestUrl).toContain('limit=50')
     expect(requestUrl).toContain('search=AG')

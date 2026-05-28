@@ -6,6 +6,9 @@ import {
   Product,
   RealtimeQuote,
   Variety,
+  DashboardOverview,
+  DashboardActivity,
+  DashboardCollection,
 } from '@/lib/api'
 
 export function makeProduct(overrides: Partial<Product> = {}): Product {
@@ -64,6 +67,9 @@ export function makeComment(overrides: Partial<Comment> = {}): Comment {
     product_id: 1,
     product_symbol: 'RB',
     product_name: '螺纹钢',
+    variety_id: null,
+    variety_symbol: null,
+    variety_name: null,
     user_id: 1,
     username: 'trader001',
     content: '观察回踩',
@@ -118,6 +124,78 @@ export function makePriceLevel(overrides: Partial<PriceLevel> = {}): PriceLevel 
     source: 'manual',
     created_at: '2026-05-16T01:00:00.000Z',
     updated_at: '2026-05-16T01:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export function makeDashboardOverview(overrides: Partial<DashboardOverview> = {}): DashboardOverview {
+  return {
+    users: { total: 120, today: 3, this_week: 12 },
+    comments: { total: 450, today: 8 },
+    engagement: { price_levels: 32, watchlists: 18 },
+    market: { total_varieties: 56, active_varieties: 42 },
+    timestamp: '2026-05-28T09:00:00Z',
+    ...overrides,
+  }
+}
+
+export function makeDashboardActivity(overrides: Partial<DashboardActivity> = {}): DashboardActivity {
+  return {
+    new_users: [
+      { date: '2026-05-22', count: 2 },
+      { date: '2026-05-23', count: 1 },
+      { date: '2026-05-24', count: 3 },
+      { date: '2026-05-25', count: 0 },
+      { date: '2026-05-26', count: 2 },
+      { date: '2026-05-27', count: 4 },
+      { date: '2026-05-28', count: 3 },
+    ],
+    comments: [
+      { date: '2026-05-22', count: 5 },
+      { date: '2026-05-23', count: 3 },
+      { date: '2026-05-24', count: 8 },
+      { date: '2026-05-25', count: 2 },
+      { date: '2026-05-26', count: 6 },
+      { date: '2026-05-27', count: 4 },
+      { date: '2026-05-28', count: 8 },
+    ],
+    since: '2026-05-22',
+    timestamp: '2026-05-28T09:00:00Z',
+    ...overrides,
+  }
+}
+
+export function makeDashboardCollection(overrides: Partial<DashboardCollection> = {}): DashboardCollection {
+  return {
+    last_24h: {
+      total: 48,
+      success: 45,
+      failed: 3,
+      success_rate: 0.9375,
+      avg_duration_ms: 1240,
+    },
+    recent_runs: [
+      {
+        job_name: 'daily_quotes',
+        source: 'tushare',
+        status: 'success',
+        started_at: '2026-05-28T08:00:00',
+        duration_ms: 980,
+        success_count: 10,
+        failed_count: 0,
+      },
+      {
+        job_name: 'variety_info',
+        source: 'internal',
+        status: 'success',
+        started_at: '2026-05-28T07:30:00',
+        duration_ms: 450,
+        success_count: 5,
+        failed_count: 0,
+      },
+    ],
+    circuit_breakers: { tushare: 'closed', sina: 'closed' },
+    timestamp: '2026-05-28T09:00:00Z',
     ...overrides,
   }
 }

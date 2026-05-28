@@ -4,8 +4,6 @@
  * 生产环境通过环境变量开启真实上报。
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8200'
-
 export interface SentryConfig {
   dsn?: string
   enabled?: boolean
@@ -17,7 +15,7 @@ export interface SentryConfig {
 
 let config: SentryConfig = {
   enabled: process.env.NEXT_PUBLIC_SENTRY_ENABLED === 'true',
-  reportUri: process.env.NEXT_PUBLIC_SENTRY_REPORT_URI || `${API_BASE}/api/log/frontend`,
+  reportUri: process.env.NEXT_PUBLIC_SENTRY_REPORT_URI || undefined,
   sampleRate: parseSampleRate(process.env.NEXT_PUBLIC_SENTRY_SAMPLE_RATE),
   release: process.env.NEXT_PUBLIC_RELEASE,
   environment: process.env.NODE_ENV,

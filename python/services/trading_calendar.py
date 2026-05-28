@@ -12,8 +12,9 @@
 import json
 import logging
 import os
-from datetime import date, datetime, timedelta, timezone
-from typing import Callable, Optional
+from collections.abc import Callable
+from datetime import UTC, date, datetime, timedelta, timezone
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -253,10 +254,7 @@ class TradingCalendar:
 
         # 浮动节假日（春节等）
         year_holidays = _FLOATING_HOLIDAYS.get(d.year, [])
-        if md in year_holidays:
-            return False
-
-        return True
+        return md not in year_holidays
 
 
 # 模块级便捷函数（无需显式实例化）
@@ -312,7 +310,7 @@ def to_trading_date(dt: datetime) -> date:
     """
     if dt.tzinfo is None:
         # naive datetime 视为 UTC，向后兼容
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     cn_dt = dt.astimezone(_CN_TZ)
     if cn_dt.hour >= 20:
         return (cn_dt + timedelta(days=1)).date()

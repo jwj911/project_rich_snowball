@@ -47,10 +47,6 @@ jobs:
         run: pip install ruff
 
       - name: Lint with ruff
-        # 当前代码库存在历史 lint 债务（~500 条风格警告），
-        # 此步骤暂设为 continue-on-error，避免阻塞测试流程。
-        # Step 1 的核心目标是确保测试可信；lint 债务将在后续迭代中逐步清理。
-        continue-on-error: true
         run: ruff check .
 
       - name: Security audit with pip-audit

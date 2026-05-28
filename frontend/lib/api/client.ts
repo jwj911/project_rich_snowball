@@ -72,8 +72,8 @@ class ApiService extends AuthCore {
     return getProduct(this, id, options)
   }
 
-  createComment(productId: number, content: string, priceLevelId?: number): Promise<Comment> {
-    return createComment(this, productId, content, priceLevelId)
+  createComment(productId: number, content: string, priceLevelId?: number, varietyId?: number): Promise<Comment> {
+    return createComment(this, productId, content, priceLevelId, varietyId)
   }
 
   getUserComments(username: string): Promise<Comment[]> {

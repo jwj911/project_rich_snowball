@@ -40,9 +40,9 @@ class WatchlistService:
                 variety_id=item.variety_id,
                 notes=item.notes,
             )
-        except IntegrityError:
+        except IntegrityError as err:
             self._db.rollback()
-            raise ConflictError("该品种已在自选列表中")
+            raise ConflictError("该品种已在自选列表中") from err
 
     def _get_and_check_owner(self, user_id: int, watchlist_id: int) -> WatchlistDB:
         """获取自选记录并校验所有权。内部复用方法。"""

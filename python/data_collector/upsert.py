@@ -127,7 +127,7 @@ def insert_kline_bulk(db: Session, rows: list[dict], period: str) -> int:
     skipped = 0
     unmatched_contracts = set()
     for row in rows:
-        variety_id = varieties.get(row.get("symbol"))
+        variety_id = varieties.get(str(row.get("symbol") or ""))
         if not variety_id:
             skipped += 1
             continue

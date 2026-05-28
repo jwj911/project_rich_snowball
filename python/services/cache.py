@@ -10,9 +10,9 @@ import logging
 import random
 from collections import OrderedDict
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from threading import Lock, RLock
-from typing import Any
+from typing import Any, cast
 from weakref import WeakValueDictionary
 
 from config import CACHE_DEFAULT_TTL_SECONDS, CACHE_MAX_SIZE
@@ -84,7 +84,7 @@ def _get_cached_redis(key: str, db_fetch_func: Callable[[], Any], ttl: int) -> A
         if val is not None:
             cache_operations_total.labels(operation="get", result="hit").inc()
             try:
-                return json.loads(val)
+                return json.loads(cast(str | bytes, val))
             except json.JSONDecodeError:
                 return val
         cache_operations_total.labels(operation="get", result="miss").inc()
@@ -103,7 +103,7 @@ def _get_cached_redis(key: str, db_fetch_func: Callable[[], Any], ttl: int) -> A
             if val is not None:
                 cache_operations_total.labels(operation="get", result="hit").inc()
                 try:
-                    return json.loads(val)
+                    return json.loads(cast(str | bytes, val))
                 except json.JSONDecodeError:
                     return val
         except (OSError, ConnectionError) as exc:
@@ -125,7 +125,7 @@ def _get_cached_redis(key: str, db_fetch_func: Callable[[], Any], ttl: int) -> A
 
 def _get_cached_memory(key: str, db_fetch_func: Callable[[], Any], ttl: int) -> Any:
     """内存 LRU 缓存实现（Redis 不可用时降级，含缓存击穿防护）。"""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with _lock:
         if key in _cache:
             if now - _cache_time[key] < timedelta(seconds=ttl):
@@ -196,11 +196,12 @@ def get_cache_stats() -> dict:
         client = get_redis_client()
         if client:
             try:
-                info = client.info("memory")
+                info = cast(dict, client.info("memory"))
+                clients_info = cast(dict, client.info("clients"))
                 return {
                     "backend": "redis",
                     "used_memory_human": info.get("used_memory_human", "unknown"),
-                    "connected_clients": client.info("clients").get("connected_clients", 0),
+                    "connected_clients": clients_info.get("connected_clients", 0),
                 }
             except (OSError, ConnectionError) as exc:
                 logger.warning("Redis stats failed: %s", exc)

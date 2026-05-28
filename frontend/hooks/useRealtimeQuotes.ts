@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { RealtimeQuote } from '@/lib/api'
 import { realtimeStore } from '@/lib/realtimeStore'
 
@@ -16,6 +16,9 @@ export function useRealtimeQuotes(symbols: string[]): UseRealtimeQuotesResult {
   const [loading, setLoading] = useState(false)
   const [source, setSource] = useState<'sse' | 'polling' | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // 防御性处理：将数组转为稳定 key，避免调用方传入不同引用但内容相同的数组时触发不必要的重订阅
+  const symbolsKey = useMemo(() => symbols.slice().sort().join(','), [symbols])
 
   useEffect(() => {
     if (symbols.length === 0) {
@@ -39,7 +42,7 @@ export function useRealtimeQuotes(symbols: string[]): UseRealtimeQuotesResult {
       setError(newError)
       setLoading(newLoading)
     })
-  }, [symbols])
+  }, [symbolsKey])
 
   return { quotes, loading, source, error }
 }

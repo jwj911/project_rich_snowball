@@ -1,8 +1,8 @@
-import bcrypt
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 
+import bcrypt
 import jwt
 
 from config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM

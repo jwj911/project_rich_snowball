@@ -24,7 +24,8 @@ export function useProductPolling(productId: number, enabled: boolean): ProductP
   } = useProductDetail(productId, enabled)
 
   const symbol = productDetail?.product?.symbol
-  const { quotes: realtimeQuotes } = useRealtimeQuotes(symbol ? [symbol] : [])
+  const realtimeSymbols = useMemo(() => (symbol ? [symbol] : []), [symbol])
+  const { quotes: realtimeQuotes } = useRealtimeQuotes(realtimeSymbols)
 
   const { data: variety } = useVariety(symbol)
 

@@ -2,6 +2,32 @@ import type { ApiTransport } from './transport'
 import { parseHeaderNumber } from './transport'
 import type { Comment, Product, ProductDetail, ProductListResponse, ProductQuery } from './types'
 
+/** 将 VarietyWithQuoteResponse 映射为前端 Product 接口（字段兼容层）。 */
+function _mapVarietyToProduct(v: Record<string, unknown>): Product {
+  return {
+    id: v.id as number,
+    name: v.name as string,
+    symbol: v.symbol as string,
+    current_price: (v.current_price as number | null) ?? null,
+    change_percent: (v.change_percent as number | null | undefined) ?? null,
+    open_price: (v.open_price as number | null) ?? null,
+    high: (v.high as number | null) ?? null,
+    low: (v.low as number | null) ?? null,
+    volume: (v.volume as number | null) ?? null,
+    category: (v.category as string | null) ?? null,
+    margin: (v.margin_rate as number | null) ?? (v.margin as number | null) ?? null,
+    commission: (v.commission as number | null) ?? null,
+    updated_at: (v.updated_at as string) ?? '',
+    limit_up: (v.limit_up as number | null) ?? null,
+    limit_down: (v.limit_down as number | null) ?? null,
+    price_precision: (v.price_precision as number) ?? 2,
+    margin_rate: v.margin_rate as number | null | undefined,
+    contract_code: v.contract_code as string | undefined,
+    exchange: v.exchange as string | undefined,
+    tick_size: v.tick_size as number | null | undefined,
+  }
+}
+
 export async function getProducts(transport: ApiTransport, options: RequestInit = {}): Promise<Product[]> {
   const response = await getProductsPage(transport, {}, options)
   return response.items
@@ -22,8 +48,11 @@ export async function getProductsPage(
   if (params.sortOrder) searchParams.append('sort_order', params.sortOrder)
 
   const qs = searchParams.toString()
-  const response = await transport.requestRaw(`/api/products${qs ? '?' + qs : ''}`, options)
-  const items: Product[] = await response.json()
+  // 已迁移到 /api/varieties（ProductDB 退场 Phase 2）
+  const response = await transport.requestRaw(`/api/varieties${qs ? '?' + qs : ''}`, options)
+  const rawItems: Record<string, unknown>[] = await response.json()
+  const items = rawItems.map(_mapVarietyToProduct)
+
   const categories = (response.headers.get('X-Categories') || '')
     .split(',')
     .map((category) => category.trim())
@@ -46,8 +75,14 @@ export async function getProductsPage(
   }
 }
 
-export function getProduct(transport: ApiTransport, id: number, options: RequestInit = {}): Promise<ProductDetail> {
-  return transport.request<ProductDetail>(`/api/products/${id}`, options)
+export async function getProduct(transport: ApiTransport, id: number, options: RequestInit = {}): Promise<ProductDetail> {
+  // 已迁移到 /api/varieties/by-product-id（ProductDB 退场 Phase 2）
+  const variety = await transport.request<Record<string, unknown>>(`/api/varieties/by-product-id/${id}`, options)
+  const comments = (variety.comments as Comment[] | undefined) ?? []
+  return {
+    product: _mapVarietyToProduct(variety),
+    comments,
+  }
 }
 
 export function createComment(
@@ -55,10 +90,11 @@ export function createComment(
   productId: number,
   content: string,
   priceLevelId?: number,
+  varietyId?: number,
 ): Promise<Comment> {
   return transport.request<Comment>('/api/comments', {
     method: 'POST',
-    body: JSON.stringify({ product_id: productId, content, price_level_id: priceLevelId }),
+    body: JSON.stringify({ product_id: productId, content, price_level_id: priceLevelId, variety_id: varietyId }),
   })
 }
 

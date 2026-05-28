@@ -1,6 +1,7 @@
 import html
 from datetime import datetime as dt
 from decimal import Decimal
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
 
@@ -118,6 +119,32 @@ class ProductDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class VarietyDetailResponse(BaseModel):
+    """品种详情（含实时行情+评论列表），用于替代 ProductDetailResponse。"""
+
+    id: int
+    symbol: str
+    contract_code: str
+    name: str
+    exchange: str
+    category: str | None
+    margin_rate: float | None
+    commission: float | None
+    tick_size: float | None = None
+    current_price: float | None = None
+    change_percent: float | None = None
+    open_price: float | None = None
+    high: float | None = None
+    low: float | None = None
+    volume: int | None = None
+    limit_up: float | None = None
+    limit_down: float | None = None
+    price_precision: int = 2
+    comments: list[CommentResponse] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class VarietyResponse(BaseModel):
     id: int
     symbol: str
@@ -158,6 +185,9 @@ class VarietyWithQuoteResponse(BaseModel):
     limit_up: float | None = None
     limit_down: float | None = None
     price_precision: int = 2
+    margin_rate: float | None = None
+    commission: float | None = None
+    updated_at: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -200,8 +230,6 @@ class RealtimeBatchResponse(BaseModel):
 
 
 # ========== Price Level / Workspace schemas ==========
-
-from enum import StrEnum
 
 
 class PriceLevelType(StrEnum):

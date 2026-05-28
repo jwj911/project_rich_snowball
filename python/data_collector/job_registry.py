@@ -41,7 +41,7 @@ def register_jobs(scheduler, jobs: list[JobConfig]):
 
 
 def build_job_configs(
-    refresh_and_sync_func: Callable,
+    refresh_realtime_quotes_func: Callable,
     sync_daily_kline_func: Callable,
     sync_minute_kline_func: Callable,
     sync_trading_calendar_func: Callable,
@@ -59,8 +59,8 @@ def build_job_configs(
     """
     jobs = [
         JobConfig(
-            id="refresh_and_sync",
-            func=refresh_and_sync_func,
+            id="refresh_realtime",
+            func=refresh_realtime_quotes_func,
             trigger=IntervalTrigger(seconds=REALTIME_REFRESH_INTERVAL_SECONDS),
             misfire_grace_time=10,
         ),

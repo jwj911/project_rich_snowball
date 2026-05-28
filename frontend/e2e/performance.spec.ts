@@ -35,10 +35,10 @@ async function measurePageLoad(page: Page, url: string): Promise<PerfMetrics> {
 
 async function login(page: Page) {
   await page.goto('/')
-  await page.getByRole('button', { name: '登录' }).click()
+  await page.getByRole('navigation').getByRole('button', { name: '登录' }).click()
   await page.getByLabel('用户名').fill('trader001')
   await page.getByLabel('密码').fill('password123')
-  await page.getByRole('button', { name: '登录' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '登录' }).click()
   await expect(page.getByRole('heading', { name: '行情工作台' })).toBeVisible({ timeout: 10000 })
 }
 

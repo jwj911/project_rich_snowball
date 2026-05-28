@@ -1,7 +1,7 @@
 # ProductDB 兼容层退场计划
 
 > 制定日期：2026-05-26
-> 更新日期：2026-05-26（Step 6 迭代补充精确依赖清单）
+> 更新日期：2026-05-27（Phase 1-3 已完成，进入 Phase 4 准备）
 > 目标：消除 `ProductDB` 与新行情数据层（`VarietyDB`/`RealtimeQuoteDB`/`KlineDataDB`）长期并存造成的双写/双读债务。
 
 ---
@@ -151,9 +151,9 @@
 
 | 旧接口 | 新接口 | 状态 |
 |--------|--------|------|
-| `GET /api/products` | `GET /api/varieties` | ❌ 新接口缺少搜索/筛选/排序/统计能力 |
-| `GET /api/products/{id}` | `GET /api/varieties/{id}` + `GET /api/realtime/{symbol}` | ⚠️ 需前端组合调用 |
-| `POST /api/comments` (product_id) | `POST /api/comments` (variety_id) | ❌ 需改外键和接口参数 |
+| `GET /api/products` | `GET /api/varieties` | ✅ 已具备搜索/筛选/排序/统计能力 |
+| `GET /api/products/{id}` | `GET /api/varieties/by-product-id/{id}` + `GET /api/varieties/{symbol}/detail` | ✅ 过渡 API 已就绪 |
+| `POST /api/comments` (product_id) | `POST /api/comments` (variety_id 可选) | ✅ 已支持 variety_id |
 
 ### 3.2 需新建/扩展的接口
 
@@ -176,37 +176,42 @@
 
 ## 四、迁移阶段
 
-### Phase 1：新接口补齐（1 周）
+### Phase 1：新接口补齐 ✅
 
-- [ ] 扩展 `GET /api/varieties` 支持列表查询（搜索/筛选/排序/统计）
-- [ ] 扩展 `GET /api/varieties/{id}` 返回评论列表
-- [ ] 扩展评论 CRUD 支持 `variety_id`
-- [ ] 数据迁移脚本：填充 `CommentDB.variety_id`
-- [ ] 后端测试覆盖新接口
+- [x] 扩展 `GET /api/varieties` 支持列表查询（搜索/筛选/排序/统计）
+- [x] 扩展 `GET /api/varieties/{symbol}/detail` 返回评论列表
+- [x] 扩展评论 CRUD 支持 `variety_id`
+- [x] 数据迁移脚本：填充 `CommentDB.variety_id`
+- [x] 后端测试覆盖新接口（7 个测试）
 
-### Phase 2：前端切流（1 周）
+### Phase 2：前端切流 ✅
 
-- [ ] 新建 `lib/api/varieties.ts` 替代 `lib/api/products.ts`
-- [ ] `app/products/page.tsx` 切换到 `/api/varieties`
-- [ ] `app/products/[id]/page.tsx` 切换到 `/api/varieties/{id}`
-- [ ] 所有 `/products/{id}` 链接保持路由不变（前端路由与后端 API 解耦），仅 API 调用切换
-- [ ] 工作区、评论页等引用更新
-- [ ] 前端测试回归
+- [x] `lib/api/products.ts` 内部切换到 `/api/varieties`（保持对外接口不变）
+- [x] `app/products/page.tsx` 间接切换到 `/api/varieties`（通过 `getProductsPage`）
+- [x] `app/products/[id]/page.tsx` 切换到 `/api/varieties/by-product-id/{id}`
+- [x] 所有 `/products/{id}` 链接保持路由不变，仅 API 调用切换
+- [x] 工作区、评论页等引用更新（`getProducts` 已间接迁移）
+- [x] 前端测试回归（167 passed）
 
-### Phase 3：双写停止（1 天）
+### Phase 3：双写停止 ✅
 
-- [ ] 删除 `sync_prices_to_products()` 调度任务
-- [ ] 删除 `scheduler.py` 中对 `ProductDB` 的导入
-- [ ] 验证 `RealtimeQuoteDB` 写入不受影响
+- [x] 删除 `sync_prices_to_products()` 调度任务
+- [x] 删除 `refresh_and_sync()` 组合任务
+- [x] 删除 `scheduler.py` 中对 `ProductDB` 的导入
+- [x] `init_mock_data.py` 不再以 ProductDB 作为 RealtimeQuoteDB 的数据源
+- [x] `/api/products` 标记 `Deprecation` 响应头
+- [x] 验证 `RealtimeQuoteDB` 写入不受影响（pytest 218 passed）
 
-### Phase 4：兼容层删除（1 周）
+### Phase 4：兼容层删除（待开始）
 
 - [ ] 删除 `routers/products.py`
 - [ ] 删除 `services/domain/product_service.py`
 - [ ] 删除 `services/domain/repositories/product_repository.py`
+- [ ] `CommentDB.product_id` 外键改为 nullable 或删除（Alembic 迁移）
 - [ ] 删除 `models.py:ProductDB`（Alembic 迁移删除表）
 - [ ] 删除 `schemas.py` 中仅 ProductDB 使用的 schema
 - [ ] 更新 `data_collector/init_mock_data.py`，不再写入 ProductDB
+- [ ] 更新所有测试，移除 `/api/products` 和 `ProductDB` 引用
 - [ ] 全量测试回归
 
 ---
@@ -215,11 +220,11 @@
 
 | 前置条件 | 状态 |
 |----------|------|
-| 前端所有品种列表/详情页面已切换到新接口 | ⬜ |
-| `CommentDB` 已完成 `variety_id` 迁移，且评论接口支持 `variety_id` | ⬜ |
-| 工作区、自选、标注等模块不再依赖 `ProductDB.id` | ⬜ |
-| 外部脚本/管理后台不再直接读写 `ProductDB` | ⬜ |
-| 新接口性能不低于旧接口（列表查询 P95 < 200ms） | ⬜ |
+| 前端所有品种列表/详情页面已切换到新接口 | ✅ |
+| `CommentDB` 已完成 `variety_id` 迁移，且评论接口支持 `variety_id` | ✅ |
+| 工作区、自选、标注等模块不再依赖 `ProductDB.id` | ✅ |
+| 外部脚本/管理后台不再直接读写 `ProductDB` | ✅ |
+| 新接口性能不低于旧接口（列表查询 P95 < 200ms） | ⬜（未压测，需观测） |
 
 ---
 
@@ -252,4 +257,4 @@
 - **后端依赖精确到文件级**：补充了 `comment_repository.py`、`scripts/data_quality_report.py`、以及所有引用 `ProductDB` 的测试文件。
 - **修正路由策略**：明确前端 Next.js 路由 `/products/{id}` **保持不变**，仅 API 层从 `/api/products/*` 切换到 `/api/varieties/*`，降低外链/书签失效风险。
 
-*当前阶段：文档完备，尚未进入实施。建议待后续大功能窗口（如 Admin 后台）时同步推进 Phase 1。*
+*当前阶段：Phase 1-3 已完成，Phase 4 待启动。Phase 4 涉及删除 ProductDB 表和大量测试更新，建议在独立的迭代窗口中执行。*

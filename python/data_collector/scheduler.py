@@ -15,7 +15,7 @@ from data_collector.collector_registry import (
     build_pipelines,
 )
 from data_collector.job_registry import build_job_configs, register_jobs
-from models import ProductDB, SessionLocal, VarietyDB
+from models import SessionLocal, VarietyDB
 from services.metrics import data_collection_duration_seconds, data_collection_runs_total
 from services.realtime_state import mark_realtime_updated
 from services.trading_calendar import _cn_date, is_trading_day
@@ -190,73 +190,6 @@ def sync_daily_kline():
     finally:
         db.close()
         data_collection_duration_seconds.labels(task_name="sync_kline").observe(time.time() - start)
-
-
-def sync_prices_to_products():
-    """Copy realtime quote prices to legacy products."""
-    if not is_trading_day(_cn_date()):
-        logger.info("Non-trading day, skip sync_prices_to_products")
-        return
-    logger.info("Syncing prices to products...")
-    start = time.time()
-    db = SessionLocal()
-    try:
-        from models import RealtimeQuoteDB
-        quotes = db.query(RealtimeQuoteDB).options(selectinload(RealtimeQuoteDB.variety)).all()
-        if not quotes:
-            logger.info("No realtime quotes to sync")
-            data_collection_runs_total.labels(task_name="sync_prices", status="success").inc()
-            return
-
-        symbols = [q.variety.symbol for q in quotes]
-        products = {
-            p.symbol: p
-            for p in db.query(ProductDB).filter(ProductDB.symbol.in_(symbols)).all()
-        }
-        varieties = {v.id: v for v in db.query(VarietyDB).filter(VarietyDB.symbol.in_(symbols)).all()}
-
-        synced = 0
-        for q in quotes:
-            product = products.get(q.variety.symbol)
-            if product:
-                product.current_price = q.current_price
-                product.change_percent = q.change_percent
-                product.pre_settlement = q.pre_settlement
-                product.high = q.high
-                product.low = q.low
-                product.volume = q.volume
-                product.limit_up = q.limit_up
-                product.limit_down = q.limit_down
-                product.updated_at = q.updated_at
-                variety = varieties.get(q.variety_id)
-                if variety and variety.tick_size is not None:
-                    tick = float(variety.tick_size)
-                    s = f"{tick:.10f}".rstrip("0")
-                    product.price_precision = len(s.split(".")[1]) if "." in s else 0
-                synced += 1
-        db.commit()
-        logger.info("Synced %d prices to products", synced)
-        data_collection_runs_total.labels(task_name="sync_prices", status="success").inc()
-    except (SQLAlchemyError, OSError) as e:
-        logger.error("Sync prices failed: %s", e)
-        data_collection_runs_total.labels(task_name="sync_prices", status="failed").inc()
-        raise
-    finally:
-        db.close()
-        data_collection_duration_seconds.labels(task_name="sync_prices").observe(time.time() - start)
-
-
-def refresh_and_sync():
-    """组合任务：先刷新实时行情，再同步到兼容层 products 表。"""
-    try:
-        refresh_realtime_quotes()
-    except (SQLAlchemyError, OSError):
-        logger.error("refresh_realtime_quotes failed, skipping sync_prices_to_products")
-        return
-    try:
-        sync_prices_to_products()
-    except (SQLAlchemyError, OSError):
-        logger.error("sync_prices_to_products failed after realtime refresh")
 
 
 # ------------------------------------------------------------------
@@ -488,7 +421,7 @@ scheduler = BackgroundScheduler()
 def start_scheduler():
     _ensure_collectors()
     jobs = build_job_configs(
-        refresh_and_sync_func=refresh_and_sync,
+        refresh_realtime_quotes_func=refresh_realtime_quotes,
         sync_daily_kline_func=sync_daily_kline,
         sync_minute_kline_func=sync_minute_kline,
         sync_trading_calendar_func=sync_trading_calendar,

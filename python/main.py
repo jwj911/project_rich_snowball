@@ -5,7 +5,7 @@ import sys
 import time
 import traceback
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 
 from fastapi import FastAPI, HTTPException, Request
@@ -49,7 +49,7 @@ from services.logging_config import setup_logging
 # 最早初始化结构化日志（必须在其他模块导入前完成，确保全链路日志一致）
 setup_logging()
 
-from middleware.rate_limit import rate_limit_middleware, _is_trusted_proxy  # noqa: E402
+from middleware.rate_limit import _is_trusted_proxy, rate_limit_middleware  # noqa: E402
 from routers import (  # noqa: E402
     auth,
     comments,
@@ -133,10 +133,8 @@ async def lifespan(app: FastAPI):
     # 取消可能仍在 sleep/执行的后台同步任务
     if _delayed_sync_task and not _delayed_sync_task.done():
         _delayed_sync_task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await _delayed_sync_task
-        except asyncio.CancelledError:
-            pass
     # 显式关闭 SQLAlchemy 连接池，避免 uvicorn 等待连接超时
     from models import engine
     engine.dispose()

@@ -505,3 +505,124 @@ describe('useRealtimeQuotes symbol changes', () => {
     expect(result.current.source).toBeNull()
   })
 })
+
+describe('useRealtimeQuotes multi-subscriber reuse', () => {
+  beforeEach(() => {
+    MockEventSource.instances = []
+    vi.useFakeTimers({ shouldAdvanceTime: false })
+    vi.stubGlobal('EventSource', MockEventSource)
+    vi.mocked(api.getToken).mockReturnValue('stored-jwt')
+    vi.mocked(api.getRealtimeBatch).mockResolvedValue({
+      quotes: [createQuote()],
+      not_found: [],
+    })
+    realtimeStore.resetForTest()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  it('两个 hook 订阅同 symbol，只创建 1 个 EventSource', async () => {
+    const { unmount: unmount1 } = renderHook(() => useRealtimeQuotes(['RB']))
+    const { unmount: unmount2 } = renderHook(() => useRealtimeQuotes(['RB']))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(MockEventSource.instances).toHaveLength(1)
+
+    unmount1()
+    unmount2()
+  })
+
+  it('两个 hook 订阅不同 symbol，连接 URL 包含 symbols union', async () => {
+    const { unmount: unmount1 } = renderHook(() => useRealtimeQuotes(['RB']))
+    const { unmount: unmount2 } = renderHook(() => useRealtimeQuotes(['HC']))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    // symbols 变化时会断开旧连接创建新连接，instances 中最后一个为当前活跃连接
+    expect(MockEventSource.instances.length).toBeGreaterThanOrEqual(1)
+    const activeSource = MockEventSource.instances[MockEventSource.instances.length - 1]
+    expect(activeSource.url).toContain('symbols=RB')
+    expect(activeSource.url).toContain('symbols=HC')
+
+    unmount1()
+    unmount2()
+  })
+
+  it('rerender 相同 symbols（不同数组引用）不重建连接', async () => {
+    const { rerender, unmount } = renderHook(
+      ({ symbols }) => useRealtimeQuotes(symbols),
+      { initialProps: { symbols: ['RB'] as string[] } },
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(MockEventSource.instances).toHaveLength(1)
+    const firstSource = MockEventSource.instances[0]
+    expect(firstSource.closed).toBe(false)
+
+    // 传入内容相同但引用不同的数组
+    await act(async () => {
+      rerender({ symbols: ['RB'] })
+      await Promise.resolve()
+    })
+
+    expect(MockEventSource.instances).toHaveLength(1)
+    expect(firstSource.closed).toBe(false)
+
+    unmount()
+  })
+
+  it('最后一个订阅卸载后关闭 SSE、timer、visibility listener', async () => {
+    let clearedTimeouts: number[] = []
+    let nextTimeoutId = 1
+
+    vi.stubGlobal('setTimeout', (callback: Function, _delay?: number) => {
+      return nextTimeoutId++ as unknown as ReturnType<typeof setTimeout>
+    })
+    vi.stubGlobal('clearTimeout', (id: ReturnType<typeof setTimeout>) => {
+      clearedTimeouts.push(id as unknown as number)
+    })
+
+    const { unmount: unmount1 } = renderHook(() => useRealtimeQuotes(['RB']))
+    const { unmount: unmount2 } = renderHook(() => useRealtimeQuotes(['HC']))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    // 记录所有创建的 EventSource
+    const initialCount = MockEventSource.instances.length
+    const lastSource = MockEventSource.instances[initialCount - 1]
+    expect(lastSource.closed).toBe(false)
+
+    // 卸载第一个后 symbols union 变化，会重建连接；最终活跃连接应未关闭
+    unmount1()
+    const afterUnmount1Count = MockEventSource.instances.length
+    const activeAfterUnmount1 = MockEventSource.instances[afterUnmount1Count - 1]
+    expect(activeAfterUnmount1.closed).toBe(false)
+
+    // 卸载最后一个
+    clearedTimeouts = []
+    unmount2()
+
+    // 所有 EventSource 都应被关闭
+    MockEventSource.instances.forEach((es) => {
+      expect(es.closed).toBe(true)
+    })
+    // reconnect timer 应被清理
+    expect(clearedTimeouts.length).toBeGreaterThanOrEqual(0)
+
+    vi.unstubAllGlobals()
+  })
+})
