@@ -24,7 +24,7 @@ def test_blank_comment_rejected(client):
     token = r.json()["access_token"]
 
     r = client.post("/api/comments", json={
-        "product_id": 1,
+        "variety_id": 1,
         "content": "   "
     }, headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 422

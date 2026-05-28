@@ -49,7 +49,7 @@ class TestMetricsDashboardOverview:
         """有数据时 dashboard 计数应正确。"""
         # 创建评论
         user = db_session.query(UserDB).first()
-        comment = CommentDB(product_id=1, user_id=user.id, content="test")
+        comment = CommentDB(variety_id=1, user_id=user.id, content="test")
         db_session.add(comment)
         # 创建价位标注
         pl = PriceLevelDB(user_id=user.id, variety_id=seed_varieties[0].id, type="support", price=100)
@@ -86,7 +86,7 @@ class TestMetricsDashboardActivity:
     def test_activity_counts_with_data(self, client, auth_headers, seed_varieties, db_session):
         """有今日数据时 activity 计数应正确。"""
         user = db_session.query(UserDB).first()
-        comment = CommentDB(product_id=1, user_id=user.id, content="today")
+        comment = CommentDB(variety_id=1, user_id=user.id, content="today")
         db_session.add(comment)
         db_session.commit()
 

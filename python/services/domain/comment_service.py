@@ -21,8 +21,8 @@ class CommentService:
         user: UserDB,
         comment: CommentCreate,
     ) -> CommentResponse:
-        product = self._repo.get_product(comment.product_id)
-        if not product:
+        variety = self._repo.get_variety(comment.variety_id)
+        if not variety:
             raise NotFoundError("品种不存在")
 
         if comment.price_level_id:
@@ -31,8 +31,8 @@ class CommentService:
                 raise NotFoundError("关联的价位标注不存在")
 
         db_comment = self._repo.create(
-            product_id=comment.product_id,
             variety_id=comment.variety_id,
+            product_id=comment.product_id,
             user_id=user.id,
             price_level_id=comment.price_level_id,
             content=comment.content,
@@ -40,10 +40,12 @@ class CommentService:
 
         return CommentResponse(
             id=db_comment.id,
-            product_id=db_comment.product_id,
             variety_id=db_comment.variety_id,
-            product_symbol=product.symbol if product else None,
-            product_name=product.name if product else None,
+            product_id=db_comment.product_id,
+            product_symbol=variety.symbol if variety else None,
+            product_name=variety.name if variety else None,
+            variety_symbol=variety.symbol if variety else None,
+            variety_name=variety.name if variety else None,
             user_id=db_comment.user_id,
             username=user.username,
             content=db_comment.content,
@@ -66,10 +68,10 @@ class CommentService:
         return [
             CommentResponse(
                 id=c.id,
-                product_id=c.product_id,
                 variety_id=c.variety_id,
-                product_symbol=c.product.symbol if c.product else None,
-                product_name=c.product.name if c.product else None,
+                product_id=c.product_id,
+                product_symbol=c.variety.symbol if c.variety else None,
+                product_name=c.variety.name if c.variety else None,
                 variety_symbol=c.variety.symbol if c.variety else None,
                 variety_name=c.variety.name if c.variety else None,
                 user_id=c.user_id,

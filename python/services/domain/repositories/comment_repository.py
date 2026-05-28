@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Session, joinedload
 
-from models import CommentDB, PriceLevelDB, ProductDB, UserDB
+from models import CommentDB, PriceLevelDB, UserDB, VarietyDB
 
 
 class CommentRepository:
@@ -15,8 +15,8 @@ class CommentRepository:
     def __init__(self, db: Session):
         self._db = db
 
-    def get_product(self, product_id: int) -> ProductDB | None:
-        return self._db.query(ProductDB).filter(ProductDB.id == product_id).first()
+    def get_variety(self, variety_id: int) -> VarietyDB | None:
+        return self._db.query(VarietyDB).filter(VarietyDB.id == variety_id).first()
 
     def get_price_level(self, price_level_id: int, user_id: int) -> PriceLevelDB | None:
         return (
@@ -30,15 +30,15 @@ class CommentRepository:
 
     def create(
         self,
-        product_id: int,
-        variety_id: int | None,
+        variety_id: int,
+        product_id: int | None,
         user_id: int,
         price_level_id: int | None,
         content: str,
     ) -> CommentDB:
         db_comment = CommentDB(
-            product_id=product_id,
             variety_id=variety_id,
+            product_id=product_id,
             user_id=user_id,
             price_level_id=price_level_id,
             content=content,
@@ -51,7 +51,7 @@ class CommentRepository:
     def list_by_user(self, user_id: int, skip: int, limit: int) -> list[CommentDB]:
         return (
             self._db.query(CommentDB)
-            .options(joinedload(CommentDB.product), joinedload(CommentDB.variety))
+            .options(joinedload(CommentDB.variety))
             .filter(CommentDB.user_id == user_id)
             .order_by(CommentDB.created_at.desc())
             .offset(skip)

@@ -75,9 +75,12 @@ class WorkspaceService:
         recent_comments = [
             CommentResponse(
                 id=c.id,
+                variety_id=c.variety_id,
                 product_id=c.product_id,
-                product_symbol=c.product.symbol if c.product else None,
-                product_name=c.product.name if c.product else None,
+                product_symbol=c.variety.symbol if c.variety else None,
+                product_name=c.variety.name if c.variety else None,
+                variety_symbol=c.variety.symbol if c.variety else None,
+                variety_name=c.variety.name if c.variety else None,
                 user_id=c.user_id,
                 username=user.username,
                 content=c.content,

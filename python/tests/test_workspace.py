@@ -66,9 +66,9 @@ def test_workspace_me_with_data():
         "notes": "测试自选"
     }, headers={"Authorization": f"Bearer {token}"})
 
-    # 添加评论（需要先有 product）
+    # 添加评论
     client.post("/api/comments", json={
-        "product_id": 1,
+        "variety_id": 1,
         "content": "测试评论"
     }, headers={"Authorization": f"Bearer {token}"})
 

@@ -125,10 +125,10 @@ class TestHttpRequestMetrics:
 class TestBusinessMetrics:
     def test_comment_create_increments_metric(self, client, auth_headers, seed_varieties):
         """创建评论后 comment_operations_total{action=create,result=success} 应增加。"""
-        product_id = seed_varieties[0].id
+        variety_id = seed_varieties[0].id
         before = _get_counter_value(comment_operations_total, action="create", result="success")
         client.post("/api/comments", json={
-            "product_id": product_id,
+            "variety_id": variety_id,
             "content": "metrics test comment"
         }, headers=auth_headers)
         after = _get_counter_value(comment_operations_total, action="create", result="success")

@@ -7,7 +7,6 @@ from sqlalchemy import text
 
 from models import (
     UserDB,
-    ProductDB,
     CommentDB,
     PriceLevelDB,
     WatchlistDB,
@@ -30,11 +29,11 @@ def test_user_delete_cascades_comments(db_session):
     db_session.add(user)
     db_session.flush()
 
-    product = ProductDB(name="Test", symbol="TEST01", current_price=100)
-    db_session.add(product)
+    variety = VarietyDB(symbol="TEST01", contract_code="TEST01", name="Test", exchange="SHFE")
+    db_session.add(variety)
     db_session.flush()
 
-    comment = CommentDB(product_id=product.id, user_id=user.id, content="hello")
+    comment = CommentDB(variety_id=variety.id, user_id=user.id, content="hello")
     db_session.add(comment)
     db_session.commit()
 
@@ -122,15 +121,11 @@ def test_price_level_delete_sets_null_on_comments(db_session):
     db_session.add(user)
     db_session.flush()
 
-    product = ProductDB(name="RB", symbol="RB2506", current_price=3000)
-    db_session.add(product)
-    db_session.flush()
-
     pl = PriceLevelDB(user_id=user.id, variety_id=variety.id, type="resistance", price=3500)
     db_session.add(pl)
     db_session.flush()
 
-    comment = CommentDB(product_id=product.id, user_id=user.id, price_level_id=pl.id, content="test")
+    comment = CommentDB(variety_id=variety.id, user_id=user.id, price_level_id=pl.id, content="test")
     db_session.add(comment)
     db_session.commit()
 

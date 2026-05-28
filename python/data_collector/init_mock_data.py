@@ -57,15 +57,12 @@ def init_mock_data():
                 db.add(UserDB(**u))
             db.commit()
 
-        # 3. 初始化评论（同时填充 product_id 和 variety_id）
+        # 3. 初始化评论（仅使用 variety_id）
         if db.query(CommentDB).count() == 0:
-            product_map = {p.symbol: p for p in db.query(ProductDB).all()}
             for c in _MOCK_COMMENTS:
-                product = product_map.get(c["symbol"])
                 variety = variety_map.get(c["symbol"])
-                if product and variety:
+                if variety:
                     db.add(CommentDB(
-                        product_id=product.id,
                         variety_id=variety.id,
                         user_id=c["user_id"],
                         content=c["content"],

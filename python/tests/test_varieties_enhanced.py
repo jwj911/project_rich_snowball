@@ -134,18 +134,8 @@ class TestVarietiesListEnhanced:
 class TestCommentVarietyId:
     def test_create_comment_with_variety_id(self, client, auth_headers, seed_varieties, db_session):
         """创建评论时传入 variety_id 应被保存。"""
-        # 需要一个 product 来创建评论（兼容层仍需 product_id）
-        from models import ProductDB
-        product = db_session.query(ProductDB).first()
-        if not product:
-            product = ProductDB(name="测试品种", symbol="TEST", current_price=100.0)
-            db_session.add(product)
-            db_session.commit()
-            db_session.refresh(product)
-
         variety = seed_varieties[0]
         r = client.post("/api/comments", json={
-            "product_id": product.id,
             "variety_id": variety.id,
             "content": "带 variety_id 的评论"
         }, headers=auth_headers)
@@ -155,16 +145,9 @@ class TestCommentVarietyId:
 
     def test_comment_response_includes_variety_id(self, client, auth_headers, seed_varieties, db_session):
         """评论响应应包含 variety_id。"""
-        from models import ProductDB
-        product = db_session.query(ProductDB).first()
-        if not product:
-            product = ProductDB(name="测试品种2", symbol="TEST2", current_price=100.0)
-            db_session.add(product)
-            db_session.commit()
-            db_session.refresh(product)
-
+        variety = seed_varieties[0]
         client.post("/api/comments", json={
-            "product_id": product.id,
+            "variety_id": variety.id,
             "content": "测试评论"
         }, headers=auth_headers)
 

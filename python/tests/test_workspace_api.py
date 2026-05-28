@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 from main import app
-from models import SessionLocal, VarietyDB, WatchlistDB, PriceLevelDB, CommentDB, ProductDB
+from models import SessionLocal, VarietyDB, WatchlistDB, PriceLevelDB, CommentDB
 
 
 @pytest.fixture(scope="class")
@@ -151,13 +151,6 @@ class TestPriceLevels:
 
 class TestCommentsPriceLevel:
     def test_create_comment_with_price_level(self, auth_client, db):
-        # 确保 product 存在
-        product = db.query(ProductDB).filter(ProductDB.id == 1).first()
-        if not product:
-            product = ProductDB(id=1, name="黄金", symbol="AU", current_price=450.0, change_percent=1.0)
-            db.add(product)
-            db.commit()
-
         uid = auth_client._user_id
         pl = PriceLevelDB(user_id=uid, variety_id=1, type="support", price=400.0)
         db.add(pl)
@@ -165,7 +158,7 @@ class TestCommentsPriceLevel:
         db.refresh(pl)
 
         r = auth_client.post("/api/comments", json={
-            "product_id": 1,
+            "variety_id": 1,
             "content": "测试评论关联价位",
             "price_level_id": pl.id
         })
@@ -174,13 +167,8 @@ class TestCommentsPriceLevel:
         assert data["price_level_id"] == pl.id
 
     def test_create_comment_with_invalid_price_level(self, auth_client, db):
-        product = db.query(ProductDB).filter(ProductDB.id == 1).first()
-        if not product:
-            db.add(ProductDB(id=1, name="黄金", symbol="AU", current_price=450.0, change_percent=1.0))
-            db.commit()
-
         r = auth_client.post("/api/comments", json={
-            "product_id": 1,
+            "variety_id": 1,
             "content": "测试",
             "price_level_id": 99999
         })
@@ -195,11 +183,7 @@ class TestWorkspace:
         db.add(w)
         pl = PriceLevelDB(user_id=uid, variety_id=1, type="resistance", price=500.0)
         db.add(pl)
-        # 确保 product 存在
-        product = db.query(ProductDB).filter(ProductDB.id == 1).first()
-        if not product:
-            db.add(ProductDB(id=1, name="黄金", symbol="AU", current_price=450.0, change_percent=1.0))
-        c = CommentDB(product_id=1, user_id=uid, content="工作区测试")
+        c = CommentDB(variety_id=1, user_id=uid, content="工作区测试")
         db.add(c)
         db.commit()
 

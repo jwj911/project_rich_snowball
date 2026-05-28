@@ -215,8 +215,8 @@ def get_variety_detail(
         comments=[
             CommentResponse(
                 id=c.id,
-                product_id=c.product_id,
                 variety_id=c.variety_id,
+                product_id=c.product_id,
                 product_symbol=v.symbol,
                 product_name=v.name,
                 variety_symbol=v.symbol,
@@ -339,8 +339,8 @@ def get_variety_by_product_id(
         comments=[
             CommentResponse(
                 id=c.id,
-                product_id=c.product_id,
                 variety_id=c.variety_id,
+                product_id=c.product_id,
                 product_symbol=v.symbol,
                 product_name=v.name,
                 variety_symbol=v.symbol,

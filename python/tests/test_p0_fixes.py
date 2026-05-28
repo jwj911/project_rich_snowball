@@ -94,7 +94,7 @@ def test_verify_password_incorrect():
 def test_comment_content_max_length():
     """评论内容超过 2000 字符应被 Pydantic 拒绝"""
     try:
-        CommentCreate(product_id=1, content="x" * 2001)
+        CommentCreate(variety_id=1, content="x" * 2001)
         assert False, "应抛出 ValidationError"
     except Exception as e:
         assert "max_length" in str(e) or "String should have at most 2000 characters" in str(e)
@@ -103,7 +103,7 @@ def test_comment_content_max_length():
 def test_comment_content_min_length():
     """评论内容为空应被 Pydantic 拒绝"""
     try:
-        CommentCreate(product_id=1, content="")
+        CommentCreate(variety_id=1, content="")
         assert False, "应抛出 ValidationError"
     except Exception as e:
         assert "min_length" in str(e) or "String should have at least 1 character" in str(e) or "评论内容不能为空" in str(e)
@@ -111,14 +111,14 @@ def test_comment_content_min_length():
 
 def test_comment_content_xss_escaped():
     """HTML 标签应被转义为实体"""
-    comment = CommentCreate(product_id=1, content='<script>alert("xss")</script>')
+    comment = CommentCreate(variety_id=1, content='<script>alert("xss")</script>')
     assert "<script>" not in comment.content
     assert html.unescape(comment.content) == '<script>alert("xss")</script>'
 
 
 def test_comment_content_strips_whitespace():
     """首尾空白应被 strip"""
-    comment = CommentCreate(product_id=1, content="  hello world  ")
+    comment = CommentCreate(variety_id=1, content="  hello world  ")
     assert comment.content == "hello world"
 
 
