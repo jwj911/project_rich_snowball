@@ -35,12 +35,12 @@ export default function MyResearchTimeline({
         <div className="mt-4 space-y-3">
           {comments.slice(0, 6).map((comment) => {
             const product = productMap.get(comment.product_symbol ?? '')
-            const productLabel = product ? `${product.name} ${product.symbol}` : (comment.product_symbol ?? `品种 #${comment.product_id}`)
+            const productLabel = product ? `${product.name} ${product.symbol}` : (comment.product_symbol ?? '未知品种')
 
             return (
               <Link
                 key={comment.id}
-                href={`/products/${comment.product_symbol ?? comment.product_id}`}
+                href={`/products/${comment.product_symbol ?? ''}`}
                 className="group block rounded-lg border border-slate-800 bg-black/20 p-3 transition hover:border-red-800/80 hover:bg-[#121b24]"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">

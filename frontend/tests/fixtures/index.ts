@@ -64,7 +64,6 @@ export function makeKline(overrides: Partial<KlineData> = {}): KlineData {
 export function makeComment(overrides: Partial<Comment> = {}): Comment {
   return {
     id: 1,
-    product_id: 1,
     product_symbol: 'RB',
     product_name: '螺纹钢',
     variety_id: null,

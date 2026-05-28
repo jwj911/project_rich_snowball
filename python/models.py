@@ -157,7 +157,6 @@ class UserDB(Base):
 class CommentDB(Base):
     __tablename__ = "comments"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    product_id = Column(Integer, nullable=True, index=True)
     variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="SET NULL"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     price_level_id = Column(Integer, ForeignKey("price_levels.id", ondelete="SET NULL"), nullable=True, index=True)

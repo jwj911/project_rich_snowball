@@ -145,7 +145,7 @@ describe('usePriceLevels', () => {
 
   it('uses cached levels when cloud load fails', async () => {
     vi.stubGlobal('localStorage', createLocalStorageMock({
-      'price-levels:v1:2:9': JSON.stringify({
+      'price-levels:v1:2:AU': JSON.stringify({
         supportLevels: [490],
         resistanceLevels: [560],
       }),

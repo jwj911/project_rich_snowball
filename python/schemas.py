@@ -61,7 +61,6 @@ class MessageResponse(BaseModel):
 
 class CommentCreate(BaseModel):
     variety_id: int = Field(..., ge=1)
-    product_id: int | None = Field(None, ge=1)
     content: str = Field(..., min_length=1, max_length=2000)
     price_level_id: int | None = Field(None, ge=1)
 
@@ -77,7 +76,6 @@ class CommentCreate(BaseModel):
 class CommentResponse(BaseModel):
     id: int
     variety_id: int
-    product_id: int | None = None
     product_symbol: str | None = None
     product_name: str | None = None
     variety_symbol: str | None = None

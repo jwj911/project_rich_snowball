@@ -42,7 +42,6 @@ export interface ProductListResponse {
 
 export interface Comment {
   id: number
-  product_id: number
   product_symbol: string | null
   product_name: string | null
   variety_id: number | null

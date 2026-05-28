@@ -31,14 +31,12 @@ class CommentRepository:
     def create(
         self,
         variety_id: int,
-        product_id: int | None,
         user_id: int,
         price_level_id: int | None,
         content: str,
     ) -> CommentDB:
         db_comment = CommentDB(
             variety_id=variety_id,
-            product_id=product_id,
             user_id=user_id,
             price_level_id=price_level_id,
             content=content,

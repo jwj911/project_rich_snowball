@@ -39,6 +39,6 @@ describe('QuoteCard', () => {
   it('links to product detail page', () => {
     render(<QuoteCard product={mockProduct} />)
     const link = screen.getByRole('link')
-    expect(link).toHaveAttribute('href', '/products/1')
+    expect(link).toHaveAttribute('href', '/products/RB2501')
   })
 })

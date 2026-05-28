@@ -121,12 +121,12 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function CommentCard({ comment, product }: { comment: { id: number; product_id: number; product_symbol: string | null; username: string; content: string; created_at: string }; product?: Product }) {
-  const productLabel = product ? `${product.name} ${product.symbol}` : (comment.product_symbol ?? `品种 #${comment.product_id}`)
+function CommentCard({ comment, product }: { comment: { id: number; product_symbol: string | null; username: string; content: string; created_at: string }; product?: Product }) {
+  const productLabel = product ? `${product.name} ${product.symbol}` : (comment.product_symbol ?? '未知品种')
 
   return (
     <Link
-      href={`/products/${comment.product_symbol ?? comment.product_id}`}
+      href={`/products/${comment.product_symbol ?? ''}`}
       className="group block rounded-lg border border-slate-800 bg-surface p-4 transition hover:border-red-800/80 hover:bg-[#121b24]"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">

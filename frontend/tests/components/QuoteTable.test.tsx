@@ -78,7 +78,7 @@ describe('QuoteTable', () => {
     )
 
     const link = screen.getByRole('link', { name: /详情/ })
-    expect(link).toHaveAttribute('href', '/products/1')
+    expect(link).toHaveAttribute('href', '/products/P1')
   })
 
   it('renders limit badges when price is near limit', () => {
