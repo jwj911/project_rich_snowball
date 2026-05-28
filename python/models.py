@@ -52,6 +52,55 @@ else:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# ---------- 连接池监控 ----------
+
+def _update_pool_gauge():
+    """将当前连接池状态同步到 Prometheus Gauge。SQLite 等 NullPool 环境自动跳过。"""
+    try:
+        pool = engine.pool
+        if hasattr(pool, "size"):
+            from services.metrics import db_pool_connections
+            db_pool_connections.labels(state="size").set(pool.size())
+        if hasattr(pool, "checkedin"):
+            from services.metrics import db_pool_connections
+            db_pool_connections.labels(state="checkedin").set(pool.checkedin())
+        if hasattr(pool, "checkedout"):
+            from services.metrics import db_pool_connections
+            db_pool_connections.labels(state="checkedout").set(pool.checkedout())
+        if hasattr(pool, "overflow"):
+            from services.metrics import db_pool_connections
+            db_pool_connections.labels(state="overflow").set(pool.overflow())
+    except Exception:
+        pass
+
+
+@event.listens_for(engine, "connect")
+def _on_connect(dbapi_conn, connection_record):
+    from services.metrics import db_pool_connect_total
+    db_pool_connect_total.inc()
+    _update_pool_gauge()
+
+
+@event.listens_for(engine, "close")
+def _on_close(dbapi_conn, connection_record):
+    from services.metrics import db_pool_close_total
+    db_pool_close_total.inc()
+    _update_pool_gauge()
+
+
+@event.listens_for(engine, "checkout")
+def _on_checkout(dbapi_conn, connection_record, connection_proxy):
+    from services.metrics import db_pool_checkout_total
+    db_pool_checkout_total.inc()
+    _update_pool_gauge()
+
+
+@event.listens_for(engine, "checkin")
+def _on_checkin(dbapi_conn, connection_record):
+    from services.metrics import db_pool_checkin_total
+    db_pool_checkin_total.inc()
+    _update_pool_gauge()
+
 def _utc_now():
     return datetime.datetime.now(datetime.UTC)
 

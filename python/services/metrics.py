@@ -4,7 +4,7 @@ Prometheus 指标定义
 用于收集 API 请求延迟、错误率、采集任务成功率等可观测性数据。
 """
 
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
 # HTTP 请求总数（按方法和状态码分类）
 http_requests_total = Counter(
@@ -81,6 +81,29 @@ http_exceptions_total = Counter(
     "http_exceptions_total",
     "Total HTTP exceptions by type",
     ["exception_type", "endpoint"],
+)
+
+# 数据库连接池指标（仅 PostgreSQL 等使用 QueuePool 时有效；SQLite 为 NullPool 不暴露状态）
+db_pool_connections = Gauge(
+    "db_pool_connections",
+    "Current DB pool connection count by state",
+    ["state"],
+)
+db_pool_connect_total = Counter(
+    "db_pool_connect_total",
+    "Total DB connections created",
+)
+db_pool_close_total = Counter(
+    "db_pool_close_total",
+    "Total DB connections closed",
+)
+db_pool_checkout_total = Counter(
+    "db_pool_checkout_total",
+    "Total DB connections checked out",
+)
+db_pool_checkin_total = Counter(
+    "db_pool_checkin_total",
+    "Total DB connections checked in",
 )
 
 

@@ -109,9 +109,9 @@ class TestAuthMetrics:
 class TestHttpRequestMetrics:
     def test_request_increments_http_requests_total(self, client, auth_headers):
         """任意请求后 http_requests_total 应增加。"""
-        before = _get_counter_value(http_requests_total, method="GET", endpoint="/api/products", status_code="200")
-        client.get("/api/products", headers=auth_headers)
-        after = _get_counter_value(http_requests_total, method="GET", endpoint="/api/products", status_code="200")
+        before = _get_counter_value(http_requests_total, method="GET", endpoint="/api/varieties", status_code="200")
+        client.get("/api/varieties", headers=auth_headers)
+        after = _get_counter_value(http_requests_total, method="GET", endpoint="/api/varieties", status_code="200")
         assert after == before + 1
 
     def test_404_increments_http_requests_total(self, client):

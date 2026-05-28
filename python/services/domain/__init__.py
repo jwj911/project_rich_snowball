@@ -6,11 +6,9 @@
 
 from services.domain.comment_service import CommentService
 from services.domain.price_level_service import PriceLevelService
-from services.domain.product_service import ProductService
 from services.domain.repositories import (
     CommentRepository,
     PriceLevelRepository,
-    ProductRepository,
     WatchlistRepository,
 )
 from services.domain.watchlist_service import WatchlistService
@@ -21,8 +19,6 @@ __all__ = [
     "CommentService",
     "PriceLevelRepository",
     "PriceLevelService",
-    "ProductRepository",
-    "ProductService",
     "WatchlistRepository",
     "WatchlistService",
     "WorkspaceService",

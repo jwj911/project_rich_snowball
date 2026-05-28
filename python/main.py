@@ -59,7 +59,6 @@ from routers import (  # noqa: E402
     market,
     metrics_dashboard,
     price_levels,
-    products,
     realtime,
     varieties,
     watchlists,
@@ -179,7 +178,6 @@ app.add_middleware(
 app.middleware("http")(rate_limit_middleware)
 
 app.include_router(auth.router)
-app.include_router(products.router)
 app.include_router(comments.router)
 app.include_router(varieties.router)
 app.include_router(kline.router)

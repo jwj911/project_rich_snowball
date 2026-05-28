@@ -71,37 +71,18 @@ class TestSchemaIntegrity:
         assert "varieties" in fk_map["opinions"]
         assert "users" in fk_map["opinions"]
 
-    def test_products_data_intact(self, client, db_session):
-        """旧 products 表数据应完好"""
-        from models import ProductDB
-        count = db_session.query(ProductDB).count()
-        assert count == 10, f"products 表应有 10 条数据，实际 {count}"
+    def test_varieties_data_intact(self, client, db_session):
+        """varieties 表数据应完好"""
+        from models import VarietyDB
+        count = db_session.query(VarietyDB).count()
+        assert count == 10, f"varieties 表应有 10 条数据，实际 {count}"
 
 
 # ============================================================================
-# 阶段三：旧接口向后兼容
+# 阶段三：API 接口验证
 # ============================================================================
 
-class TestLegacyApiCompatibility:
-    def test_products_list(self, client, auth_headers):
-        """/api/products 应返回 10 条，字段结构不变"""
-        r = client.get("/api/products", headers=auth_headers)
-        assert r.status_code == 200
-        data = r.json()
-        assert len(data) == 10
-        p = data[0]
-        assert "id" in p and "name" in p and "symbol" in p
-        assert "current_price" in p and "change_percent" in p
-
-    def test_product_detail(self, client, auth_headers):
-        """/api/products/1 应返回 product + comments"""
-        r = client.get("/api/products/1", headers=auth_headers)
-        assert r.status_code == 200
-        data = r.json()
-        assert "product" in data
-        assert "comments" in data
-        assert data["product"]["id"] == 1
-
+class TestApiCompatibility:
     def test_auth_register_login_me(self, client):
         """注册 → 登录 → 获取 Me 流程应通顺"""
         # 注册

@@ -59,27 +59,6 @@ class MessageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ProductResponse(BaseModel):
-    id: int
-    name: str
-    symbol: str
-    current_price: float
-    change_percent: float
-    open_price: float | None
-    high: float | None
-    low: float | None
-    volume: float | None
-    category: str | None
-    margin: float | None
-    commission: float | None
-    limit_up: float | None = None
-    limit_down: float | None = None
-    price_precision: int = 2
-    updated_at: dt
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class CommentCreate(BaseModel):
     product_id: int = Field(..., ge=1)
     variety_id: int | None = Field(None, ge=1)
@@ -108,13 +87,6 @@ class CommentResponse(BaseModel):
     content: str
     price_level_id: int | None = None
     created_at: dt
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ProductDetailResponse(BaseModel):
-    product: ProductResponse
-    comments: list[CommentResponse]
 
     model_config = ConfigDict(from_attributes=True)
 
