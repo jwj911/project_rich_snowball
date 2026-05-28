@@ -15,7 +15,7 @@ interface UseProductDetailResult {
   setComments: Dispatch<SetStateAction<Comment[]>>
 }
 
-export function useProductDetail(productId: number, enabled: boolean): UseProductDetailResult {
+export function useProductDetail(productSymbol: string, enabled: boolean): UseProductDetailResult {
   const [product, setProduct] = useState<Product | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -24,8 +24,8 @@ export function useProductDetail(productId: number, enabled: boolean): UseProduc
   const [varietyId, setVarietyId] = useState<number | null>(null)
 
   const loadData = useCallback(async (showLoading = true, signal?: AbortSignal) => {
-    if (!Number.isFinite(productId)) {
-      setError('无效的品种 ID')
+    if (!productSymbol || typeof productSymbol !== 'string') {
+      setError('无效的品种代码')
       setIsLoading(false)
       return
     }
@@ -34,7 +34,7 @@ export function useProductDetail(productId: number, enabled: boolean): UseProduc
 
     try {
       setError(null)
-      const data = await api.getProduct(productId, { signal })
+      const data = await api.getProductBySymbol(productSymbol, { signal })
       if (signal?.aborted) return
 
       setProduct(data.product)
@@ -64,7 +64,7 @@ export function useProductDetail(productId: number, enabled: boolean): UseProduc
         setIsLoading(false)
       }
     }
-  }, [productId])
+  }, [productSymbol])
 
   // SSE 实时价格订阅：只在 product.symbol 确定后启用
   const symbol = product?.symbol ?? ''

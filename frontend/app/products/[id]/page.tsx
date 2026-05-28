@@ -35,7 +35,7 @@ import LevelEditor from '@/components/product/LevelEditor'
 import CommentSection from '@/components/product/CommentSection'
 
 export default function ProductDetailPage({ params }: { params: { id: string } }) {
-  const productId = Number.parseInt(params.id, 10)
+  const symbol = params.id
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
 
   const {
@@ -46,7 +46,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     loading: isLoading,
     error,
     refresh: refreshProduct,
-  } = useProductPolling(productId, !authLoading && isAuthenticated)
+  } = useProductPolling(symbol, !authLoading && isAuthenticated)
 
   const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState('')
@@ -81,7 +81,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     addResistance,
     removeSupport,
     removeResistance,
-  } = usePriceLevels(varietyId, user?.id ?? null, productId)
+  } = usePriceLevels(varietyId, user?.id ?? null, symbol)
 
   useEffect(() => {
     if (productDetail?.comments) {
@@ -131,11 +131,11 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     if (type === 'support') {
       addSupport(price)
       setNewSupport('')
-      captureMessage(`添加支撑位: 品种#${productId} @ ${price}`, 'info')
+      captureMessage(`添加支撑位: ${symbol} @ ${price}`, 'info')
     } else {
       addResistance(price)
       setNewResistance('')
-      captureMessage(`添加阻力位: 品种#${productId} @ ${price}`, 'info')
+      captureMessage(`添加阻力位: ${symbol} @ ${price}`, 'info')
     }
   }
 
@@ -145,11 +145,11 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     try {
       setIsSubmittingComment(true)
       setCommentError(null)
-      const comment = await api.createComment(productId, newComment.trim(), undefined, varietyId ?? undefined)
+      const comment = await api.createComment(newComment.trim(), undefined, varietyId ?? undefined)
       setComments((current) => [comment, ...current])
       setNewComment('')
       toast.success('评论已发表')
-      captureMessage(`用户发表评论: 品种#${productId}`, 'info')
+      captureMessage(`用户发表评论: ${symbol}`, 'info')
     } catch (err) {
       setCommentError(err instanceof Error ? err.message : '评论发送失败')
     } finally {

@@ -91,7 +91,7 @@ export default function HomePage() {
                     {formatPrice(leader.current_price, leader.price_precision)}
                   </div>
                   <Link
-                    href={`/products/${leader.id}`}
+                    href={`/products/${leader.symbol}`}
                     className="mt-5 inline-flex items-center gap-2 text-sm text-red-400 transition hover:text-red-300"
                   >
                     查看详情

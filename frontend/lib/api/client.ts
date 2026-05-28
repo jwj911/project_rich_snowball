@@ -1,7 +1,7 @@
 import { AuthCore } from './auth'
 import {
   createComment,
-  getProduct,
+  getProductBySymbol,
   getProducts,
   getProductsPage,
   getUserComments,
@@ -68,12 +68,12 @@ class ApiService extends AuthCore {
     return getProductsPage(this, params, options)
   }
 
-  getProduct(id: number, options: RequestInit = {}): Promise<ProductDetail> {
-    return getProduct(this, id, options)
+  getProductBySymbol(symbol: string, options: RequestInit = {}): Promise<ProductDetail> {
+    return getProductBySymbol(this, symbol, options)
   }
 
-  createComment(productId: number, content: string, priceLevelId?: number, varietyId?: number): Promise<Comment> {
-    return createComment(this, productId, content, priceLevelId, varietyId)
+  createComment(content: string, priceLevelId?: number, varietyId?: number): Promise<Comment> {
+    return createComment(this, content, priceLevelId, varietyId)
   }
 
   getUserComments(username: string): Promise<Comment[]> {

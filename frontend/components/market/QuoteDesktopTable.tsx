@@ -113,7 +113,7 @@ const QuoteRow = memo(function QuoteRow({ product }: { product: Product }) {
       </td>
       <td className="px-4 py-3 text-right">
         <Link
-          href={`/products/${product.id}`}
+          href={`/products/${product.symbol}`}
           className="inline-flex items-center justify-end gap-1 text-sm text-red-400 transition-colors hover:text-red-300"
         >
           详情

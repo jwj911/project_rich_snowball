@@ -48,7 +48,7 @@ def test_comment_pagination_limit_too_high(client, auth_headers):
 
 def test_product_comment_pagination(client, auth_headers):
     """品种详情评论应支持分页参数"""
-    r = client.get("/api/varieties/by-product-id/1?comment_skip=0&comment_limit=5", headers=auth_headers)
+    r = client.get("/api/varieties/AU/detail?comment_skip=0&comment_limit=5", headers=auth_headers)
     assert r.status_code == 200
     data = r.json()
     assert "comments" in data

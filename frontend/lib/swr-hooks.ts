@@ -21,14 +21,14 @@ export function useProductsPage(query: ProductQuery | null) {
   )
 }
 
-export function useProduct(id: number) {
-  return useSWR(`product-${id}`, () => api.getProduct(id), DEFAULT_OPTIONS)
+export function useProductBySymbol(symbol: string) {
+  return useSWR(`product-${symbol}`, () => api.getProductBySymbol(symbol), DEFAULT_OPTIONS)
 }
 
-export function useProductDetail(id: number, enabled = true) {
+export function useProductDetail(symbol: string, enabled = true) {
   return useSWR(
-    enabled && Number.isFinite(id) ? `product-detail-${id}` : null,
-    () => api.getProduct(id),
+    enabled && symbol ? `product-detail-${symbol}` : null,
+    () => api.getProductBySymbol(symbol),
     DEFAULT_OPTIONS,
   )
 }

@@ -15,13 +15,13 @@ interface ProductPollingResult {
   refresh: () => Promise<void>
 }
 
-export function useProductPolling(productId: number, enabled: boolean): ProductPollingResult {
+export function useProductPolling(productSymbol: string, enabled: boolean): ProductPollingResult {
   const {
     data: productDetail,
     error: detailError,
     isLoading,
     mutate,
-  } = useProductDetail(productId, enabled)
+  } = useProductDetail(productSymbol, enabled)
 
   const symbol = productDetail?.product?.symbol
   const realtimeSymbols = useMemo(() => (symbol ? [symbol] : []), [symbol])

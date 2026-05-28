@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
-from models import SessionLocal, ProductDB, UserDB, CommentDB, KlineDataDB, VarietyDB, RealtimeQuoteDB, FutContractDB, TradingCalendarDB
+from models import SessionLocal, UserDB, CommentDB, KlineDataDB, VarietyDB, RealtimeQuoteDB, FutContractDB, TradingCalendarDB
 from utils import hash_password
 from data_collector.mock_collector import MockCollector
 from data_collector.upsert import insert_kline_bulk, upsert_realtime, upsert_fut_contract_bulk
@@ -35,18 +35,7 @@ def init_mock_data():
     try:
         variety_map = {v.symbol: v for v in db.query(VarietyDB).all()}
 
-        # 1. 初始化 ProductDB（兼容层，后续 Phase 4 删除）
-        if db.query(ProductDB).count() == 0:
-            for p in _MOCK_PRODUCTS:
-                variety = variety_map.get(p["symbol"])
-                row = dict(p)
-                if variety and variety.tick_size is not None:
-                    tick = float(variety.tick_size)
-                    s = f"{tick:.10f}".rstrip("0")
-                    row["price_precision"] = len(s.split(".")[1]) if "." in s else 0
-                db.add(ProductDB(**row))
-
-        # 2. 初始化用户
+        # 1. 初始化用户
         if db.query(UserDB).count() == 0:
             users = [
                 {"username": "trader001", "email": "trader001@example.com", "password_hash": hash_password("password123")},

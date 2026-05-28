@@ -6,7 +6,7 @@ import { makeComment, makeProduct } from '@/tests/fixtures'
 
 vi.mock('@/lib/api', () => ({
   api: {
-    getProduct: vi.fn(),
+    getProductBySymbol: vi.fn(),
     getRealtime: vi.fn(),
     getVariety: vi.fn(),
     getToken: vi.fn().mockReturnValue(null),
@@ -23,7 +23,7 @@ describe('useProductDetail', () => {
   })
 
   it('loads product detail, realtime quote, and variety id from backend APIs', async () => {
-    vi.mocked(api.getProduct).mockResolvedValue({ product, comments: [comment] })
+    vi.mocked(api.getProductBySymbol).mockResolvedValue({ product, comments: [comment] })
     vi.mocked(api.getRealtime).mockResolvedValue({
       symbol: 'RB',
       current_price: 3610,
@@ -49,7 +49,7 @@ describe('useProductDetail', () => {
       price_precision: 2,
     })
 
-    const { result } = renderHook(() => useProductDetail(1, true))
+    const { result } = renderHook(() => useProductDetail('RB', true))
 
     await waitFor(() => {
       expect(result.current.product?.symbol).toBe('RB')
@@ -63,19 +63,19 @@ describe('useProductDetail', () => {
   })
 
   it('does not request when disabled', () => {
-    renderHook(() => useProductDetail(1, false))
+    renderHook(() => useProductDetail('RB', false))
 
-    expect(api.getProduct).not.toHaveBeenCalled()
+    expect(api.getProductBySymbol).not.toHaveBeenCalled()
   })
 
-  it('reports invalid product id without requesting backend', async () => {
-    const { result } = renderHook(() => useProductDetail(Number.NaN, true))
+  it('reports invalid product symbol without requesting backend', async () => {
+    const { result } = renderHook(() => useProductDetail('', true))
 
     await waitFor(() => {
-      expect(result.current.error).toBe('无效的品种 ID')
+      expect(result.current.error).toBe('无效的品种代码')
     })
 
-    expect(api.getProduct).not.toHaveBeenCalled()
+    expect(api.getProductBySymbol).not.toHaveBeenCalled()
     expect(result.current.isLoading).toBe(false)
   })
 })

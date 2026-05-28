@@ -78,8 +78,8 @@ export default function WorkspacePage() {
   const watchlistSymbols = useMemo(() => watchlists.map((w) => w.variety_symbol), [watchlists])
   const { quotes: watchlistRealtime } = useWatchlistRealtime(watchlistSymbols)
 
-  const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products])
-  const productCount = useMemo(() => new Set(comments.map((comment) => comment.product_id)).size, [comments])
+  const productMap = useMemo(() => new Map(products.map((product) => [product.symbol, product])), [products])
+  const productCount = useMemo(() => new Set(comments.map((comment) => comment.product_symbol)).size, [comments])
   const annotationCount = annotations.reduce(
     (sum, annotation) => sum + annotation.supportLevels.length + annotation.resistanceLevels.length,
     0,

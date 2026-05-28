@@ -35,7 +35,7 @@ export default function MyAnnotationsPanel({ annotations }: { annotations: Works
           {annotations.map((annotation) => (
             <Link
               key={annotation.productId}
-              href={`/products/${annotation.productId}`}
+              href={`/products/${annotation.symbol}`}
               className="block rounded-lg border border-slate-800 bg-black/20 p-3 transition hover:border-red-800/80 hover:bg-[#121b24]"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">

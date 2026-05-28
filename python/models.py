@@ -154,27 +154,6 @@ class UserDB(Base):
     refresh_tokens = relationship("RefreshTokenDB", back_populates="user", passive_deletes=True)
 
 
-class ProductDB(Base):
-    __tablename__ = "products"
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    name = Column(String(50), nullable=False, index=True)
-    symbol = Column(String(20), unique=True, index=True, nullable=False)
-    current_price = Column(Numeric(19, 4), nullable=False)
-    change_percent = Column(Numeric(19, 4), default=0)
-    pre_settlement = Column(Numeric(15, 4))
-    open_price = Column(Numeric(19, 4))
-    high = Column(Numeric(19, 4))
-    low = Column(Numeric(19, 4))
-    volume = Column(Integer)
-    category = Column(String(20))
-    margin = Column(Numeric(10, 4), default=0)
-    commission = Column(Numeric(10, 4), default=0)
-    limit_up = Column(Numeric(19, 4))
-    limit_down = Column(Numeric(19, 4))
-    price_precision = Column(Integer, default=2)
-    updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
-
-
 class CommentDB(Base):
     __tablename__ = "comments"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)

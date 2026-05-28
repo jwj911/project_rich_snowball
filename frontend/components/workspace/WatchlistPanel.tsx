@@ -52,7 +52,7 @@ export default function WatchlistPanel({ watchlists, products, realtimeQuotes, o
                 className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-black/20 px-3 py-2 transition hover:border-red-800/80 hover:bg-[#121b24]"
               >
                 <Link
-                  href={`/products/${product?.id ?? 0}`}
+                  href={`/products/${item.variety_symbol}`}
                   className="flex min-w-0 flex-1 items-center justify-between gap-3"
                 >
                   <div className="min-w-0">

@@ -31,7 +31,7 @@ class TestSchemaIntegrity:
         inspector = inspect(engine)
         tables = set(inspector.get_table_names())
         expected = {
-            "users", "products", "comments",
+            "users", "comments",
             "varieties", "realtime_quotes", "kline_data",
             "watchlists", "opinions"
         }

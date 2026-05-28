@@ -28,7 +28,6 @@ from models import (
     CommentDB,
     KlineDataDB,
     PriceLevelDB,
-    ProductDB,
     RealtimeQuoteDB,
     SessionLocal,
     VarietyDB,
@@ -211,7 +210,6 @@ def check_text_encoding_pollution(db, symbol: str = None):
     issues = []
     checks = [
         (VarietyDB, "varieties", ("name", "category")),
-        (ProductDB, "products", ("name", "category")),
         (CommentDB, "comments", ("content",)),
         (PriceLevelDB, "price_levels", ("note",)),
         (WatchlistDB, "watchlists", ("notes",)),

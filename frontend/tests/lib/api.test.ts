@@ -46,7 +46,7 @@ describe('api auth and errors', () => {
       { status: 429, headers: { 'Retry-After': '17' } },
     ))
 
-    await expect(api.createComment(1, 'hello')).rejects.toMatchObject({
+    await expect(api.createComment('hello')).rejects.toMatchObject({
       status: 429,
       retryAfter: 17,
       message: '请求过于频繁，请 17 秒后再试',

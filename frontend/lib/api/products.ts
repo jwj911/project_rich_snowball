@@ -75,9 +75,8 @@ export async function getProductsPage(
   }
 }
 
-export async function getProduct(transport: ApiTransport, id: number, options: RequestInit = {}): Promise<ProductDetail> {
-  // 已迁移到 /api/varieties/by-product-id（ProductDB 退场 Phase 2）
-  const variety = await transport.request<Record<string, unknown>>(`/api/varieties/by-product-id/${id}`, options)
+export async function getProductBySymbol(transport: ApiTransport, symbol: string, options: RequestInit = {}): Promise<ProductDetail> {
+  const variety = await transport.request<Record<string, unknown>>(`/api/varieties/${encodeURIComponent(symbol)}/detail`, options)
   const comments = (variety.comments as Comment[] | undefined) ?? []
   return {
     product: _mapVarietyToProduct(variety),
@@ -87,14 +86,13 @@ export async function getProduct(transport: ApiTransport, id: number, options: R
 
 export function createComment(
   transport: ApiTransport,
-  productId: number,
   content: string,
   priceLevelId?: number,
   varietyId?: number,
 ): Promise<Comment> {
   return transport.request<Comment>('/api/comments', {
     method: 'POST',
-    body: JSON.stringify({ product_id: productId, content, price_level_id: priceLevelId, variety_id: varietyId }),
+    body: JSON.stringify({ content, price_level_id: priceLevelId, variety_id: varietyId }),
   })
 }
 

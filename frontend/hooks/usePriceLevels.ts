@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { api, PriceLevel } from '@/lib/api'
 import { captureMessage } from '@/lib/sentry-lite'
 
-export function usePriceLevels(varietyId: number | null, userId: number | null, productId: number) {
+export function usePriceLevels(varietyId: number | null, userId: number | null, symbol: string) {
   const [supportLevels, setSupportLevels] = useState<number[]>([])
   const [resistanceLevels, setResistanceLevels] = useState<number[]>([])
   const [levelsLoaded, setLevelsLoaded] = useState(false)
@@ -15,9 +15,9 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
   useEffect(() => { resistanceRef.current = resistanceLevels }, [resistanceLevels])
 
   const levelsStorageKey = useMemo(() => {
-    if (!Number.isFinite(productId) || !userId) return null
-    return `price-levels:v1:${userId}:${productId}`
-  }, [productId, userId])
+    if (!symbol || !userId) return null
+    return `price-levels:v1:${userId}:${symbol}`
+  }, [symbol, userId])
 
   const updateLevelsFromData = useCallback((levels: PriceLevel[]) => {
     const support: number[] = []

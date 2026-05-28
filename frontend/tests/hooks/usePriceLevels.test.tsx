@@ -56,7 +56,7 @@ describe('usePriceLevels', () => {
       makeLevel({ id: 2, type: 'resistance', price: '540.00' }),
     ])
 
-    const { result } = renderHook(() => usePriceLevels(3, 2, 9))
+    const { result } = renderHook(() => usePriceLevels(3, 2, 'AU'))
 
     await waitFor(() => {
       expect(result.current.levelsLoaded).toBe(true)
@@ -66,7 +66,7 @@ describe('usePriceLevels', () => {
     expect(result.current.resistanceLevels).toEqual([540])
     expect(result.current.levelError).toBeNull()
     expect(localStorage.setItem).toHaveBeenCalledWith(
-      'price-levels:v1:2:9',
+      'price-levels:v1:2:AU',
       expect.stringContaining('"supportLevels":[500]'),
     )
   })
@@ -82,7 +82,7 @@ describe('usePriceLevels', () => {
     })
     vi.mocked(api.createPriceLevel).mockReset().mockResolvedValue(level510)
 
-    const { result } = renderHook(() => usePriceLevels(3, 2, 9))
+    const { result } = renderHook(() => usePriceLevels(3, 2, 'AU'))
 
     await waitFor(() => {
       expect(result.current.levelsLoaded).toBe(true)
@@ -101,7 +101,7 @@ describe('usePriceLevels', () => {
     vi.mocked(api.getPriceLevels).mockReset().mockResolvedValue([])
     vi.mocked(api.createPriceLevel).mockReset().mockRejectedValue(new Error('请求过于频繁，请 17 秒后再试'))
 
-    const { result } = renderHook(() => usePriceLevels(3, 2, 9))
+    const { result } = renderHook(() => usePriceLevels(3, 2, 'AU'))
 
     await waitFor(() => {
       expect(result.current.levelsLoaded).toBe(true)
@@ -114,7 +114,7 @@ describe('usePriceLevels', () => {
     expect(result.current.resistanceLevels).toEqual([550])
     expect(result.current.levelError).toContain('已临时保存到本地')
     expect(localStorage.setItem).toHaveBeenLastCalledWith(
-      'price-levels:v1:2:9',
+      'price-levels:v1:2:AU',
       expect.stringContaining('"resistanceLevels":[550]'),
     )
   })
@@ -123,7 +123,7 @@ describe('usePriceLevels', () => {
     vi.mocked(api.getPriceLevels).mockReset().mockResolvedValue([])
     vi.mocked(api.createPriceLevel).mockReset().mockRejectedValue(new Error('offline'))
 
-    const { result } = renderHook(() => usePriceLevels(3, 2, 9))
+    const { result } = renderHook(() => usePriceLevels(3, 2, 'AU'))
 
     await waitFor(() => {
       expect(result.current.levelsLoaded).toBe(true)
@@ -138,7 +138,7 @@ describe('usePriceLevels', () => {
 
     expect(result.current.supportLevels).toEqual([510, 520])
     expect(localStorage.setItem).toHaveBeenLastCalledWith(
-      'price-levels:v1:2:9',
+      'price-levels:v1:2:AU',
       expect.stringContaining('"supportLevels":[510,520]'),
     )
   })
@@ -152,7 +152,7 @@ describe('usePriceLevels', () => {
     }))
     vi.mocked(api.getPriceLevels).mockReset().mockRejectedValue(new Error('network down'))
 
-    const { result } = renderHook(() => usePriceLevels(3, 2, 9))
+    const { result } = renderHook(() => usePriceLevels(3, 2, 'AU'))
 
     await waitFor(() => {
       expect(result.current.levelsLoaded).toBe(true)

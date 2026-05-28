@@ -33,8 +33,8 @@ export default function MyCommentsPage() {
   )
 
   const loading = authLoading || commentsLoading || productsLoading
-  const productMap = new Map((products ?? []).map((p) => [p.id, p]))
-  const productCount = new Set((comments ?? []).map((c) => c.product_id)).size
+  const productMap = new Map((products ?? []).map((p) => [p.symbol, p]))
+  const productCount = new Set((comments ?? []).map((c) => c.product_symbol)).size
 
   return (
     <AppShell>
@@ -94,7 +94,7 @@ export default function MyCommentsPage() {
           ) : (
             <section className="space-y-3">
               {(comments ?? []).map((comment) => (
-                <CommentCard key={comment.id} comment={comment} product={productMap.get(comment.product_id)} />
+                <CommentCard key={comment.id} comment={comment} product={productMap.get(comment.product_symbol ?? '')} />
               ))}
             </section>
           )}
@@ -121,12 +121,12 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function CommentCard({ comment, product }: { comment: { id: number; product_id: number; username: string; content: string; created_at: string }; product?: Product }) {
-  const productLabel = product ? `${product.name} ${product.symbol}` : `品种 #${comment.product_id}`
+function CommentCard({ comment, product }: { comment: { id: number; product_id: number; product_symbol: string | null; username: string; content: string; created_at: string }; product?: Product }) {
+  const productLabel = product ? `${product.name} ${product.symbol}` : (comment.product_symbol ?? `品种 #${comment.product_id}`)
 
   return (
     <Link
-      href={`/products/${comment.product_id}`}
+      href={`/products/${comment.product_symbol ?? comment.product_id}`}
       className="group block rounded-lg border border-slate-800 bg-surface p-4 transition hover:border-red-800/80 hover:bg-[#121b24]"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
