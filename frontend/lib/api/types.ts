@@ -87,6 +87,7 @@ export interface KlineData {
   close: number
   volume: number
   contract_code?: string | null
+  contract_id?: number | null
 }
 
 export interface Variety {

@@ -14,6 +14,7 @@ const latestPoint: CandlePoint = {
   close: 3650,
   volume: 1200,
   contractCode: 'RB2609.SHF',
+  contractId: 1001,
 }
 
 describe('Kline chart pieces', () => {

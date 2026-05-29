@@ -145,6 +145,7 @@ export function useLightweightChart({
         close: seriesData.close,
         volume: matchedPoint?.volume ?? 0,
         contractCode: matchedPoint?.contractCode ?? null,
+        contractId: matchedPoint?.contractId ?? null,
       })
     }
 

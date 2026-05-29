@@ -21,6 +21,7 @@ export interface CrosshairQuote {
   close: number
   volume: number
   contractCode: string | null
+  contractId: number | null
 }
 
 export interface CandlePoint {
@@ -32,6 +33,7 @@ export interface CandlePoint {
   close: number
   volume: number
   contractCode: string | null
+  contractId: number | null
 }
 
 export function normalizeKlineData(data: KlineData[]): CandlePoint[] {
@@ -61,6 +63,7 @@ export function normalizeKlineData(data: KlineData[]): CandlePoint[] {
       close,
       volume: Number.isFinite(volume) ? Math.max(volume, 0) : 0,
       contractCode: item.contract_code ?? null,
+      contractId: item.contract_id ?? null,
     })
   })
 
