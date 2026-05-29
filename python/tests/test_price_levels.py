@@ -224,3 +224,35 @@ def test_create_price_levels_batch():
     r = client.get("/api/price-levels", headers={"Authorization": f"Bearer {token}"})
     levels = r.json()
     assert len(levels) == 3  # 100(已有) + 200 + 300
+
+
+def test_create_price_levels_batch_scope_isolation():
+    """批量导入时同一价格不同 scope 应视为独立记录"""
+    token = _register_and_login()
+
+    # 先创建 continuous 和 main 各一条
+    client.post("/api/price-levels", json={
+        "variety_id": 1, "type": "support", "price": "100.00",
+        "scope": "continuous", "note": "连续"
+    }, headers={"Authorization": f"Bearer {token}"})
+    client.post("/api/price-levels", json={
+        "variety_id": 1, "type": "support", "price": "100.00",
+        "scope": "main", "note": "主力"
+    }, headers={"Authorization": f"Bearer {token}"})
+
+    r = client.post("/api/price-levels/batch", json={
+        "items": [
+            {"variety_id": 1, "type": "support", "price": "100.00", "scope": "continuous", "note": "重复连续"},
+            {"variety_id": 1, "type": "support", "price": "100.00", "scope": "main", "note": "重复主力"},
+            {"variety_id": 1, "type": "support", "price": "100.00", "scope": "contract", "note": "合约层新"},
+            {"variety_id": 1, "type": "support", "price": "100.00", "scope": "contract", "note": "合约层重复"},
+        ]
+    }, headers={"Authorization": f"Bearer {token}"})
+
+    assert r.status_code == 200
+    data = r.json()
+    # contract scope 下 contract_id 均为 None，因此第一条 contract 成功，第二条重复
+    assert data["created_count"] == 1  # 合约层新
+    assert data["failed_count"] == 3   # 重复连续 + 重复主力 + 合约层重复
+    assert len(data["success"]) == 1
+    assert len(data["failed"]) == 3
