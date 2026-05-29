@@ -234,7 +234,7 @@ pytest tests/test_realtime_batch.py tests/test_price_levels.py -q
 - [ ] 合约/连续/主力 K 线下的标注不会串口径（Phase 5）
 - [x] K 线图所有价格展示尊重 `price_precision`（Phase 2）
 - [x] 空涨跌幅不显示上涨/下跌倾向（Phase 3）
-- [ ] `KlineData` 前端类型保留 `contract_id`（Phase 4）
+- [x] `KlineData` 前端类型保留 `contract_id`（Phase 4）
 - [x] `tsc/test/lint/build` 全绿
 - [ ] Playwright 性能 E2E 或 Lighthouse 有一份可复现结果（Phase 6）
 
@@ -250,6 +250,7 @@ pytest tests/test_realtime_batch.py tests/test_price_levels.py -q
 | 2026-05-29 | Phase 1: 实时 batch 契约修复 — batch 补齐 limit_up/limit_down，前端 merge 同步，测试断言，合并 master | ✅ |
 | 2026-05-29 | Phase 2: K 线价格精度统一 — 消灭 toFixed(2)，全链路透传 pricePrecision，合并 master | ✅ |
 | 2026-05-29 | Phase 3: 空值涨跌幅 neutral 态 — getChangeTone 返回 neutral，PriceChange 不渲染上涨图标，合并 master | ✅ |
+| 2026-05-29 | Phase 4: KlineData 补齐 contract_id — 类型扩展，normalizeKlineData 保留，CrosshairQuote 透传，合并 master | ✅ |
 
 ---
 
