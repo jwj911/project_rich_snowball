@@ -3,7 +3,7 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from models import PriceLevelDB, VarietyDB
+from models import FutContractDB, PriceLevelDB, VarietyDB
 from schemas import PriceLevelBatchCreate, PriceLevelCreate, PriceLevelUpdate
 from services.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
 from services.domain.repositories.price_level_repository import PriceLevelRepository
@@ -46,10 +46,19 @@ class PriceLevelService:
     ) -> bool:
         return self._repo.check_duplicate(user_id, variety_id, type, price, scope, contract_id, exclude_id)
 
+    def _verify_contract(self, contract_id: int | None) -> None:
+        """校验 contract_id 指向的合约是否存在。"""
+        if contract_id is not None:
+            exists = self._db.query(FutContractDB.id).filter(FutContractDB.id == contract_id).first()
+            if not exists:
+                raise NotFoundError("关联合约不存在")
+
     def create_price_level(self, user_id: int, item: PriceLevelCreate) -> PriceLevelDB:
         variety = self._db.query(VarietyDB).filter(VarietyDB.id == item.variety_id).first()
         if not variety:
             raise NotFoundError("品种不存在")
+
+        self._verify_contract(item.contract_id)
 
         if self._check_duplicate(
             user_id, item.variety_id, item.type, item.price,
@@ -112,6 +121,14 @@ class PriceLevelService:
             v.id: v
             for v in self._db.query(VarietyDB).filter(VarietyDB.id.in_(variety_ids)).all()
         }
+
+        contract_ids = {item.contract_id for item in body.items if item.contract_id is not None}
+        valid_contracts = set()
+        if contract_ids:
+            valid_contracts = {
+                c.id for c in self._db.query(FutContractDB.id).filter(FutContractDB.id.in_(contract_ids)).all()
+            }
+
         existing_keys = {
             (pl.variety_id, pl.type, float(pl.price), pl.scope, pl.contract_id)
             for pl in self._repo.list_by_user_and_varieties(user_id, variety_ids)
@@ -121,6 +138,10 @@ class PriceLevelService:
         for idx, item in enumerate(body.items):
             if item.variety_id not in varieties:
                 failed.append({"index": idx, "reason": "品种不存在"})
+                continue
+
+            if item.contract_id is not None and item.contract_id not in valid_contracts:
+                failed.append({"index": idx, "reason": "关联合约不存在"})
                 continue
 
             key = (item.variety_id, item.type, float(item.price), item.scope, item.contract_id)
