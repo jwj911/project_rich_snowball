@@ -153,9 +153,14 @@ npx tsc --noEmit
 | `GET /api/varieties/{symbol}/detail` | 品种详情含评论 |
 | `POST /api/comments` | 发表评论，需要登录 |
 | `GET /api/comments/user/{username}` | 用户评论历史 |
-| `GET /api/varieties` | 新数据层品种列表 |
-| `GET /api/realtime/{symbol}` | 实时行情，带内存缓存 |
+| `GET /api/realtime/{symbol}` | 实时行情单品种查询，带内存缓存 |
+| `GET /api/realtime/batch` | 批量实时行情 |
+| `GET /api/realtime/stream` | SSE 实时行情推送 |
 | `GET /api/klines/{symbol}` | K 线数据，支持 `period` 和 `limit` |
+| `GET /api/klines/{symbol}/continuous` | 连续 K 线 |
+| `GET /api/klines/{symbol}/main` | 主力合约 K 线 |
+| `GET /api/contracts/{contract_id}/kline` | 具体合约 K 线 |
+| `GET /api/price-levels` | 云端支撑/阻力位标注 |
 | `GET /health` / `/health/ready` / `/health/scheduler` | 存活、就绪、调度器状态 |
 
 ---
@@ -193,7 +198,7 @@ pytest tests -v
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-前端已配置 Vitest + Playwright 自动化测试，并配有 `.github/workflows/frontend-ci.yml` 在 PR 时自动执行 lint + build + test。修改前端后至少运行：
+前端已配置 Vitest + Playwright 自动化测试（30 files / 178 tests），并配有 `.github/workflows/frontend-ci.yml` 在 PR 时自动执行 lint + build + test。修改前端后至少运行：
 
 ```powershell
 cd D:\Code\project_rich_snowball\frontend

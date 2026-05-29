@@ -354,7 +354,7 @@ ruff format .
 - `test_trading_date.py`
 
 前端测试：
-- Vitest 单元测试：`frontend/tests/` 下 30 个测试文件，177 tests 全部通过
+- Vitest 单元测试：`frontend/tests/` 下 30 个测试文件，178 tests 全部通过
 - Playwright E2E：`frontend/e2e/` 下 5 个文件（auth.setup.ts + 4 个 spec），28 tests 全部通过
 - 注意：`npm run test` 在 Windows 上可能因 Vitest 路径解析问题失败（已知问题，见 `FRONTEND_QUALITY_AUDIT_V3_20260525.md`）
 

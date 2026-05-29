@@ -230,13 +230,13 @@ pytest tests/test_realtime_batch.py tests/test_price_levels.py -q
 
 本轮全部 Phase 完成后应满足：
 
-- [ ] `/api/realtime/batch` 与前端 `RealtimeQuote` 类型完全一致
-- [ ] 合约/连续/主力 K 线下的标注不会串口径
-- [ ] K 线图所有价格展示尊重 `price_precision`
-- [ ] 空涨跌幅不显示上涨/下跌倾向
-- [ ] `KlineData` 前端类型保留 `contract_id`
-- [ ] `tsc/test/lint/build` 全绿
-- [ ] Playwright 性能 E2E 或 Lighthouse 有一份可复现结果
+- [x] `/api/realtime/batch` 与前端 `RealtimeQuote` 类型完全一致（Phase 1）
+- [ ] 合约/连续/主力 K 线下的标注不会串口径（Phase 5）
+- [x] K 线图所有价格展示尊重 `price_precision`（Phase 2）
+- [x] 空涨跌幅不显示上涨/下跌倾向（Phase 3）
+- [ ] `KlineData` 前端类型保留 `contract_id`（Phase 4）
+- [x] `tsc/test/lint/build` 全绿
+- [ ] Playwright 性能 E2E 或 Lighthouse 有一份可复现结果（Phase 6）
 
 达到以上标准后，前端评级从 **B** 推进到 **A-**。
 
