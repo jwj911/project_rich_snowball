@@ -36,6 +36,7 @@ import {
   getWorkspace,
   updatePriceLevel,
   updateWatchlist,
+  type PriceLevelBatchItem,
 } from './workspace'
 import type {
   Comment,
@@ -183,12 +184,7 @@ class ApiService extends AuthCore {
   }
 
   createPriceLevelsBatch(
-    items: Array<{
-      variety_id: number
-      type: 'support' | 'resistance'
-      price: string
-      note?: string | null
-    }>,
+    items: PriceLevelBatchItem[],
   ): Promise<{
     success: PriceLevel[]
     failed: Array<{ index: number; reason: string }>

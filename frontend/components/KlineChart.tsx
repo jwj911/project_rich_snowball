@@ -174,6 +174,7 @@ export default function KlineChart({
       {annotationMenu && (
         <AnnotationContextMenu
           menu={annotationMenu}
+          pricePrecision={pricePrecision}
           canAddSupport={!!onAddSupport}
           canAddResistance={!!onAddResistance}
           onAddSupport={() => {

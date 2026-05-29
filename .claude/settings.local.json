@@ -15,7 +15,9 @@
       "Bash(dir test-results/auth.setup.ts-authenticate-setup /s /b)",
       "Bash(npm list *)",
       "Bash(npx.cmd tsc *)",
-      "Bash(npm.cmd run *)"
+      "Bash(npm.cmd run *)",
+      "Bash(npm start *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:3000)"
     ]
   }
 }

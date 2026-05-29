@@ -582,7 +582,7 @@ ruff format .
 
 - venv 重建（Python 3.12.9），pytest/ruff/pip-audit 本地可复现
 - CI 统一使用 `requirements.lock`
-- 后端测试环境文档化：README/AGENTS 明确使用项目内 `.venv`，不要使用全局 Anaconda，提供 Powershell 一键命令和环境校验
+- 后端测试环境文档化：README/AGENTS 明确使用项目内 `.venv`，不要使用全局 Anaconda，提供 Powershell 一键命令和环境校验；已实际验证（`pytest tests/test_price_levels.py` 14 passed，`test_realtime_batch.py` 5 passed）
 - `fut_mapping_task` 循环依赖消除
 - `tushare_batch_tasks.py` 模板抽象（377→175 行）
 - ruff 质量门禁生效（移除 `continue-on-error`）

@@ -50,16 +50,18 @@ export function deletePriceLevel(transport: ApiTransport, id: number): Promise<v
   return transport.request<void>(`/api/price-levels/${id}`, { method: 'DELETE' })
 }
 
+export interface PriceLevelBatchItem {
+  variety_id: number
+  type: 'support' | 'resistance'
+  price: string
+  note?: string | null
+  scope?: PriceLevelScope
+  contract_id?: number | null
+}
+
 export function createPriceLevelsBatch(
   transport: ApiTransport,
-  items: Array<{
-    variety_id: number
-    type: 'support' | 'resistance'
-    price: string
-    note?: string | null
-    scope?: PriceLevelScope
-    contract_id?: number | null
-  }>,
+  items: PriceLevelBatchItem[],
 ): Promise<{
   success: PriceLevel[]
   failed: Array<{ index: number; reason: string }>

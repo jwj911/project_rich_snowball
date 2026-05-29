@@ -282,7 +282,10 @@ pytest tests/test_price_levels.py -q
 | 2026-05-29 | Phase 10: 标注价格精度 + 图表 formatter 残留 | 已完成 |
 | 2026-05-29 | Phase 9: 价位标注 batch scope/contract 补齐 | 已完成 |
 | 2026-05-29 | Phase 11: Lighthouse 可复现基线证据 | 已完成 |
-| 2026-05-29 | Phase 12: 后端本地测试环境文档化 | 已完成 |
+| 2026-05-29 | Phase 12: 后端本地测试环境文档化 | 已完成（文档 + venv 实际验证通过） |
+| 2026-05-29 | v8 Review 修复: ApiClient batch 类型补全 | 已完成 |
+| 2026-05-29 | v8 Review 修复: AnnotationContextMenu 精度残留 | 已完成 |
+| 2026-05-29 | v8 Review 修复: 删除遗留 lib/priceLevels.ts 死代码 | 已完成 |
 | | Phase 12: 后端本地测试环境文档化 | 待开始 |
 
 ---

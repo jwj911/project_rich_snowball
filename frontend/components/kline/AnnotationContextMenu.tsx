@@ -1,7 +1,9 @@
 import { AnnotationMenu } from '@/lib/klineChart'
+import { formatPrice } from '@/lib/format'
 
 interface AnnotationContextMenuProps {
   menu: AnnotationMenu
+  pricePrecision?: number
   canAddSupport: boolean
   canAddResistance: boolean
   onAddSupport: () => void
@@ -11,6 +13,7 @@ interface AnnotationContextMenuProps {
 
 export default function AnnotationContextMenu({
   menu,
+  pricePrecision,
   canAddSupport,
   canAddResistance,
   onAddSupport,
@@ -24,7 +27,7 @@ export default function AnnotationContextMenu({
       onClick={(event) => event.stopPropagation()}
     >
       <div className="mb-2 border-b border-border pb-2 font-mono text-slate-200">
-        {menu.price.toFixed(2)}
+        {formatPrice(menu.price, pricePrecision)}
       </div>
       <button
         type="button"

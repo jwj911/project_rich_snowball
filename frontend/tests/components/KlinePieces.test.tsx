@@ -46,7 +46,7 @@ describe('Kline chart pieces', () => {
     fireEvent.click(screen.getByRole('button', { name: '添加支撑位' }))
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
 
-    expect(screen.getByText('3650.25')).toBeInTheDocument()
+    expect(screen.getByText('3,650.25')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加阻力位' })).toBeDisabled()
     expect(onAddSupport).toHaveBeenCalled()
     expect(onAddResistance).not.toHaveBeenCalled()
