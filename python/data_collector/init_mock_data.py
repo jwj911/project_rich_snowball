@@ -5,7 +5,7 @@ from utils import hash_password
 from data_collector.mock_collector import MockCollector
 from data_collector.upsert import insert_kline_bulk, upsert_realtime, upsert_fut_contract_bulk
 
-# 模拟品种基础数据（与 VarietyDB 平行，用于 ProductDB 初始化）
+# 模拟品种基础数据（用于 RealtimeQuoteDB / KlineDataDB / FutContractDB 初始化）
 _MOCK_PRODUCTS = [
     {"name": "黄金", "symbol": "AU", "current_price": 453.2, "change_percent": 1.25, "open_price": 447.5, "high": 455.8, "low": 446.2, "volume": 152340, "category": "贵金属", "margin": 8, "commission": 15},
     {"name": "白银", "symbol": "AG", "current_price": 5420, "change_percent": -0.85, "open_price": 5465, "high": 5500, "low": 5380, "volume": 89420, "category": "贵金属", "margin": 9, "commission": 12},
@@ -20,7 +20,7 @@ _MOCK_PRODUCTS = [
 ]
 
 
-# 模拟评论数据（按 symbol 索引，便于同时填充 product_id 和 variety_id）
+# 模拟评论数据（按 symbol 索引，映射到 variety_id）
 _MOCK_COMMENTS = [
     {"symbol": "AU", "user_id": 1, "content": "黄金近期走势强劲，受避险情绪影响明显，建议关注450美元阻力位。"},
     {"symbol": "AU", "user_id": 2, "content": "美联储加息预期降温，金价有望继续上攻。"},

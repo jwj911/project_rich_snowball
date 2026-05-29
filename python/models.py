@@ -75,6 +75,7 @@ def _update_pool_gauge():
             from services.metrics import db_pool_connections
             db_pool_connections.labels(state="overflow").set(pool.overflow())
     except Exception:
+        # 指标采集失败不应影响数据库连接本身
         pass
 
 
