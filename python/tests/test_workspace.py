@@ -17,8 +17,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from main import app
 from fastapi.testclient import TestClient
+from models import init_db
 from routers.auth import clear_rate_limit_store
 
+init_db()
+from data_collector.init_varieties import init_varieties
+init_varieties()
 client = TestClient(app)
 
 

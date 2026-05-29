@@ -236,7 +236,7 @@ pytest tests/test_realtime_batch.py tests/test_price_levels.py -q
 - [x] 空涨跌幅不显示上涨/下跌倾向（Phase 3）
 - [x] `KlineData` 前端类型保留 `contract_id`（Phase 4）
 - [x] `tsc/test/lint/build` 全绿
-- [ ] Playwright 性能 E2E 或 Lighthouse 有一份可复现结果（Phase 6）
+- [x] Playwright 性能 E2E 或 Lighthouse 有一份可复现结果（Phase 6）
 
 达到以上标准后，前端评级从 **B** 推进到 **A-**。
 
@@ -252,6 +252,7 @@ pytest tests/test_realtime_batch.py tests/test_price_levels.py -q
 | 2026-05-29 | Phase 3: 空值涨跌幅 neutral 态 — getChangeTone 返回 neutral，PriceChange 不渲染上涨图标，合并 master | ✅ |
 | 2026-05-29 | Phase 4: KlineData 补齐 contract_id — 类型扩展，normalizeKlineData 保留，CrosshairQuote 透传，合并 master | ✅ |
 | 2026-05-29 | Phase 5: 标注 scope/contract 口径改造 — 后端表迁移+API升级，前端 hook 按 K 线 source 隔离，localStorage v2，合并 master | ✅ |
+| 2026-05-29 | Phase 6: Lighthouse 性能基线 — 替代 Playwright E2E（spawn EPERM 根因是缺后端），headless Chrome 测量 Web Vitals，CI 集成，合并 master | ✅ |
 
 ---
 

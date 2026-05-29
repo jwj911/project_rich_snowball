@@ -51,6 +51,12 @@ class PriceLevelService:
         if not variety:
             raise NotFoundError("品种不存在")
 
+        if self._check_duplicate(
+            user_id, item.variety_id, item.type, item.price,
+            item.scope, item.contract_id
+        ):
+            raise ConflictError("该价位标注已存在")
+
         try:
             return self._repo.create(
                 user_id=user_id,

@@ -42,7 +42,7 @@
 | K 线图 | lightweight-charts | ^5.2.0 |
 | 数据获取 | SWR | ^2.4.1 |
 | 消息提示 | sonner | ^2.0.7 |
-| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest 4.1.7，30 个测试文件 / 178 tests |
+| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest 4.1.7，30 个测试文件 / 179 tests |
 | E2E 测试 | Playwright | ^1.60.0，5 个文件（4 spec + auth.setup.ts）/ 28 tests |
 | 后端框架 | Python + FastAPI | Python >=3.11，FastAPI 0.136 |
 | 后端服务器 | Uvicorn | 0.30.6 |
@@ -354,9 +354,10 @@ ruff format .
 - `test_trading_date.py`
 
 前端测试：
-- Vitest 单元测试：`frontend/tests/` 下 30 个测试文件，178 tests 全部通过
-- Playwright E2E：`frontend/e2e/` 下 5 个文件（auth.setup.ts + 4 个 spec），28 tests 全部通过
-- 注意：`npm run test` 在 Windows 上可能因 Vitest 路径解析问题失败（已知问题，见 `FRONTEND_QUALITY_AUDIT_V3_20260525.md`）
+- Vitest 单元测试：`frontend/tests/` 下 30 个测试文件，179 tests 全部通过
+- Playwright E2E：`frontend/e2e/` 下 5 个文件（auth.setup.ts + 4 个 spec），已登录测试需后端配合运行
+- Lighthouse 性能基线：`npm run lighthouse` 测量首页未登录态 Web Vitals（FCP/LCP/TBT/CLS/SI），报告输出到 `.lighthouse/latest.json`
+- 注意：`npm run test` 在 Windows 上可能因 Vitest 路径解析问题偶发失败（已知问题，见 `FRONTEND_QUALITY_AUDIT_V3_20260525.md`）
 
 ---
 
@@ -512,10 +513,13 @@ ruff format .
 
 - 新增 `.github/workflows/frontend-ci.yml`：push/PR 触发，执行 lint + build + test
 
-### E2E 性能基线 — 已完成（2026-05-28）
+### Lighthouse 性能基线 — 已完成（2026-05-29）
 
-- `performance.spec.ts` 5 个测试覆盖：首页未登录/已登录、品种列表、品种详情、登录弹窗交互
-- `auth.setup.ts` + `storageState` 机制避免并发登录 429
+- `scripts/lighthouse-baseline.js`：headless Chrome 测量首页未登录态性能
+- 输出核心 Web Vitals（FCP、LCP、TBT、CLS、SI、TTI）+ DOM size + Network requests + Total weight
+- 报告保存到 `.lighthouse/latest.json`，支持历史对比
+- `frontend-ci.yml` 集成 Lighthouse，build 后自动跑基线
+- Playwright E2E 保留功能测试，`performance.spec.ts` 中的性能断言迁移到 Lighthouse
 - token 持久化到 `localStorage`（`futures_access_token`），刷新不丢失登录态
 
 ### v5 审计债务修复 — 已完成（2026-05-28）
