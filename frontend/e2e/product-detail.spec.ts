@@ -1,15 +1,8 @@
-import { test, expect, Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 
-async function login(page: Page) {
-  await page.goto('/')
-  await page.getByRole('button', { name: '登录' }).click()
-  await page.getByLabel('用户名').fill('trader001')
-  await page.getByLabel('密码').fill('password123')
-  await page.getByRole('button', { name: '登录' }).click()
-  await expect(page.getByRole('heading', { name: '行情工作台' })).toBeVisible({ timeout: 10000 })
-}
+const AUTH_STATE = 'playwright/.auth/user.json'
 
-async function enterFirstProductDetail(page: Page) {
+async function enterFirstProductDetail(page: import('@playwright/test').Page) {
   await page.goto('/products')
   await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 10000 })
   await page.getByRole('link', { name: '详情' }).first().click()
@@ -17,18 +10,19 @@ async function enterFirstProductDetail(page: Page) {
 }
 
 test.describe.serial('品种详情页', () => {
+  test.use({ storageState: AUTH_STATE })
+
   test('详情页应显示品种信息与 K 线图', async ({ page }) => {
-    await login(page)
     await enterFirstProductDetail(page)
 
     await expect(page.getByRole('button', { name: '连续 K 线' })).toBeVisible()
     await expect(page.getByRole('button', { name: '主力合约' })).toBeVisible()
     await expect(page.getByRole('button', { name: '具体合约' })).toBeVisible()
-    await expect(page.getByRole('img')).toBeVisible({ timeout: 15000 })
+    // lightweight-charts 渲染为 canvas，不是 img
+    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15000 })
   })
 
   test('K 线源切换应更新图表状态', async ({ page }) => {
-    await login(page)
     await enterFirstProductDetail(page)
 
     await page.getByRole('button', { name: '主力合约' }).click()
@@ -48,7 +42,6 @@ test.describe.serial('品种详情页', () => {
   })
 
   test('加入自选与取消自选应可正常工作', async ({ page }) => {
-    await login(page)
     await enterFirstProductDetail(page)
 
     const watchlistButton = page.getByRole('button', { name: /^加入自选|已自选$/ })
@@ -65,37 +58,36 @@ test.describe.serial('品种详情页', () => {
   })
 
   test('添加与删除支撑位应可正常工作', async ({ page }) => {
-    await login(page)
     await enterFirstProductDetail(page)
 
+    const supportPrice = (3000 + Math.random() * 100).toFixed(2)
     const supportSection = page.locator('section').filter({ hasText: '支撑位' }).first()
     const input = supportSection.getByLabel('支撑位')
-    await input.fill('1234.56')
+    await input.fill(supportPrice)
     await supportSection.getByRole('button', { name: '添加' }).click()
 
-    await expect(supportSection.getByText('1234.56')).toBeVisible()
+    await expect(supportSection.getByText(supportPrice)).toBeVisible()
 
-    await supportSection.getByRole('button', { name: '删除支撑位 1234.56' }).click()
-    await expect(supportSection.getByText('1234.56')).not.toBeVisible()
+    await supportSection.locator('button', { hasText: supportPrice }).click()
+    await expect(supportSection.getByText(supportPrice)).not.toBeVisible()
   })
 
   test('添加与删除阻力位应可正常工作', async ({ page }) => {
-    await login(page)
     await enterFirstProductDetail(page)
 
+    const resistancePrice = (6000 + Math.random() * 100).toFixed(2)
     const resistanceSection = page.locator('section').filter({ hasText: '阻力位' }).first()
     const input = resistanceSection.getByLabel('阻力位')
-    await input.fill('5678.90')
+    await input.fill(resistancePrice)
     await resistanceSection.getByRole('button', { name: '添加' }).click()
 
-    await expect(resistanceSection.getByText('5678.90')).toBeVisible()
+    await expect(resistanceSection.getByText(resistancePrice)).toBeVisible()
 
-    await resistanceSection.getByRole('button', { name: '删除阻力位 5678.90' }).click()
-    await expect(resistanceSection.getByText('5678.90')).not.toBeVisible()
+    await resistanceSection.locator('button', { hasText: resistancePrice }).click()
+    await expect(resistanceSection.getByText(resistancePrice)).not.toBeVisible()
   })
 
   test('发表评论应可正常工作', async ({ page }) => {
-    await login(page)
     await enterFirstProductDetail(page)
 
     const commentInput = page.getByLabel('发表评论')
@@ -107,7 +99,6 @@ test.describe.serial('品种详情页', () => {
   })
 
   test('返回行情中心应正常跳转', async ({ page }) => {
-    await login(page)
     await enterFirstProductDetail(page)
 
     await page.getByRole('link', { name: '返回行情中心' }).click()

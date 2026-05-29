@@ -180,6 +180,13 @@
 | 2026-05-28 | 后端：`main.py` 挂载路由；Alembic 迁移 `71cca1a466b4` 创建 `frontend_logs` 表 | ✅ |
 | 2026-05-28 | 后端：`test_frontend_logs.py` 4 个测试覆盖正常写入、Web Vitals、无 meta、限流可达 | ✅ |
 | 2026-05-28 | **前端监控闭环验收：pytest 223 passed, 1 skipped；sentry-lite/vitals 默认 reportUri 有后端落盘** | ✅ |
+| 2026-05-28 | 进入 Phase 5：删除 comments.product_id 列，全面清理 ProductDB 遗留 | 🔄 |
+| 2026-05-28 | Phase 5：后端 CommentCreate/Response schema、CommentDB 模型、Service/Repository/Route 全面移除 product_id | ✅ |
+| 2026-05-28 | Phase 5：前端 Comment 类型、fixture、my-comments、MyResearchTimeline 全面移除 product_id | ✅ |
+| 2026-05-28 | Phase 5：Alembic 迁移 090b961056bb 删除 comments.product_id 列 | ✅ |
+| 2026-05-28 | Phase 5：修复 QuoteCard/QuoteTable/usePriceLevels 测试适配 symbol-based 路由 | ✅ |
+| 2026-05-28 | **Phase 5 验收：pytest 223 passed；前端 30 files / 177 tests passed；ProductDB 全部清理完毕** | ✅ |
+| 2026-05-28 | 进入性能基线验证：Playwright E2E performance.spec.ts | 🔄 |
 
 ---
 

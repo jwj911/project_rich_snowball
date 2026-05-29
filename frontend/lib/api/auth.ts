@@ -2,15 +2,47 @@ import { RequestCore, API_BASE, fetchWithTimeout } from './request'
 import { ApiError } from './errors'
 import type { TokenResponse, User } from './types'
 
+const ACCESS_TOKEN_KEY = 'futures_access_token'
+
 export class AuthCore extends RequestCore {
   private token: string | null = null
   private refreshPromise: Promise<boolean> | null = null
 
+  constructor() {
+    super()
+    if (typeof window !== 'undefined') {
+      try {
+        this.token = localStorage.getItem(ACCESS_TOKEN_KEY)
+      } catch {
+        // localStorage unavailable (e.g. private mode)
+      }
+    }
+  }
+
   setToken(token: string | null) {
     this.token = token
+    if (typeof window !== 'undefined') {
+      try {
+        if (token) {
+          localStorage.setItem(ACCESS_TOKEN_KEY, token)
+        } else {
+          localStorage.removeItem(ACCESS_TOKEN_KEY)
+        }
+      } catch {
+        // localStorage unavailable
+      }
+    }
   }
 
   getToken(): string | null {
+    if (this.token) return this.token
+    if (typeof window !== 'undefined') {
+      try {
+        this.token = localStorage.getItem(ACCESS_TOKEN_KEY)
+      } catch {
+        // localStorage unavailable
+      }
+    }
     return this.token
   }
 

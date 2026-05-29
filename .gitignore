@@ -95,3 +95,8 @@ python/*.csv
 # Commission data files
 python/data/commission/
 
+# Playwright auth state and E2E backend logs
+frontend/playwright/
+backend-e2e.log
+backend-e2e.err
+

@@ -105,16 +105,18 @@ def init_mock_data():
                     insert_kline_bulk(db, rows, period)
 
         # 5. 兜底：确保每个 Variety 都有 RealtimeQuote（避免 init_varieties 与 mock 数据脱节）
+        mock_price_map = {p["symbol"]: p["current_price"] for p in _MOCK_PRODUCTS}
         for variety in variety_map.values():
             existing = db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).first()
             if not existing:
+                default_price = mock_price_map.get(variety.symbol, 0.0)
                 db.add(RealtimeQuoteDB(
                     variety_id=variety.id,
-                    current_price=variety.pre_settlement or 0.0,
+                    current_price=default_price,
                     change_percent=0.0,
-                    open_price=variety.pre_settlement or 0.0,
-                    high=variety.pre_settlement or 0.0,
-                    low=variety.pre_settlement or 0.0,
+                    open_price=default_price,
+                    high=default_price,
+                    low=default_price,
                     volume=0,
                     limit_up=None,
                     limit_down=None,
