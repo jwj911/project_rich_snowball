@@ -504,6 +504,22 @@ describe('useRealtimeQuotes symbol changes', () => {
     expect(result.current.quotes.size).toBe(0)
     expect(result.current.source).toBeNull()
   })
+
+  it('omits symbols from URL when count exceeds threshold to avoid 400', async () => {
+    const manySymbols = Array.from({ length: 35 }, (_, i) => `S${i}`)
+    const { unmount } = renderHook(() => useRealtimeQuotes(manySymbols))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(MockEventSource.instances).toHaveLength(1)
+    const source = MockEventSource.instances[0]
+    expect(source.url).not.toContain('symbols=')
+    expect(source.url).toContain('/api/realtime/stream?')
+
+    unmount()
+  })
 })
 
 describe('useRealtimeQuotes multi-subscriber reuse', () => {

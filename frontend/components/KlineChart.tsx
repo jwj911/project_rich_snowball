@@ -8,6 +8,7 @@ import KlineChartHeader from '@/components/kline/KlineChartHeader'
 import CrosshairTooltip from '@/components/kline/CrosshairTooltip'
 import AnnotationContextMenu from '@/components/kline/AnnotationContextMenu'
 import { LineChart } from 'lucide-react'
+import { formatPrice } from '@/lib/format'
 import { CHART } from '@/lib/constants'
 import { KlineData } from '@/lib/api'
 import { AnnotationMenu, CandlePoint, CrosshairQuote, normalizeKlineData, maxOf, minOf } from '@/lib/klineChart'
@@ -17,6 +18,7 @@ import { useKlinePriceLines } from '@/hooks/useKlinePriceLines'
 interface KlineChartProps {
   data: KlineData[]
   symbol: string
+  pricePrecision?: number
   supportLevels?: number[]
   resistanceLevels?: number[]
   onAddSupport?: (price: number) => void
@@ -30,6 +32,7 @@ const CHART_HEIGHT = CHART.HEIGHT
 export default function KlineChart({
   data: externalData,
   symbol,
+  pricePrecision = 2,
   supportLevels = [],
   resistanceLevels = [],
   onAddSupport,
@@ -90,6 +93,7 @@ export default function KlineChart({
   const { instanceRef, setData } = useKlineChart({
     containerRef: chartContainerRef,
     enabled: hasChartData,
+    pricePrecision,
     onCrosshairMove: handleCrosshairMove,
   })
 
@@ -141,7 +145,7 @@ export default function KlineChart({
     <div
       ref={rootRef}
       role="img"
-      aria-label={`${symbol} K线图，最新价 ${latestPoint.close.toFixed(2)}，最高 ${maxOf(points, 'high').toFixed(2)}，最低 ${minOf(points, 'low').toFixed(2)}`}
+      aria-label={`${symbol} K线图，最新价 ${formatPrice(latestPoint.close, pricePrecision)}，最高 ${formatPrice(maxOf(points, 'high'), pricePrecision)}，最低 ${formatPrice(minOf(points, 'low'), pricePrecision)}`}
       onContextMenu={openAnnotationMenu}
       onClick={annotationMenu ? closeAnnotationMenu : undefined}
       className="relative w-full select-none overflow-hidden rounded-lg border border-border bg-surface-inset"
@@ -152,11 +156,12 @@ export default function KlineChart({
         firstPoint={firstPoint}
         latestPoint={latestPoint}
         quote={crosshairQuote}
+        pricePrecision={pricePrecision}
       />
 
       <div ref={chartContainerRef} className="h-[520px] w-full cursor-crosshair" />
 
-      <CrosshairTooltip quote={crosshairQuote} latestPoint={latestPoint} />
+      <CrosshairTooltip quote={crosshairQuote} latestPoint={latestPoint} pricePrecision={pricePrecision} />
 
       {(supportLevels.length > 0 || resistanceLevels.length > 0) && (
         <div className="absolute right-3 top-12 max-w-[220px] space-y-2 rounded border border-border bg-surface-elevated/95 p-2 text-xs shadow-lg">

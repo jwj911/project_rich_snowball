@@ -27,6 +27,7 @@ export interface KlineChartInstance {
 interface UseKlineChartOptions {
   containerRef: RefObject<HTMLDivElement | null>
   enabled: boolean
+  pricePrecision?: number
   onCrosshairMove?: (time: Time | null, candleData: {
     open: number
     high: number
@@ -35,7 +36,7 @@ interface UseKlineChartOptions {
   } | null) => void
 }
 
-export function useKlineChart({ containerRef, enabled, onCrosshairMove }: UseKlineChartOptions) {
+export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCrosshairMove }: UseKlineChartOptions) {
   const instanceRef = useRef<KlineChartInstance | null>(null)
   const hasFitInitialContentRef = useRef(false)
 
@@ -72,7 +73,7 @@ export function useKlineChart({ containerRef, enabled, onCrosshairMove }: UseKli
         barSpacing: 8,
       },
       localization: {
-        priceFormatter: (price: number) => price.toFixed(2),
+        priceFormatter: (price: number) => price.toFixed(pricePrecision),
       },
       handleScale: {
         axisPressedMouseMove: true,
@@ -143,7 +144,7 @@ export function useKlineChart({ containerRef, enabled, onCrosshairMove }: UseKli
       instanceRef.current = null
       hasFitInitialContentRef.current = false
     }
-  }, [containerRef, enabled, onCrosshairMove])
+  }, [containerRef, enabled, onCrosshairMove, pricePrecision])
 
   const setData = (candleData: Array<{
     time: Time

@@ -187,6 +187,12 @@
 | 2026-05-28 | Phase 5：修复 QuoteCard/QuoteTable/usePriceLevels 测试适配 symbol-based 路由 | ✅ |
 | 2026-05-28 | **Phase 5 验收：pytest 223 passed；前端 30 files / 177 tests passed；ProductDB 全部清理完毕** | ✅ |
 | 2026-05-28 | 进入性能基线验证：Playwright E2E performance.spec.ts | 🔄 |
+| 2026-05-28 | E2E：token 持久化到 `localStorage`（`AuthCore` 读写 `futures_access_token`） | ✅ |
+| 2026-05-28 | E2E：`auth.setup.ts` + `storageState` 机制，避免并发登录触发 429 | ✅ |
+| 2026-05-28 | E2E：修复 CORS `expose_headers`（`X-Total-Count` 等自定义头浏览器可读） | ✅ |
+| 2026-05-28 | E2E：修复所有 strict mode violation、焦点测试、选择器精度问题 | ✅ |
+| 2026-05-28 | **E2E 性能基线验收：Playwright 28/28 passed；Vitest 177/177 passed；pytest 223 passed** | ✅ |
+| 2026-05-28 | 进入 CSRF 策略迭代：SameSite + 写接口鉴权方式明确 | 🔄 |
 
 ---
 

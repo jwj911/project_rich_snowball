@@ -21,7 +21,7 @@ describe('Kline chart pieces', () => {
     render(<CrosshairTooltip quote={null} latestPoint={latestPoint} />)
 
     expect(screen.getByText('2026-05-16')).toBeInTheDocument()
-    expect(screen.getByText('3650.00')).toBeInTheDocument()
+    expect(screen.getByText('3,650.00')).toBeInTheDocument()
     expect(screen.getByText('1,200')).toBeInTheDocument()
     expect(screen.getByText('RB2609.SHF')).toBeInTheDocument()
   })

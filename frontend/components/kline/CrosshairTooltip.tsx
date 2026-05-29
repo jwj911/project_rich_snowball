@@ -1,11 +1,13 @@
+import { formatPrice } from '@/lib/format'
 import { CandlePoint, CrosshairQuote } from '@/lib/klineChart'
 
 interface CrosshairTooltipProps {
   quote: CrosshairQuote | null
   latestPoint: CandlePoint
+  pricePrecision?: number
 }
 
-export default function CrosshairTooltip({ quote, latestPoint }: CrosshairTooltipProps) {
+export default function CrosshairTooltip({ quote, latestPoint, pricePrecision = 2 }: CrosshairTooltipProps) {
   const contractCode = quote?.contractCode ?? latestPoint.contractCode
 
   return (
@@ -14,7 +16,7 @@ export default function CrosshairTooltip({ quote, latestPoint }: CrosshairToolti
         <span className="text-slate-500">时间</span>
         <span className="font-mono text-slate-200">{quote?.time ?? latestPoint.originalTime}</span>
         <span className="text-slate-500">收盘</span>
-        <span className="font-mono text-slate-200">{(quote?.close ?? latestPoint.close).toFixed(2)}</span>
+        <span className="font-mono text-slate-200">{formatPrice(quote?.close ?? latestPoint.close, pricePrecision)}</span>
         <span className="text-slate-500">成交量</span>
         <span className="font-mono text-slate-200">{Math.round(quote?.volume ?? latestPoint.volume).toLocaleString()}</span>
         {contractCode && (

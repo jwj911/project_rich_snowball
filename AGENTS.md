@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-05-25，基于 master 分支当前代码。
+> **最后更新**：2026-05-28，基于 master 分支当前代码。
 
 ---
 
@@ -42,13 +42,13 @@
 | K 线图 | lightweight-charts | ^5.2.0 |
 | 数据获取 | SWR | ^2.4.1 |
 | 消息提示 | sonner | ^2.0.7 |
-| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest 4.1.6 |
-| E2E 测试 | Playwright | ^1.60.0 |
+| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest 4.1.6，30 个测试文件 / 177 tests |
+| E2E 测试 | Playwright | ^1.60.0，4 个 spec + auth.setup.ts / 28 tests |
 | 后端框架 | Python + FastAPI | Python >=3.11，FastAPI 0.136 |
 | 后端服务器 | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.25 |
 | 数据库 | SQLite / PostgreSQL | SQLite 开发零配置；PG 16 通过 compose 提供，映射端口 15432 |
-| 迁移 | Alembic | 1.13.1，当前共 28 个迁移文件 |
+| 迁移 | Alembic | 1.13.1，当前共 30 个迁移文件 |
 | 认证 | JWT + OAuth2 密码流 | PyJWT 2.9.0，passlib bcrypt，access token 默认 15 分钟，refresh token 默认 7 天 |
 | 数据校验 | Pydantic v2 | 2.9.0 |
 | 数据采集 | Mock / AkShare / Tushare | `DATA_SOURCE` 控制，非生产可降级 Mock |
@@ -186,10 +186,7 @@ project_rich_snowball/
 - 导入顺序：标准库 → 第三方库 → 本项目模块。
 - 数据库会话统一使用 `dependencies.get_db()`，避免手动创建 `SessionLocal()` 后忘记关闭。
 - 路由按领域拆分为 `APIRouter`，在 `main.py` 统一挂载。
-- 当前有双数据层：
-  - `ProductDB` + `/api/products/*` 是前端主流程仍在使用的兼容层。
-  - `VarietyDB` / `RealtimeQuoteDB` / `KlineDataDB` + `/api/varieties`、`/api/realtime`、`/api/klines` 是新行情数据层。
-  - `scheduler.sync_prices_to_products()` 每 60 秒把 `realtime_quotes` 同步回 `products`。
+- **ProductDB 已完全退场**（2026-05-28）：物理表已删除，`comments.product_id` 列已删除，所有前后端代码、测试、schema 已清理。品种数据统一走 `VarietyDB` / `RealtimeQuoteDB` / `KlineDataDB` + `/api/varieties`、`/api/realtime`、`/api/klines`。
 - 数据采集遵循 `collector -> adapter -> cleaner -> pipeline -> upsert`。
 - upsert 逻辑在 `data_collector/upsert.py`，已兼容 SQLite / PostgreSQL 双方言。
 - 密码必须用 `utils.hash_password()`，禁止明文、MD5、SHA256。
@@ -356,8 +353,8 @@ ruff format .
 - `test_trading_date.py`
 
 前端测试：
-- Vitest 单元测试：`frontend/tests/` 下 26 个测试文件，覆盖 components、hooks、lib
-- Playwright E2E：`frontend/e2e/` 下 3 个 spec（auth、market、product-detail）
+- Vitest 单元测试：`frontend/tests/` 下 30 个测试文件，177 tests 全部通过
+- Playwright E2E：`frontend/e2e/` 下 5 个文件（auth.setup.ts + 4 个 spec），28 tests 全部通过
 - 注意：`npm run test` 在 Windows 上可能因 Vitest 路径解析问题失败（已知问题，见 `FRONTEND_QUALITY_AUDIT_V3_20260525.md`）
 
 ---
@@ -415,15 +412,14 @@ ruff format .
 
 ## CI/CD 与容器化
 
-- **GitHub Actions**：`.github/workflows/update-calendar.yml`
-  - 每年 1 月 1 日自动更新交易日历（cron），也支持手动触发
-  - 使用 Python 3.11 + akshare，自动提交 `python/data/trading_calendar.json`
-  - **注意**：目前没有后端 pytest 的 CI 流水线，也没有前端构建的 CI 流水线。
+- **GitHub Actions**：
+  - `.github/workflows/backend-ci.yml`：pytest + ruff + pip-audit，使用 `requirements.lock`
+  - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发
 
 - **Dockerfile**：`python/Dockerfile`
   - 基于 `python:3.11-slim`
   - 创建非 root 用户 `app`
-  - 健康检查：`curl -f http://localhost:8200/health || exit 1`
+  - 健康检查：`curl -f http://localhost:8200/health/ready || exit 1`
   - 默认 CMD 为 `uvicorn main:app --host 0.0.0.0 --port 8200`
   - 生产建议使用 gunicorn + uvicorn worker
 
@@ -463,67 +459,57 @@ ruff format .
 
 ---
 
-## 当前迭代状态（2026-05-25）
+## 当前迭代状态（2026-05-28）
 
-### Phase 1：用户工作区闭环 — 已完成
+### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 
-**后端**
-- `price_levels` 表与 `/api/price-levels` CRUD 路由（去重、越权保护）
-- `watchlists` 表与 `/api/watchlists` CRUD 路由（去重、越权保护）
-- `/api/workspace/me` 聚合 API（评论 + 标注 + 自选）
-- 评论模型扩展 `price_level_id` nullable 字段
-- 全部有 pytest 覆盖
+- `price_levels` / `watchlists` / `workspace` 云端同步闭环
+- `contract_rollovers` + 连续 K 线拼接 + 合约切换
+- 独立 worker、`ENABLE_SCHEDULER=0` 默认、数据源熔断、数据质量检查
 
-**前端**
-- `frontend/hooks/usePriceLevels.ts`：封装价位标注的后端同步、localStorage 降级、首次导入
-- `frontend/lib/api.ts`：新增 `getVariety`、`PriceLevel`、`Watchlist`、`WorkspaceSummary` 类型与方法
-- `workspace/page.tsx`：接入真实 `api.getWorkspace()`，自选/标注/评论全部来自后端
-- `WatchlistPanel.tsx`：从占位替换为真实自选列表，支持删除
-- `MyAnnotationsPanel.tsx`：标签从"本地"改为"云端"
-- `products/[id]/page.tsx`：
-  - 接入 `usePriceLevels` hook，添加/删除价位实时同步后端
-  - 首次进入时自动将本地标注导入后端
-  - 新增"加入自选 / 已自选"按钮
-
-### Phase 2：合约与 K 线语义 — 已完成
+### Phase 4：ProductDB 全面退场 — 已完成（2026-05-28）
 
 **后端**
-- `kline_data` 增加 `contract_id` nullable（Alembic 迁移已生成）
-- 新增 `contract_rollovers` 表记录主力换月
-- `/api/contracts`、`/api/varieties/{id}/contracts`、`/api/varieties/{id}/rollovers` 路由
-- 连续 K 线服务 `services/continuous_kline.py`（主力切换拼接）
-- `/api/klines/{symbol}/continuous` 和 `/api/klines/{symbol}/main` 接口
-- 全部有 pytest 覆盖
+- 删除 `products` 物理表（Alembic `5b2bada50d93`）
+- 删除 `comments.product_id` 列（Alembic `090b961056bb`）
+- 删除废弃 `routers/products.py`、`product_service.py`、`product_repository.py`、Product schema
+- 前端 API 全面迁移到 `/api/varieties` + symbol-based 路由
+- pytest 223 passed
 
 **前端**
-- 品种详情页已接入合约切换（主力/连续/具体合约）
-- K 线 tooltip 已显示当前 bar 所属合约
-- 支撑/阻力绑定合约口径
+- `lib/api/products.ts`：`getProductBySymbol(symbol)` 替代 `getProduct(id)`
+- `app/products/[id]/page.tsx`：`params.id` 直接作为 symbol
+- 所有品种链接改为 `/products/{symbol}`
+- Vitest 177 passed，Playwright 28 passed
 
-### Phase 3：生产边界 — 已完成
+### 前端监控闭环 — 已完成（2026-05-28）
 
-- **独立 worker 入口**：`python/worker.py` 纯 CLI 启动 scheduler，不启动 FastAPI
-- **API 默认禁用 scheduler**：`ENABLE_SCHEDULER` 默认值改为 `0`
-- **任务状态表扩展**：`data_ingestion_runs` 增加 `duration_ms`、`error_sample`、`window_start`、`window_end`
-- **`/health/scheduler` 增强**：返回最近 24h 任务统计、成功率、平均执行时长、熔断器状态
-- **数据源熔断**：`services/circuit_breaker.py` 内存实现，连续失败 5 次后冷却 10 分钟
-- **数据质量检查脚本**：`scripts/data_quality_report.py` 检测缺失日期、重复键、OHLC 异常、负成交量
-- **后端测试**：28 个 pytest 文件覆盖核心功能
+- 后端：`POST /api/log/frontend` + `FrontendLogDB` + Alembic 迁移 `71cca1a466b4`
+- `test_frontend_logs.py` 4 个测试覆盖
+- sentry-lite / vitals 默认 `reportUri` 指向后端落盘端点
 
-### 已完成的额外工作（2026-05-14 之后）
+### E2E 性能基线 — 已完成（2026-05-28）
 
-- **前端测试基础设施**：Vitest + @testing-library/react + Playwright 已配置，26+ 单元测试文件 + 3 个 E2E spec
-- **Bundle Budget**：`next.config.js` 设定 180kB First Load JS 红线
-- **安全响应头**：X-Content-Type-Options、X-Frame-Options、Referrer-Policy、Permissions-Policy、CSP
-- **结构化日志**：`services/logging_config.py` + structlog 全链路日志
-- **慢查询日志**：SQLAlchemy 事件监听，阈值可通过 `SLOW_QUERY_THRESHOLD_SECONDS` 配置
+- `performance.spec.ts` 5 个测试覆盖：首页未登录/已登录、品种列表、品种详情、登录弹窗交互
+- `auth.setup.ts` + `storageState` 机制避免并发登录 429
+- token 持久化到 `localStorage`（`futures_access_token`），刷新不丢失登录态
+
+### v5 审计债务修复 — 已完成（2026-05-28）
+
+- venv 重建（Python 3.12.9），pytest/ruff/pip-audit 本地可复现
+- CI 统一使用 `requirements.lock`
+- `fut_mapping_task` 循环依赖消除
+- `tushare_batch_tasks.py` 模板抽象（377→175 行）
+- ruff 质量门禁生效（移除 `continue-on-error`）
+- 数据库连接池监控落地
+- CORS `expose_headers` 修复（自定义响应头浏览器可读）
 
 ### 下一步推荐
 
-1. **Phase 4 可观测性**：完善 Prometheus Grafana 大盘、慢查询告警、依赖健康检查
-2. **Phase 5 实时推送**：SSE/WebSocket 替代轮询，降低服务端压力
-3. **前端测试稳定性**：修复 Windows 下 Vitest 路径解析问题，确保 `npm run test` 稳定通过
-4. **CI/CD 完善**：添加后端 pytest 流水线、前端构建与测试流水线
+1. **CSRF 策略明确化**：Cookie auth 存在但无显式 CSRF 策略，为写接口补 SameSite/CSRF token 或改纯 Authorization header
+2. **mypy 分阶段收紧**：从 `pipeline_tasks/` 和 domain services 开始纳入类型检查
+3. **SSE/熔断器 Redis 化**：进程内状态 → Redis，支撑横向扩展
+4. **只读 Admin 运营后台**：metrics_dashboard 已有基础，风险最低的可启动功能
 
 ---
 
@@ -540,4 +526,4 @@ ruff format .
 
 ---
 
-*最后更新：2026-05-25，由 AI 助手根据 master 分支当前代码整理。*
+*最后更新：2026-05-28，由 AI 助手根据 master 分支当前代码整理。*

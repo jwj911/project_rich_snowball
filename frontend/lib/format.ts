@@ -56,8 +56,9 @@ export function formatRelativeTime(value: string | null | undefined) {
   return `${Math.floor(hours / 24)} 天前`
 }
 
-export function getChangeTone(value: number | null | undefined) {
-  return (value ?? 0) >= 0 ? 'up' : 'down'
+export function getChangeTone(value: number | null | undefined): 'up' | 'down' | 'neutral' {
+  if (value == null) return 'neutral'
+  return value >= 0 ? 'up' : 'down'
 }
 
 export function isLimitUp(price: number | null | undefined, limitUp: number | null | undefined, epsilon = 0.01) {

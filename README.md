@@ -18,9 +18,9 @@
 
 | 层级 | 技术 |
 |------|------|
-| 前端 | Next.js 14.1.0 + React 18 + TypeScript 5.3 + Tailwind CSS 3.4 |
+| 前端 | Next.js 14.2.35 + React 18.2 + TypeScript 5.3 + Tailwind CSS 3.4 |
 | 图表与图标 | `lightweight-charts`、`lucide-react` |
-| 后端 | Python 3.12 + FastAPI 0.136 + Uvicorn 0.30 |
+| 后端 | Python 3.12 + FastAPI 0.136.3 + Uvicorn 0.30.6 |
 | ORM / 迁移 | SQLAlchemy 2.0 + Alembic |
 | 数据库 | SQLite（默认开发）/ PostgreSQL 16（可选） |
 | 认证 | JWT + OAuth2 密码流 + bcrypt |
@@ -89,7 +89,7 @@ PORT=8200
 cd D:\Code\project_rich_snowball\python
 python -m venv venv
 venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements.lock
 python main.py
 ```
 
@@ -148,8 +148,9 @@ npx tsc --noEmit
 | `POST /api/auth/register` | 注册，IP 级限流 |
 | `POST /api/auth/login` | 登录，OAuth2 表单，返回 JWT |
 | `GET /api/auth/me` | 当前用户信息 |
-| `GET /api/products` | 旧兼容品种列表，供当前前端主流程使用 |
-| `GET /api/products/{id}` | 旧兼容品种详情和评论 |
+| `GET /api/varieties` | 品种列表（搜索/筛选/排序/统计） |
+| `GET /api/varieties/{symbol}` | 品种详情 |
+| `GET /api/varieties/{symbol}/detail` | 品种详情含评论 |
 | `POST /api/comments` | 发表评论，需要登录 |
 | `GET /api/comments/user/{username}` | 用户评论历史 |
 | `GET /api/varieties` | 新数据层品种列表 |
@@ -192,7 +193,7 @@ pytest tests -v
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-前端当前没有 Jest/Vitest/Playwright 自动化测试。修改前端后至少运行：
+前端已配置 Vitest + Playwright 自动化测试。修改前端后至少运行：
 
 ```powershell
 cd D:\Code\project_rich_snowball\frontend

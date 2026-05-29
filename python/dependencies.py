@@ -2,7 +2,7 @@
 import logging
 
 import jwt
-from fastapi import Cookie, Depends, Header, HTTPException
+from fastapi import Cookie, Depends, Header, HTTPException, Request
 from jwt.exceptions import PyJWTError
 from sqlalchemy.orm import Session
 
@@ -39,14 +39,20 @@ def get_current_user(token: str, db: Session) -> UserDB | None:
 
 
 def get_current_user_dependency(
+    request: Request,
     authorization: str = Header(None),
     access_token: str = Cookie(None),
     db: Session = Depends(get_db),  # noqa: B008
 ) -> UserDB:
+    """通用鉴权依赖：优先 Authorization header，GET/HEAD 可回退到 cookie。
+
+    CSRF 防护：POST/PUT/PATCH/DELETE 必须显式携带 Authorization header，
+    不接受 cookie 中的 access_token，防止跨站请求伪造。
+    """
     token = None
     if authorization and authorization.startswith("Bearer "):
         token = authorization.replace("Bearer ", "")
-    elif access_token:
+    elif access_token and request.method in ("GET", "HEAD"):
         token = access_token
 
     if not token:

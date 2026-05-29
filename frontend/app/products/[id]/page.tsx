@@ -211,6 +211,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                 <KlineSection
                   data={klineData}
                   symbol={product.symbol}
+                  pricePrecision={product.price_precision}
                   contracts={contracts}
                   selectedContractId={selectedContractId}
                   selectedSource={selectedKlineSource}
@@ -299,12 +300,13 @@ function QuoteMetric({
 }: {
   label: string
   value: React.ReactNode
-  tone?: 'up' | 'down'
+  tone?: 'up' | 'down' | 'neutral'
 }) {
+  const toneClass = tone === 'up' ? 'text-red-400' : tone === 'down' ? 'text-green-400' : 'text-slate-200'
   return (
     <div className="rounded-lg border border-slate-800 bg-black/30 p-3">
       <div className="text-xs text-slate-500">{label}</div>
-      <div className={`mt-2 min-h-6 font-mono text-base font-semibold ${tone ?? 'text-slate-200'}`}>{value}</div>
+      <div className={`mt-2 min-h-6 font-mono text-base font-semibold ${toneClass}`}>{value}</div>
     </div>
   )
 }

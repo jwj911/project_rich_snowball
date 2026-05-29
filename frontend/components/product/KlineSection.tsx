@@ -6,6 +6,7 @@ import { KLINE_PERIODS, KLINE_SOURCES, KlinePeriod, KlineSource } from '@/lib/kl
 interface KlineSectionProps {
   data: KlineData[]
   symbol: string
+  pricePrecision?: number
   contracts: FutContract[]
   selectedContractId: number | null
   selectedSource: KlineSource
@@ -30,6 +31,7 @@ interface KlineSectionProps {
 export default function KlineSection({
   data,
   symbol,
+  pricePrecision = 2,
   contracts,
   selectedContractId,
   selectedSource,
@@ -137,6 +139,7 @@ export default function KlineSection({
       <KlineChart
         data={data}
         symbol={symbol}
+        pricePrecision={pricePrecision}
         supportLevels={supportLevels}
         resistanceLevels={resistanceLevels}
         onAddSupport={onAddSupport}

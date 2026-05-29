@@ -246,7 +246,8 @@ pytest tests/test_realtime_batch.py tests/test_price_levels.py -q
 
 | 日期 | 完成项 | 状态 |
 |------|--------|------|
-| 2026-05-29 | 路线图文档定稿 | 🔄 |
+| 2026-05-29 | 路线图文档定稿 | ✅ |
+| 2026-05-29 | Phase 1: 实时 batch 契约修复 — batch 补齐 limit_up/limit_down，前端 merge 同步，测试断言，合并 master | ✅ |
 
 ---
 

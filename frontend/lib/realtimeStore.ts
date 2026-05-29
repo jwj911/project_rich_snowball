@@ -102,7 +102,12 @@ class RealtimeStore {
 
   private buildSseUrl(symbols: string[]): string {
     const params = new URLSearchParams()
-    symbols.forEach((s) => { params.append('symbols', s) })
+    // 当品种数过多时，不传 symbols 参数，后端自动订阅全部活跃品种，
+    // 避免 URL 超过浏览器/服务器长度限制（通常 2048 字符）。
+    const MAX_SSE_URL_SYMBOLS = 30
+    if (symbols.length > 0 && symbols.length <= MAX_SSE_URL_SYMBOLS) {
+      symbols.forEach((s) => { params.append('symbols', s) })
+    }
     return `${API_BASE}/api/realtime/stream?${params.toString()}`
   }
 
