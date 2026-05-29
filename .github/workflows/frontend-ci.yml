@@ -45,3 +45,12 @@ jobs:
 
       - name: Test
         run: npm run test
+
+      - name: Lighthouse Baseline
+        run: |
+          npm run build
+          npm start &
+          sleep 5
+          npm run lighthouse -- http://127.0.0.1:3000
+        env:
+          NEXT_PUBLIC_API_BASE: http://127.0.0.1:8200

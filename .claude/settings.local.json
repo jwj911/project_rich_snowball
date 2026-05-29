@@ -11,7 +11,11 @@
       "Bash(git rm *)",
       "Bash(git checkout *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(dir test-results/auth.setup.ts-authenticate-setup /s /b)",
+      "Bash(npm list *)",
+      "Bash(npx.cmd tsc *)",
+      "Bash(npm.cmd run *)"
     ]
   }
 }

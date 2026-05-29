@@ -1,5 +1,12 @@
 import { defineConfig, devices } from '@playwright/test'
 
+/**
+ * Playwright E2E 配置
+ *
+ * 注意：auth.setup.ts 及所有已登录测试需要后端 API 在 http://127.0.0.1:8200 运行。
+ * 若只测未登录流程，可直接运行 npx playwright test。
+ * 性能基线优先使用 Lighthouse（npm run lighthouse），不依赖后端登录态。
+ */
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
