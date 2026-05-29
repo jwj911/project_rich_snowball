@@ -44,7 +44,7 @@ project_rich_snowball/
 │   ├── main.py                  # FastAPI 应用入口，默认 127.0.0.1:8200
 │   ├── config.py                # .env 加载、安全配置、生产环境约束
 │   ├── models.py                # SQLAlchemy 模型
-│   ├── routers/                 # auth/products/comments/varieties/kline/realtime/health
+│   ├── routers/                 # auth/comments/varieties/kline/realtime/health/price-levels
 │   ├── data_collector/          # 在线采集流水线与调度器
 │   ├── tushare_pg_ingest/       # 独立 PostgreSQL 历史数据回填脚本
 │   ├── scripts/                 # 一次性验证/采集辅助脚本
