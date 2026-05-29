@@ -332,8 +332,28 @@ class ContinuousKlineResponse(KlineResponse):
 
 # ========== Batch Price Levels ==========
 
+class PriceLevelBatchItem(BaseModel):
+    """批量导入价位标注的单项模型。
+
+    与 PriceLevelCreate 语义一致，但作为 batch 接口的独立类型定义，
+    保证单条创建与批量创建在 scope/contract_id 上完全一致。
+    """
+
+    variety_id: int = Field(..., ge=1)
+    type: str = Field(..., pattern=r"^(support|resistance)$")
+    price: Decimal = Field(..., ge=0, decimal_places=4)
+    scope: str = Field(default="continuous", pattern=r"^(continuous|main|contract)$")
+    contract_id: int | None = Field(None, ge=1)
+    note: str | None = Field(None, max_length=500)
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def sanitize_note(cls, v: str | None) -> str | None:
+        return sanitize_html_text(v)
+
+
 class PriceLevelBatchCreate(BaseModel):
-    items: list[PriceLevelCreate] = Field(..., max_length=500)
+    items: list[PriceLevelBatchItem] = Field(..., max_length=500)
 
 
 class PriceLevelBatchResponse(BaseModel):

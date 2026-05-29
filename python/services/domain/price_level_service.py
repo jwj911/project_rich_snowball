@@ -140,6 +140,15 @@ class PriceLevelService:
                 failed.append({"index": idx, "reason": "品种不存在"})
                 continue
 
+            # contract scope 必须指定 contract_id
+            if item.scope == "contract" and item.contract_id is None:
+                failed.append({"index": idx, "reason": "contract scope 必须指定 contract_id"})
+                continue
+
+            # continuous/main scope 的 contract_id 应规范化为 None
+            if item.scope in ("continuous", "main") and item.contract_id is not None:
+                item.contract_id = None
+
             if item.contract_id is not None and item.contract_id not in valid_contracts:
                 failed.append({"index": idx, "reason": "关联合约不存在"})
                 continue

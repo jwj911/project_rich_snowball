@@ -57,6 +57,8 @@ export function createPriceLevelsBatch(
     type: 'support' | 'resistance'
     price: string
     note?: string | null
+    scope?: PriceLevelScope
+    contract_id?: number | null
   }>,
 ): Promise<{
   success: PriceLevel[]
