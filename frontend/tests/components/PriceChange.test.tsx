@@ -18,14 +18,18 @@ describe('PriceChange', () => {
     expect(screen.getByText('+0.00%')).toBeInTheDocument()
   })
 
-  it('renders -- for null', () => {
-    render(<PriceChange value={null} />)
+  it('renders -- with neutral class for null', () => {
+    const { container } = render(<PriceChange value={null} />)
     expect(screen.getByText('--')).toBeInTheDocument()
+    expect(container.querySelector('svg')).not.toBeInTheDocument()
+    expect(screen.getByText('--').closest('span')).toHaveClass('text-slate-400')
   })
 
-  it('renders -- for undefined', () => {
-    render(<PriceChange value={undefined} />)
+  it('renders -- with neutral class for undefined', () => {
+    const { container } = render(<PriceChange value={undefined} />)
     expect(screen.getByText('--')).toBeInTheDocument()
+    expect(container.querySelector('svg')).not.toBeInTheDocument()
+    expect(screen.getByText('--').closest('span')).toHaveClass('text-slate-400')
   })
 
   it('hides icon when showIcon is false', () => {

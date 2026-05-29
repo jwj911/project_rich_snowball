@@ -106,11 +106,11 @@ describe('getChangeTone', () => {
     expect(getChangeTone(-0.01)).toBe('down')
   })
 
-  it('returns up for null (default to 0)', () => {
-    expect(getChangeTone(null)).toBe('up')
+  it('returns neutral for null', () => {
+    expect(getChangeTone(null)).toBe('neutral')
   })
 
-  it('returns up for undefined (default to 0)', () => {
-    expect(getChangeTone(undefined)).toBe('up')
+  it('returns neutral for undefined', () => {
+    expect(getChangeTone(undefined)).toBe('neutral')
   })
 })
