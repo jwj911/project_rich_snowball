@@ -193,6 +193,13 @@
 | 2026-05-28 | E2E：修复所有 strict mode violation、焦点测试、选择器精度问题 | ✅ |
 | 2026-05-28 | **E2E 性能基线验收：Playwright 28/28 passed；Vitest 177/177 passed；pytest 223 passed** | ✅ |
 | 2026-05-28 | 进入 CSRF 策略迭代：SameSite + 写接口鉴权方式明确 | 🔄 |
+| 2026-05-28 | CSRF：`dependencies.py` 方法感知鉴权，POST/PUT/PATCH/DELETE 只接受 Authorization header | ✅ |
+| 2026-05-28 | CSRF：新增 `test_csrf_protection.py`，10 个测试覆盖写接口拒绝/读接口兼容 | ✅ |
+| 2026-05-29 | 进入 SSE URL 过长修复：realtimeStore 截断 + 前端 CI + 精度中立化 | 🔄 |
+| 2026-05-29 | SSE URL 截断：`realtimeStore.ts` 当 symbol 数 >30 时省略 symbols 参数，避免 400 | ✅ |
+| 2026-05-29 | 前端 CI：新增 `.github/workflows/frontend-ci.yml`（lint + build + test） | ✅ |
+| 2026-05-29 | 精度中立化：K 线价格显示统一使用 `formatPrice`，支持品种级 `price_precision` | ✅ |
+| 2026-05-29 | **迭代验收：pytest 228 passed；前端 Vitest 178 passed；lint/build 通过；master 已合并** | ✅ |
 
 ---
 

@@ -193,7 +193,7 @@ pytest tests -v
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-前端已配置 Vitest + Playwright 自动化测试。修改前端后至少运行：
+前端已配置 Vitest + Playwright 自动化测试，并配有 `.github/workflows/frontend-ci.yml` 在 PR 时自动执行 lint + build + test。修改前端后至少运行：
 
 ```powershell
 cd D:\Code\project_rich_snowball\frontend

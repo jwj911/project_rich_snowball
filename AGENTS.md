@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-05-28，基于 master 分支当前代码。
+> **最后更新**：2026-05-29，基于 master 分支当前代码。
 
 ---
 
@@ -42,8 +42,8 @@
 | K 线图 | lightweight-charts | ^5.2.0 |
 | 数据获取 | SWR | ^2.4.1 |
 | 消息提示 | sonner | ^2.0.7 |
-| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest 4.1.6，30 个测试文件 / 177 tests |
-| E2E 测试 | Playwright | ^1.60.0，4 个 spec + auth.setup.ts / 28 tests |
+| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest 4.1.7，30 个测试文件 / 178 tests |
+| E2E 测试 | Playwright | ^1.60.0，5 个文件（4 spec + auth.setup.ts）/ 28 tests |
 | 后端框架 | Python + FastAPI | Python >=3.11，FastAPI 0.136 |
 | 后端服务器 | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.25 |
@@ -177,7 +177,7 @@ project_rich_snowball/
 - 支撑/阻力位已同步后端：`price_levels` 表存储，通过 `/api/price-levels` CRUD；`frontend/hooks/usePriceLevels.ts` 封装了后端同步逻辑，本地存储作为降级/缓存方案保留。
 - 主页面登录门禁来自 `AuthProvider` 和 `LoginRequired`。新增需要保护的页面时沿用该模式。
 - 修改前端后至少运行 `npx tsc --noEmit`；如涉及样式或路由，也运行 `npm run lint`，必要时用浏览器查看 `127.0.0.1:3200`。
-- 前端已配置 Vitest + Playwright，但 `npm run test` 在 Windows 上可能因路径解析问题失败（`/@fs/D:/...` 映射已知问题）。
+- 前端已配置 Vitest + Playwright + `.github/workflows/frontend-ci.yml`（lint + build + test），但 `npm run test` 在 Windows 上可能因路径解析问题偶发失败（`/@fs/D:/...` 映射已知问题）。
 
 ---
 
@@ -187,6 +187,7 @@ project_rich_snowball/
 - 数据库会话统一使用 `dependencies.get_db()`，避免手动创建 `SessionLocal()` 后忘记关闭。
 - 路由按领域拆分为 `APIRouter`，在 `main.py` 统一挂载。
 - **ProductDB 已完全退场**（2026-05-28）：物理表已删除，`comments.product_id` 列已删除，所有前后端代码、测试、schema 已清理。品种数据统一走 `VarietyDB` / `RealtimeQuoteDB` / `KlineDataDB` + `/api/varieties`、`/api/realtime`、`/api/klines`。
+- **CSRF 防护**（2026-05-29）：`dependencies.py` 方法感知鉴权，POST/PUT/PATCH/DELETE 只接受 `Authorization: Bearer` header，GET/HEAD 保持 cookie 兼容。
 - 数据采集遵循 `collector -> adapter -> cleaner -> pipeline -> upsert`。
 - upsert 逻辑在 `data_collector/upsert.py`，已兼容 SQLite / PostgreSQL 双方言。
 - 密码必须用 `utils.hash_password()`，禁止明文、MD5、SHA256。
@@ -414,6 +415,7 @@ ruff format .
 
 - **GitHub Actions**：
   - `.github/workflows/backend-ci.yml`：pytest + ruff + pip-audit，使用 `requirements.lock`
+  - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test`
   - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发
 
 - **Dockerfile**：`python/Dockerfile`
@@ -455,6 +457,7 @@ ruff format .
 - **JWT**：解码必须捕获 PyJWT 异常，禁止裸 `except:`。
 - **CORS**：`allow_credentials=True`，因此生产环境不允许通配符 origin。
 - **CSP**：前端有 Content-Security-Policy 响应头，但当前允许 `unsafe-eval` 和 `unsafe-inline`（为兼容 lightweight-charts 和 Next.js）。
+- **CSRF 防护**（2026-05-29）：`dependencies.py` 方法感知鉴权，POST/PUT/PATCH/DELETE 必须携带 `Authorization: Bearer` header，不接受 `access_token` cookie 回退；GET/HEAD 保持兼容。
 - **Metrics**：`/metrics` 端点限制为可信内网 IP，外网返回 403。
 
 ---
@@ -488,6 +491,27 @@ ruff format .
 - `test_frontend_logs.py` 4 个测试覆盖
 - sentry-lite / vitals 默认 `reportUri` 指向后端落盘端点
 
+### CSRF 防护 — 已完成（2026-05-29）
+
+- 后端：`dependencies.py` `get_current_user_dependency` 方法感知鉴权
+  - POST/PUT/PATCH/DELETE 只接受 `Authorization: Bearer` header，拒绝 cookie 回退
+  - GET/HEAD 保持 header 或 cookie 兼容（SSE 等场景）
+- 新增 `python/tests/test_csrf_protection.py`：10 个测试覆盖写接口拒绝/读接口兼容
+
+### SSE URL 截断 — 已完成（2026-05-29）
+
+- `frontend/lib/realtimeStore.ts`：`buildSseUrl` 当 symbol 数量 >30 时省略 `symbols` 参数
+- 后端 `symbols` 为空时自动订阅全部活跃品种，避免 URL 超过长度限制返回 400
+
+### 精度中立化 — 已完成（2026-05-29）
+
+- K 线价格显示统一使用 `formatPrice`，支持品种级别 `price_precision` 配置
+- `CrosshairTooltip`、`KlineChartHeader`、`PriceChange` 等组件接入精度配置
+
+### 前端 CI 流水线 — 已完成（2026-05-29）
+
+- 新增 `.github/workflows/frontend-ci.yml`：push/PR 触发，执行 lint + build + test
+
 ### E2E 性能基线 — 已完成（2026-05-28）
 
 - `performance.spec.ts` 5 个测试覆盖：首页未登录/已登录、品种列表、品种详情、登录弹窗交互
@@ -506,10 +530,10 @@ ruff format .
 
 ### 下一步推荐
 
-1. **CSRF 策略明确化**：Cookie auth 存在但无显式 CSRF 策略，为写接口补 SameSite/CSRF token 或改纯 Authorization header
-2. **mypy 分阶段收紧**：从 `pipeline_tasks/` 和 domain services 开始纳入类型检查
-3. **SSE/熔断器 Redis 化**：进程内状态 → Redis，支撑横向扩展
-4. **只读 Admin 运营后台**：metrics_dashboard 已有基础，风险最低的可启动功能
+1. **mypy 分阶段收紧**：从 `pipeline_tasks/` 和 domain services 开始纳入类型检查
+2. **SSE/熔断器 Redis 化**：进程内状态 → Redis，支撑横向扩展
+3. **只读 Admin 运营后台**：metrics_dashboard 已有基础，风险最低的可启动功能
+4. **前端 Vitest Windows 路径问题根治**：`/@fs/D:/...` 映射导致偶发失败，需稳定复现并修复
 
 ---
 
@@ -526,4 +550,4 @@ ruff format .
 
 ---
 
-*最后更新：2026-05-28，由 AI 助手根据 master 分支当前代码整理。*
+*最后更新：2026-05-29，由 AI 助手根据 master 分支当前代码整理。*
