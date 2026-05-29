@@ -325,7 +325,7 @@ ruff format .
 
 ## 测试现状
 
-后端已有 pytest（28 个测试文件）：
+后端已有 pytest（29 个测试文件）：
 - `test_p0_fixes.py`
 - `test_phase1_3_integration.py`
 - `test_cors_variable.py`
@@ -352,6 +352,11 @@ ruff format .
 - `test_rate_limit_middleware.py`
 - `test_refresh_token.py`
 - `test_trading_date.py`
+- `test_backfill_kline_contract_id.py`
+- `test_csrf_protection.py`
+- `test_frontend_logs.py`
+- `test_metrics_dashboard.py`
+- `test_varieties_enhanced.py`
 
 前端测试：
 - Vitest 单元测试：`frontend/tests/` 下 30 个测试文件，179 tests 全部通过
