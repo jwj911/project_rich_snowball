@@ -51,7 +51,6 @@ disallow_untyped_defs = false
 warn_redundant_casts = true
 warn_unused_ignores = true
 show_error_codes = true
-
 # 兼容旧代码：允许 implicit Optional（def foo(x: str = None)）
 implicit_optional = true
 
@@ -97,7 +96,6 @@ ignore_errors = true
 module = [
     "services.domain.workspace_service",
     "services.domain.comment_service",
-    "services.domain.product_service",
     "services.domain.price_level_service",
     "services.domain.watchlist_service",
 ]

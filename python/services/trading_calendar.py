@@ -276,21 +276,25 @@ def _ensure_funcs():
 
 def is_trading_day(d: date | datetime | str) -> bool:
     _ensure_funcs()
+    assert _is_trading_day is not None
     return _is_trading_day(d)
 
 
 def get_trading_days(start: date | datetime | str, end: date | datetime | str) -> list[date]:
     _ensure_funcs()
+    assert _get_trading_days is not None
     return _get_trading_days(start, end)
 
 
 def trading_days_between(start: date | datetime | str, end: date | datetime | str) -> int:
     _ensure_funcs()
+    assert _trading_days_between is not None
     return _trading_days_between(start, end)
 
 
 def get_expected_kline_dates(start: date | datetime | str, end: date | datetime | str, period: str = "D") -> list[date]:
     _ensure_funcs()
+    assert _get_expected_kline_dates is not None
     return _get_expected_kline_dates(start, end, period)
 
 

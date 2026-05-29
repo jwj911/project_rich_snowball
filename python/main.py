@@ -25,7 +25,7 @@ from config import ENABLE_SCHEDULER, ENV
 if sys.platform == "win32":
     import asyncio.proactor_events
 
-    _original_call_connection_lost = asyncio.proactor_events._ProactorBasePipeTransport._call_connection_lost
+    _original_call_connection_lost = asyncio.proactor_events._ProactorBasePipeTransport._call_connection_lost  # type: ignore[attr-defined]
 
     def _silenced_call_connection_lost(self, exc):
         try:
@@ -42,7 +42,7 @@ if sys.platform == "win32":
                 return
             raise
 
-    asyncio.proactor_events._ProactorBasePipeTransport._call_connection_lost = _silenced_call_connection_lost
+    asyncio.proactor_events._ProactorBasePipeTransport._call_connection_lost = _silenced_call_connection_lost  # type: ignore[attr-defined]
 from models import init_db
 from services.logging_config import setup_logging
 
