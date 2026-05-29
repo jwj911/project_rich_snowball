@@ -57,6 +57,21 @@ def test_create_price_level():
     assert data["note"] == "强支撑"
 
 
+def test_create_price_level_invalid_contract():
+    """传入不存在的 contract_id 应返回 404"""
+    token = _register_and_login()
+    r = client.post("/api/price-levels", json={
+        "variety_id": 1,
+        "type": "support",
+        "price": "550.50",
+        "scope": "contract",
+        "contract_id": 99999,
+        "note": "无效合约"
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 404, r.text
+    assert "合约" in r.json()["message"] or "contract" in r.json()["message"].lower()
+
+
 def test_create_price_level_duplicate():
     """同一用户同一品种同一类型同一价格应返回 409"""
     token = _register_and_login()
