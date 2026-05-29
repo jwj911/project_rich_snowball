@@ -528,6 +528,13 @@ ruff format .
 - 前端 `frontend/lib/api/workspace.ts`：`createPriceLevelsBatch` item 类型补齐 `scope`/`contract_id`
 - pytest：233 passed, 6 skipped（含 price_levels 14 个测试全部通过）
 
+### Lighthouse 性能基线 — 已完成（2026-05-29）
+
+- `scripts/lighthouse-baseline.js`：修复安全访问（`?.` 替代直接属性访问），避免某些 audit 缺失 numericValue 时脚本崩溃
+- 本地生产构建后运行 Lighthouse：Performance 98/100，LCP 2482ms，TBT 0ms，CLS 0，FCP 760ms
+- 报告输出到 `.lighthouse/latest.json`，支持历史对比
+- CI 中 Lighthouse 步骤已集成（`.github/workflows/frontend-ci.yml`）
+
 ### 标注价格精度统一 — 已完成（2026-05-29）
 
 - 新增 `formatPricePayload(price, precision)`（`lib/format.ts`），语义与展示函数 `formatPrice` 分离，专用于 API payload 格式化

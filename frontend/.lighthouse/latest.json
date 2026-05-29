@@ -1,0 +1,14 @@
+{
+  "url": "http://127.0.0.1:3000",
+  "timestamp": "2026-05-29T13:46:28.445Z",
+  "performanceScore": 98,
+  "firstContentfulPaint": 760,
+  "largestContentfulPaint": 2482,
+  "totalBlockingTime": 0,
+  "cumulativeLayoutShift": 0,
+  "speedIndex": 760,
+  "timeToInteractive": 2482,
+  "domSize": null,
+  "networkRequests": 27,
+  "totalByteWeight": 200
+}

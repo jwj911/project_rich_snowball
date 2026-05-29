@@ -265,7 +265,7 @@ pytest tests/test_price_levels.py -q
 - [x] `LevelChips`、`LevelEditor`、`usePriceLevels` 价格展示与 API payload 均尊重 `price_precision`
 - [x] `useLightweightChart.ts` 价格轴 formatter 不再硬编码 `toFixed(2)`（已删除死代码）
 - [x] `tsc/test/lint/build` 全绿
-- [ ] Lighthouse 有一份可复现的基线报告（本地或 CI artifact）
+- [x] Lighthouse 有一份可复现的基线报告（本地或 CI artifact）
 - [ ] 后端契约测试能在本机稳定运行（venv + lock 文件）
 
 达到以上标准后，前端评级从 **B+** 推进到 **A-**。
@@ -281,7 +281,8 @@ pytest tests/test_price_levels.py -q
 | 2026-05-29 | Phase 8: 交易时段 badge 后端权威化 | 已完成 |
 | 2026-05-29 | Phase 10: 标注价格精度 + 图表 formatter 残留 | 已完成 |
 | 2026-05-29 | Phase 9: 价位标注 batch scope/contract 补齐 | 已完成 |
-| | Phase 11: Lighthouse 可复现基线证据 | 待开始 |
+| 2026-05-29 | Phase 11: Lighthouse 可复现基线证据 | 已完成 |
+| | Phase 12: 后端本地测试环境文档化 | 待开始 |
 | | Phase 12: 后端本地测试环境文档化 | 待开始 |
 
 ---

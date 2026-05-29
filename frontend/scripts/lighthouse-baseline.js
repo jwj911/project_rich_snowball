@@ -46,19 +46,22 @@ async function run() {
     const perf = lhr.categories.performance.score * 100
     const audits = lhr.audits
 
+    const getAudit = (key) => audits[key] ?? {}
+    const getNumeric = (key) => getAudit(key).numericValue ?? null
+
     const metrics = {
       url: TARGET_URL,
       timestamp: new Date().toISOString(),
       performanceScore: perf,
-      firstContentfulPaint: Math.round(audits['first-contentful-paint'].numericValue),
-      largestContentfulPaint: Math.round(audits['largest-contentful-paint'].numericValue),
-      totalBlockingTime: Math.round(audits['total-blocking-time'].numericValue),
-      cumulativeLayoutShift: Math.round(audits['cumulative-layout-shift'].numericValue * 1000) / 1000,
-      speedIndex: Math.round(audits['speed-index'].numericValue),
-      timeToInteractive: Math.round(audits['interactive'].numericValue),
-      domSize: audits['dom-size'].numericValue,
-      networkRequests: audits['network-requests'].details?.items?.length ?? null,
-      totalByteWeight: Math.round((audits['total-byte-weight'].numericValue ?? 0) / 1024),
+      firstContentfulPaint: Math.round(getNumeric('first-contentful-paint') ?? 0),
+      largestContentfulPaint: Math.round(getNumeric('largest-contentful-paint') ?? 0),
+      totalBlockingTime: Math.round(getNumeric('total-blocking-time') ?? 0),
+      cumulativeLayoutShift: Math.round((getNumeric('cumulative-layout-shift') ?? 0) * 1000) / 1000,
+      speedIndex: Math.round(getNumeric('speed-index') ?? 0),
+      timeToInteractive: Math.round(getNumeric('interactive') ?? 0),
+      domSize: getNumeric('dom-size') ?? null,
+      networkRequests: getAudit('network-requests').details?.items?.length ?? null,
+      totalByteWeight: Math.round((getNumeric('total-byte-weight') ?? 0) / 1024),
     }
 
     // 输出到控制台
