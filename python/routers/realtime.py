@@ -39,23 +39,6 @@ def _create_stream_token(user_id: int) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def _get_user_from_stream_token(token: str, db: Session) -> UserDB:
-    if not token:
-        raise HTTPException(status_code=401, detail="未登录或 token 无效")
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("typ") != SSE_STREAM_TOKEN_TYPE:
-            raise HTTPException(status_code=401, detail="无效的实时行情 token")
-        user_id = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="无效的实时行情 token")
-        user = db.query(UserDB).filter(UserDB.id == int(user_id)).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="无效的实时行情 token")
-        return user
-    except (PyJWTError, ValueError):
-        raise HTTPException(status_code=401, detail="无效的实时行情 token")
-
 SSE_PUSH_INTERVAL_SECONDS = 5
 SSE_MAX_SYMBOLS = 50
 SSE_MAX_PUSHES = 720  # 最大推送次数（约 1 小时 @5s 间隔）
@@ -161,9 +144,13 @@ def get_realtime_batch(
     return {"quotes": quotes, "not_found": not_found}
 
 
-@router.post("/stream-token")
+@router.post("/stream-token", deprecated=True)
 def create_realtime_stream_token(current_user: UserDB = Depends(get_current_user_dependency)):
-    """Issue a short-lived token for EventSource connections."""
+    """Issue a short-lived token for EventSource connections.
+
+    Deprecated: SSE 鉴权已统一走 cookie-only 路径（access_token cookie），
+    stream-token 不再推荐使用，后续版本可能移除。
+    """
     return {
         "stream_token": _create_stream_token(current_user.id),
         "expires_in": SSE_STREAM_TOKEN_EXPIRE_SECONDS,
@@ -171,27 +158,18 @@ def create_realtime_stream_token(current_user: UserDB = Depends(get_current_user
 
 
 def _sse_fetch_once(symbols: list[str], token: str):
-    """在线程池中执行的同步函数：验证 token 并查询批量行情。
+    """在线程池中执行的同步函数：验证 access token 并查询批量行情。
     内部独立创建和关闭 session，避免跨线程共享 session。
-
-    支持 stream token（typ=realtime_stream）和普通 access token（cookie 场景）。
     """
     db = SessionLocal()
     try:
-        # 优先尝试 stream token
-        try:
-            user = _get_user_from_stream_token(token, db)
-        except HTTPException:
-            # 回退到普通 access token 验证
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": True})
-            if payload.get("typ") == SSE_STREAM_TOKEN_TYPE:
-                raise
-            user_id = payload.get("sub")
-            if user_id is None:
-                raise HTTPException(status_code=401, detail="无效的 token")
-            user = db.query(UserDB).filter(UserDB.id == int(user_id)).first()
-            if not user:
-                raise HTTPException(status_code=401, detail="无效的 token")
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": True})
+        user_id = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="无效的 token")
+        user = db.query(UserDB).filter(UserDB.id == int(user_id)).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="无效的 token")
         quotes, not_found = _fetch_realtime_batch(symbols, db)
         return user, quotes, not_found
     finally:

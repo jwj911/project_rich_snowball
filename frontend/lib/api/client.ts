@@ -88,6 +88,7 @@ class ApiService extends AuthCore {
     return getRealtimeBatch(this, symbols)
   }
 
+/** @deprecated SSE 鉴权已统一走 cookie-only 路径，stream-token 不再使用。 */
   createRealtimeStreamToken(options: RequestInit = {}): Promise<{ stream_token: string; expires_in: number }> {
     return createRealtimeStreamToken(this, options)
   }

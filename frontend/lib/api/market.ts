@@ -22,6 +22,7 @@ export function getRealtimeBatch(
   )
 }
 
+/** @deprecated SSE 鉴权已统一走 cookie-only 路径，stream-token 不再使用。 */
 export function createRealtimeStreamToken(
   transport: ApiTransport,
   options: RequestInit = {},

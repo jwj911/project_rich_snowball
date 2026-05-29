@@ -504,6 +504,14 @@ ruff format .
   - GET/HEAD 保持 header 或 cookie 兼容（SSE 等场景）
 - 新增 `python/tests/test_csrf_protection.py`：10 个测试覆盖写接口拒绝/读接口兼容
 
+### SSE 鉴权统一 — 已完成（2026-05-29）
+
+- 方案 B：废弃 stream-token，SSE 鉴权统一走 cookie-only 路径（`withCredentials: true` + `access_token` cookie）
+- 前端 `createRealtimeStreamToken()` 标记 `@deprecated`，`lib/api/market.ts` + `lib/api/client.ts`
+- 后端 `/api/realtime/stream-token` endpoint 标记 `deprecated=True`，`_sse_fetch_once` 简化：直接走普通 access token 验证，不再尝试 stream token 回退
+- 清理未使用的 `_get_user_from_stream_token` 函数
+- 鉴权路径唯一化：cookie-only 为一等公民，stream-token 不再维护
+
 ### SSE URL 截断 — 已完成（2026-05-29）
 
 - `frontend/lib/realtimeStore.ts`：`buildSseUrl` 当 symbol 数量 >30 时省略 `symbols` 参数
