@@ -266,10 +266,11 @@ alembic upgrade head
 
 ```powershell
 cd python
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-python main.py
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.lock
+$env:SECRET_KEY="change-this-to-a-real-secret"
+.\.venv\Scripts\python.exe main.py
 ```
 
 独立 worker（不启动 FastAPI，只跑 scheduler）：
@@ -304,13 +305,22 @@ npm run test        # Vitest 单元测试
 npx playwright test # E2E 测试
 ```
 
-后端测试：
+后端测试（**请使用项目内独立 venv，不要使用全局 Anaconda 环境**）：
 
 ```powershell
 cd python
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.lock
 $env:SECRET_KEY="test-secret-key"
 $env:ENABLE_SCHEDULER="0"
-pytest tests -v
+.\.venv\Scripts\python.exe -m pytest tests -v
+```
+
+环境校验：
+```powershell
+.\.venv\Scripts\python.exe -c "import sqlalchemy; print(sqlalchemy.__version__)"
+# 应输出 >= 2.0.25
 ```
 
 Ruff 格式化与检查：
@@ -572,6 +582,7 @@ ruff format .
 
 - venv 重建（Python 3.12.9），pytest/ruff/pip-audit 本地可复现
 - CI 统一使用 `requirements.lock`
+- 后端测试环境文档化：README/AGENTS 明确使用项目内 `.venv`，不要使用全局 Anaconda，提供 Powershell 一键命令和环境校验
 - `fut_mapping_task` 循环依赖消除
 - `tushare_batch_tasks.py` 模板抽象（377→175 行）
 - ruff 质量门禁生效（移除 `continue-on-error`）

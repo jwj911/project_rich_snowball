@@ -179,13 +179,22 @@ npx tsc --noEmit
 
 ## 测试
 
-后端使用 pytest：
+后端使用 pytest（**请使用项目内独立 venv，不要使用全局 Anaconda 环境**）：
 
 ```powershell
 cd D:\Code\project_rich_snowball\python
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.lock
 $env:SECRET_KEY="test-secret-key"
 $env:ENABLE_SCHEDULER="0"
-pytest tests -v
+.\.venv\Scripts\python.exe -m pytest tests -v
+```
+
+环境校验：
+```powershell
+.\.venv\Scripts\python.exe -c "import sqlalchemy; print(sqlalchemy.__version__)"
+# 应输出 >= 2.0.25
 ```
 
 重点测试文件：
