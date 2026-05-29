@@ -261,7 +261,7 @@ pytest tests/test_price_levels.py -q
 
 - [x] SSE 鉴权路径唯一（cookie-only 或 stream-token 二选一，不并存）
 - [x] `MarketSessionBadge` 与 `MarketClosedBanner` 共用后端 `/api/market/status`
-- [ ] 价位标注单条 create 与 batch create 在 `scope/contract_id` 语义完全一致
+- [x] 价位标注单条 create 与 batch create 在 `scope/contract_id` 语义完全一致
 - [x] `LevelChips`、`LevelEditor`、`usePriceLevels` 价格展示与 API payload 均尊重 `price_precision`
 - [x] `useLightweightChart.ts` 价格轴 formatter 不再硬编码 `toFixed(2)`（已删除死代码）
 - [x] `tsc/test/lint/build` 全绿
@@ -280,7 +280,7 @@ pytest tests/test_price_levels.py -q
 | 2026-05-29 | Phase 7: SSE 鉴权契约二选一（方案 B，废弃 stream-token） | 已完成 |
 | 2026-05-29 | Phase 8: 交易时段 badge 后端权威化 | 已完成 |
 | 2026-05-29 | Phase 10: 标注价格精度 + 图表 formatter 残留 | 已完成 |
-| | Phase 9: 价位标注 batch scope/contract 补齐 | 待开始（后端评审中） |
+| 2026-05-29 | Phase 9: 价位标注 batch scope/contract 补齐 | 已完成 |
 | | Phase 11: Lighthouse 可复现基线证据 | 待开始 |
 | | Phase 12: 后端本地测试环境文档化 | 待开始 |
 

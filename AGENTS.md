@@ -520,6 +520,14 @@ ruff format .
 - `getCurrentSession()` 保留为后端不可用时的 fallback，不再作为首选来源
 - 新增 `MarketSessionBadge.test.tsx`：后端返回 day/night/closed 及 fallback 场景 4 个测试
 
+### 价位标注 batch scope/contract 补齐 — 已完成（2026-05-29）
+
+- 后端 `python/schemas.py`：新增 `PriceLevelBatchItem`，`PriceLevelBatchCreate` 改用 `list[PriceLevelBatchItem]`，与单条 `PriceLevelCreate` 在 scope/contract_id 语义上完全一致
+- 后端 `python/services/domain/price_level_service.py`：`create_price_levels_batch` 增加校验：① contract scope 必须指定 contract_id；② continuous/main 的 contract_id 自动规范化为 None；③ 重复检测 key 扩展为 `(variety_id, type, price, scope, contract_id)`
+- 后端 `python/tests/test_price_levels.py`：新增 4 个测试覆盖 batch scope 隔离、contract_id 必填、默认值、规范化场景
+- 前端 `frontend/lib/api/workspace.ts`：`createPriceLevelsBatch` item 类型补齐 `scope`/`contract_id`
+- pytest：233 passed, 6 skipped（含 price_levels 14 个测试全部通过）
+
 ### 标注价格精度统一 — 已完成（2026-05-29）
 
 - 新增 `formatPricePayload(price, precision)`（`lib/format.ts`），语义与展示函数 `formatPrice` 分离，专用于 API payload 格式化
