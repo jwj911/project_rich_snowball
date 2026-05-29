@@ -174,7 +174,7 @@ project_rich_snowball/
 - 行情轮询优先使用 `useMarketPolling`，默认 30 秒。
 - 色彩语义遵循中国市场惯例：上涨红色，下跌绿色。
 - `KlineChart.tsx` 已使用 `lightweight-charts` v5.2.0，不要再按旧文档理解为自研 SVG 蜡烛图。
-- 支撑/阻力位已同步后端：`price_levels` 表存储，通过 `/api/price-levels` CRUD；`frontend/hooks/usePriceLevels.ts` 封装了后端同步逻辑，本地存储作为降级/缓存方案保留。
+- 支撑/阻力位已同步后端：`price_levels` 表存储（含 `scope` 和 `contract_id`，支持 continuous/main/contract 三种口径隔离），通过 `/api/price-levels` CRUD；`frontend/hooks/usePriceLevels.ts` 封装了后端同步逻辑，按 K 线 source 隔离，本地存储作为降级/缓存方案保留（key 格式 `price-levels:v2:{userId}:{symbol}:{scope}:{contractId}`）。
 - 主页面登录门禁来自 `AuthProvider` 和 `LoginRequired`。新增需要保护的页面时沿用该模式。
 - 修改前端后至少运行 `npx tsc --noEmit`；如涉及样式或路由，也运行 `npm run lint`，必要时用浏览器查看 `127.0.0.1:3200`。
 - 前端已配置 Vitest + Playwright + `.github/workflows/frontend-ci.yml`（lint + build + test），但 `npm run test` 在 Windows 上可能因路径解析问题偶发失败（`/@fs/D:/...` 映射已知问题）。
