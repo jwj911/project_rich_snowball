@@ -231,7 +231,7 @@ pytest tests/test_realtime_batch.py tests/test_price_levels.py -q
 本轮全部 Phase 完成后应满足：
 
 - [x] `/api/realtime/batch` 与前端 `RealtimeQuote` 类型完全一致（Phase 1）
-- [ ] 合约/连续/主力 K 线下的标注不会串口径（Phase 5）
+- [x] 合约/连续/主力 K 线下的标注不会串口径（Phase 5）
 - [x] K 线图所有价格展示尊重 `price_precision`（Phase 2）
 - [x] 空涨跌幅不显示上涨/下跌倾向（Phase 3）
 - [x] `KlineData` 前端类型保留 `contract_id`（Phase 4）
@@ -251,6 +251,7 @@ pytest tests/test_realtime_batch.py tests/test_price_levels.py -q
 | 2026-05-29 | Phase 2: K 线价格精度统一 — 消灭 toFixed(2)，全链路透传 pricePrecision，合并 master | ✅ |
 | 2026-05-29 | Phase 3: 空值涨跌幅 neutral 态 — getChangeTone 返回 neutral，PriceChange 不渲染上涨图标，合并 master | ✅ |
 | 2026-05-29 | Phase 4: KlineData 补齐 contract_id — 类型扩展，normalizeKlineData 保留，CrosshairQuote 透传，合并 master | ✅ |
+| 2026-05-29 | Phase 5: 标注 scope/contract 口径改造 — 后端表迁移+API升级，前端 hook 按 K 线 source 隔离，localStorage v2，合并 master | ✅ |
 
 ---
 
