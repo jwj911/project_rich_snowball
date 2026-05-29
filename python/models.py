@@ -19,7 +19,7 @@ from sqlalchemy import (
     event,
     text,
 )
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
 from config import DATABASE_URL, ENV
 
@@ -50,7 +50,11 @@ else:
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+
+
+class Base(DeclarativeBase):
+    """SQLAlchemy 2.0 声明式基类，替代 declarative_base() 以支持 mypy 类型检查。"""
+    pass
 
 # ---------- 连接池监控 ----------
 
@@ -132,7 +136,7 @@ def init_db():
 
 def get_engine_info() -> dict:
     """返回数据库引擎信息，供 /health 使用。"""
-    info = {"driver": engine.driver, "database_url": DATABASE_URL.split("://")[0] + "://***"}
+    info: dict[str, str | None] = {"driver": engine.driver, "database_url": DATABASE_URL.split("://")[0] + "://***"}
     if _IS_SQLITE:
         with engine.connect() as conn:
             result = conn.execute(text("PRAGMA journal_mode;"))
@@ -323,18 +327,22 @@ class PriceLevelDB(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="CASCADE"), nullable=False, index=True)
+    contract_id = Column(Integer, ForeignKey("fut_contracts.id", ondelete="CASCADE"), nullable=True, index=True)
     type = Column(String(20), nullable=False)  # support | resistance
     price = Column(Numeric(15, 4), nullable=False)
+    scope = Column(String(20), nullable=False, default="continuous")  # continuous | main | contract
     note = Column(Text, nullable=True)
     source = Column(String(30), nullable=False, default="manual")
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
     user = relationship("UserDB", back_populates="price_levels")
     variety = relationship("VarietyDB", back_populates="price_levels")
+    contract = relationship("FutContractDB", backref="price_levels")
     comments = relationship("CommentDB", back_populates="price_level", passive_deletes=True)
 
     __table_args__ = (
-        UniqueConstraint("user_id", "variety_id", "type", "price", name="uix_user_variety_type_price"),
+        UniqueConstraint("user_id", "variety_id", "type", "price", "scope", "contract_id",
+                         name="uix_user_variety_type_price_scope_contract"),
     )
 
 

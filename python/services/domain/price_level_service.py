@@ -25,10 +25,12 @@ class PriceLevelService:
         user_id: int,
         variety_id: int | None = None,
         type: str | None = None,
+        scope: str | None = None,
+        contract_id: int | None = None,
         skip: int = 0,
         limit: int = 100,
     ) -> list[PriceLevelDB]:
-        return self._repo.list_by_user(user_id, variety_id, type, skip, limit)
+        return self._repo.list_by_user(user_id, variety_id, type, scope, contract_id, skip, limit)
 
     def _get_and_check_owner(self, user_id: int, price_level_id: int) -> PriceLevelDB:
         pl = self._repo.get_by_id(price_level_id)
@@ -39,9 +41,10 @@ class PriceLevelService:
         return pl
 
     def _check_duplicate(
-        self, user_id: int, variety_id: int, type: str, price, exclude_id: int | None = None
+        self, user_id: int, variety_id: int, type: str, price,
+        scope: str = "continuous", contract_id: int | None = None, exclude_id: int | None = None
     ) -> bool:
-        return self._repo.check_duplicate(user_id, variety_id, type, price, exclude_id)
+        return self._repo.check_duplicate(user_id, variety_id, type, price, scope, contract_id, exclude_id)
 
     def create_price_level(self, user_id: int, item: PriceLevelCreate) -> PriceLevelDB:
         variety = self._db.query(VarietyDB).filter(VarietyDB.id == item.variety_id).first()
@@ -55,6 +58,8 @@ class PriceLevelService:
                 type=item.type,
                 price=item.price,
                 note=item.note,
+                scope=item.scope,
+                contract_id=item.contract_id,
             )
         except IntegrityError as err:
             self._db.rollback()
@@ -67,7 +72,8 @@ class PriceLevelService:
 
         if item.price is not None:
             if self._check_duplicate(
-                user_id, pl.variety_id, pl.type, item.price, exclude_id=price_level_id
+                user_id, pl.variety_id, pl.type, item.price,
+                pl.scope, pl.contract_id, exclude_id=price_level_id
             ):
                 raise ConflictError("该价位标注已存在")
             pl.price = item.price

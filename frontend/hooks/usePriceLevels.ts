@@ -1,8 +1,27 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { api, PriceLevel } from '@/lib/api'
+import { api, PriceLevel, PriceLevelScope } from '@/lib/api'
 import { captureMessage } from '@/lib/sentry-lite'
 
-export function usePriceLevels(varietyId: number | null, userId: number | null, symbol: string) {
+export interface UsePriceLevelsOptions {
+  varietyId: number | null
+  userId: number | null
+  symbol: string
+  source?: 'continuous' | 'main' | 'single'
+  contractId?: number | null
+}
+
+function getScopeFromSource(source: 'continuous' | 'main' | 'single'): PriceLevelScope {
+  if (source === 'single') return 'contract'
+  return source
+}
+
+export function usePriceLevels({
+  varietyId,
+  userId,
+  symbol,
+  source = 'continuous',
+  contractId = null,
+}: UsePriceLevelsOptions) {
   const [supportLevels, setSupportLevels] = useState<number[]>([])
   const [resistanceLevels, setResistanceLevels] = useState<number[]>([])
   const [levelsLoaded, setLevelsLoaded] = useState(false)
@@ -14,7 +33,15 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
   useEffect(() => { supportRef.current = supportLevels }, [supportLevels])
   useEffect(() => { resistanceRef.current = resistanceLevels }, [resistanceLevels])
 
+  const scope = getScopeFromSource(source)
+
   const levelsStorageKey = useMemo(() => {
+    if (!symbol || !userId) return null
+    return `price-levels:v2:${userId}:${symbol}:${scope}:${contractId ?? 'all'}`
+  }, [symbol, userId, scope, contractId])
+
+  // v1 fallback key for migration
+  const v1StorageKey = useMemo(() => {
     if (!symbol || !userId) return null
     return `price-levels:v1:${userId}:${symbol}`
   }, [symbol, userId])
@@ -88,29 +115,30 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
       }
 
       try {
-        const levels = await api.getPriceLevels(varietyId)
+        const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
         if (!cancelled) {
           updateLevelsFromData(levels)
           syncToLocalStorage(levels)
         }
 
-        if (levels.length === 0 && levelsStorageKey && typeof window !== 'undefined') {
-          const raw = window.localStorage.getItem(levelsStorageKey)
-          if (raw) {
-            const parsed = JSON.parse(raw)
+        // v1 migration: if no levels found and current scope is continuous, try importing v1 data
+        if (levels.length === 0 && scope === 'continuous' && levelsStorageKey && typeof window !== 'undefined') {
+          const v1Raw = v1StorageKey ? window.localStorage.getItem(v1StorageKey) : null
+          if (v1Raw) {
+            const parsed = JSON.parse(v1Raw)
             const support = normalizeLevels(parsed.supportLevels)
             const resistance = normalizeLevels(parsed.resistanceLevels)
             for (const price of support) {
-              await api.createPriceLevel(varietyId, 'support', price.toFixed(2)).catch((err) => {
+              await api.createPriceLevel(varietyId, 'support', price.toFixed(2), 'continuous').catch((err) => {
                 captureMessage(`导入支撑位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'warning')
               })
             }
             for (const price of resistance) {
-              await api.createPriceLevel(varietyId, 'resistance', price.toFixed(2)).catch((err) => {
+              await api.createPriceLevel(varietyId, 'resistance', price.toFixed(2), 'continuous').catch((err) => {
                 captureMessage(`导入阻力位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'warning')
               })
             }
-            const imported = await api.getPriceLevels(varietyId)
+            const imported = await api.getPriceLevels(varietyId, undefined, scope, contractId)
             if (!cancelled) {
               updateLevelsFromData(imported)
               syncToLocalStorage(imported)
@@ -133,7 +161,7 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
     return () => {
       cancelled = true
     }
-  }, [varietyId, levelsStorageKey, loadFromLocalStorage, updateLevelsFromData, syncToLocalStorage])
+  }, [varietyId, scope, contractId, levelsStorageKey, v1StorageKey, loadFromLocalStorage, updateLevelsFromData, syncToLocalStorage])
 
   const addSupport = async (price: number) => {
     const promise = queueRef.current.then(async () => {
@@ -142,8 +170,8 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
       if (!Number.isFinite(price) || currentSupport.includes(price)) return
       if (varietyId) {
         try {
-          await api.createPriceLevel(varietyId, 'support', price.toFixed(2))
-          const levels = await api.getPriceLevels(varietyId)
+          await api.createPriceLevel(varietyId, 'support', price.toFixed(2), scope, contractId)
+          const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
           updateLevelsFromData(levels)
           syncToLocalStorage(levels)
           setLevelError(null)
@@ -155,7 +183,6 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
       }
       setSupportLevels((prev) => {
         const next = [...prev, price].sort((a, b) => a - b)
-        // 在 functional update 中同步更新 localStorage，避免并行竞争
         if (levelsStorageKey && typeof window !== 'undefined') {
           window.localStorage.setItem(
             levelsStorageKey,
@@ -180,8 +207,8 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
       if (!Number.isFinite(price) || currentResistance.includes(price)) return
       if (varietyId) {
         try {
-          await api.createPriceLevel(varietyId, 'resistance', price.toFixed(2))
-          const levels = await api.getPriceLevels(varietyId)
+          await api.createPriceLevel(varietyId, 'resistance', price.toFixed(2), scope, contractId)
+          const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
           updateLevelsFromData(levels)
           syncToLocalStorage(levels)
           setLevelError(null)
@@ -213,12 +240,12 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
   const removeSupport = async (price: number) => {
     if (varietyId) {
       try {
-        const levels = await api.getPriceLevels(varietyId, 'support')
+        const levels = await api.getPriceLevels(varietyId, 'support', scope, contractId)
         const pl = levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
         if (pl) {
           await api.deletePriceLevel(pl.id)
           captureMessage(`删除支撑位: 品种#${varietyId} @ ${price}`, 'info')
-          const refreshed = await api.getPriceLevels(varietyId)
+          const refreshed = await api.getPriceLevels(varietyId, undefined, scope, contractId)
           updateLevelsFromData(refreshed)
           syncToLocalStorage(refreshed)
         }
@@ -236,12 +263,12 @@ export function usePriceLevels(varietyId: number | null, userId: number | null, 
   const removeResistance = async (price: number) => {
     if (varietyId) {
       try {
-        const levels = await api.getPriceLevels(varietyId, 'resistance')
+        const levels = await api.getPriceLevels(varietyId, 'resistance', scope, contractId)
         const pl = levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
         if (pl) {
           await api.deletePriceLevel(pl.id)
           captureMessage(`删除阻力位: 品种#${varietyId} @ ${price}`, 'info')
-          const refreshed = await api.getPriceLevels(varietyId)
+          const refreshed = await api.getPriceLevels(varietyId, undefined, scope, contractId)
           updateLevelsFromData(refreshed)
           syncToLocalStorage(refreshed)
         }

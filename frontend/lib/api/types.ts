@@ -116,14 +116,18 @@ export interface FutContract {
   is_active: boolean
 }
 
+export type PriceLevelScope = 'continuous' | 'main' | 'contract'
+
 export interface PriceLevel {
   id: number
   user_id: number
   variety_id: number
+  contract_id: number | null
   variety_symbol: string | null
   variety_name: string | null
   type: 'support' | 'resistance'
   price: string
+  scope: PriceLevelScope
   note: string | null
   source: string
   created_at: string

@@ -81,7 +81,13 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     addResistance,
     removeSupport,
     removeResistance,
-  } = usePriceLevels(varietyId, user?.id ?? null, symbol)
+  } = usePriceLevels({
+    varietyId,
+    userId: user?.id ?? null,
+    symbol,
+    source: selectedKlineSource,
+    contractId: selectedContractId,
+  })
 
   useEffect(() => {
     if (productDetail?.comments) {

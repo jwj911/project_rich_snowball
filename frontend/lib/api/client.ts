@@ -153,17 +153,24 @@ class ApiService extends AuthCore {
     return getVarieties(this, params, options)
   }
 
-  getPriceLevels(varietyId?: number, type?: 'support' | 'resistance'): Promise<PriceLevel[]> {
-    return getPriceLevels(this, varietyId, type)
+  getPriceLevels(
+    varietyId?: number,
+    type?: 'support' | 'resistance',
+    scope?: 'continuous' | 'main' | 'contract',
+    contractId?: number | null,
+  ): Promise<PriceLevel[]> {
+    return getPriceLevels(this, varietyId, type, scope, contractId)
   }
 
   createPriceLevel(
     varietyId: number,
     type: 'support' | 'resistance',
     price: string,
+    scope?: 'continuous' | 'main' | 'contract',
+    contractId?: number | null,
     note?: string,
   ): Promise<PriceLevel> {
-    return createPriceLevel(this, varietyId, type, price, note)
+    return createPriceLevel(this, varietyId, type, price, scope, contractId, note)
   }
 
   updatePriceLevel(id: number, updates: { price?: string; note?: string }): Promise<PriceLevel> {

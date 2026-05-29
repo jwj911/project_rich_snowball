@@ -207,10 +207,18 @@ class PriceLevelType(StrEnum):
     RESISTANCE = "resistance"
 
 
+class PriceLevelScope(StrEnum):
+    CONTINUOUS = "continuous"
+    MAIN = "main"
+    CONTRACT = "contract"
+
+
 class PriceLevelCreate(BaseModel):
     variety_id: int = Field(..., ge=1)
     type: str = Field(..., pattern=r"^(support|resistance)$")
     price: Decimal = Field(..., ge=0, decimal_places=4)
+    scope: str = Field(default="continuous", pattern=r"^(continuous|main|contract)$")
+    contract_id: int | None = Field(None, ge=1)
     note: str | None = Field(None, max_length=500)
 
     @field_validator("note", mode="before")
@@ -233,10 +241,12 @@ class PriceLevelResponse(BaseModel):
     id: int
     user_id: int
     variety_id: int
+    contract_id: int | None = None
     variety_symbol: str | None = None
     variety_name: str | None = None
     type: str
     price: Decimal
+    scope: str
     note: str | None
     source: str
     created_at: dt

@@ -15,6 +15,7 @@
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -42,7 +43,7 @@ def build_rollover_segments(
     variety_id: int,
     start: datetime | None = None,
     end: datetime | None = None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """根据品种 rollover 历史构建时间段 → 合约映射（segments）。
 
     返回 segment 列表，每个 segment 为 dict：
@@ -59,13 +60,13 @@ def build_rollover_segments(
         .all()
     )
     for r in rollovers:
-        r.effective_date = _ensure_aware(r.effective_date)
+        r.effective_date = _ensure_aware(r.effective_date)  # type: ignore[assignment,arg-type]
 
     variety_start = _MIN_DT
     if variety.listing_date:
-        variety_start = _ensure_aware(variety.listing_date)
+        variety_start = _ensure_aware(variety.listing_date)  # type: ignore[assignment,arg-type]
 
-    segments = []
+    segments: list[dict[str, Any]] = []
     if rollovers:
         segments.append({
             "start": variety_start,
@@ -98,7 +99,7 @@ def build_rollover_segments(
                 })
 
     # 与外部 start/end 取交集，提前过滤无数据区间
-    filtered = []
+    filtered: list[dict[str, Any]] = []
     for seg in segments:
         qs = max(start, seg["start"]) if start is not None else seg["start"]
         qe = min(end, seg["end"]) if end is not None else seg["end"]
@@ -150,7 +151,8 @@ def query_segment_klines(
 
     rows = []
     for row in seg_rows:
-        dt = _ensure_aware(row.trading_time)
+        dt = _ensure_aware(row.trading_time)  # type: ignore[arg-type]
+        assert dt is not None
         rows.append({
             "time": dt.isoformat(),
             "open": row.open_price,
@@ -349,10 +351,10 @@ def get_main_contract_kline(
             db, [KlineDataDB.contract_id == contract.id], period, start, end, limit
         )
         if rows:
-            return attach_contract_metadata(rows, db, default_contract_code=contract.symbol)
+            return attach_contract_metadata(rows, db, default_contract_code=contract.symbol)  # type: ignore[arg-type]
 
     # 回退：按 variety_id 查询，不限制 contract_id
     rows = _fetch_kline_rows(
         db, [KlineDataDB.variety_id == variety_id], period, start, end, limit
     )
-    return attach_contract_metadata(rows, db, default_contract_code=variety.contract_code)
+    return attach_contract_metadata(rows, db, default_contract_code=variety.contract_code)  # type: ignore[arg-type]

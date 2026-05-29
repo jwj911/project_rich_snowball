@@ -58,20 +58,24 @@ implicit_optional = true
 ignore_missing_imports = true
 
 # mypy 策略说明：
-# - SQLAlchemy 1.x 的 Column 类型在 mypy 下会产生大量误报（Column[int] vs int）
-# - 这些不是真正的代码错误，迁移到 SQLAlchemy 2.0 后才能根治
-# - 当前策略：排除已知误报严重的文件，专注核心逻辑模块的真实类型问题
-# - data_collector/ 已从全局排除中移除；pipeline_tasks/ 和已拆分的 services/ 纳入检查
+# - SQLAlchemy 1.x 风格的 Column(Integer) 在 mypy 下会产生大量误报（Column[int] vs int）
+# - 根治方案：模型迁移到 Mapped[T] = mapped_column(...)（SQLAlchemy 2.0 风格）
+# - 当前策略：routers/ 作为薄层暂时忽略；models.py/测试/迁移/脚本保持排除；
+#   services/ 和 pipeline_tasks/ 已纳入检查，continuous_kline/trading_calendar 已修复。
 exclude = [
     "models.py",
     "routers/",
-    "services/trading_calendar.py",
-    "services/continuous_kline.py",
     "tests/",
     "alembic/",
     "tushare_pg_ingest/",
     "scripts/",
 ]
+
+# routers/ 是薄层，大量 SQLAlchemy Column 类型误报非真实错误；
+# 随着模型迁移到 Mapped[T] 后可逐步移除。
+[[tool.mypy.overrides]]
+module = ["routers.*"]
+ignore_errors = true
 
 # 为 data_collector/ 下尚未清理的旧模块暂时忽略类型错误，
 # 使已拆分的 pipeline_tasks/ 能真正接受 mypy 检查。

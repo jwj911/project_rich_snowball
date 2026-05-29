@@ -16,6 +16,8 @@ class PriceLevelRepository:
         user_id: int,
         variety_id: int | None = None,
         type: str | None = None,
+        scope: str | None = None,
+        contract_id: int | None = None,
         skip: int = 0,
         limit: int = 100,
         with_variety: bool = True,
@@ -27,6 +29,10 @@ class PriceLevelRepository:
             query = query.filter(PriceLevelDB.variety_id == variety_id)
         if type is not None:
             query = query.filter(PriceLevelDB.type == type)
+        if scope is not None:
+            query = query.filter(PriceLevelDB.scope == scope)
+        if contract_id is not None:
+            query = query.filter(PriceLevelDB.contract_id == contract_id)
         return query.order_by(PriceLevelDB.created_at.desc()).offset(skip).limit(limit).all()
 
     def get_by_id(self, price_level_id: int) -> PriceLevelDB | None:
@@ -38,6 +44,8 @@ class PriceLevelRepository:
         variety_id: int,
         type: str,
         price,
+        scope: str = "continuous",
+        contract_id: int | None = None,
         exclude_id: int | None = None,
     ) -> bool:
         query = self._db.query(PriceLevelDB).filter(
@@ -45,7 +53,12 @@ class PriceLevelRepository:
             PriceLevelDB.variety_id == variety_id,
             PriceLevelDB.type == type,
             PriceLevelDB.price == price,
+            PriceLevelDB.scope == scope,
         )
+        if contract_id is not None:
+            query = query.filter(PriceLevelDB.contract_id == contract_id)
+        else:
+            query = query.filter(PriceLevelDB.contract_id.is_(None))
         if exclude_id is not None:
             query = query.filter(PriceLevelDB.id != exclude_id)
         return query.first() is not None
@@ -57,6 +70,8 @@ class PriceLevelRepository:
         type: str,
         price,
         note: str | None,
+        scope: str = "continuous",
+        contract_id: int | None = None,
     ) -> PriceLevelDB:
         pl = PriceLevelDB(
             user_id=user_id,
@@ -65,6 +80,8 @@ class PriceLevelRepository:
             price=price,
             note=note,
             source="manual",
+            scope=scope,
+            contract_id=contract_id,
         )
         self._db.add(pl)
         self._db.commit()

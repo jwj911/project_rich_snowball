@@ -1,14 +1,18 @@
 import type { ApiTransport } from './transport'
-import type { PriceLevel, Watchlist, WorkspaceSummary } from './types'
+import type { PriceLevel, PriceLevelScope, Watchlist, WorkspaceSummary } from './types'
 
 export function getPriceLevels(
   transport: ApiTransport,
   varietyId?: number,
   type?: 'support' | 'resistance',
+  scope?: PriceLevelScope,
+  contractId?: number | null,
 ): Promise<PriceLevel[]> {
   const searchParams = new URLSearchParams()
   if (varietyId !== undefined) searchParams.append('variety_id', String(varietyId))
   if (type) searchParams.append('type', type)
+  if (scope) searchParams.append('scope', scope)
+  if (contractId != null) searchParams.append('contract_id', String(contractId))
   const qs = searchParams.toString()
   return transport.request<PriceLevel[]>(`/api/price-levels${qs ? '?' + qs : ''}`)
 }
@@ -18,11 +22,16 @@ export function createPriceLevel(
   varietyId: number,
   type: 'support' | 'resistance',
   price: string,
+  scope: PriceLevelScope = 'continuous',
+  contractId?: number | null,
   note?: string,
 ): Promise<PriceLevel> {
+  const body: Record<string, unknown> = { variety_id: varietyId, type, price, scope }
+  if (contractId != null) body.contract_id = contractId
+  if (note != null) body.note = note
   return transport.request<PriceLevel>('/api/price-levels', {
     method: 'POST',
-    body: JSON.stringify({ variety_id: varietyId, type, price, note }),
+    body: JSON.stringify(body),
   })
 }
 

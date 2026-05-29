@@ -56,7 +56,7 @@ describe('usePriceLevels', () => {
       makeLevel({ id: 2, type: 'resistance', price: '540.00' }),
     ])
 
-    const { result } = renderHook(() => usePriceLevels(3, 2, 'AU'))
+    const { result } = renderHook(() => usePriceLevels({ varietyId: 3, userId: 2, symbol: 'AU' }))
 
     await waitFor(() => {
       expect(result.current.levelsLoaded).toBe(true)
@@ -66,7 +66,7 @@ describe('usePriceLevels', () => {
     expect(result.current.resistanceLevels).toEqual([540])
     expect(result.current.levelError).toBeNull()
     expect(localStorage.setItem).toHaveBeenCalledWith(
-      'price-levels:v1:2:AU',
+      'price-levels:v2:2:AU:continuous:all',
       expect.stringContaining('"supportLevels":[500]'),
     )
   })
@@ -74,7 +74,6 @@ describe('usePriceLevels', () => {
   it('creates a support level on the cloud and refreshes server truth', async () => {
     const level510 = makeLevel({ id: 3, type: 'support', price: '510.00' })
     vi.mocked(api.getPriceLevels).mockReset().mockImplementation(() => {
-      // 在 createPriceLevel 被调用之前（初始加载）返回空数组，之后返回创建后的数据
       if ((api.createPriceLevel as any).mock?.calls?.length === 0) {
         return Promise.resolve([])
       }
@@ -82,7 +81,7 @@ describe('usePriceLevels', () => {
     })
     vi.mocked(api.createPriceLevel).mockReset().mockResolvedValue(level510)
 
-    const { result } = renderHook(() => usePriceLevels(3, 2, 'AU'))
+    const { result } = renderHook(() => usePriceLevels({ varietyId: 3, userId: 2, symbol: 'AU' }))
 
     await waitFor(() => {
       expect(result.current.levelsLoaded).toBe(true)
@@ -92,7 +91,7 @@ describe('usePriceLevels', () => {
       await result.current.addSupport(510)
     })
 
-    expect(api.createPriceLevel).toHaveBeenCalledWith(3, 'support', '510.00')
+    expect(api.createPriceLevel).toHaveBeenCalledWith(3, 'support', '510.00', 'continuous', null)
     expect(result.current.supportLevels).toEqual([510])
     expect(result.current.levelError).toBeNull()
   })
@@ -101,7 +100,7 @@ describe('usePriceLevels', () => {
     vi.mocked(api.getPriceLevels).mockReset().mockResolvedValue([])
     vi.mocked(api.createPriceLevel).mockReset().mockRejectedValue(new Error('请求过于频繁，请 17 秒后再试'))
 
-    const { result } = renderHook(() => usePriceLevels(3, 2, 'AU'))
+    const { result } = renderHook(() => usePriceLevels({ varietyId: 3, userId: 2, symbol: 'AU' }))
 
     await waitFor(() => {
       expect(result.current.levelsLoaded).toBe(true)
@@ -114,7 +113,7 @@ describe('usePriceLevels', () => {
     expect(result.current.resistanceLevels).toEqual([550])
     expect(result.current.levelError).toContain('已临时保存到本地')
     expect(localStorage.setItem).toHaveBeenLastCalledWith(
-      'price-levels:v1:2:AU',
+      'price-levels:v2:2:AU:continuous:all',
       expect.stringContaining('"resistanceLevels":[550]'),
     )
   })
@@ -123,7 +122,7 @@ describe('usePriceLevels', () => {
     vi.mocked(api.getPriceLevels).mockReset().mockResolvedValue([])
     vi.mocked(api.createPriceLevel).mockReset().mockRejectedValue(new Error('offline'))
 
-    const { result } = renderHook(() => usePriceLevels(3, 2, 'AU'))
+    const { result } = renderHook(() => usePriceLevels({ varietyId: 3, userId: 2, symbol: 'AU' }))
 
     await waitFor(() => {
       expect(result.current.levelsLoaded).toBe(true)
@@ -138,21 +137,21 @@ describe('usePriceLevels', () => {
 
     expect(result.current.supportLevels).toEqual([510, 520])
     expect(localStorage.setItem).toHaveBeenLastCalledWith(
-      'price-levels:v1:2:AU',
+      'price-levels:v2:2:AU:continuous:all',
       expect.stringContaining('"supportLevels":[510,520]'),
     )
   })
 
   it('uses cached levels when cloud load fails', async () => {
     vi.stubGlobal('localStorage', createLocalStorageMock({
-      'price-levels:v1:2:AU': JSON.stringify({
+      'price-levels:v2:2:AU:continuous:all': JSON.stringify({
         supportLevels: [490],
         resistanceLevels: [560],
       }),
     }))
     vi.mocked(api.getPriceLevels).mockReset().mockRejectedValue(new Error('network down'))
 
-    const { result } = renderHook(() => usePriceLevels(3, 2, 'AU'))
+    const { result } = renderHook(() => usePriceLevels({ varietyId: 3, userId: 2, symbol: 'AU' }))
 
     await waitFor(() => {
       expect(result.current.levelsLoaded).toBe(true)
