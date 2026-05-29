@@ -113,7 +113,7 @@ class PriceLevelService:
             for v in self._db.query(VarietyDB).filter(VarietyDB.id.in_(variety_ids)).all()
         }
         existing_keys = {
-            (pl.variety_id, pl.type, float(pl.price))
+            (pl.variety_id, pl.type, float(pl.price), pl.scope, pl.contract_id)
             for pl in self._repo.list_by_user_and_varieties(user_id, variety_ids)
         }
 
@@ -123,7 +123,7 @@ class PriceLevelService:
                 failed.append({"index": idx, "reason": "品种不存在"})
                 continue
 
-            key = (item.variety_id, item.type, float(item.price))
+            key = (item.variety_id, item.type, float(item.price), item.scope, item.contract_id)
             if key in existing_keys:
                 failed.append({"index": idx, "reason": "该价位标注已存在"})
                 continue
@@ -135,6 +135,8 @@ class PriceLevelService:
                 type=item.type,
                 price=item.price,
                 note=item.note,
+                scope=item.scope,
+                contract_id=item.contract_id,
                 source="manual",
             )
             self._db.add(pl)
@@ -157,6 +159,8 @@ class PriceLevelService:
                     type=item.type,
                     price=item.price,
                     note=item.note,
+                    scope=item.scope,
+                    contract_id=item.contract_id,
                     source="manual",
                 )
                 self._db.add(pl)
