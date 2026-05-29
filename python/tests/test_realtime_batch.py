@@ -46,6 +46,8 @@ def seed_realtime_quotes(db_session, seed_varieties):
             high=452.0,
             low=444.0,
             volume=15000,
+            limit_up=460.0,
+            limit_down=440.0,
         ),
         RealtimeQuoteDB(
             variety_id=seed_varieties[1].id,
@@ -55,6 +57,8 @@ def seed_realtime_quotes(db_session, seed_varieties):
             high=6860.0,
             low=6780.0,
             volume=8000,
+            limit_up=6900.0,
+            limit_down=6700.0,
         ),
         RealtimeQuoteDB(
             variety_id=seed_varieties[2].id,
@@ -64,6 +68,8 @@ def seed_realtime_quotes(db_session, seed_varieties):
             high=72500.0,
             low=71400.0,
             volume=5000,
+            limit_up=73000.0,
+            limit_down=71000.0,
         ),
     ]
     for q in quotes:
@@ -124,3 +130,5 @@ class TestRealtimeBatch:
         assert batch_data["quotes"][0]["symbol"] == single_data["symbol"]
         assert batch_data["quotes"][0]["current_price"] == single_data["current_price"]
         assert batch_data["quotes"][0]["change_percent"] == single_data["change_percent"]
+        assert batch_data["quotes"][0]["limit_up"] == single_data["limit_up"]
+        assert batch_data["quotes"][0]["limit_down"] == single_data["limit_down"]

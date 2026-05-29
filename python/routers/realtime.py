@@ -144,6 +144,8 @@ def _fetch_realtime_batch(symbols: list[str], db: Session) -> tuple[list[dict], 
             "updated_at": q.updated_at,
             "delayed": q.data_source == "akshare",
             "data_source": q.data_source,
+            "limit_up": q.limit_up,
+            "limit_down": q.limit_down,
         })
 
     return quotes, not_found

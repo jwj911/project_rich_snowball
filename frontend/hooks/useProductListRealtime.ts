@@ -61,6 +61,8 @@ export function useProductListRealtime(
         low: quote.low ?? product.low,
         volume: quote.volume ?? product.volume,
         updated_at: quote.updated_at ?? product.updated_at,
+        limit_up: quote.limit_up ?? product.limit_up,
+        limit_down: quote.limit_down ?? product.limit_down,
       }
     })
   }, [resolvedResponse.items, realtimeQuotes])
