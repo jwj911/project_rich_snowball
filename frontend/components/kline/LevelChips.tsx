@@ -1,11 +1,14 @@
+import { formatPrice } from '@/lib/format'
+
 interface LevelChipsProps {
   title: string
   levels: number[]
   tone: 'support' | 'resistance'
+  pricePrecision?: number
   onRemove?: (price: number) => void
 }
 
-export default function LevelChips({ title, levels, tone, onRemove }: LevelChipsProps) {
+export default function LevelChips({ title, levels, tone, pricePrecision, onRemove }: LevelChipsProps) {
   if (levels.length === 0) return null
 
   const colorClass = tone === 'support'
@@ -24,7 +27,7 @@ export default function LevelChips({ title, levels, tone, onRemove }: LevelChips
             className={`rounded border px-1.5 py-1 font-mono transition hover:bg-slate-700/40 ${colorClass}`}
             title="点击删除"
           >
-            {level.toFixed(2)}
+            {formatPrice(level, pricePrecision)}
           </button>
         ))}
       </div>

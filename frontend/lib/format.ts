@@ -61,6 +61,11 @@ export function getChangeTone(value: number | null | undefined): 'up' | 'down' |
   return value >= 0 ? 'up' : 'down'
 }
 
+export function formatPricePayload(price: number, precision = 2): string {
+  if (!Number.isFinite(price)) throw new Error('Invalid price for payload')
+  return price.toFixed(precision)
+}
+
 export function isLimitUp(price: number | null | undefined, limitUp: number | null | undefined, epsilon = 0.01) {
   return limitUp != null && price != null && Math.abs(price - limitUp) < epsilon
 }

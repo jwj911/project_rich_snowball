@@ -166,8 +166,8 @@ export default function KlineChart({
 
       {(supportLevels.length > 0 || resistanceLevels.length > 0) && (
         <div className="absolute right-3 top-12 max-w-[220px] space-y-2 rounded border border-border bg-surface-elevated/95 p-2 text-xs shadow-lg">
-          <LevelChips title="支撑" levels={supportLevels} tone="support" onRemove={onRemoveSupport} />
-          <LevelChips title="阻力" levels={resistanceLevels} tone="resistance" onRemove={onRemoveResistance} />
+          <LevelChips title="支撑" levels={supportLevels} tone="support" pricePrecision={pricePrecision} onRemove={onRemoveSupport} />
+          <LevelChips title="阻力" levels={resistanceLevels} tone="resistance" pricePrecision={pricePrecision} onRemove={onRemoveResistance} />
         </div>
       )}
 

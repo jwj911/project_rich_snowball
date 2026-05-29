@@ -58,7 +58,7 @@ describe('Kline chart pieces', () => {
 
     render(<LevelChips title="支撑" levels={[3500, 3520.5]} tone="support" onRemove={onRemove} />)
 
-    fireEvent.click(screen.getByRole('button', { name: '3500.00' }))
+    fireEvent.click(screen.getByRole('button', { name: '3,500.00' }))
 
     expect(screen.getByText('支撑')).toBeInTheDocument()
     expect(onRemove).toHaveBeenCalledWith(3500)

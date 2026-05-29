@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react'
 import { XCircle } from 'lucide-react'
+import { formatPrice } from '@/lib/format'
 
 interface LevelEditorProps {
   title: string
@@ -10,6 +11,7 @@ interface LevelEditorProps {
   inputValue: string
   levels: number[]
   isSaved: boolean
+  pricePrecision?: number
   onInputChange: (value: string) => void
   onAdd: () => void
   onRemove: (price: number) => void
@@ -22,6 +24,7 @@ export default function LevelEditor({
   inputValue,
   levels,
   isSaved,
+  pricePrecision,
   onInputChange,
   onAdd,
   onRemove,
@@ -70,9 +73,9 @@ export default function LevelEditor({
               key={`${tone}-${level}`}
               onClick={() => onRemove(level)}
               className={`inline-flex items-center gap-1 rounded px-2 py-1 font-mono text-xs transition ${colorClass} ${bgClass}`}
-              aria-label={`删除${title} ${level.toFixed(2)}`}
+              aria-label={`删除${title} ${formatPrice(level, pricePrecision)}`}
             >
-              {level.toFixed(2)}
+              {formatPrice(level, pricePrecision)}
               <XCircle size={12} />
             </button>
           ))

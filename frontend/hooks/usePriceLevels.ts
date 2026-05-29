@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { api, PriceLevel, PriceLevelScope } from '@/lib/api'
+import { formatPricePayload } from '@/lib/format'
 import { captureMessage } from '@/lib/sentry-lite'
 
 export interface UsePriceLevelsOptions {
@@ -8,6 +9,7 @@ export interface UsePriceLevelsOptions {
   symbol: string
   source?: 'continuous' | 'main' | 'single'
   contractId?: number | null
+  pricePrecision?: number
 }
 
 function getScopeFromSource(source: 'continuous' | 'main' | 'single'): PriceLevelScope {
@@ -21,6 +23,7 @@ export function usePriceLevels({
   symbol,
   source = 'continuous',
   contractId = null,
+  pricePrecision = 2,
 }: UsePriceLevelsOptions) {
   const [supportLevels, setSupportLevels] = useState<number[]>([])
   const [resistanceLevels, setResistanceLevels] = useState<number[]>([])
@@ -129,12 +132,12 @@ export function usePriceLevels({
             const support = normalizeLevels(parsed.supportLevels)
             const resistance = normalizeLevels(parsed.resistanceLevels)
             for (const price of support) {
-              await api.createPriceLevel(varietyId, 'support', price.toFixed(2), 'continuous').catch((err) => {
+              await api.createPriceLevel(varietyId, 'support', formatPricePayload(price, pricePrecision), 'continuous').catch((err) => {
                 captureMessage(`导入支撑位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'warning')
               })
             }
             for (const price of resistance) {
-              await api.createPriceLevel(varietyId, 'resistance', price.toFixed(2), 'continuous').catch((err) => {
+              await api.createPriceLevel(varietyId, 'resistance', formatPricePayload(price, pricePrecision), 'continuous').catch((err) => {
                 captureMessage(`导入阻力位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'warning')
               })
             }
@@ -170,7 +173,7 @@ export function usePriceLevels({
       if (!Number.isFinite(price) || currentSupport.includes(price)) return
       if (varietyId) {
         try {
-          await api.createPriceLevel(varietyId, 'support', price.toFixed(2), scope, contractId)
+          await api.createPriceLevel(varietyId, 'support', formatPricePayload(price, pricePrecision), scope, contractId)
           const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
           updateLevelsFromData(levels)
           syncToLocalStorage(levels)
@@ -207,7 +210,7 @@ export function usePriceLevels({
       if (!Number.isFinite(price) || currentResistance.includes(price)) return
       if (varietyId) {
         try {
-          await api.createPriceLevel(varietyId, 'resistance', price.toFixed(2), scope, contractId)
+          await api.createPriceLevel(varietyId, 'resistance', formatPricePayload(price, pricePrecision), scope, contractId)
           const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
           updateLevelsFromData(levels)
           syncToLocalStorage(levels)

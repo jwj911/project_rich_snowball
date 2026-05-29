@@ -87,6 +87,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     symbol,
     source: selectedKlineSource,
     contractId: selectedContractId,
+    pricePrecision: product?.price_precision,
   })
 
   useEffect(() => {
@@ -267,6 +268,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                 inputValue={newSupport}
                 levels={sortedSupportLevels}
                 isSaved={levelsLoaded}
+                pricePrecision={product?.price_precision}
                 onInputChange={setNewSupport}
                 onAdd={() => submitLevel(newSupport, 'support')}
                 onRemove={removeSupport}
@@ -279,6 +281,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                 inputValue={newResistance}
                 levels={sortedResistanceLevels}
                 isSaved={levelsLoaded}
+                pricePrecision={product?.price_precision}
                 onInputChange={setNewResistance}
                 onAdd={() => submitLevel(newResistance, 'resistance')}
                 onRemove={removeResistance}

@@ -520,6 +520,16 @@ ruff format .
 - `getCurrentSession()` 保留为后端不可用时的 fallback，不再作为首选来源
 - 新增 `MarketSessionBadge.test.tsx`：后端返回 day/night/closed 及 fallback 场景 4 个测试
 
+### 标注价格精度统一 — 已完成（2026-05-29）
+
+- 新增 `formatPricePayload(price, precision)`（`lib/format.ts`），语义与展示函数 `formatPrice` 分离，专用于 API payload 格式化
+- `LevelChips` 增加 `pricePrecision` prop，展示使用 `formatPrice()` 替代硬编码 `toFixed(2)`
+- `LevelEditor` 增加 `pricePrecision` prop，展示和 aria-label 均使用 `formatPrice()`
+- `usePriceLevels` 增加 `pricePrecision` 参数，创建/迁移标注时使用 `formatPricePayload()` 替代 `toFixed(2)`
+- `KlineChart` 透传 `pricePrecision` 到 `LevelChips`；品种详情页透传 `product.price_precision` 到 `LevelEditor`
+- 删除死代码 `hooks/useLightweightChart.ts`（无任何消费者，formatter 仍硬编码 `toFixed(2)`）
+- 更新 `KlinePieces.test.tsx` 适配 `formatPrice` 的千分位输出
+
 ### SSE URL 截断 — 已完成（2026-05-29）
 
 - `frontend/lib/realtimeStore.ts`：`buildSseUrl` 当 symbol 数量 >30 时省略 `symbols` 参数
