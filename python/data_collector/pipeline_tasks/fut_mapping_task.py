@@ -93,6 +93,18 @@ def _detect_rollovers(rows, variety_map, contract_map, trade_date: str | None):
                 effective_date=effective_date,
                 source="mapping_pipeline",
             ))
+            logger.info(
+                "contract_rollover_detected",
+                extra={
+                    "variety_id": variety.id,
+                    "variety_symbol": variety.symbol,
+                    "old_contract_id": old_contract.id if old_contract else None,
+                    "old_contract_code": old_contract_code,
+                    "new_contract_id": new_contract.id,
+                    "new_contract_code": contract_code,
+                    "effective_date": effective_date.isoformat(),
+                },
+            )
             variety.contract_code = contract_code
             updated += 1
 
@@ -139,6 +151,10 @@ def run_fut_mapping_task(collector, adapter, trade_date: str = None, db=None) ->
         for r in rollovers:
             db.add(r)
 
+        # 幂等性说明：ContractRolloverDB 有唯一约束
+        #   (variety_id, effective_date, new_contract_code)
+        # 同一天重复跑 mapping 时，相同 rollover 会因约束冲突被数据库拒绝，
+        # 不会重复插入。若需显式忽略冲突，可改用 PostgreSQL ON CONFLICT DO NOTHING。
         db.commit()
         stats["processed"] = updated
         stats["skipped"] = skipped

@@ -142,7 +142,14 @@ def refresh_realtime_quotes():
         varieties = _get_active_varieties(db)
         symbols = [v.symbol for v in varieties]
         stats = pipeline.run_realtime(symbols)
-        logger.info("Refreshed realtime: %s", stats)
+        logger.info(
+            "realtime_quotes_updated",
+            extra={
+                "task_name": "refresh_realtime",
+                "symbol_count": len(symbols),
+                "stats": stats,
+            },
+        )
         mark_realtime_updated()
         data_collection_runs_total.labels(task_name="refresh_realtime", status="success").inc()
     except (SQLAlchemyError, OSError) as e:

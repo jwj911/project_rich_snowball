@@ -202,7 +202,13 @@ class VarietyDB(Base):
 
 
 class FutContractDB(Base):
-    """期货合约信息表（Tushare fut_basic）。存储具体合约元数据，供行情采集时轮询使用。"""
+    """期货合约信息表（Tushare fut_basic）。存储具体合约元数据，供行情采集时轮询使用。
+
+    注意：本表不标记"主力合约"布尔值。品种的主力合约来源是：
+    1. VarietyDB.contract_code（当前主力合约代码）
+    2. ContractRolloverDB（主力切换历史记录）
+    需要判断某合约是否为主力时，应比对 VarietyDB.contract_code 或查询 rollover 链。
+    """
     __tablename__ = "fut_contracts"
     id = Column(Integer, primary_key=True, autoincrement=True)
     ts_code = Column(String(20), unique=True, nullable=False, index=True)

@@ -87,3 +87,36 @@ def test_production_cors_missing():
     )
     assert result.returncode != 0
     assert "CORS_ORIGINS (or ALLOW_ORIGINS) is required in production" in result.stderr
+
+
+def test_bcrypt_rounds_default():
+    """默认 BCRYPT_ROUNDS 应为 12"""
+    env = os.environ.copy()
+    env["SECRET_KEY"] = "test-secret-key-for-pytest-local-development"
+    env["DOTENV_PATH"] = "/nonexistent/.env"
+    result = subprocess.run(
+        [sys.executable, "-c", "import config; print(config.BCRYPT_ROUNDS)"],
+        capture_output=True,
+        text=True,
+        cwd=os.path.dirname(os.path.dirname(__file__)),
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "12" in result.stdout
+
+
+def test_bcrypt_rounds_configurable():
+    """BCRYPT_ROUNDS 应可通过环境变量配置"""
+    env = os.environ.copy()
+    env["SECRET_KEY"] = "test-secret-key-for-pytest-local-development"
+    env["BCRYPT_ROUNDS"] = "4"
+    env["DOTENV_PATH"] = "/nonexistent/.env"
+    result = subprocess.run(
+        [sys.executable, "-c", "import config; print(config.BCRYPT_ROUNDS)"],
+        capture_output=True,
+        text=True,
+        cwd=os.path.dirname(os.path.dirname(__file__)),
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "4" in result.stdout

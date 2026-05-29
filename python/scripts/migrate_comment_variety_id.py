@@ -1,9 +1,13 @@
-"""迁移脚本：填充 CommentDB.variety_id
+"""历史迁移脚本：填充 CommentDB.variety_id（已归档，不用于当前 schema）
 
-基于 ProductDB.symbol → VarietyDB.symbol 的映射，将现有评论的 product_id
+⚠️ 重要：本脚本仅在 ProductDB → VarietyDB 迁移期间使用（2026-05-27 之前）。
+当前 schema 中 `products` 表和 `comments.product_id` 列已被删除，
+新环境无需也不应执行此脚本。保留仅作历史参考。
+
+原用途：基于 ProductDB.symbol → VarietyDB.symbol 的映射，将现有评论的 product_id
 转换为对应的 variety_id。脚本幂等，可重复执行。
 
-用法：
+用法（历史参考，当前环境勿执行）：
     cd python
     python scripts/migrate_comment_variety_id.py
 """

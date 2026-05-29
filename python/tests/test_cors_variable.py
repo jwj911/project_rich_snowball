@@ -66,3 +66,28 @@ def test_default_origins_when_none_set():
     )
     assert result.returncode == 0, result.stderr
     assert "http://localhost:3000" in result.stdout
+
+
+def test_cors_max_age_default():
+    """未设置 CORS_MAX_AGE_SECONDS 时，默认 max_age 为 600"""
+    result = _run_with_env(
+        {
+            "SECRET_KEY": "test-secret-key-for-pytest-local-development",
+        },
+        "import main, os; print(os.getenv('CORS_MAX_AGE_SECONDS', '600'))",
+    )
+    assert result.returncode == 0, result.stderr
+    assert "600" in result.stdout
+
+
+def test_cors_max_age_custom():
+    """设置 CORS_MAX_AGE_SECONDS 后应被正确读取"""
+    result = _run_with_env(
+        {
+            "SECRET_KEY": "test-secret-key-for-pytest-local-development",
+            "CORS_MAX_AGE_SECONDS": "1200",
+        },
+        "import config; print(config.CORS_MAX_AGE_SECONDS)",
+    )
+    assert result.returncode == 0, result.stderr
+    assert "1200" in result.stdout

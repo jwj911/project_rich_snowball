@@ -174,6 +174,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
     expose_headers=["X-Total-Count", "X-Total-Volume", "X-Up-Count", "X-Down-Count", "X-Categories"],
+    max_age=int(os.getenv("CORS_MAX_AGE_SECONDS", "600")),
 )
 
 # 全局限流中间件：覆盖所有写入端点（POST/PUT/PATCH/DELETE）

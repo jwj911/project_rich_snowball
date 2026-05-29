@@ -18,7 +18,16 @@ def sanitize_html_text(v: str | None) -> str | None:
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_]+$")
     email: EmailStr
-    password: str = Field(..., min_length=6, max_length=128)
+    password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def _validate_password_strength(cls, v: str) -> str:
+        if not any(c.isalpha() for c in v):
+            raise ValueError("密码必须包含至少一个字母")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("密码必须包含至少一个数字")
+        return v
 
 
 class UserResponse(BaseModel):

@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import bcrypt
 import jwt
 
-from config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM
+from config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, BCRYPT_ROUNDS
 from config import SECRET_KEY as _SECRET_KEY
 
 # mypy 确认：config.py 在导入期已验证 SECRET_KEY 非空
@@ -13,7 +13,7 @@ SECRET_KEY: str = _SECRET_KEY
 
 
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=BCRYPT_ROUNDS)).decode()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
