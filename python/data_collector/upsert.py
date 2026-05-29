@@ -100,14 +100,14 @@ def insert_kline_bulk(db: Session, rows: list[dict], period: str) -> int:
             contract_codes.add(cc)
 
     # 单次查询：symbol -> variety_id
-    varieties = {
+    varieties: dict[str, int] = {
         v.symbol: v.id
         for v in db.query(VarietyDB).filter(VarietyDB.symbol.in_(symbols)).all()
     }
 
     # 单次查询：contract_code -> contract_id
     # contract_code 通常不含交易所后缀（如 "AU2506"），对应 FutContractDB.symbol
-    contracts = {}
+    contracts: dict[str, int] = {}
     if contract_codes:
         from models import FutContractDB
         contracts = {

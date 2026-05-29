@@ -122,12 +122,18 @@ class TestPriceLevels:
         assert float(data["price"]) == 450.0
 
     def test_create_price_level_duplicate(self, auth_client):
+        auth_client.post("/api/price-levels", json={
+            "variety_id": 1, "type": "support", "price": 450.0, "note": "已有"
+        })
         r = auth_client.post("/api/price-levels", json={
             "variety_id": 1, "type": "support", "price": 450.0
         })
         assert r.status_code == 409
 
     def test_list_price_levels(self, auth_client):
+        auth_client.post("/api/price-levels", json={
+            "variety_id": 1, "type": "support", "price": 450.0, "note": "列表测试"
+        })
         r = auth_client.get("/api/price-levels")
         assert r.status_code == 200
         data = r.json()
@@ -135,16 +141,20 @@ class TestPriceLevels:
 
     def test_update_price_level(self, auth_client, db):
         uid = auth_client._user_id
-        pl = db.query(PriceLevelDB).filter(PriceLevelDB.user_id == uid).first()
-        assert pl is not None
+        pl = PriceLevelDB(user_id=uid, variety_id=1, type="support", price=500.0, scope="continuous")
+        db.add(pl)
+        db.commit()
+        db.refresh(pl)
         r = auth_client.put(f"/api/price-levels/{pl.id}", json={"price": 460.0, "note": "更新"})
         assert r.status_code == 200
         assert float(r.json()["price"]) == 460.0
 
     def test_delete_price_level(self, auth_client, db):
         uid = auth_client._user_id
-        pl = db.query(PriceLevelDB).filter(PriceLevelDB.user_id == uid).first()
-        assert pl is not None
+        pl = PriceLevelDB(user_id=uid, variety_id=1, type="support", price=500.0, scope="continuous")
+        db.add(pl)
+        db.commit()
+        db.refresh(pl)
         r = auth_client.delete(f"/api/price-levels/{pl.id}")
         assert r.status_code == 200
 

@@ -94,8 +94,8 @@ module = [
 ]
 ignore_errors = true
 
-# services/domain/ 模块类型债务较重，暂不强制；
-# 随着重构推进可逐步移除以下 ignore。
+# services/domain/ 模块因 SQLAlchemy Column 类型误报（Column[int] vs int）暂时忽略；
+# 根治方案：模型迁移到 Mapped[T] = mapped_column(...)（SQLAlchemy 2.0 风格）。
 [[tool.mypy.overrides]]
 module = [
     "services.domain.workspace_service",
