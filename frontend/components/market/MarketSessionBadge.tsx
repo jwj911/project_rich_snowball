@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMarketStatus } from '@/lib/swr-hooks'
 import { getCurrentSession, MarketSession } from '@/lib/trading-hours'
 
 const SESSION_CONFIG: Record<MarketSession, { label: string; dot: string }> = {
@@ -9,16 +9,17 @@ const SESSION_CONFIG: Record<MarketSession, { label: string; dot: string }> = {
   closed: { label: '休市中', dot: 'bg-slate-500' },
 }
 
-export default function MarketSessionBadge() {
-  const [session, setSession] = useState<MarketSession>(getCurrentSession)
+function normalizeSession(raw: string | undefined): MarketSession {
+  if (raw === 'day' || raw === 'night' || raw === 'closed') return raw
+  return 'closed'
+}
 
-  useEffect(() => {
-    // 每分钟检查一次时段变化
-    const interval = setInterval(() => {
-      setSession(getCurrentSession())
-    }, 60_000)
-    return () => clearInterval(interval)
-  }, [])
+export default function MarketSessionBadge() {
+  const { data: status } = useMarketStatus()
+
+  const session: MarketSession = status
+    ? normalizeSession(status.current_session)
+    : getCurrentSession()
 
   const { label, dot } = SESSION_CONFIG[session]
 

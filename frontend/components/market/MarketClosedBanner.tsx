@@ -1,39 +1,25 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { api } from '@/lib/api'
-import { captureMessage } from '@/lib/sentry-lite'
+import { useMarketStatus } from '@/lib/swr-hooks'
 import { getMarketStatusMessage } from '@/lib/trading-calendar'
 
 export default function MarketClosedBanner() {
-  const [message, setMessage] = useState<string | null>(null)
+  const { data: status, error } = useMarketStatus()
 
-  useEffect(() => {
-    let cancelled = false
-    api.getMarketStatus()
-      .then((status) => {
-        if (cancelled) return
-        if (!status.is_trading_day) {
-          setMessage(
-            status.remark
-              ? `今日为${status.remark}休市，显示数据为上一交易日收盘数据`
-              : '今日休市，显示数据为上一交易日收盘数据',
-          )
-        } else if (status.current_session === 'closed') {
-          setMessage('当前非交易时段，显示数据为上一交易日收盘数据')
-        } else {
-          setMessage(null)
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          captureMessage(`交易状态查询失败: ${err instanceof Error ? err.message : '未知错误'}`, 'warning')
-          setMessage(getMarketStatusMessage())
-        }
-      })
-    return () => { cancelled = true }
-  }, [])
+  let message: string | null = null
+
+  if (status) {
+    if (!status.is_trading_day) {
+      message = status.remark
+        ? `今日为${status.remark}休市，显示数据为上一交易日收盘数据`
+        : '今日休市，显示数据为上一交易日收盘数据'
+    } else if (status.current_session === 'closed') {
+      message = '当前非交易时段，显示数据为上一交易日收盘数据'
+    }
+  } else if (error) {
+    message = getMarketStatusMessage()
+  }
 
   if (!message) return null
 

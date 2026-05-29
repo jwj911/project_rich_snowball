@@ -72,3 +72,11 @@ export function useRealtime(symbol: string) {
     { ...DEFAULT_OPTIONS, refreshInterval: 10_000 },
   )
 }
+
+export function useMarketStatus(enabled = true) {
+  return useSWR(
+    enabled ? 'market-status' : null,
+    () => api.getMarketStatus(),
+    { ...DEFAULT_OPTIONS, refreshInterval: 60_000 },
+  )
+}

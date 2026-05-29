@@ -278,7 +278,8 @@ pytest tests/test_price_levels.py -q
 |------|--------|------|
 | 2026-05-29 | 路线图 v8 文档定稿 | 已完成 |
 | 2026-05-29 | Phase 7: SSE 鉴权契约二选一（方案 B，废弃 stream-token） | 已完成 |
-| | Phase 8: 交易时段 badge 后端权威化 | 待开始 |
+| 2026-05-29 | Phase 8: 交易时段 badge 后端权威化 | 已完成 |
+| | Phase 9: 价位标注 batch scope/contract 补齐 | 待开始 |
 | | Phase 9: 价位标注 batch scope/contract 补齐 | 待开始 |
 | | Phase 10: 标注价格精度 + 图表 formatter 残留 | 待开始 |
 | | Phase 11: Lighthouse 可复现基线证据 | 待开始 |

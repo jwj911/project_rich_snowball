@@ -512,6 +512,14 @@ ruff format .
 - 清理未使用的 `_get_user_from_stream_token` 函数
 - 鉴权路径唯一化：cookie-only 为一等公民，stream-token 不再维护
 
+### 交易时段 badge 后端权威化 — 已完成（2026-05-29）
+
+- 新增 `useMarketStatus()` SWR hook（`lib/swr-hooks.ts`），统一消费 `/api/market/status`
+- `MarketSessionBadge` 改用 hook 数据渲染 `day`/`night`/`closed`，后端不可用时 fallback 到 `getCurrentSession()`
+- `MarketClosedBanner` 也改用 `useMarketStatus()`，与 Badge 共用同一份后端状态（SWR 缓存避免重复请求）
+- `getCurrentSession()` 保留为后端不可用时的 fallback，不再作为首选来源
+- 新增 `MarketSessionBadge.test.tsx`：后端返回 day/night/closed 及 fallback 场景 4 个测试
+
 ### SSE URL 截断 — 已完成（2026-05-29）
 
 - `frontend/lib/realtimeStore.ts`：`buildSseUrl` 当 symbol 数量 >30 时省略 `symbols` 参数
