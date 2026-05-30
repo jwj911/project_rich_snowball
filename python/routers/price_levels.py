@@ -12,7 +12,7 @@ from schemas import (
     PriceLevelResponse,
     PriceLevelUpdate,
 )
-from services.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
+from services.domain.exceptions import ConflictError, ForbiddenError, NotFoundError, ServiceError
 from services.domain.price_level_service import PriceLevelService
 from services.metrics import price_level_operations_total
 
@@ -46,7 +46,7 @@ def create_price_level(
     try:
         pl = PriceLevelService(db).create_price_level(current_user.id, item)
         price_level_operations_total.labels(action="create", result="success").inc()
-    except (NotFoundError, ConflictError) as exc:
+    except (NotFoundError, ConflictError, ServiceError) as exc:
         price_level_operations_total.labels(action="create", result="failure").inc()
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return PriceLevelResponse.model_validate(pl)

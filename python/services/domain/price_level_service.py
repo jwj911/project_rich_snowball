@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from models import FutContractDB, PriceLevelDB, VarietyDB
 from schemas import PriceLevelBatchCreate, PriceLevelCreate, PriceLevelUpdate
-from services.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
+from services.domain.exceptions import ConflictError, ForbiddenError, NotFoundError, ServiceError
 from services.domain.repositories.price_level_repository import PriceLevelRepository
 
 
@@ -53,11 +53,24 @@ class PriceLevelService:
             if not exists:
                 raise NotFoundError("关联合约不存在")
 
+    def _validate_and_normalize_scope_contract(self, item: PriceLevelCreate) -> None:
+        """校验并规范化 scope 与 contract_id。
+
+        - scope='contract' 时必须提供 contract_id，否则抛出 ServiceError(400)
+        - scope='continuous' 或 'main' 时，contract_id 强制规范化为 None
+        """
+        if item.scope == "contract" and item.contract_id is None:
+            raise ServiceError("contract scope 必须指定 contract_id", 400)
+
+        if item.scope in ("continuous", "main") and item.contract_id is not None:
+            item.contract_id = None
+
     def create_price_level(self, user_id: int, item: PriceLevelCreate) -> PriceLevelDB:
         variety = self._db.query(VarietyDB).filter(VarietyDB.id == item.variety_id).first()
         if not variety:
             raise NotFoundError("品种不存在")
 
+        self._validate_and_normalize_scope_contract(item)
         self._verify_contract(item.contract_id)
 
         if self._check_duplicate(
@@ -135,19 +148,17 @@ class PriceLevelService:
         }
 
         pending: list[PriceLevelDB] = []
+        valid_items: list[tuple[int, PriceLevelCreate]] = []
         for idx, item in enumerate(body.items):
             if item.variety_id not in varieties:
                 failed.append({"index": idx, "reason": "品种不存在"})
                 continue
 
-            # contract scope 必须指定 contract_id
-            if item.scope == "contract" and item.contract_id is None:
-                failed.append({"index": idx, "reason": "contract scope 必须指定 contract_id"})
+            try:
+                self._validate_and_normalize_scope_contract(item)
+            except ServiceError as err:
+                failed.append({"index": idx, "reason": err.message})
                 continue
-
-            # continuous/main scope 的 contract_id 应规范化为 None
-            if item.scope in ("continuous", "main") and item.contract_id is not None:
-                item.contract_id = None
 
             if item.contract_id is not None and item.contract_id not in valid_contracts:
                 failed.append({"index": idx, "reason": "关联合约不存在"})
@@ -171,6 +182,7 @@ class PriceLevelService:
             )
             self._db.add(pl)
             pending.append(pl)
+            valid_items.append((idx, item))
 
         try:
             self._db.commit()
@@ -180,9 +192,7 @@ class PriceLevelService:
         except IntegrityError:
             self._db.rollback()
             success = []
-            for idx, item in enumerate(body.items):
-                if item.variety_id not in varieties:
-                    continue
+            for idx, item in valid_items:
                 pl = PriceLevelDB(
                     user_id=user_id,
                     variety_id=item.variety_id,

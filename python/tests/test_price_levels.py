@@ -347,3 +347,55 @@ def test_create_price_levels_batch_continuous_main_normalizes_contract_id():
     assert data["created_count"] == 2
     for item in data["success"]:
         assert item["contract_id"] is None
+
+
+def test_create_price_level_contract_requires_contract_id():
+    """单条创建：contract scope 缺少 contract_id 应返回 400"""
+    token = _register_and_login()
+    r = client.post("/api/price-levels", json={
+        "variety_id": 1,
+        "type": "support",
+        "price": "550.50",
+        "scope": "contract",
+        "note": "缺 contract_id"
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 400, r.text
+    assert "必须指定 contract_id" in r.json()["message"]
+
+
+def test_create_price_level_continuous_normalizes_contract_id():
+    """单条创建：continuous scope 下传入 contract_id 应被规范化为 None"""
+    token = _register_and_login()
+    contract = _create_test_contract("AU")
+
+    r = client.post("/api/price-levels", json={
+        "variety_id": 1,
+        "type": "support",
+        "price": "550.50",
+        "scope": "continuous",
+        "contract_id": contract.id,
+        "note": "continuous 带 contract_id"
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201, r.text
+    data = r.json()
+    assert data["scope"] == "continuous"
+    assert data["contract_id"] is None
+
+
+def test_create_price_level_main_normalizes_contract_id():
+    """单条创建：main scope 下传入 contract_id 应被规范化为 None"""
+    token = _register_and_login()
+    contract = _create_test_contract("AU")
+
+    r = client.post("/api/price-levels", json={
+        "variety_id": 1,
+        "type": "resistance",
+        "price": "600.00",
+        "scope": "main",
+        "contract_id": contract.id,
+        "note": "main 带 contract_id"
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201, r.text
+    data = r.json()
+    assert data["scope"] == "main"
+    assert data["contract_id"] is None
