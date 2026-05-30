@@ -169,5 +169,12 @@
 | | Phase 4.5：rollover 幂等性说明（`fut_mapping_task.py` 已注释唯一约束保障） | ✅ |
 | | **Phase 4 验收：242 passed, 6 skipped，历史债务清理完成** | ✅ |
 | | **v2 迭代总验收：后端从 B 级提升至 B+ 级，本地可验证、PG 可复现、契约有文档、性能有基线** | ✅ |
+| 2026-05-30 | 后端债务修复迭代（v6.1 遗留项闭环） | 🔄 |
+| | Metrics dashboard admin/RBAC：UserDB 增加 role 字段 + Alembic 迁移 + require_admin_user dependency + 测试（普通用户 403 / admin 200） | ✅ |
+| | Varieties detail 评论 N+1 修复：CommentDB.user joinedload 预加载 + SQL 查询数断言测试 | ✅ |
+| | ServiceError 全局 handler 注册：main.py 新增 service_error_handler，业务异常映射为 `{code, message}` 统一错误体，不再退化为 500 | ✅ |
+| | venv 可运行性确认：pytest 256 passed, 6 skipped，无需重建 | ✅ |
+| | **v6.1 债务迭代验收：admin 权限落地、N+1 根治、ServiceError 有兜底、测试 256 passed** | ✅ |
+| | **当前后端评级：B+，遗留债务清零，可安全进入功能填充阶段** | ✅ |
 
 *文档随迭代进展更新。*
