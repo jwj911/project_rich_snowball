@@ -1,5 +1,6 @@
 import {
   Activity,
+  BarChart3,
   Bell,
   Briefcase,
   Database,
@@ -16,6 +17,7 @@ export const primaryNavItems = [
   { href: '/products', label: '行情', icon: LineChart },
   { href: '/workspace', label: '我的', icon: Briefcase },
   { href: '/my-comments', label: '评论', icon: MessageSquare },
+  { href: '/metrics', label: '指标', icon: BarChart3 },
 ]
 
 export const secondaryNavGroups = [

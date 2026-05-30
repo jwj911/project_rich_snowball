@@ -7,54 +7,8 @@ import { useAuth } from '@/components/auth/AuthProvider'
 import LoginModal from '@/components/auth/LoginModal'
 import RegisterModal from '@/components/auth/RegisterModal'
 import Button from '@/components/ui/Button'
-import {
-  Activity,
-  BarChart3,
-  Bell,
-  Bot,
-  Briefcase,
-  Database,
-  Home,
-  LineChart,
-  LogIn,
-  LogOut,
-  MessageSquare,
-  Settings,
-  ShieldCheck,
-  Wrench,
-} from 'lucide-react'
-
-const primaryItems = [
-  { href: '/', label: '工作台', icon: Home },
-  { href: '/products', label: '行情', icon: LineChart },
-  { href: '/workspace', label: '我的', icon: Briefcase },
-  { href: '/my-comments', label: '评论', icon: MessageSquare },
-  { href: '/metrics', label: '指标', icon: BarChart3 },
-]
-
-const secondaryGroups = [
-  {
-    title: 'AGENT',
-    items: [
-      { label: 'Agent 状态', icon: Activity },
-      { label: '权限心跳', icon: ShieldCheck },
-    ],
-  },
-  {
-    title: 'DATA',
-    items: [
-      { label: '市场数据', icon: Database },
-      { label: '提醒事件', icon: Bell },
-    ],
-  },
-  {
-    title: 'SYSTEM',
-    items: [
-      { label: '工具', icon: Wrench },
-      { label: '设置', icon: Settings },
-    ],
-  },
-]
+import { Bot, LogIn, LogOut } from 'lucide-react'
+import { primaryNavItems, secondaryNavGroups } from '@/components/layout/navigation'
 
 export default function Navbar() {
   const pathname = usePathname()
@@ -102,13 +56,13 @@ export default function Navbar() {
 
         <div className="flex-1 overflow-y-auto px-2 py-5">
           <div className="space-y-1">
-            {primaryItems.map((item) => (
+            {primaryNavItems.map((item) => (
               <NavLink key={item.href} item={item} isActive={isActivePath(pathname, item.href)} />
             ))}
           </div>
 
           <div className="mt-8 space-y-7">
-            {secondaryGroups.map((group) => (
+            {secondaryNavGroups.map((group) => (
               <div key={group.title}>
                 <div className="mb-2 px-2.5 text-xs font-semibold uppercase tracking-wider text-slate-600">
                   {group.title}
@@ -188,8 +142,8 @@ export default function Navbar() {
             </button>
           )}
         </div>
-        <div className="grid grid-cols-4 border-t border-slate-800">
-          {primaryItems.map((item) => {
+        <div className="grid grid-cols-5 border-t border-slate-800">
+          {primaryNavItems.map((item) => {
             const isActive = isActivePath(pathname, item.href)
             return (
               <Link
@@ -237,7 +191,7 @@ function NavLink({
   item,
   isActive,
 }: {
-  item: typeof primaryItems[number]
+  item: typeof primaryNavItems[number]
   isActive: boolean
 }) {
   return (
