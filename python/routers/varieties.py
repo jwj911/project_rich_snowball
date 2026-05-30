@@ -174,6 +174,7 @@ def get_variety_detail(
     comments = (
         db.query(CommentDB)
         .filter(CommentDB.variety_id == v.id)
+        .options(joinedload(CommentDB.user))
         .order_by(CommentDB.created_at.desc())
         .offset(comment_skip)
         .limit(comment_limit)

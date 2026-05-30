@@ -151,6 +151,7 @@ class UserDB(Base):
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
     password_hash = Column(String(128), nullable=False)
+    role = Column(String(20), nullable=False, default="user")
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     comments = relationship("CommentDB", back_populates="user", passive_deletes=True)
     watchlists = relationship("WatchlistDB", back_populates="user", passive_deletes=True)

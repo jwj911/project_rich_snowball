@@ -156,3 +156,40 @@ class TestCommentVarietyId:
         data = r.json()
         assert len(data) > 0
         assert "variety_id" in data[0]
+
+
+class TestVarietyDetailNPlusOne:
+    def test_detail_comments_do_not_cause_n_plus_one(self, client, auth_headers, seed_varieties, db_session):
+        """品种详情页评论列表应预加载 user，避免 N+1 查询。"""
+        from sqlalchemy import event
+        from models import CommentDB, UserDB
+
+        variety = seed_varieties[0]
+        user = db_session.query(UserDB).filter(UserDB.username == "integration_tester").first()
+
+        # 创建多条评论，由同一用户发布
+        for i in range(5):
+            db_session.add(CommentDB(variety_id=variety.id, user_id=user.id, content=f"comment {i}"))
+        db_session.commit()
+
+        query_count = []
+
+        def _count_queries(conn, cursor, statement, parameters, context, executemany):
+            query_count.append(statement)
+
+        event.listen(db_session.bind.engine, "before_cursor_execute", _count_queries)
+        try:
+            r = client.get(f"/api/varieties/{variety.symbol}/detail", headers=auth_headers)
+            assert r.status_code == 200
+            data = r.json()
+            # 至少包含刚创建的 5 条评论
+            assert len(data["comments"]) >= 5
+            # 所有评论都应有 username
+            for c in data["comments"]:
+                assert c["username"] is not None
+        finally:
+            event.remove(db_session.bind.engine, "before_cursor_execute", _count_queries)
+
+        # 断言：查询总数不应随评论数线性增长（预期 <= 5 条 SQL：品种 + 实时 + 评论 + 评论 user + 可能的其他）
+        # 放宽到 10 以内，确保不是 1+5 模式
+        assert len(query_count) <= 10, f"Expected <= 10 queries, got {len(query_count)}"

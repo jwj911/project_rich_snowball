@@ -162,7 +162,7 @@ def login(
             detail="用户名或密码错误"
         )
 
-    access_token = create_access_token(data={"sub": str(user.id)})
+    access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
     auth_operations_total.labels(operation="login", result="success").inc()
 
     # 设置 access token cookie（支持 SSE 等无 Header 场景）

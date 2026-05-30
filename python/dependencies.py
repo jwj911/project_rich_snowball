@@ -71,3 +71,30 @@ def get_current_user_from_token(token: str, db: Session) -> UserDB:
     if not user:
         raise HTTPException(status_code=401, detail="无效的 token")
     return user
+
+
+def require_admin_user(
+    request: Request,
+    authorization: str = Header(None),
+    access_token: str = Cookie(None),
+    db: Session = Depends(get_db),  # noqa: B008
+) -> UserDB:
+    """管理员鉴权依赖：仅允许 role=admin 的用户访问。
+
+    复用 get_current_user_dependency 的 token 提取逻辑，
+    额外校验 user.role == 'admin'。
+    """
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.replace("Bearer ", "")
+    elif access_token and request.method in ("GET", "HEAD"):
+        token = access_token
+
+    if not token:
+        raise HTTPException(status_code=401, detail="未登录")
+    user = get_current_user(token, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="无效的 token")
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="无权访问")
+    return user

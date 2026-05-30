@@ -65,6 +65,7 @@ from routers import (  # noqa: E402
     watchlists,
     workspace,
 )
+from services.domain.exceptions import ServiceError  # noqa: E402
 from services.metrics import (  # noqa: E402
     get_content_type,
     http_exceptions_total,
@@ -256,6 +257,23 @@ async def http_exception_handler(request, exc: HTTPException):
     return _error_response(
         code=str(exc.status_code),
         message=exc.detail,
+        status_code=exc.status_code,
+    )
+
+
+@app.exception_handler(ServiceError)
+async def service_error_handler(request, exc: ServiceError):
+    """统一领域服务层异常响应格式。
+
+    将 ServiceError 及其子类（NotFoundError/ForbiddenError/ConflictError）
+    映射为统一错误体，避免业务异常退化为 500。
+    """
+    # 使用异常类名作为业务错误码，例如 NotFoundError -> NOT_FOUND_ERROR
+    import re
+    code = re.sub(r"(?<!^)(?=[A-Z])", "_", type(exc).__name__).upper()
+    return _error_response(
+        code=code,
+        message=exc.message,
         status_code=exc.status_code,
     )
 

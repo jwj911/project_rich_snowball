@@ -91,6 +91,29 @@ def auth_headers(client):
 
 
 @pytest.fixture(scope="function")
+def admin_headers(client, db_session):
+    """注册并登录管理员用户，返回包含 Bearer token 的请求头。"""
+    from models import UserDB
+    from utils import hash_password
+
+    db_user = UserDB(
+        username="admin_tester",
+        email="admin@test.com",
+        password_hash=hash_password("password123"),
+        role="admin",
+    )
+    db_session.add(db_user)
+    db_session.commit()
+
+    r = client.post("/api/auth/login", data={
+        "username": "admin_tester",
+        "password": "password123"
+    })
+    token = r.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(scope="function")
 def seed_varieties(db_session):
     """在内存库中初始化 10 个品种数据（如 lifespan 已初始化则复用）。"""
     from models import VarietyDB

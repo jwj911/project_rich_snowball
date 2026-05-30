@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from dependencies import get_current_user_dependency, get_db
+from dependencies import get_db, require_admin_user
 from models import (
     CommentDB,
     DataIngestionRunDB,
@@ -36,7 +36,7 @@ def _week_start() -> datetime:
 
 @router.get("/dashboard")
 def get_dashboard_overview(
-    _=Depends(get_current_user_dependency),
+    _=Depends(require_admin_user),
     db: Session = Depends(get_db),  # noqa: B008
 ):
     """平台总体统计。"""
@@ -85,7 +85,7 @@ def get_dashboard_overview(
 
 @router.get("/dashboard/activity")
 def get_dashboard_activity(
-    _=Depends(get_current_user_dependency),
+    _=Depends(require_admin_user),
     db: Session = Depends(get_db),  # noqa: B008
 ):
     """最近 7 天活跃度趋势。"""
@@ -134,7 +134,7 @@ def get_dashboard_activity(
 
 @router.get("/dashboard/collection")
 def get_dashboard_collection(
-    _=Depends(get_current_user_dependency),
+    _=Depends(require_admin_user),
     db: Session = Depends(get_db),  # noqa: B008
 ):
     """数据采集健康度。"""
