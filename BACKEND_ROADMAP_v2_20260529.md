@@ -176,5 +176,12 @@
 | | venv 可运行性确认：pytest 256 passed, 6 skipped，无需重建 | ✅ |
 | | **v6.1 债务迭代验收：admin 权限落地、N+1 根治、ServiceError 有兜底、测试 256 passed** | ✅ |
 | | **当前后端评级：B+，遗留债务清零，可安全进入功能填充阶段** | ✅ |
+| 2026-05-31 | 功能填充 Phase 1：用户设置（Settings） | 🔄 |
+| | 新增 `UserPreferenceDB`（theme/polling_interval_seconds/notifications_enabled/language），注册时自动创建默认值 | ✅ |
+| | 新增 `GET /api/settings` + `PUT /api/settings`（Patch 语义，仅更新提供的字段） | ✅ |
+| | 新增 `test_settings.py`：12 个测试覆盖鉴权/默认值/用户隔离/部分更新/字段校验 | ✅ |
+| | Alembic 迁移 `99c6cd55a7f4` 已应用 | ✅ |
+| | **全量 pytest：268 passed, 6 skipped** | ✅ |
+| | **Phase 1 验收：Settings 后端闭环，可进入前端消费阶段** | ✅ |
 
 *文档随迭代进展更新。*

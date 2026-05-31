@@ -116,14 +116,13 @@ project_rich_snowball/
 ├── python/
 │   ├── main.py                     # FastAPI 入口、lifespan、CORS、异常处理、Prometheus 中间件
 │   ├── config.py                   # .env 加载、SECRET_KEY/生产环境校验、所有环境变量默认值
-│   ├── models.py                   # SQLAlchemy 模型，22 张表
+│   ├── models.py                   # SQLAlchemy 模型，23 张表
 │   ├── schemas.py                  # Pydantic v2，请求/响应模型和 XSS 过滤
 │   ├── dependencies.py             # get_db、JWT 用户解析
 │   ├── utils.py                    # bcrypt、JWT encode/decode
 │   ├── worker.py                   # 独立 scheduler 入口，不启动 FastAPI
-│   ├── routers/                    # 12 个领域路由
+│   ├── routers/                    # 13 个领域路由
 │   │   ├── auth.py
-│   │   ├── products.py
 │   │   ├── comments.py
 │   │   ├── varieties.py
 │   │   ├── kline.py
@@ -133,7 +132,9 @@ project_rich_snowball/
 │   │   ├── workspace.py
 │   │   ├── contracts.py
 │   │   ├── health.py
-│   │   └── market.py
+│   │   ├── market.py
+│   │   ├── metrics_dashboard.py
+│   │   └── settings.py
 │   ├── data_collector/             # 在线采集、清洗、upsert、调度器
 │   │   ├── scheduler.py
 │   │   ├── pipeline.py
@@ -335,7 +336,7 @@ ruff format .
 
 ## 测试现状
 
-后端已有 pytest（29 个测试文件）：
+后端已有 pytest（32 个测试文件）：
 - `test_p0_fixes.py`
 - `test_phase1_3_integration.py`
 - `test_cors_variable.py`
@@ -367,6 +368,8 @@ ruff format .
 - `test_frontend_logs.py`
 - `test_metrics_dashboard.py`
 - `test_varieties_enhanced.py`
+- `test_service_error_handler.py`
+- `test_settings.py`
 
 前端测试：
 - Vitest 单元测试：`frontend/tests/` 下 30 个测试文件，179 tests 全部通过
@@ -589,12 +592,27 @@ ruff format .
 - 数据库连接池监控落地
 - CORS `expose_headers` 修复（自定义响应头浏览器可读）
 
+### v6.1 债务修复 — 已完成（2026-05-30）
+
+- **Metrics dashboard admin/RBAC**：`UserDB` 增加 `role` 字段 + Alembic 迁移 `b057bf013236` + `require_admin_user` dependency
+- **Varieties detail 评论 N+1 修复**：`CommentDB.user` `joinedload` 预加载
+- **ServiceError 全局 handler**：`main.py` 注册 `service_error_handler`，业务异常映射为统一错误体
+
+### 用户设置（Settings）— 已完成（2026-05-31）
+
+- 后端 `python/models.py`：新增 `UserPreferenceDB`，扁平字段设计（theme/polling_interval_seconds/notifications_enabled/language）
+- 后端 `python/routers/settings.py`：`GET /api/settings` + `PUT /api/settings`（Patch 语义）
+- 后端 `python/routers/auth.py`：注册时自动创建默认偏好
+- 后端 `python/tests/test_settings.py`：12 个测试覆盖鉴权/默认值/隔离/更新/校验
+- Alembic 迁移：`99c6cd55a7f4`
+- pytest：**268 passed, 6 skipped**
+
 ### 下一步推荐
 
-1. **mypy 分阶段收紧**：从 `pipeline_tasks/` 和 domain services 开始纳入类型检查
-2. **SSE/熔断器 Redis 化**：进程内状态 → Redis，支撑横向扩展
-3. **只读 Admin 运营后台**：metrics_dashboard 已有基础，风险最低的可启动功能
-4. **前端 Vitest Windows 路径问题根治**：`/@fs/D:/...` 映射导致偶发失败，需稳定复现并修复
+1. **Logs（日志查看面板）**：基于 `FrontendLogDB` 扩展查询 API（按时间/类型/用户筛选 + 分页）
+2. **News 资讯系统**：RSS 订阅管理 + 新闻聚合
+3. **mypy 分阶段收紧**：从 `pipeline_tasks/` 和 domain services 开始纳入类型检查
+4. **SSE/熔断器 Redis 化**：进程内状态 → Redis，支撑横向扩展
 
 ---
 
@@ -611,4 +629,4 @@ ruff format .
 
 ---
 
-*最后更新：2026-05-29，由 AI 助手根据 master 分支当前代码整理。*
+*最后更新：2026-05-31，由 AI 助手根据 master 分支当前代码整理。*

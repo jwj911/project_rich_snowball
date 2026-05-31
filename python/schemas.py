@@ -68,6 +68,38 @@ class MessageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ---------- 用户偏好设置 ----------
+
+
+class Theme(StrEnum):
+    dark = "dark"
+    light = "light"
+    system = "system"
+
+
+class UserPreferenceResponse(BaseModel):
+    """用户偏好设置响应。"""
+
+    user_id: int
+    theme: str
+    polling_interval_seconds: int
+    notifications_enabled: bool
+    language: str
+    created_at: dt | None = None
+    updated_at: dt | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserPreferenceUpdate(BaseModel):
+    """用户偏好设置更新请求（Patch 语义：仅更新提供的字段）。"""
+
+    theme: Theme | None = Field(None, description="主题: dark | light | system")
+    polling_interval_seconds: int | None = Field(None, ge=5, le=3600, description="行情轮询间隔（秒）")
+    notifications_enabled: bool | None = Field(None, description="是否启用通知")
+    language: str | None = Field(None, max_length=10, description="语言代码，如 zh-CN")
+
+
 class CommentCreate(BaseModel):
     variety_id: int = Field(..., ge=1)
     content: str = Field(..., min_length=1, max_length=2000)

@@ -130,6 +130,12 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
+    # 自动创建默认用户偏好
+    from models import UserPreferenceDB
+    db.add(UserPreferenceDB(user_id=db_user.id))
+    db.commit()
+
     auth_operations_total.labels(operation="register", result="success").inc()
     return db_user
 

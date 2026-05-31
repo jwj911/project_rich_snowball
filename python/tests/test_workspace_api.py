@@ -49,10 +49,12 @@ def auth_client(client, db):
     old = db.query(UserDB).filter(UserDB.username == "workspace_user").first()
     if old:
         # 显式清理关联数据，避免外键关闭时留下孤儿数据
+        from models import UserPreferenceDB
         db.query(WatchlistDB).filter(WatchlistDB.user_id == old.id).delete(synchronize_session=False)
         db.query(PriceLevelDB).filter(PriceLevelDB.user_id == old.id).delete(synchronize_session=False)
         db.query(CommentDB).filter(CommentDB.user_id == old.id).delete(synchronize_session=False)
         db.query(RefreshTokenDB).filter(RefreshTokenDB.user_id == old.id).delete(synchronize_session=False)
+        db.query(UserPreferenceDB).filter(UserPreferenceDB.user_id == old.id).delete(synchronize_session=False)
         db.delete(old)
         db.commit()
 

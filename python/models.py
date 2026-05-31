@@ -619,3 +619,22 @@ class FrontendLogDB(Base):
     environment = Column(String(20), nullable=True)
     payload_json = Column(Text, nullable=False, default="{}")
     created_at = Column(DateTime(timezone=True), default=_utc_now, index=True)
+
+
+class UserPreferenceDB(Base):
+    """用户偏好设置。
+
+    每个用户一条记录，注册时自动创建默认值。
+    采用扁平字段设计，避免过度抽象；新增偏好直接加列。
+    """
+
+    __tablename__ = "user_preferences"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    theme = Column(String(20), nullable=False, default="dark")
+    polling_interval_seconds = Column(Integer, nullable=False, default=30)
+    notifications_enabled = Column(Boolean, nullable=False, default=True)
+    language = Column(String(10), nullable=False, default="zh-CN")
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
+    user = relationship("UserDB", backref="preference", uselist=False, passive_deletes=True)
