@@ -135,11 +135,14 @@ npx tsc --noEmit
 |------|------|
 | `/` | 登录后的行情工作台，展示热门品种、领涨观察、刷新状态 |
 | `/products` | 行情中心，支持搜索、分类筛选、涨跌筛选和排序 |
-| `/products/[id]` | 品种详情，展示实时行情、K 线、技术分析、评论、支撑/阻力标注 |
+| `/products/[id]` | 品种详情，展示实时行情、K 线、技术分析、评论、支撑/阻力标注、合约切换历史 |
 | `/workspace` | 我的工作区，聚合评论历史、云端价位标注和自选观察入口 |
 | `/my-comments` | 当前用户评论历史 |
+| `/metrics` | 运营指标面板（用户数/评论数/采集健康度） |
+| `/news` | 新闻资讯，支持来源筛选和标题搜索 |
+| `/settings` | 个人设置（主题/通知/轮询间隔/语言） |
 
-支撑/阻力标注通过 `/api/price-levels` 同步后端数据库存储，`localStorage` 仅作为降级缓存。
+支撑/阻力标注通过 `/api/price-levels` 同步后端数据库存储，`localStorage` 仅作为降级缓存。前端错误与 Web Vitals 自动上报到后端 `/api/log/frontend`。
 
 ---
 
@@ -163,6 +166,10 @@ npx tsc --noEmit
 | `GET /api/klines/{symbol}/main` | 主力合约 K 线 |
 | `GET /api/contracts/{contract_id}/kline` | 具体合约 K 线 |
 | `GET /api/price-levels` | 云端支撑/阻力位标注 |
+| `GET /api/contracts/rollovers` | 合约切换历史 |
+| `GET /api/settings` / `PUT /api/settings` | 用户偏好设置 |
+| `GET /api/news/sources` / `GET /api/news/articles` | 新闻源与文章 |
+| `POST /api/log/frontend` | 前端日志与 Web Vitals 上报 |
 | `GET /health` / `/health/ready` / `/health/scheduler` | 存活、就绪、调度器状态 |
 
 ---

@@ -79,9 +79,12 @@ project_rich_snowball/
 │   │   ├── layout.tsx              # 根布局，包裹 AuthProvider
 │   │   ├── page.tsx                # 行情工作台，需登录
 │   │   ├── products/page.tsx       # 行情中心，搜索/筛选/排序
-│   │   ├── products/[id]/page.tsx  # 品种详情，K 线/评论/合约切换/标注
+│   │   ├── products/[id]/page.tsx  # 品种详情，K 线/评论/合约切换/标注/合约历史
 │   │   ├── workspace/page.tsx      # 我的工作区
 │   │   ├── my-comments/page.tsx    # 当前用户评论历史
+│   │   ├── metrics/page.tsx        # 运营指标面板
+│   │   ├── news/page.tsx           # 新闻资讯
+│   │   ├── settings/page.tsx       # 个人设置
 │   │   └── globals.css
 │   ├── components/
 │   │   ├── auth/                   # AuthProvider、LoginRequired、RefreshTokenHandler
@@ -507,11 +510,14 @@ ruff format .
 - 所有品种链接改为 `/products/{symbol}`
 - Vitest 177 passed，Playwright 28 passed
 
-### 前端监控闭环 — 已完成（2026-05-28）
+### 前端监控闭环 — 已完成（2026-06-01）
 
 - 后端：`POST /api/log/frontend` + `FrontendLogDB` + Alembic 迁移 `71cca1a466b4`
 - `test_frontend_logs.py` 4 个测试覆盖
-- sentry-lite / vitals 默认 `reportUri` 指向后端落盘端点
+- `lib/api/logging.ts`：独立 `sendFrontendLog` 函数，POST 到 `/api/log/frontend`，不要求认证，失败静默丢弃
+- `sentry-lite.ts`：`captureException` / `captureMessage` 无论 Sentry 是否启用，总是同时发送到后端日志端点
+- `lib/vitals.ts`：Web Vitals 无论 Sentry 是否启用，总是同时发送到后端日志端点
+- 后端 `GET /api/log/frontend` 支持 admin 查询全部 / 普通用户查询自己的日志
 
 ### CSRF 防护 — 已完成（2026-05-29）
 
@@ -610,11 +616,21 @@ ruff format .
 - Alembic 迁移：`99c6cd55a7f4`
 - pytest：**317 passed, 6 skipped**
 
+### 前端功能补齐 — 已完成（2026-06-01）
+
+- **指标导航链接**：`navigation.ts` primaryNavItems 补入「指标」，Navbar.tsx 统一从 navigation.ts 导入（消除重复定义），移动端 grid-cols 修正为 5
+- **新闻资讯页**：`app/news/page.tsx`，对接 `/api/news/sources` + `/api/news/articles`，支持来源筛选、标题搜索、相对时间、外链跳转
+- **设置页**：`app/settings/page.tsx`，对接 `/api/settings` (GET/PUT)，支持主题切换、通知开关、轮询间隔、语言选择
+- **前端日志上报闭环**：`lib/api/logging.ts` 提供 `sendFrontendLog` → `/api/log/frontend`；`sentry-lite.ts` 的 `captureException` / `captureMessage` 总是同时发送到后端；`lib/vitals.ts` 的 Web Vitals 也总是同时发送到后端
+- **合约切换历史**：`components/product/ContractRolloverPanel.tsx`，在品种详情页右侧展示，对接 `/api/contracts/rollovers`
+- **合约详情展示**：`KlineSection` 单合约模式下展示合约信息（交易所、上市/退市日期、活跃状态）
+- API 层新增：`getContractById`、`getContractRollovers`、`ContractRollover` 类型、`lib/api/settings.ts`、`lib/api/news.ts`
+
 ### 下一步推荐
 
 1. **Opinions（交易观点/日记）**：复用现有 `OpinionDB` 模型，补充 Schema + Router + Service
 2. **News 定时抓取**：将 `fetch_all_enabled_sources` 注册到 APScheduler
-3. **前端功能消费**：News 面板 / Settings 面板 / Logs 面板
+3. **Agent 状态 / 权限心跳 / 提醒事件 / 工具页面**：前后端均未开发，需产品设计
 
 > 详细技术路径与优先级见 `BACKEND_FEATURE_ROADMAP.md`
 
@@ -633,4 +649,4 @@ ruff format .
 
 ---
 
-*最后更新：2026-05-31，由 AI 助手根据 master 分支当前代码整理。*
+*最后更新：2026-06-01，由 AI 助手根据 master 分支当前代码整理。*
