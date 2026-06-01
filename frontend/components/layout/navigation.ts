@@ -20,7 +20,18 @@ export const primaryNavItems = [
   { href: '/metrics', label: '指标', icon: BarChart3 },
 ]
 
-export const secondaryNavGroups = [
+export interface SecondaryNavItem {
+  label: string
+  icon: React.ElementType
+  href?: string
+}
+
+export interface NavGroup {
+  title: string
+  items: SecondaryNavItem[]
+}
+
+export const secondaryNavGroups: NavGroup[] = [
   {
     title: 'AGENT',
     items: [
@@ -31,7 +42,7 @@ export const secondaryNavGroups = [
   {
     title: 'DATA',
     items: [
-      { label: '市场数据', icon: Database },
+      { label: '新闻资讯', icon: Database, href: '/news' },
       { label: '提醒事件', icon: Bell },
     ],
   },
@@ -39,7 +50,7 @@ export const secondaryNavGroups = [
     title: 'SYSTEM',
     items: [
       { label: '工具', icon: Wrench },
-      { label: '设置', icon: Settings },
+      { label: '设置', icon: Settings, href: '/settings' },
     ],
   },
 ]

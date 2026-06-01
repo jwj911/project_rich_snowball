@@ -68,15 +68,30 @@ export default function Navbar() {
                   {group.title}
                 </div>
                 <div className="space-y-1">
-                  {group.items.map((item) => (
-                    <div
-                      key={item.label}
-                      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm text-slate-500"
-                    >
-                      <item.icon size={17} />
-                      {item.label}
-                    </div>
-                  ))}
+                  {group.items.map((item) =>
+                    item.href ? (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm transition-colors ${
+                          isActivePath(pathname, item.href)
+                            ? 'bg-slate-800 text-white'
+                            : 'text-slate-400 hover:bg-slate-900 hover:text-white'
+                        }`}
+                      >
+                        <item.icon size={17} />
+                        {item.label}
+                      </Link>
+                    ) : (
+                      <div
+                        key={item.label}
+                        className="flex items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm text-slate-500"
+                      >
+                        <item.icon size={17} />
+                        {item.label}
+                      </div>
+                    ),
+                  )}
                 </div>
               </div>
             ))}

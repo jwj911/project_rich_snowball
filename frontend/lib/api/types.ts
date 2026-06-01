@@ -185,6 +185,44 @@ export interface MarketStatusResponse {
   remark: string | null
 }
 
+export interface UserPreference {
+  user_id: number
+  theme: 'dark' | 'light' | 'system'
+  polling_interval_seconds: number
+  notifications_enabled: boolean
+  language: string
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface UserPreferenceUpdate {
+  theme?: 'dark' | 'light' | 'system' | null
+  polling_interval_seconds?: number | null
+  notifications_enabled?: boolean | null
+  language?: string | null
+}
+
+export interface NewsSource {
+  id: number
+  name: string
+  url: string
+  category: string | null
+  is_enabled: boolean
+  last_fetched_at: string | null
+  fetch_error_count: number
+  created_at: string
+}
+
+export interface NewsArticle {
+  id: number
+  source_id: number
+  title: string
+  summary: string | null
+  url: string
+  published_at: string | null
+  fetched_at: string
+}
+
 export interface DailyCount {
   date: string
   count: number

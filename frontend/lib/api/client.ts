@@ -25,6 +25,8 @@ import {
   getDashboardCollection,
   getDashboardOverview,
 } from './metrics'
+import { getNewsArticles, getNewsSources } from './news'
+import { getUserSettings, updateUserSettings } from './settings'
 import {
   createPriceLevel,
   createPriceLevelsBatch,
@@ -46,6 +48,8 @@ import type {
   FutContract,
   KlineData,
   MarketStatusResponse,
+  NewsArticle,
+  NewsSource,
   PriceLevel,
   Product,
   ProductDetail,
@@ -54,6 +58,8 @@ import type {
   RealtimeQuote,
   TokenResponse,
   User,
+  UserPreference,
+  UserPreferenceUpdate,
   Variety,
   VarietyFees,
   Watchlist,
@@ -232,6 +238,27 @@ class ApiService extends AuthCore {
 
   getDashboardCollection(): Promise<DashboardCollection> {
     return getDashboardCollection(this)
+  }
+
+  getUserSettings(): Promise<UserPreference> {
+    return getUserSettings(this)
+  }
+
+  updateUserSettings(data: UserPreferenceUpdate): Promise<UserPreference> {
+    return updateUserSettings(this, data)
+  }
+
+  getNewsSources(): Promise<NewsSource[]> {
+    return getNewsSources(this)
+  }
+
+  getNewsArticles(params?: {
+    source_id?: number
+    q?: string
+    skip?: number
+    limit?: number
+  }): Promise<NewsArticle[]> {
+    return getNewsArticles(this, params)
   }
 }
 
