@@ -271,7 +271,10 @@ for alert in alerts:
 | | `CreateOpinionModal` 提取为可复用组件 | ✅ |
 | 2026-06-01 | Phase 2 P0 前端：Opinions-Product 品种联动 | ✅ |
 | | 品种详情页右侧 aside 显示当前品种最近观点 + 一键创建（自动锁定品种） | ✅ |
-| 待执行 | Phase 2 P2：Price Alert 价格预警后端实现 | 🔄 |
+| 2026-06-01 | Phase 2 P2：Price Alert 价格预警完整实现 | ✅ |
+| | `PriceAlertDB` 模型 + Alembic 迁移 + Schema + Router + 15 tests | ✅ |
+| | Scheduler 集成：实时行情刷新后自动检查并触发预警 | ✅ |
+| | 前端品种详情页预警面板（创建/列表/删除） | ✅ |
 
 ---
 

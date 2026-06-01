@@ -590,6 +590,23 @@ ruff format .
 - Playwright E2E 保留功能测试，`performance.spec.ts` 中的性能断言迁移到 Lighthouse
 - token 持久化到 `localStorage`（`futures_access_token`），刷新不丢失登录态
 
+### Price Alert（价格预警）— 已完成（2026-06-01）
+
+**后端**
+- `PriceAlertDB` 模型：user_id/variety_id/alert_type(above|below)/target_price/is_triggered/triggered_at
+- Alembic 迁移 `a1b2c3d4e5f6`
+- Schema 含字段校验（alert_type 只能是 above/below）
+- Router `/api/price-alerts`：列表/筛选/已触发查询/创建/更新/删除
+- 权限：仅 owner 可改删
+- Scheduler 集成：`refresh_realtime_quotes` 成功后调用 `_check_price_alerts()`，遍历所有未触发预警与 `RealtimeQuoteDB.current_price` 比较，满足条件自动标记触发
+- pytest 15 tests 覆盖
+
+**前端**
+- API 层：`lib/api/price_alerts.ts` + `ApiService` 方法注册
+- 品种详情页右侧 aside：`PriceAlertPanel` 组件
+  - 展开表单：above/below 选择 + 目标价输入（placeholder 显示当前价）
+  - 列表展示：方向 badge + 目标价 + 触发状态 + 删除按钮
+
 ### Opinions（交易观点/日记）— 已完成（2026-05-30）
 
 **后端**
