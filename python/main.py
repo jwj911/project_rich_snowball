@@ -61,6 +61,7 @@ from routers import (  # noqa: E402
     metrics_dashboard,
     news,
     opinions,
+    price_alerts,
     price_levels,
     realtime,
     settings,
@@ -200,6 +201,7 @@ app.include_router(metrics_dashboard.router)
 app.include_router(settings.router)
 app.include_router(news.router)
 app.include_router(opinions.router)
+app.include_router(price_alerts.router)
 
 
 @app.middleware("http")

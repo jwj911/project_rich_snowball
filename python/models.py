@@ -156,6 +156,7 @@ class UserDB(Base):
     comments = relationship("CommentDB", back_populates="user", passive_deletes=True)
     watchlists = relationship("WatchlistDB", back_populates="user", passive_deletes=True)
     opinions = relationship("OpinionDB", back_populates="user", passive_deletes=True)
+    price_alerts = relationship("PriceAlertDB", back_populates="user", passive_deletes=True)
     price_levels = relationship("PriceLevelDB", back_populates="user", passive_deletes=True)
     refresh_tokens = relationship("RefreshTokenDB", back_populates="user", passive_deletes=True)
 
@@ -195,6 +196,7 @@ class VarietyDB(Base):
 
     realtime = relationship("RealtimeQuoteDB", back_populates="variety", uselist=False, passive_deletes=True)
     klines = relationship("KlineDataDB", back_populates="variety", passive_deletes=True)
+    price_alerts = relationship("PriceAlertDB", back_populates="variety", passive_deletes=True)
     daily_data = relationship("FutDailyDataDB", back_populates="variety", passive_deletes=True)
     watchlists = relationship("WatchlistDB", back_populates="variety", passive_deletes=True)
     opinions = relationship("OpinionDB", back_populates="variety", passive_deletes=True)
@@ -314,6 +316,26 @@ class WatchlistDB(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "variety_id", name="uix_watchlist_user_variety"),
     )
+
+
+class PriceAlertDB(Base):
+    """价格预警。
+
+    用户为某个品种设置的价格触发型预警。
+    当实时行情满足 alert_type 条件时，标记为已触发。
+    """
+
+    __tablename__ = "price_alerts"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="CASCADE"), nullable=False)
+    alert_type = Column(String(10), nullable=False)  # above | below
+    target_price = Column(Numeric(15, 4), nullable=False)
+    is_triggered = Column(Boolean, default=False, nullable=False)
+    triggered_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    user = relationship("UserDB", back_populates="price_alerts")
+    variety = relationship("VarietyDB", back_populates="price_alerts")
 
 
 class OpinionDB(Base):

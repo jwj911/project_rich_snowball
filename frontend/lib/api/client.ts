@@ -35,6 +35,13 @@ import {
   getOpinions,
   updateOpinion,
 } from './opinions'
+import {
+  createPriceAlert,
+  deletePriceAlert,
+  getPriceAlerts,
+  getTriggeredAlerts,
+  updatePriceAlert,
+} from './price_alerts'
 import { getNewsArticles, getNewsSources } from './news'
 import { getUserSettings, updateUserSettings } from './settings'
 import {
@@ -64,6 +71,9 @@ import type {
   Opinion,
   OpinionCreate,
   OpinionUpdate,
+  PriceAlert,
+  PriceAlertCreate,
+  PriceAlertUpdate,
   PriceLevel,
   Product,
   ProductDetail,
@@ -317,6 +327,31 @@ class ApiService extends AuthCore {
 
   deleteOpinion(id: number): Promise<void> {
     return deleteOpinion(this, id)
+  }
+
+  getPriceAlerts(params?: {
+    variety_id?: number
+    triggered?: boolean
+    skip?: number
+    limit?: number
+  }): Promise<PriceAlert[]> {
+    return getPriceAlerts(this, params)
+  }
+
+  getTriggeredAlerts(params?: { skip?: number; limit?: number }): Promise<PriceAlert[]> {
+    return getTriggeredAlerts(this, params)
+  }
+
+  createPriceAlert(data: PriceAlertCreate): Promise<PriceAlert> {
+    return createPriceAlert(this, data)
+  }
+
+  updatePriceAlert(id: number, data: PriceAlertUpdate): Promise<PriceAlert> {
+    return updatePriceAlert(this, id, data)
+  }
+
+  deletePriceAlert(id: number): Promise<void> {
+    return deletePriceAlert(this, id)
   }
 }
 

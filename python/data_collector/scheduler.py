@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 import time
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.exc import SQLAlchemyError
@@ -14,7 +14,7 @@ from data_collector.collector_registry import (
     build_pipelines,
 )
 from data_collector.job_registry import build_job_configs, register_jobs
-from models import SessionLocal, VarietyDB
+from models import PriceAlertDB, RealtimeQuoteDB, SessionLocal, VarietyDB
 from services.metrics import data_collection_duration_seconds, data_collection_runs_total
 from services.news_fetcher import fetch_all_enabled_sources
 from services.realtime_state import mark_realtime_updated
@@ -83,8 +83,6 @@ def _should_skip_daily_task(job_name: str, trade_date: str, db) -> bool:
 
     防止手动重试或 misfire 补执行时产生重复数据。
     """
-    from datetime import datetime
-
     from models import DataIngestionRunDB
     try:
         dt = datetime.strptime(trade_date, "%Y%m%d")
@@ -151,6 +149,7 @@ def refresh_realtime_quotes():
             },
         )
         mark_realtime_updated()
+        _check_price_alerts(db)
         data_collection_runs_total.labels(task_name="refresh_realtime", status="success").inc()
     except (SQLAlchemyError, OSError) as e:
         logger.error("Refresh realtime failed: %s", e)
@@ -159,6 +158,49 @@ def refresh_realtime_quotes():
     finally:
         db.close()
         data_collection_duration_seconds.labels(task_name="refresh_realtime").observe(time.time() - start)
+
+
+def _check_price_alerts(db):
+    """检查所有未触发的价格预警，根据实时行情标记触发状态。"""
+    try:
+        alerts = (
+            db.query(PriceAlertDB)
+            .filter(PriceAlertDB.is_triggered.is_(False))
+            .all()
+        )
+        if not alerts:
+            return
+
+        triggered_count = 0
+        for alert in alerts:
+            quote = (
+                db.query(RealtimeQuoteDB)
+                .filter(RealtimeQuoteDB.variety_id == alert.variety_id)
+                .first()
+            )
+            if not quote:
+                continue
+
+            current = quote.current_price
+            if current is None:
+                continue
+
+            triggered = False
+            if alert.alert_type == "above" and current >= alert.target_price:
+                triggered = True
+            elif alert.alert_type == "below" and current <= alert.target_price:
+                triggered = True
+
+            if triggered:
+                alert.is_triggered = True
+                alert.triggered_at = datetime.now(UTC)
+                triggered_count += 1
+
+        if triggered_count > 0:
+            db.commit()
+            logger.info("Price alerts triggered: %d", triggered_count)
+    except (SQLAlchemyError, OSError) as e:
+        logger.error("Failed to check price alerts: %s", e)
 
 
 def sync_daily_kline():

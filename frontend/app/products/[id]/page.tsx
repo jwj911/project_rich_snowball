@@ -25,10 +25,12 @@ import {
   TrendingDown,
   Minus,
   Plus,
+  Trash2,
+  Bell,
 } from 'lucide-react'
 import CreateOpinionModal from '@/components/opinion/CreateOpinionModal'
 import type { OpinionFormData } from '@/components/opinion/CreateOpinionModal'
-import type { Opinion } from '@/lib/api'
+import type { Opinion, PriceAlert } from '@/lib/api'
 
 import WatchlistButton from '@/components/product/WatchlistButton'
 import { useProductKline } from '@/hooks/useProductKline'
@@ -68,6 +70,9 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const [rollovers, setRollovers] = useState<ContractRollover[]>([])
   const [rolloversLoading, setRolloversLoading] = useState(false)
   const [showOpinionModal, setShowOpinionModal] = useState(false)
+  const [showAlertForm, setShowAlertForm] = useState(false)
+  const [alertType, setAlertType] = useState<'above' | 'below'>('above')
+  const [alertPrice, setAlertPrice] = useState('')
 
   const {
     klineData,
@@ -225,6 +230,48 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     }
   }
 
+  const {
+    data: priceAlerts,
+    mutate: mutateAlerts,
+  } = useSWR(
+    varietyId ? ['price-alerts', varietyId] : null,
+    () => api.getPriceAlerts({ variety_id: varietyId! }),
+    { revalidateOnFocus: false },
+  )
+
+  const handleCreateAlert = async () => {
+    if (!varietyId || !alertPrice.trim()) return
+    const price = Number.parseFloat(alertPrice)
+    if (!Number.isFinite(price) || price <= 0) {
+      toast.error('请输入有效的目标价格')
+      return
+    }
+    try {
+      await api.createPriceAlert({
+        variety_id: varietyId,
+        alert_type: alertType,
+        target_price: alertPrice,
+      })
+      toast.success('预警已设置')
+      setAlertPrice('')
+      setShowAlertForm(false)
+      mutateAlerts()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '设置失败')
+    }
+  }
+
+  const handleDeleteAlert = async (id: number) => {
+    if (!confirm('确定删除这条预警？')) return
+    try {
+      await api.deletePriceAlert(id)
+      toast.success('预警已删除')
+      mutateAlerts()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '删除失败')
+    }
+  }
+
   return (
     <AppShell>
       {authLoading ? (
@@ -351,6 +398,22 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
               />
 
               {varietyId && (
+                <PriceAlertPanel
+                  displayPrice={displayPrice ?? null}
+                  pricePrecision={product?.price_precision}
+                  alerts={priceAlerts}
+                  showForm={showAlertForm}
+                  alertType={alertType}
+                  alertPrice={alertPrice}
+                  onToggleForm={() => setShowAlertForm((v) => !v)}
+                  onChangeType={setAlertType}
+                  onChangePrice={setAlertPrice}
+                  onCreate={handleCreateAlert}
+                  onDelete={handleDeleteAlert}
+                />
+              )}
+
+              {varietyId && (
                 <ProductOpinionsPanel
                   symbol={symbol}
                   opinions={productOpinions}
@@ -446,6 +509,129 @@ function ProductOpinionsPanel({
       >
         查看全部观点 →
       </Link>
+    </div>
+  )
+}
+
+function PriceAlertPanel({
+  displayPrice,
+  pricePrecision,
+  alerts,
+  showForm,
+  alertType,
+  alertPrice,
+  onToggleForm,
+  onChangeType,
+  onChangePrice,
+  onCreate,
+  onDelete,
+}: {
+  displayPrice: number | null
+  pricePrecision?: number
+  alerts?: PriceAlert[]
+  showForm: boolean
+  alertType: 'above' | 'below'
+  alertPrice: string
+  onToggleForm: () => void
+  onChangeType: (t: 'above' | 'below') => void
+  onChangePrice: (v: string) => void
+  onCreate: () => void
+  onDelete: (id: number) => void
+}) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-surface p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+          <Bell size={15} className="text-amber-400" />
+          价格预警
+        </h3>
+        <button
+          type="button"
+          onClick={onToggleForm}
+          className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-400 transition hover:bg-amber-500/20"
+        >
+          <Plus size={12} />
+          {showForm ? '取消' : '新建'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="mt-3 space-y-2">
+          <div className="flex gap-2">
+            {(['above', 'below'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => onChangeType(t)}
+                className={`flex-1 rounded-lg border py-1.5 text-xs transition ${
+                  alertType === t
+                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+                    : 'border-slate-700 text-slate-400 hover:border-slate-500'
+                }`}
+              >
+                {t === 'above' ? '≥ 高于' : '≤ 低于'}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={alertPrice}
+              onChange={(e) => onChangePrice(e.target.value)}
+              placeholder={`当前 ${displayPrice != null ? formatPrice(displayPrice, pricePrecision) : '--'}`}
+              className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-black/30 px-3 py-1.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-amber-500/50"
+            />
+            <button
+              type="button"
+              onClick={onCreate}
+              className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-amber-500"
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!alerts || alerts.length === 0 ? (
+        <p className="mt-3 text-xs text-slate-500">暂无预警，设置价格提醒。</p>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {alerts.map((alert) => (
+            <div
+              key={alert.id}
+              className="flex items-center justify-between rounded border border-slate-800 bg-black/20 p-2"
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                    alert.alert_type === 'above'
+                      ? 'bg-red-500/10 text-red-400'
+                      : 'bg-green-500/10 text-green-400'
+                  }`}
+                >
+                  {alert.alert_type === 'above' ? '≥' : '≤'}
+                </span>
+                <span className="text-xs text-slate-300">
+                  {formatPrice(Number(alert.target_price), pricePrecision)}
+                </span>
+                {alert.is_triggered && (
+                  <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-400">
+                    已触发
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => onDelete(alert.id)}
+                className="rounded p-1 text-slate-500 transition hover:bg-slate-800 hover:text-red-400"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -598,3 +598,46 @@ class OpinionResponse(BaseModel):
     closed_at: dt | None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+
+class PriceAlertCreate(BaseModel):
+    """创建价格预警请求。"""
+
+    variety_id: int = Field(..., ge=1)
+    alert_type: str = Field(..., max_length=10)
+    target_price: Decimal = Field(..., ge=0, decimal_places=4)
+
+    @field_validator("alert_type", mode="before")
+    @classmethod
+    def _normalize_alert_type(cls, v):
+        if isinstance(v, str):
+            v = v.strip().lower()
+            if v not in ("above", "below"):
+                raise ValueError('alert_type must be one of: "above", "below"')
+            return v
+        return v
+
+
+class PriceAlertUpdate(BaseModel):
+    """更新价格预警请求。"""
+
+    target_price: Decimal | None = Field(default=None, ge=0, decimal_places=4)
+    is_triggered: bool | None = Field(default=None)
+
+
+class PriceAlertResponse(BaseModel):
+    """价格预警响应。"""
+
+    id: int
+    user_id: int
+    variety_id: int
+    variety_symbol: str
+    variety_name: str
+    alert_type: str
+    target_price: Decimal
+    is_triggered: bool
+    triggered_at: dt | None
+    created_at: dt
+
+    model_config = ConfigDict(from_attributes=True)

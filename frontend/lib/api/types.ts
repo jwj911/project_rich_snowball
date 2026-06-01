@@ -323,3 +323,28 @@ export interface OpinionUpdate {
   status?: 'open' | 'closed_profit' | 'closed_loss' | 'expired' | null
   actual_outcome?: 'profit' | 'loss' | 'breakeven' | null
 }
+
+
+export interface PriceAlert {
+  id: number
+  user_id: number
+  variety_id: number
+  variety_symbol: string
+  variety_name: string
+  alert_type: 'above' | 'below'
+  target_price: string
+  is_triggered: boolean
+  triggered_at: string | null
+  created_at: string
+}
+
+export interface PriceAlertCreate {
+  variety_id: number
+  alert_type: 'above' | 'below'
+  target_price: string
+}
+
+export interface PriceAlertUpdate {
+  target_price?: string | null
+  is_triggered?: boolean | null
+}
