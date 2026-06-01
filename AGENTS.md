@@ -336,7 +336,7 @@ ruff format .
 
 ## 测试现状
 
-后端已有 pytest（32 个测试文件）：
+后端已有 pytest（35 个测试文件）：
 - `test_p0_fixes.py`
 - `test_phase1_3_integration.py`
 - `test_cors_variable.py`
@@ -370,6 +370,9 @@ ruff format .
 - `test_varieties_enhanced.py`
 - `test_service_error_handler.py`
 - `test_settings.py`
+- `test_frontend_logs_query.py`
+- `test_news.py`
+- `test_opinions.py`
 
 前端测试：
 - Vitest 单元测试：`frontend/tests/` 下 30 个测试文件，179 tests 全部通过
@@ -605,14 +608,15 @@ ruff format .
 - 后端 `python/routers/auth.py`：注册时自动创建默认偏好
 - 后端 `python/tests/test_settings.py`：12 个测试覆盖鉴权/默认值/隔离/更新/校验
 - Alembic 迁移：`99c6cd55a7f4`
-- pytest：**268 passed, 6 skipped**
+- pytest：**317 passed, 6 skipped**
 
 ### 下一步推荐
 
-1. **Logs（日志查看面板）**：基于 `FrontendLogDB` 扩展查询 API（按时间/类型/用户筛选 + 分页）
-2. **News 资讯系统**：RSS 订阅管理 + 新闻聚合
-3. **mypy 分阶段收紧**：从 `pipeline_tasks/` 和 domain services 开始纳入类型检查
-4. **SSE/熔断器 Redis 化**：进程内状态 → Redis，支撑横向扩展
+1. **Opinions（交易观点/日记）**：复用现有 `OpinionDB` 模型，补充 Schema + Router + Service
+2. **News 定时抓取**：将 `fetch_all_enabled_sources` 注册到 APScheduler
+3. **前端功能消费**：News 面板 / Settings 面板 / Logs 面板
+
+> 详细技术路径与优先级见 `BACKEND_FEATURE_ROADMAP.md`
 
 ---
 

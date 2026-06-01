@@ -11,6 +11,8 @@
 - 数据库：开发可用 SQLite；PostgreSQL 16 通过 `docker-compose.yml` 提供
 - K 线：前端使用 `lightweight-charts`，后端支持 `1m/5m/15m/30m/1h/1d/1w`
 - 访问控制：主要页面需要登录，未登录时显示登录引导
+- 新闻资讯：RSS 源管理与聚合，admin 可配置源，登录用户可浏览
+- 交易观点/日记：用户针对品种发表多空观点，记录目标价、止损价和理由，支持事后复盘标记状态
 
 ---
 
@@ -44,7 +46,7 @@ project_rich_snowball/
 │   ├── main.py                  # FastAPI 应用入口，默认 127.0.0.1:8200
 │   ├── config.py                # .env 加载、安全配置、生产环境约束
 │   ├── models.py                # SQLAlchemy 模型
-│   ├── routers/                 # auth/comments/varieties/kline/realtime/health/price-levels/settings
+│   ├── routers/                 # auth/comments/varieties/kline/realtime/health/price-levels/settings/news
 │   ├── data_collector/          # 在线采集流水线与调度器
 │   ├── tushare_pg_ingest/       # 独立 PostgreSQL 历史数据回填脚本
 │   ├── scripts/                 # 一次性验证/采集辅助脚本

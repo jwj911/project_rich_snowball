@@ -453,6 +453,7 @@ class FrontendLogCreate(BaseModel):
     payload: dict = Field(default_factory=dict)
     level: str | None = Field(default=None, max_length=20)
     meta: dict = Field(default_factory=dict)
+    user_id: int | None = Field(default=None, ge=1, description="已登录用户上报时关联用户 ID")
 
     @field_validator("type", "level", mode="before")
     @classmethod
@@ -460,3 +461,140 @@ class FrontendLogCreate(BaseModel):
         if isinstance(v, str):
             return v.strip()
         return v
+
+
+class FrontendLogResponse(BaseModel):
+    """前端日志查询响应。"""
+
+    id: int
+    user_id: int | None
+    type: str
+    level: str | None
+    url: str | None
+    user_agent: str | None
+    release: str | None
+    environment: str | None
+    payload: dict
+    created_at: dt
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("payload", mode="before")
+    @classmethod
+    def _parse_payload_json(cls, v):
+        if isinstance(v, str):
+            import json
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return v
+
+
+class NewsSourceBase(BaseModel):
+    """新闻源基础字段。"""
+
+    name: str = Field(..., max_length=100)
+    url: str = Field(..., max_length=500)
+    category: str | None = Field(default=None, max_length=50)
+    is_enabled: bool = Field(default=True)
+
+
+class NewsSourceCreate(NewsSourceBase):
+    """创建新闻源请求。"""
+    pass
+
+
+class NewsSourceResponse(NewsSourceBase):
+    """新闻源响应。"""
+
+    id: int
+    last_fetched_at: dt | None
+    fetch_error_count: int
+    created_at: dt
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class NewsArticleResponse(BaseModel):
+    """新闻条目响应。"""
+
+    id: int
+    source_id: int
+    title: str
+    summary: str | None
+    url: str
+    published_at: dt | None
+    fetched_at: dt
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OpinionCreate(BaseModel):
+    """创建交易观点请求。"""
+
+    variety_id: int = Field(..., ge=1)
+    type: str = Field(..., max_length=10)  # long | short | neutral
+    reason: str = Field(..., max_length=2000)
+    target_price: Decimal | None = Field(default=None, ge=0, decimal_places=4)
+    stop_loss: Decimal | None = Field(default=None, ge=0, decimal_places=4)
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def _normalize_type(cls, v):
+        if isinstance(v, str):
+            v = v.strip().lower()
+            if v not in ("long", "short", "neutral"):
+                raise ValueError("type must be one of: long, short, neutral")
+            return v
+        return v
+
+
+class OpinionUpdate(BaseModel):
+    """更新交易观点请求（Patch 语义）。"""
+
+    reason: str | None = Field(default=None, max_length=2000)
+    target_price: Decimal | None = Field(default=None, ge=0, decimal_places=4)
+    stop_loss: Decimal | None = Field(default=None, ge=0, decimal_places=4)
+    status: str | None = Field(default=None, max_length=20)
+    actual_outcome: str | None = Field(default=None, max_length=20)
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _normalize_status(cls, v):
+        if isinstance(v, str):
+            v = v.strip().lower()
+            if v not in ("open", "closed_profit", "closed_loss", "expired"):
+                raise ValueError("status must be one of: open, closed_profit, closed_loss, expired")
+            return v
+        return v
+
+    @field_validator("actual_outcome", mode="before")
+    @classmethod
+    def _normalize_outcome(cls, v):
+        if isinstance(v, str):
+            v = v.strip().lower()
+            if v not in ("profit", "loss", "breakeven"):
+                raise ValueError("actual_outcome must be one of: profit, loss, breakeven")
+            return v
+        return v
+
+
+class OpinionResponse(BaseModel):
+    """交易观点响应。"""
+
+    id: int
+    user_id: int
+    variety_id: int
+    variety_symbol: str
+    variety_name: str
+    type: str
+    reason: str | None
+    target_price: Decimal | None
+    stop_loss: Decimal | None
+    status: str
+    actual_outcome: str | None
+    created_at: dt
+    closed_at: dt | None
+
+    model_config = ConfigDict(from_attributes=True)

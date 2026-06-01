@@ -317,14 +317,23 @@ class WatchlistDB(Base):
 
 
 class OpinionDB(Base):
+    """交易观点/日记。
+
+    用户针对某个品种发表的多空观点，包含目标价、止损价和理由。
+    支持状态流转：open -> closed_profit/closed_loss/expired。
+    """
+
     __tablename__ = "opinions"
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="CASCADE"), nullable=False)
-    type = Column(String(10), nullable=False)
+    type = Column(String(10), nullable=False)  # long | short | neutral
     reason = Column(Text)
     target_price = Column(Numeric(15, 4))
     stop_loss = Column(Numeric(15, 4))
+    status = Column(String(20), nullable=False, default="open")  # open | closed_profit | closed_loss | expired
+    closed_at = Column(DateTime(timezone=True), nullable=True)
+    actual_outcome = Column(String(20), nullable=True)  # profit | loss | breakeven
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     user = relationship("UserDB", back_populates="opinions")
     variety = relationship("VarietyDB", back_populates="opinions")
@@ -611,6 +620,7 @@ class TradingCalendarDB(Base):
 class FrontendLogDB(Base):
     __tablename__ = "frontend_logs"
     id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     log_type = Column("type", String(20), nullable=False, index=True)
     level = Column(String(20), nullable=True, index=True)
     url = Column(String(500), nullable=True)
@@ -638,3 +648,44 @@ class UserPreferenceDB(Base):
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
     user = relationship("UserDB", backref="preference", uselist=False, passive_deletes=True)
+
+
+class NewsSourceDB(Base):
+    """RSS 新闻源。
+
+    每个源对应一个 RSS 订阅地址，后台定时或手动触发抓取。
+    采用启用/禁用开关控制，错误次数过多可人工介入。
+    """
+
+    __tablename__ = "news_sources"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    url = Column(String(500), nullable=False)
+    category = Column(String(50), nullable=True)
+    is_enabled = Column(Boolean, default=True, nullable=False)
+    last_fetched_at = Column(DateTime(timezone=True), nullable=True)
+    fetch_error_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+
+
+class NewsArticleDB(Base):
+    """RSS 抓取的新闻条目。
+
+    同一篇文章通过 (source_id, url) 去重，避免重复入库。
+    """
+
+    __tablename__ = "news_articles"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_id = Column(
+        Integer, ForeignKey("news_sources.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    title = Column(String(300), nullable=False)
+    summary = Column(Text, nullable=True)
+    url = Column(String(500), nullable=False)
+    published_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    fetched_at = Column(DateTime(timezone=True), default=_utc_now)
+
+    __table_args__ = (
+        UniqueConstraint("source_id", "url", name="uix_article_source_url"),
+    )

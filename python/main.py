@@ -59,6 +59,8 @@ from routers import (  # noqa: E402
     kline,
     market,
     metrics_dashboard,
+    news,
+    opinions,
     price_levels,
     realtime,
     settings,
@@ -196,6 +198,8 @@ app.include_router(health.router)
 app.include_router(market.router)
 app.include_router(metrics_dashboard.router)
 app.include_router(settings.router)
+app.include_router(news.router)
+app.include_router(opinions.router)
 
 
 @app.middleware("http")

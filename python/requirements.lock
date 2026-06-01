@@ -51,6 +51,8 @@ et-xmlfile==2.0.0
     # via openpyxl
 fastapi==0.136.3
     # via -r requirements.txt
+feedparser==6.0.12
+    # via -r requirements.txt
 greenlet==3.5.1
     # via sqlalchemy
 h11==0.16.0
@@ -146,6 +148,8 @@ requests==2.34.2
     #   tushare
 rich==15.0.0
     # via curl-cffi
+sgmllib3k==1.0.0
+    # via feedparser
 simplejson==4.1.1
     # via tushare
 six==1.17.0
