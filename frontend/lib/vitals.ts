@@ -1,4 +1,5 @@
 import { onCLS, onFCP, onINP, onLCP, onTTFB } from 'web-vitals'
+import { sendFrontendLog } from './api/logging'
 
 export interface VitalsConfig {
   reportUri?: string
@@ -27,7 +28,7 @@ function shouldReport(config: VitalsConfig): boolean {
   return Math.random() < rate
 }
 
-async function sendToEndpoint(config: VitalsConfig, metric: { name: string; value: number; id: string }) {
+async function sendToSentry(config: VitalsConfig, metric: { name: string; value: number; id: string }) {
   if (!config.reportUri) return
   try {
     await fetch(config.reportUri, {
@@ -56,17 +57,32 @@ async function sendToEndpoint(config: VitalsConfig, metric: { name: string; valu
   }
 }
 
+async function sendToBackend(metric: { name: string; value: number; id: string }) {
+  await sendFrontendLog({
+    type: 'web-vitals',
+    payload: {
+      name: metric.name,
+      value: metric.value,
+      id: metric.id,
+      route: typeof window !== 'undefined' ? window.location.pathname : null,
+    },
+  })
+}
+
 function sendToAnalytics(metric: { name: string; value: number; id: string }) {
   const config = getConfig()
-  const enabled = shouldReport(config)
+  const sentryEnabled = shouldReport(config)
 
   // 开发环境或上报开启时输出日志，避免生产环境噪音
-  if (process.env.NODE_ENV === 'development' || enabled) {
+  if (process.env.NODE_ENV === 'development' || sentryEnabled) {
     console.log('[Web Vitals]', metric.name, metric.value, metric.id)
   }
 
-  if (enabled) {
-    void sendToEndpoint(config, metric)
+  // 无论 Sentry 是否启用，都向后端日志端点上报
+  void sendToBackend(metric)
+
+  if (sentryEnabled) {
+    void sendToSentry(config, metric)
   }
 }
 

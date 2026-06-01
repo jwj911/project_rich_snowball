@@ -1,7 +1,9 @@
+import { sendFrontendLog } from './api/logging'
+
 /**
  * 轻量级 Sentry 兼容层
- * 支持 console 占位输出和真实 POST 上报两种模式。
- * 生产环境通过环境变量开启真实上报。
+ * 支持 console 占位输出、Sentry 真实 POST 上报、后端 /api/log/frontend fallback 三种模式。
+ * 无论 Sentry 是否启用，异常和消息都会 fallback 到后端日志端点。
  */
 
 export interface SentryConfig {
@@ -76,21 +78,27 @@ export function initSentry(c: SentryConfig) {
 }
 
 export function captureException(error: unknown, context?: Record<string, unknown>) {
-  if (!config.enabled) {
-    console.error('[Sentry]', error, context)
-    return
-  }
-  if (!shouldReport()) return
   const payload = {
     error: error instanceof Error
       ? { name: error.name, message: error.message, stack: error.stack }
       : String(error),
     context,
   }
+  // 无论 Sentry 是否启用，都向后端日志端点上报
+  void sendFrontendLog({ type: 'error', payload, level: 'error' })
+
+  if (!config.enabled) {
+    console.error('[Sentry]', error, context)
+    return
+  }
+  if (!shouldReport()) return
   void sendToEndpoint('exception', payload)
 }
 
 export function captureMessage(message: string, level: 'info' | 'warning' | 'error' = 'info') {
+  // 无论 Sentry 是否启用，都向后端日志端点上报
+  void sendFrontendLog({ type: 'log', payload: { message, level }, level })
+
   if (!config.enabled) {
     console.log(`[Sentry ${level}]`, message)
     return

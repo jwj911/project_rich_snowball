@@ -1,6 +1,6 @@
 import type { ApiTransport } from './transport'
 import { parseHeaderNumber } from './transport'
-import type { FutContract, KlineData, RealtimeQuote, Variety, VarietyFees } from './types'
+import type { ContractRollover, FutContract, KlineData, RealtimeQuote, Variety, VarietyFees } from './types'
 
 export function getRealtime(
   transport: ApiTransport,
@@ -134,6 +134,27 @@ export async function getVarieties(
 
 export function getVarietyFees(transport: ApiTransport, symbol: string): Promise<VarietyFees> {
   return transport.request<VarietyFees>(`/api/varieties/${encodeURIComponent(symbol)}/fees`)
+}
+
+export function getContractById(
+  transport: ApiTransport,
+  contractId: number,
+  options: RequestInit = {},
+): Promise<FutContract> {
+  return transport.request<FutContract>(`/api/contracts/${contractId}`, options)
+}
+
+export function getContractRollovers(
+  transport: ApiTransport,
+  varietyId: number,
+  params?: { skip?: number; limit?: number },
+  options: RequestInit = {},
+): Promise<ContractRollover[]> {
+  const searchParams = new URLSearchParams()
+  searchParams.append('variety_id', String(varietyId))
+  if (params?.skip !== undefined) searchParams.append('skip', String(params.skip))
+  if (params?.limit !== undefined) searchParams.append('limit', String(params.limit))
+  return transport.request<ContractRollover[]>(`/api/contracts/rollovers?${searchParams.toString()}`, options)
 }
 
 export function getMarketStatus(transport: ApiTransport): Promise<import('./types').MarketStatusResponse> {

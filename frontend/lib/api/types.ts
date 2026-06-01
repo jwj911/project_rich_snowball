@@ -116,6 +116,18 @@ export interface FutContract {
   is_active: boolean
 }
 
+export interface ContractRollover {
+  id: number
+  variety_id: number
+  old_contract_id: number | null
+  new_contract_id: number | null
+  old_contract_code: string | null
+  new_contract_code: string | null
+  effective_date: string
+  source: string
+  created_at: string
+}
+
 export type PriceLevelScope = 'continuous' | 'main' | 'contract'
 
 export interface PriceLevel {

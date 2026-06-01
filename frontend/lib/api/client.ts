@@ -9,7 +9,9 @@ import {
 import {
   createRealtimeStreamToken,
   getContinuousKline,
+  getContractById,
   getContractKline,
+  getContractRollovers,
   getContracts,
   getKline,
   getMainContractKline,
@@ -44,6 +46,7 @@ import type {
   Comment,
   DashboardActivity,
   DashboardCollection,
+  ContractRollover,
   DashboardOverview,
   FutContract,
   KlineData,
@@ -139,6 +142,10 @@ class ApiService extends AuthCore {
     return getContracts(this, varietyId, params, options)
   }
 
+  getContractById(contractId: number, options: RequestInit = {}): Promise<FutContract> {
+    return getContractById(this, contractId, options)
+  }
+
   getContractKline(
     contractId: number,
     period: string = 'D',
@@ -148,6 +155,13 @@ class ApiService extends AuthCore {
     options: RequestInit = {},
   ): Promise<KlineData[]> {
     return getContractKline(this, contractId, period, start, end, limit, options)
+  }
+
+  getContractRollovers(
+    varietyId: number,
+    params?: { skip?: number; limit?: number },
+  ): Promise<ContractRollover[]> {
+    return getContractRollovers(this, varietyId, params)
   }
 
   getVariety(symbol: string, options: RequestInit = {}): Promise<Variety> {

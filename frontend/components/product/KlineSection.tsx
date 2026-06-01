@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Info } from 'lucide-react'
 import KlineChart from '@/components/KlineChart'
 import { FutContract, KlineData } from '@/lib/api'
 import { KLINE_PERIODS, KLINE_SOURCES, KlinePeriod, KlineSource } from '@/lib/kline'
@@ -129,6 +129,28 @@ export default function KlineSection({
           </span>
         </div>
       </div>
+
+      {selectedSource === 'single' && selectedContract && (
+        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded border border-slate-700/60 bg-black/20 px-3 py-2 text-xs text-slate-400"
+        >
+          <span className="flex items-center gap-1.5">
+            <Info size={12} className="text-slate-500" />
+            <span className="font-mono text-slate-300">{selectedContract.ts_code || selectedContract.symbol || `#${selectedContract.id}`}</span>
+          </span>
+          {selectedContract.exchange && (
+            <span>交易所: {selectedContract.exchange}</span>
+          )}
+          {selectedContract.list_date && (
+            <span>上市: {selectedContract.list_date.slice(0, 10)}</span>
+          )}
+          {selectedContract.delist_date && (
+            <span>退市: {selectedContract.delist_date.slice(0, 10)}</span>
+          )}
+          <span className={selectedContract.is_active ? 'text-emerald-400' : 'text-slate-500'}>
+            {selectedContract.is_active ? '交易中' : '已退市'}
+          </span>
+        </div>
+      )}
 
       {notice && (
         <div className="mb-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">

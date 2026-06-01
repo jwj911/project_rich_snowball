@@ -12,7 +12,7 @@ import ErrorState from '@/components/ui/ErrorState'
 import PriceChange from '@/components/market/PriceChange'
 import TechnicalAnalysisPanel from '@/components/market/TechnicalAnalysisPanel'
 import { usePriceLevels } from '@/hooks/usePriceLevels'
-import { api, Comment } from '@/lib/api'
+import { api, Comment, ContractRollover } from '@/lib/api'
 import { captureMessage } from '@/lib/sentry-lite'
 import { formatInteger, formatPrice, getChangeTone } from '@/lib/format'
 import { toast } from 'sonner'
@@ -26,6 +26,7 @@ import WatchlistButton from '@/components/product/WatchlistButton'
 import { useProductKline } from '@/hooks/useProductKline'
 import { useProductPolling } from '@/hooks/useProductPolling'
 import TradingInfoPanel from '@/components/product/TradingInfoPanel'
+import ContractRolloverPanel from '@/components/product/ContractRolloverPanel'
 
 const KlineSection = dynamic(() => import('@/components/product/KlineSection'), {
   ssr: false,
@@ -56,6 +57,8 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const [newResistance, setNewResistance] = useState('')
   const [isInWatchlist, setIsInWatchlist] = useState(false)
   const [watchlistId, setWatchlistId] = useState<number | null>(null)
+  const [rollovers, setRollovers] = useState<ContractRollover[]>([])
+  const [rolloversLoading, setRolloversLoading] = useState(false)
 
   const {
     klineData,
@@ -122,6 +125,31 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
       })
     return () => { cancelled = true }
   }, [varietyId])
+
+  useEffect(() => {
+    if (!varietyId || !isAuthenticated) {
+      setRollovers([])
+      return
+    }
+    let cancelled = false
+    setRolloversLoading(true)
+    api.getContractRollovers(varietyId, { limit: 20 })
+      .then((rows) => {
+        if (!cancelled) setRollovers(rows)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          captureMessage(
+            `合约切换历史加载失败: varietyId=${varietyId}, ${err instanceof Error ? err.message : '未知错误'}`,
+            'warning',
+          )
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRolloversLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [varietyId, isAuthenticated])
 
   const displayPrice = realtime?.current_price ?? product?.current_price
   const displayChange = realtime?.change_percent ?? product?.change_percent
@@ -260,6 +288,8 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
             <aside className="space-y-5">
               <TradingInfoPanel product={product} displayPrice={displayPrice} marginCost={marginCost} />
+
+              <ContractRolloverPanel rollovers={rollovers} loading={rolloversLoading} />
 
               <LevelEditor
                 title="支撑位"
