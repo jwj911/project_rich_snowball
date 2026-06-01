@@ -6,7 +6,6 @@ from datetime import timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import selectinload
 
 from config import DATA_SOURCE, ENV
 from data_collector.collector_registry import (
@@ -17,6 +16,7 @@ from data_collector.collector_registry import (
 from data_collector.job_registry import build_job_configs, register_jobs
 from models import SessionLocal, VarietyDB
 from services.metrics import data_collection_duration_seconds, data_collection_runs_total
+from services.news_fetcher import fetch_all_enabled_sources
 from services.realtime_state import mark_realtime_updated
 from services.trading_calendar import _cn_date, is_trading_day
 
@@ -418,6 +418,20 @@ def sync_variety_metadata():
         logger.error("Failed to sync variety metadata: %s", e)
 
 
+def sync_news():
+    """定时抓取所有启用的 RSS 新闻源。"""
+    logger.info("Syncing news from RSS sources...")
+    db = SessionLocal()
+    try:
+        result = fetch_all_enabled_sources(db)
+        total_new = sum(result.values())
+        logger.info("News sync completed: %d sources, %d new articles", len(result), total_new)
+    except (SQLAlchemyError, OSError) as e:
+        logger.error("Failed to sync news: %s", e)
+    finally:
+        db.close()
+
+
 # ------------------------------------------------------------------
 # Scheduler 生命周期
 # ------------------------------------------------------------------
@@ -433,6 +447,7 @@ def start_scheduler():
         sync_minute_kline_func=sync_minute_kline,
         sync_trading_calendar_func=sync_trading_calendar,
         sync_variety_metadata_func=sync_variety_metadata,
+        sync_news_func=sync_news,
         sync_fut_daily_func=sync_fut_daily if _pipeline("fut_daily") else None,
         sync_fut_settle_func=sync_fut_settle if _pipeline("fut_settle") else None,
         sync_fut_weekly_detail_func=sync_fut_weekly_detail if _pipeline("fut_weekly_detail") else None,

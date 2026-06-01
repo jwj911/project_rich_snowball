@@ -46,6 +46,7 @@ def build_job_configs(
     sync_minute_kline_func: Callable,
     sync_trading_calendar_func: Callable,
     sync_variety_metadata_func: Callable,
+    sync_news_func: Callable,
     sync_fut_daily_func: Callable | None = None,
     sync_fut_settle_func: Callable | None = None,
     sync_fut_weekly_detail_func: Callable | None = None,
@@ -87,6 +88,12 @@ def build_job_configs(
             func=sync_variety_metadata_func,
             trigger=CronTrigger(hour=2, minute=0, timezone="Asia/Shanghai"),
             misfire_grace_time=3600,
+        ),
+        JobConfig(
+            id="news",
+            func=sync_news_func,
+            trigger=IntervalTrigger(minutes=30),
+            misfire_grace_time=300,
         ),
     ]
 
