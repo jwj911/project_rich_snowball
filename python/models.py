@@ -157,6 +157,7 @@ class UserDB(Base):
     watchlists = relationship("WatchlistDB", back_populates="user", passive_deletes=True)
     opinions = relationship("OpinionDB", back_populates="user", passive_deletes=True)
     price_alerts = relationship("PriceAlertDB", back_populates="user", passive_deletes=True)
+    trade_records = relationship("TradeRecordDB", back_populates="user", passive_deletes=True)
     price_levels = relationship("PriceLevelDB", back_populates="user", passive_deletes=True)
     refresh_tokens = relationship("RefreshTokenDB", back_populates="user", passive_deletes=True)
 
@@ -197,6 +198,7 @@ class VarietyDB(Base):
     realtime = relationship("RealtimeQuoteDB", back_populates="variety", uselist=False, passive_deletes=True)
     klines = relationship("KlineDataDB", back_populates="variety", passive_deletes=True)
     price_alerts = relationship("PriceAlertDB", back_populates="variety", passive_deletes=True)
+    trade_records = relationship("TradeRecordDB", back_populates="variety", passive_deletes=True)
     daily_data = relationship("FutDailyDataDB", back_populates="variety", passive_deletes=True)
     watchlists = relationship("WatchlistDB", back_populates="variety", passive_deletes=True)
     opinions = relationship("OpinionDB", back_populates="variety", passive_deletes=True)
@@ -359,6 +361,32 @@ class OpinionDB(Base):
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     user = relationship("UserDB", back_populates="opinions")
     variety = relationship("VarietyDB", back_populates="opinions")
+    trade_records = relationship("TradeRecordDB", back_populates="opinion", passive_deletes=True)
+
+
+class TradeRecordDB(Base):
+    """模拟持仓交易记录。
+
+    用户基于观点创建的虚拟交易，支持盈亏计算与复盘。
+    """
+
+    __tablename__ = "trade_records"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="CASCADE"), nullable=False)
+    opinion_id = Column(Integer, ForeignKey("opinions.id", ondelete="SET NULL"), nullable=True)
+    direction = Column(String(10), nullable=False)  # long | short
+    entry_price = Column(Numeric(15, 4), nullable=False)
+    exit_price = Column(Numeric(15, 4), nullable=True)
+    quantity = Column(Integer, nullable=False, default=1)
+    status = Column(String(10), nullable=False, default="open")  # open | closed
+    pnl = Column(Numeric(15, 4), nullable=True)
+    pnl_percent = Column(Numeric(15, 4), nullable=True)
+    closed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    user = relationship("UserDB", back_populates="trade_records")
+    variety = relationship("VarietyDB", back_populates="trade_records")
+    opinion = relationship("OpinionDB", back_populates="trade_records")
 
 
 class PriceLevelDB(Base):

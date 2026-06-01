@@ -641,3 +641,54 @@ class PriceAlertResponse(BaseModel):
     created_at: dt
 
     model_config = ConfigDict(from_attributes=True)
+
+
+
+class TradeRecordCreate(BaseModel):
+    """创建模拟持仓请求。"""
+
+    variety_id: int = Field(..., ge=1)
+    opinion_id: int | None = Field(default=None, ge=1)
+    direction: str = Field(..., max_length=10)  # long | short
+    entry_price: Decimal = Field(..., ge=0, decimal_places=4)
+    quantity: int = Field(default=1, ge=1)
+
+    @field_validator("direction", mode="before")
+    @classmethod
+    def _normalize_direction(cls, v):
+        if isinstance(v, str):
+            v = v.strip().lower()
+            if v not in ("long", "short"):
+                raise ValueError('direction must be one of: "long", "short"')
+            return v
+        return v
+
+
+class TradeRecordClose(BaseModel):
+    """平仓请求。"""
+
+    exit_price: Decimal = Field(..., ge=0, decimal_places=4)
+
+
+class TradeRecordResponse(BaseModel):
+    """模拟持仓响应。"""
+
+    id: int
+    user_id: int
+    variety_id: int
+    variety_symbol: str
+    variety_name: str
+    opinion_id: int | None
+    direction: str
+    entry_price: Decimal
+    exit_price: Decimal | None
+    quantity: int
+    status: str
+    pnl: Decimal | None
+    pnl_percent: Decimal | None
+    unrealized_pnl: Decimal | None
+    unrealized_pnl_percent: Decimal | None
+    closed_at: dt | None
+    created_at: dt
+
+    model_config = ConfigDict(from_attributes=True)

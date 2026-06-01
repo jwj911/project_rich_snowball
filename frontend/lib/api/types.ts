@@ -348,3 +348,36 @@ export interface PriceAlertUpdate {
   target_price?: string | null
   is_triggered?: boolean | null
 }
+
+
+export interface TradeRecord {
+  id: number
+  user_id: number
+  variety_id: number
+  variety_symbol: string
+  variety_name: string
+  opinion_id: number | null
+  direction: 'long' | 'short'
+  entry_price: string
+  exit_price: string | null
+  quantity: number
+  status: 'open' | 'closed'
+  pnl: string | null
+  pnl_percent: string | null
+  unrealized_pnl: string | null
+  unrealized_pnl_percent: string | null
+  closed_at: string | null
+  created_at: string
+}
+
+export interface TradeRecordCreate {
+  variety_id: number
+  opinion_id?: number | null
+  direction: 'long' | 'short'
+  entry_price: string
+  quantity?: number
+}
+
+export interface TradeRecordClose {
+  exit_price: string
+}

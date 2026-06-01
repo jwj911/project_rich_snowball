@@ -42,6 +42,12 @@ import {
   getTriggeredAlerts,
   updatePriceAlert,
 } from './price_alerts'
+import {
+  closeTradeRecord,
+  createTradeRecord,
+  deleteTradeRecord,
+  getPortfolio,
+} from './portfolio'
 import { getNewsArticles, getNewsSources } from './news'
 import { getUserSettings, updateUserSettings } from './settings'
 import {
@@ -75,6 +81,9 @@ import type {
   PriceAlertCreate,
   PriceAlertUpdate,
   PriceLevel,
+  TradeRecord,
+  TradeRecordClose,
+  TradeRecordCreate,
   Product,
   ProductDetail,
   ProductListResponse,
@@ -352,6 +361,22 @@ class ApiService extends AuthCore {
 
   deletePriceAlert(id: number): Promise<void> {
     return deletePriceAlert(this, id)
+  }
+
+  getPortfolio(params?: { status?: string; skip?: number; limit?: number }): Promise<TradeRecord[]> {
+    return getPortfolio(this, params)
+  }
+
+  createTradeRecord(data: TradeRecordCreate): Promise<TradeRecord> {
+    return createTradeRecord(this, data)
+  }
+
+  closeTradeRecord(id: number, data: TradeRecordClose): Promise<TradeRecord> {
+    return closeTradeRecord(this, id, data)
+  }
+
+  deleteTradeRecord(id: number): Promise<void> {
+    return deleteTradeRecord(this, id)
   }
 }
 
