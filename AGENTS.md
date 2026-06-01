@@ -590,6 +590,22 @@ ruff format .
 - Playwright E2E 保留功能测试，`performance.spec.ts` 中的性能断言迁移到 Lighthouse
 - token 持久化到 `localStorage`（`futures_access_token`），刷新不丢失登录态
 
+### Portfolio（模拟持仓）— 已完成（2026-06-01）
+
+**后端**
+- `TradeRecordDB` 模型：user_id/variety_id/opinion_id/direction(long|short)/entry_price/exit_price/quantity/status/pnl/pnl_percent
+- Alembic 迁移 `b2c3d4e5f6a7`
+- Schema 含 `unrealized_pnl`（open 状态实时浮动盈亏）
+- Router `/api/portfolio`：列表（批量查询实时价计算浮动盈亏）+ 创建 + 平仓（自动计算 pnl）+ 删除
+- 盈亏公式：`long: (exit - entry) * qty * multiplier`，`short: (entry - exit) * qty * multiplier`
+- pytest 15 tests 覆盖
+
+**前端**
+- `/portfolio` 页面：盈亏统计面板（总盈亏/浮动盈亏/胜率/持仓数）+ 筛选标签 + 交易卡片列表
+- 创建弹窗：品种选择/方向/入场价/手数
+- 平仓：卡片内展开出场价输入，一键确认
+- 导航：`secondaryNavGroups` 新增「模拟持仓」
+
 ### Price Alert（价格预警）— 已完成（2026-06-01）
 
 **后端**

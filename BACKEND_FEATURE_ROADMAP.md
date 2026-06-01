@@ -73,7 +73,7 @@
 | 优先级 | 功能 | 理由 | 前置条件 |
 |--------|------|------|----------|
 | P3 | **Chat（评论实时化）** | 评论变实时聊天，需 WebSocket | SSE 已统一，可复用但需改数据模型 |
-| P4 | **Portfolio（模拟持仓）** | 用户记录虚拟交易，计算盈亏 | 需新表 trade_records + 与 Opinion 联动 |
+| P4 | **Portfolio（模拟持仓）** | ✅ 已完成 | 新表 trade_records，支持 Opinion 关联，盈亏自动计算 |
 | P5 | **NewsCollector 增强** | RSS 源自动发现、内容摘要 AI 化 | 需外部 AI 服务，成本高 |
 
 ### 明确不做（偏离产品定位）
@@ -275,6 +275,10 @@ for alert in alerts:
 | | `PriceAlertDB` 模型 + Alembic 迁移 + Schema + Router + 15 tests | ✅ |
 | | Scheduler 集成：实时行情刷新后自动检查并触发预警 | ✅ |
 | | 前端品种详情页预警面板（创建/列表/删除） | ✅ |
+| 2026-06-01 | Phase 3 P4：Portfolio 模拟持仓完整实现 | ✅ |
+| | `TradeRecordDB` 模型 + Alembic 迁移 + Schema + Router + 15 tests | ✅ |
+| | 盈亏计算：支持 long/short，使用 variety.multiplier | ✅ |
+| | 前端 `/portfolio` 页面：统计面板 + 筛选 + 创建/平仓/删除 | ✅ |
 
 ---
 
