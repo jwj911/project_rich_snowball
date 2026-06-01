@@ -290,3 +290,36 @@ export interface DashboardCollection {
   circuit_breakers: Record<string, unknown>
   timestamp: string
 }
+
+
+export interface Opinion {
+  id: number
+  user_id: number
+  variety_id: number
+  variety_symbol: string
+  variety_name: string
+  type: 'long' | 'short' | 'neutral'
+  reason: string | null
+  target_price: string | null
+  stop_loss: string | null
+  status: 'open' | 'closed_profit' | 'closed_loss' | 'expired'
+  actual_outcome: 'profit' | 'loss' | 'breakeven' | null
+  created_at: string
+  closed_at: string | null
+}
+
+export interface OpinionCreate {
+  variety_id: number
+  type: 'long' | 'short' | 'neutral'
+  reason: string
+  target_price?: string | null
+  stop_loss?: string | null
+}
+
+export interface OpinionUpdate {
+  reason?: string | null
+  target_price?: string | null
+  stop_loss?: string | null
+  status?: 'open' | 'closed_profit' | 'closed_loss' | 'expired' | null
+  actual_outcome?: 'profit' | 'loss' | 'breakeven' | null
+}

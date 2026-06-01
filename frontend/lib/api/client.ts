@@ -27,6 +27,14 @@ import {
   getDashboardCollection,
   getDashboardOverview,
 } from './metrics'
+import {
+  createOpinion,
+  deleteOpinion,
+  getMyOpinions,
+  getOpinionById,
+  getOpinions,
+  updateOpinion,
+} from './opinions'
 import { getNewsArticles, getNewsSources } from './news'
 import { getUserSettings, updateUserSettings } from './settings'
 import {
@@ -53,6 +61,9 @@ import type {
   MarketStatusResponse,
   NewsArticle,
   NewsSource,
+  Opinion,
+  OpinionCreate,
+  OpinionUpdate,
   PriceLevel,
   Product,
   ProductDetail,
@@ -273,6 +284,39 @@ class ApiService extends AuthCore {
     limit?: number
   }): Promise<NewsArticle[]> {
     return getNewsArticles(this, params)
+  }
+
+  getOpinions(params?: {
+    variety_id?: number
+    status?: string
+    skip?: number
+    limit?: number
+  }): Promise<Opinion[]> {
+    return getOpinions(this, params)
+  }
+
+  getMyOpinions(params?: {
+    status?: string
+    skip?: number
+    limit?: number
+  }): Promise<Opinion[]> {
+    return getMyOpinions(this, params)
+  }
+
+  getOpinionById(id: number): Promise<Opinion> {
+    return getOpinionById(this, id)
+  }
+
+  createOpinion(data: OpinionCreate): Promise<Opinion> {
+    return createOpinion(this, data)
+  }
+
+  updateOpinion(id: number, data: OpinionUpdate): Promise<Opinion> {
+    return updateOpinion(this, id, data)
+  }
+
+  deleteOpinion(id: number): Promise<void> {
+    return deleteOpinion(this, id)
   }
 }
 

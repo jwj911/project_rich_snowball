@@ -7,6 +7,7 @@ import {
   Home,
   LineChart,
   MessageSquare,
+  PenLine,
   Settings,
   ShieldCheck,
   Wrench,
@@ -43,6 +44,7 @@ export const secondaryNavGroups: NavGroup[] = [
     title: 'DATA',
     items: [
       { label: '新闻资讯', icon: Database, href: '/news' },
+      { label: '交易观点', icon: PenLine, href: '/opinions' },
       { label: '提醒事件', icon: Bell },
     ],
   },
