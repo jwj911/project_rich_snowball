@@ -590,6 +590,22 @@ ruff format .
 - Playwright E2E 保留功能测试，`performance.spec.ts` 中的性能断言迁移到 Lighthouse
 - token 持久化到 `localStorage`（`futures_access_token`），刷新不丢失登录态
 
+### Opinions（交易观点/日记）— 已完成（2026-05-30）
+
+**后端**
+- 复用已有 `opinions` 表（迁移 `7a8e00d86747`），新增 `status/closed_at/actual_outcome` 生命周期字段
+- `OpinionCreate`/`OpinionUpdate`/`OpinionResponse` schema，含 Decimal 精度校验
+- CRUD 路由：`/api/opinions`（公开列表）、`/api/opinions/me`（个人时间线）、单条详情/更新/删除
+- 权限：仅 owner 可改删；关闭时自动记 `closed_at`
+- pytest 21 tests 覆盖
+
+**前端**
+- `/opinions` 页面：双标签页「全部观点」+「我的观点」
+- 筛选：品种选择、方向（long/short/neutral）、状态（open/closed）
+- 创建/编辑/关闭（弹窗复盘）/删除确认
+- API 层：`lib/api/opinions.ts` + `ApiService` 方法注册
+- **品种详情页联动**：右侧 aside 显示当前品种最近 5 条观点 + 一键创建（自动锁定品种）+ 跳转全部观点
+
 ### v5 审计债务修复 — 已完成（2026-05-28）
 
 - venv 重建（Python 3.12.9），pytest/ruff/pip-audit 本地可复现

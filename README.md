@@ -37,7 +37,7 @@
 ```text
 project_rich_snowball/
 ├── frontend/
-│   ├── app/                     # 页面路由：/、/products、/products/[id]、/workspace、/my-comments
+│   ├── app/                     # 页面路由：/、/products、/products/[id]、/workspace、/my-comments、/opinions、/news
 │   ├── components/              # 布局、认证、行情、工作区、UI 组件
 │   ├── hooks/useMarketPolling.ts# 30 秒行情轮询与刷新状态
 │   └── lib/                     # API 客户端与格式化工具

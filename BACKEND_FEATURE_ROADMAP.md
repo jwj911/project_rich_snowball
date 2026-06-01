@@ -37,10 +37,10 @@
 | **Portfolio** | 无 | ❌ 未开始 | 投资组合/持仓管理，需交易记录模型 |
 | **Market** | Market + Realtime + Varieties | ✅ 已完成 | 功能对齐 |
 | **News** | NewsSourceDB + NewsArticleDB | ✅ 已完成 | 功能对齐 |
-| **Diary** | OpinionDB（仅模型，无API） | ⚠️ 部分完成 | 模型已存在，缺路由/Schema/API |
+| **Diary** | OpinionDB + Router + Frontend | ✅ 已完成 | 后端 CRUD + 前端页面 + 品种联动 |
 | **Automation** | 无 | ❌ 未开始 | 事件流工作流引擎，复杂度高 |
 | **MarketData** | Kline + Realtime | ✅ 已完成 | 功能对齐 |
-| **NewsCollector** | News admin fetch API | ⚠️ 部分完成 | 已有手动触发，缺定时调度 |
+| **NewsCollector** | News admin fetch API + scheduler | ✅ 已完成 | 手动触发 + 每30分钟自动抓取 |
 | **Connectors** | 无 | ❌ 未开始 | 交易所API连接，偏离社区定位 |
 | **Trading** | 无 | ❌ 未开始 | 真实交易下单，偏离社区定位 |
 | **AIProvider** | 无 | ❌ 未开始 | 大模型接入，成本高 |
@@ -263,7 +263,14 @@ for alert in alerts:
 | | 新增 `routers/opinions.py`：GET list/me/detail + POST + PUT（关闭自动记录 closed_at）+ DELETE | ✅ |
 | | 新增 `test_opinions.py`：21 个测试覆盖鉴权/CRUD/筛选/状态流转/权限隔离 | ✅ |
 | | **Opinions 后端闭环，前端可开始消费** | ✅ |
-| 待执行 | Phase 2 P1：News 定时抓取注册到 scheduler | 🔄 |
+| 2026-06-01 | Phase 2 P1：News 定时抓取注册到 scheduler | ✅ |
+| | `sync_news()` 添加到 `scheduler.py`，30 分钟间隔 IntervalTrigger | ✅ |
+| | `job_registry.py` 注册 news job，`build_job_configs` 新增 `sync_news_func` | ✅ |
+| 2026-06-01 | Phase 2 P0 前端：Opinions 交易观点页面 (`/opinions`) | ✅ |
+| | 双标签页（全部观点 + 我的观点）+ 筛选 + 创建/编辑/关闭/删除 | ✅ |
+| | `CreateOpinionModal` 提取为可复用组件 | ✅ |
+| 2026-06-01 | Phase 2 P0 前端：Opinions-Product 品种联动 | ✅ |
+| | 品种详情页右侧 aside 显示当前品种最近观点 + 一键创建（自动锁定品种） | ✅ |
 | 待执行 | Phase 2 P2：Price Alert 价格预警后端实现 | 🔄 |
 
 ---
