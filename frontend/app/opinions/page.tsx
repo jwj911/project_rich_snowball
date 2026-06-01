@@ -4,6 +4,8 @@ import { useCallback, useMemo, useState } from 'react'
 import AppShell from '@/components/layout/AppShell'
 import ErrorState from '@/components/ui/ErrorState'
 import EmptyState from '@/components/ui/EmptyState'
+import CreateOpinionModal from '@/components/opinion/CreateOpinionModal'
+import type { OpinionFormData } from '@/components/opinion/CreateOpinionModal'
 import { api, type Opinion, type Variety } from '@/lib/api'
 import {
   PenLine,
@@ -14,7 +16,6 @@ import {
   Shield,
   Clock,
   Plus,
-  X,
   ChevronDown,
   ChevronUp,
   Trash2,
@@ -26,13 +27,6 @@ import useSWR from 'swr'
 import { toast } from 'sonner'
 
 type OpinionStatus = 'all' | 'open' | 'closed'
-type OpinionFormData = {
-  variety_id: number
-  type: 'long' | 'short' | 'neutral'
-  reason: string
-  target_price: string
-  stop_loss: string
-}
 
 const statusFilters: { key: OpinionStatus; label: string }[] = [
   { key: 'all', label: '全部' },
@@ -435,153 +429,6 @@ function OpinionCard({
           )}
         </div>
       )}
-    </div>
-  )
-}
-
-function CreateOpinionModal({
-  varieties,
-  onSubmit,
-  onClose,
-}: {
-  varieties: Variety[]
-  onSubmit: (data: OpinionFormData) => void
-  onClose: () => void
-}) {
-  const [form, setForm] = useState<OpinionFormData>({
-    variety_id: varieties[0]?.id ?? 0,
-    type: 'long',
-    reason: '',
-    target_price: '',
-    stop_loss: '',
-  })
-  const [submitting, setSubmitting] = useState(false)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!form.reason.trim()) {
-      toast.error('请填写观点理由')
-      return
-    }
-    setSubmitting(true)
-    await onSubmit(form)
-    setSubmitting(false)
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-xl border border-slate-700 bg-[#0f172a] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-          <h2 className="text-base font-semibold text-white">新建交易观点</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-800 hover:text-white"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4 px-5 py-5">
-          {/* Variety */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-400">品种</label>
-            <select
-              value={form.variety_id}
-              onChange={(e) => setForm({ ...form, variety_id: Number(e.target.value) })}
-              className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-white outline-none transition focus:border-red-500/50"
-            >
-              {varieties.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.symbol} — {v.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Type */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-400">方向</label>
-            <div className="flex gap-2">
-              {(['long', 'short', 'neutral'] as const).map((t) => {
-                const cfg = opinionTypeConfig[t]
-                const Icon = cfg.icon
-                const active = form.type === t
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setForm({ ...form, type: t })}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-lg border py-2 text-sm transition ${
-                      active
-                        ? `${cfg.bg} ${cfg.color} ${cfg.border}`
-                        : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-                    }`}
-                  >
-                    <Icon size={14} />
-                    {cfg.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Reason */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-400">理由</label>
-            <textarea
-              value={form.reason}
-              onChange={(e) => setForm({ ...form, reason: e.target.value })}
-              rows={4}
-              placeholder="写下你的分析逻辑和决策依据..."
-              className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none transition focus:border-red-500/50"
-            />
-          </div>
-
-          {/* Target / Stop */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-400">目标价</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={form.target_price}
-                onChange={(e) => setForm({ ...form, target_price: e.target.value })}
-                placeholder="可选"
-                className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none transition focus:border-red-500/50"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-400">止损价</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={form.stop_loss}
-                onChange={(e) => setForm({ ...form, stop_loss: e.target.value })}
-                placeholder="可选"
-                className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none transition focus:border-red-500/50"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-slate-500 hover:text-white"
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-500 disabled:opacity-50"
-            >
-              {submitting ? '保存中...' : '创建观点'}
-            </button>
-          </div>
-        </form>
-      </div>
     </div>
   )
 }
