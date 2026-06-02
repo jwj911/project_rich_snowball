@@ -590,6 +590,30 @@ ruff format .
 - Playwright E2E 保留功能测试，`performance.spec.ts` 中的性能断言迁移到 Lighthouse
 - token 持久化到 `localStorage`（`futures_access_token`），刷新不丢失登录态
 
+### AI Chat（期货助手）— 已完成（2026-06-01）
+
+**后端**
+- `ChatMessageDB` 模型：user_id/role(user|assistant)/content/context_json
+- Alembic 迁移 `c3d4e5f6a7b8`
+- Schema：ChatMessageCreate/Response
+- Router `/api/chat`：历史记录查询 + 发送消息 + 清空对话
+- AI 服务 `services/ai_chat.py`：
+  - OpenAI 兼容 API（httpx 调用，无新增依赖）
+  - 环境变量控制：`OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`
+  - 上下文检索：从用户消息提取品种 symbol，查询 `RealtimeQuoteDB` + `OpinionDB`
+  - System Prompt 定制为期货领域分析助手
+  - 未配置时返回友好提示（不阻断应用启动）
+  - 对话历史窗口：`CHAT_MAX_HISTORY=20`
+- pytest 9 tests 覆盖
+
+**前端**
+- `/chat` 页面：ChatGPT 风格对话界面
+  - 消息气泡（用户右/助手左）
+  - 快捷提问按钮（预设 4 个常见期货问题）
+  - 加载动画、自动滚动到底部
+  - 清空对话按钮
+- 导航：`secondaryNavGroups` 新增「AI 助手」
+
 ### Portfolio（模拟持仓）— 已完成（2026-06-01）
 
 **后端**

@@ -72,7 +72,7 @@
 
 | 优先级 | 功能 | 理由 | 前置条件 |
 |--------|------|------|----------|
-| P3 | **Chat（评论实时化）** | 评论变实时聊天，需 WebSocket | SSE 已统一，可复用但需改数据模型 |
+| P3 | **AI Chat（期货助手）** | ✅ 已完成 | OpenAI 兼容 API，上下文检索品种行情+观点 |
 | P4 | **Portfolio（模拟持仓）** | ✅ 已完成 | 新表 trade_records，支持 Opinion 关联，盈亏自动计算 |
 | P5 | **NewsCollector 增强** | RSS 源自动发现、内容摘要 AI 化 | 需外部 AI 服务，成本高 |
 
@@ -279,6 +279,10 @@ for alert in alerts:
 | | `TradeRecordDB` 模型 + Alembic 迁移 + Schema + Router + 15 tests | ✅ |
 | | 盈亏计算：支持 long/short，使用 variety.multiplier | ✅ |
 | | 前端 `/portfolio` 页面：统计面板 + 筛选 + 创建/平仓/删除 | ✅ |
+| 2026-06-01 | Phase 3 P3：AI Chat 期货助手完整实现 | ✅ |
+| | `ChatMessageDB` 模型 + Alembic 迁移 + Schema + Router + 9 tests | ✅ |
+| | OpenAI 兼容 API，上下文检索品种行情+用户观点 | ✅ |
+| | 前端 `/chat` 页面：对话界面 + 快捷提问 + 清空历史 | ✅ |
 
 ---
 
