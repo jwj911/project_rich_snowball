@@ -8,8 +8,9 @@ import ErrorState from '@/components/ui/ErrorState'
 import Button from '@/components/ui/Button'
 import { api, type UserPreference } from '@/lib/api'
 import { toast } from 'sonner'
-import { Settings, Moon, Bell, Globe, Timer, Check } from 'lucide-react'
+import { Settings, Moon, Timer, Check } from 'lucide-react'
 import useSWR from 'swr'
+import { usePreferences } from '@/hooks/usePreferences'
 
 const THEME_OPTIONS = [
   { value: 'dark', label: '深色', icon: Moon },
@@ -17,16 +18,12 @@ const THEME_OPTIONS = [
   { value: 'system', label: '跟随系统', icon: undefined as undefined },
 ] as const
 
-const LANGUAGE_OPTIONS = [
-  { value: 'zh-CN', label: '简体中文' },
-  { value: 'en-US', label: 'English' },
-] as const
-
 const POLLING_OPTIONS = [5, 10, 30, 60] as const
 
 export default function SettingsPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
   const [saving, setSaving] = useState(false)
+  const { updatePreferences } = usePreferences()
 
   const {
     data: settings,
@@ -51,6 +48,13 @@ export default function SettingsPage() {
           language: updates.language ?? undefined,
         })
         await mutate(updated, false)
+        // 同步到本地偏好缓存，驱动 UI 生效
+        updatePreferences({
+          theme: updated.theme as 'dark' | 'light' | 'system' | undefined,
+          pollingIntervalSeconds: updated.polling_interval_seconds ?? undefined,
+          notificationsEnabled: updated.notifications_enabled ?? undefined,
+          language: updated.language ?? undefined,
+        })
         toast.success('设置已保存')
       } catch (err) {
         toast.error(err instanceof Error ? err.message : '保存失败')
@@ -58,7 +62,7 @@ export default function SettingsPage() {
         setSaving(false)
       }
     },
-    [settings, mutate],
+    [settings, mutate, updatePreferences],
   )
 
   return (
@@ -115,21 +119,6 @@ export default function SettingsPage() {
                 </div>
               </SettingCard>
 
-              {/* 通知 */}
-              <SettingCard title="通知" icon={Bell}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium text-white">推送通知</div>
-                    <div className="mt-0.5 text-xs text-slate-400">接收行情提醒和系统通知</div>
-                  </div>
-                  <Toggle
-                    checked={settings.notifications_enabled}
-                    onChange={(v) => handleSave({ notifications_enabled: v })}
-                    disabled={saving}
-                  />
-                </div>
-              </SettingCard>
-
               {/* 行情刷新 */}
               <SettingCard title="行情刷新间隔" icon={Timer}>
                 <div className="flex flex-wrap gap-2">
@@ -146,27 +135,6 @@ export default function SettingsPage() {
                       }`}
                     >
                       {sec} 秒
-                    </button>
-                  ))}
-                </div>
-              </SettingCard>
-
-              {/* 语言 */}
-              <SettingCard title="语言" icon={Globe}>
-                <div className="flex flex-wrap gap-2">
-                  {LANGUAGE_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => handleSave({ language: opt.value })}
-                      disabled={saving}
-                      className={`rounded-lg border px-4 py-2 text-sm transition ${
-                        settings.language === opt.value
-                          ? 'border-red-500/50 bg-red-500/10 text-white'
-                          : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-200'
-                      }`}
-                    >
-                      {opt.label}
                     </button>
                   ))}
                 </div>

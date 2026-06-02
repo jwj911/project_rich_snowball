@@ -1,15 +1,23 @@
 import useSWR from 'swr'
 import { api } from '@/lib/api'
 import type { ProductQuery } from '@/lib/api'
+import { getPreferencesFromStorage } from '@/hooks/usePreferences'
 
-const DEFAULT_OPTIONS = {
-  refreshInterval: 30_000,
-  revalidateOnFocus: false,
-  errorRetryCount: 3,
-} as const
+function getRefreshInterval(): number {
+  const prefs = getPreferencesFromStorage()
+  return (prefs.pollingIntervalSeconds ?? 30) * 1000
+}
+
+function defaultOptions() {
+  return {
+    refreshInterval: getRefreshInterval(),
+    revalidateOnFocus: false,
+    errorRetryCount: 3,
+  } as const
+}
 
 export function useProducts() {
-  return useSWR('products', () => api.getProducts(), DEFAULT_OPTIONS)
+  return useSWR('products', () => api.getProducts(), defaultOptions())
 }
 
 export function useProductsPage(query: ProductQuery | null) {
@@ -17,19 +25,19 @@ export function useProductsPage(query: ProductQuery | null) {
   return useSWR(
     key,
     ([, q]) => api.getProductsPage(q),
-    DEFAULT_OPTIONS,
+    defaultOptions(),
   )
 }
 
 export function useProductBySymbol(symbol: string) {
-  return useSWR(`product-${symbol}`, () => api.getProductBySymbol(symbol), DEFAULT_OPTIONS)
+  return useSWR(`product-${symbol}`, () => api.getProductBySymbol(symbol), defaultOptions())
 }
 
 export function useProductDetail(symbol: string, enabled = true) {
   return useSWR(
     enabled && symbol ? `product-detail-${symbol}` : null,
     () => api.getProductBySymbol(symbol),
-    DEFAULT_OPTIONS,
+    defaultOptions(),
   )
 }
 
@@ -37,7 +45,7 @@ export function useContracts(varietyId: number, enabled = true) {
   return useSWR(
     enabled && Number.isFinite(varietyId) ? `contracts-${varietyId}` : null,
     () => api.getContracts(varietyId),
-    DEFAULT_OPTIONS,
+    defaultOptions(),
   )
 }
 
@@ -45,7 +53,7 @@ export function useVariety(symbol: string | null | undefined) {
   return useSWR(
     symbol ? `variety-${symbol}` : null,
     () => api.getVariety(symbol!),
-    DEFAULT_OPTIONS,
+    defaultOptions(),
   )
 }
 
@@ -53,23 +61,23 @@ export function useUserComments(username: string | null) {
   return useSWR(
     username ? `comments-user-${username}` : null,
     () => api.getUserComments(username!),
-    DEFAULT_OPTIONS,
+    defaultOptions(),
   )
 }
 
 export function useWorkspace() {
-  return useSWR('workspace', () => api.getWorkspace(), DEFAULT_OPTIONS)
+  return useSWR('workspace', () => api.getWorkspace(), defaultOptions())
 }
 
 export function useWatchlists() {
-  return useSWR('watchlists', () => api.getWatchlists(), DEFAULT_OPTIONS)
+  return useSWR('watchlists', () => api.getWatchlists(), defaultOptions())
 }
 
 export function useRealtime(symbol: string) {
   return useSWR(
     symbol ? `realtime-${symbol}` : null,
     () => api.getRealtime(symbol),
-    { ...DEFAULT_OPTIONS, refreshInterval: 10_000 },
+    { ...defaultOptions(), refreshInterval: 10_000 },
   )
 }
 
@@ -77,6 +85,6 @@ export function useMarketStatus(enabled = true) {
   return useSWR(
     enabled ? 'market-status' : null,
     () => api.getMarketStatus(),
-    { ...DEFAULT_OPTIONS, refreshInterval: 60_000 },
+    { ...defaultOptions(), refreshInterval: 60_000 },
   )
 }

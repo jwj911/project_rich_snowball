@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MARKET } from '@/lib/constants'
+import { getPreferencesFromStorage } from '@/hooks/usePreferences'
 
 export type MarketHeartbeatStatus = 'idle' | 'refreshing' | 'healthy' | 'stale' | 'error'
 
@@ -30,6 +31,11 @@ interface UseMarketPollingResult<T> {
   setData: (data: T) => void
 }
 
+function getDefaultIntervalMs(): number {
+  const prefs = getPreferencesFromStorage()
+  return (prefs.pollingIntervalSeconds ?? 30) * 1000
+}
+
 const DEFAULT_INTERVAL_MS = MARKET.POLL_INTERVAL_MS
 
 function getNextRefreshAt(intervalMs: number) {
@@ -39,7 +45,7 @@ function getNextRefreshAt(intervalMs: number) {
 export function useMarketPolling<T>({
   enabled,
   fetcher,
-  intervalMs = DEFAULT_INTERVAL_MS,
+  intervalMs = getDefaultIntervalMs(),
   runOnMount = true,
   errorMessage = '行情数据加载失败',
 }: UseMarketPollingOptions<T>): UseMarketPollingResult<T> {

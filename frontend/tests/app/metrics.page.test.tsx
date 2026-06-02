@@ -4,21 +4,19 @@ import MetricsPage from '@/app/metrics/page'
 import { api } from '@/lib/api'
 import { makeDashboardOverview, makeDashboardActivity, makeDashboardCollection } from '@/tests/fixtures'
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    replace: vi.fn(),
-  }),
-}))
-
 const mockUseAuth = vi.fn()
 vi.mock('@/components/auth/AuthProvider', () => ({
   useAuth: () => mockUseAuth(),
 }))
 
+vi.mock('@/components/auth/LoginRequired', () => ({
+  default: () => <div data-testid="login-required">请登录</div>,
+}))
+
 describe('MetricsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseAuth.mockReturnValue({ isAuthenticated: true })
+    mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false })
     vi.spyOn(api, 'getDashboardOverview').mockResolvedValue(makeDashboardOverview())
     vi.spyOn(api, 'getDashboardActivity').mockResolvedValue(makeDashboardActivity())
     vi.spyOn(api, 'getDashboardCollection').mockResolvedValue(makeDashboardCollection())
@@ -28,20 +26,25 @@ describe('MetricsPage', () => {
     vi.restoreAllMocks()
   })
 
-  it('redirects unauthenticated users', async () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: false })
-    const replaceMock = vi.fn()
-    const useRouterMock = vi.spyOn(await import('next/navigation'), 'useRouter')
-    useRouterMock.mockReturnValue({ replace: replaceMock } as any)
+  it('shows LoginRequired for unauthenticated users', async () => {
+    mockUseAuth.mockReturnValue({ isAuthenticated: false, isLoading: false })
 
     render(<MetricsPage />)
 
     await waitFor(() => {
-      expect(replaceMock).toHaveBeenCalledWith('/')
+      expect(screen.getByTestId('login-required')).toBeInTheDocument()
     })
   })
 
-  it('shows loading state initially', () => {
+  it('shows auth loading state initially', () => {
+    mockUseAuth.mockReturnValue({ isAuthenticated: false, isLoading: true })
+
+    render(<MetricsPage />)
+    expect(screen.getByText('正在确认登录状态...')).toBeInTheDocument()
+  })
+
+  it('shows data loading state', () => {
+    mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false })
     // Never resolve to keep loading state
     vi.spyOn(api, 'getDashboardOverview').mockImplementation(() => new Promise(() => {}))
     vi.spyOn(api, 'getDashboardActivity').mockImplementation(() => new Promise(() => {}))

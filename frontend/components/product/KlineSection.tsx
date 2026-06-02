@@ -162,6 +162,7 @@ export default function KlineSection({
         data={data}
         symbol={symbol}
         pricePrecision={pricePrecision}
+        resetKey={viewportResetKey}
         supportLevels={supportLevels}
         resistanceLevels={resistanceLevels}
         onAddSupport={onAddSupport}

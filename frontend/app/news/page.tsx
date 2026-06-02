@@ -2,6 +2,8 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import AppShell from '@/components/layout/AppShell'
+import LoginRequired from '@/components/auth/LoginRequired'
+import { useAuth } from '@/components/auth/AuthProvider'
 import ErrorState from '@/components/ui/ErrorState'
 import EmptyState from '@/components/ui/EmptyState'
 import { api, type NewsArticle, type NewsSource } from '@/lib/api'
@@ -25,6 +27,7 @@ import useSWR from 'swr'
 import { toast } from 'sonner'
 
 export default function NewsPage() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [selectedSource, setSelectedSource] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showSourceModal, setShowSourceModal] = useState(false)
@@ -34,7 +37,11 @@ export default function NewsPage() {
     error: sourcesError,
     isLoading: sourcesLoading,
     mutate: mutateSources,
-  } = useSWR('news-sources', () => api.getNewsSources(), { revalidateOnFocus: false })
+  } = useSWR(
+    isAuthenticated ? 'news-sources' : null,
+    () => api.getNewsSources(),
+    { revalidateOnFocus: false },
+  )
 
   const {
     data: articles,
@@ -42,7 +49,7 @@ export default function NewsPage() {
     isLoading: articlesLoading,
     mutate: mutateArticles,
   } = useSWR(
-    ['news-articles', selectedSource, searchQuery],
+    isAuthenticated ? ['news-articles', selectedSource, searchQuery] : null,
     () =>
       api.getNewsArticles({
         source_id: selectedSource ?? undefined,
@@ -67,6 +74,24 @@ export default function NewsPage() {
     },
     [],
   )
+
+  if (authLoading) {
+    return (
+      <AppShell>
+        <div className="flex items-center justify-center py-20 text-sm text-slate-500">
+          正在确认登录状态...
+        </div>
+      </AppShell>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <AppShell>
+        <LoginRequired />
+      </AppShell>
+    )
+  }
 
   return (
     <AppShell>

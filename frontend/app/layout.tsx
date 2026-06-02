@@ -3,7 +3,9 @@ import './globals.css'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import WebVitalsReporter from '@/components/WebVitalsReporter'
-import { Toaster } from 'sonner'
+import dynamic from 'next/dynamic'
+
+const DynamicToaster = dynamic(() => import('@/components/DynamicToaster'), { ssr: false })
 
 export const metadata: Metadata = {
   title: '倍增计划',
@@ -21,7 +23,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <AuthProvider>
             {children}
-            <Toaster position="top-right" theme="dark" />
+            <DynamicToaster />
             <WebVitalsReporter />
           </AuthProvider>
         </ErrorBoundary>

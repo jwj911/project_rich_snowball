@@ -1,6 +1,6 @@
 'use client'
 
-import { RefObject, useEffect, useRef } from 'react'
+import { RefObject, useCallback, useEffect, useRef } from 'react'
 import {
   CandlestickSeries,
   ColorType,
@@ -39,6 +39,10 @@ interface UseKlineChartOptions {
 export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCrosshairMove }: UseKlineChartOptions) {
   const instanceRef = useRef<KlineChartInstance | null>(null)
   const hasFitInitialContentRef = useRef(false)
+  const pendingDataRef = useRef<{
+    candleData: Parameters<typeof setData>[0]
+    volumeData: Parameters<typeof setData>[1]
+  } | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -113,6 +117,18 @@ export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCro
 
     instanceRef.current = { chart, candleSeries, volumeSeries }
 
+    // 如果有 pending 数据，chart 创建完成后立即灌入
+    if (pendingDataRef.current) {
+      const { candleData: pendingCandle, volumeData: pendingVolume } = pendingDataRef.current
+      candleSeries.setData(pendingCandle)
+      volumeSeries.setData(pendingVolume)
+      if (pendingCandle.length > 0 && !hasFitInitialContentRef.current) {
+        chart.timeScale().fitContent()
+        hasFitInitialContentRef.current = true
+      }
+      pendingDataRef.current = null
+    }
+
     const handleCrosshairMove = (param: Parameters<IChartApi['subscribeCrosshairMove']>[0] extends (arg: infer P) => void ? P : never) => {
       const seriesData = param.seriesData.get(candleSeries)
       if (!seriesData || !('open' in seriesData)) {
@@ -143,6 +159,7 @@ export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCro
       chart.remove()
       instanceRef.current = null
       hasFitInitialContentRef.current = false
+      pendingDataRef.current = null
     }
   }, [containerRef, enabled, onCrosshairMove, pricePrecision])
 
@@ -154,7 +171,11 @@ export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCro
     close: number
   }>, volumeData: Array<{ time: Time; value: number; color: string }>) => {
     const instance = instanceRef.current
-    if (!instance) return
+    if (!instance) {
+      // chart 实例尚未创建，缓存数据供创建后灌入
+      pendingDataRef.current = { candleData, volumeData }
+      return
+    }
 
     instance.candleSeries.setData(candleData)
     instance.volumeSeries.setData(volumeData)
@@ -165,5 +186,15 @@ export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCro
     }
   }
 
-  return { instanceRef, setData }
+  const fitContent = useCallback(() => {
+    const instance = instanceRef.current
+    if (!instance) return
+    instance.chart.timeScale().fitContent()
+  }, [])
+
+  const resetFitFlag = useCallback(() => {
+    hasFitInitialContentRef.current = false
+  }, [])
+
+  return { instanceRef, setData, fitContent, resetFitFlag }
 }

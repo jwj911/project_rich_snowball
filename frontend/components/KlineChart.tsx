@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Time } from 'lightweight-charts'
 import EmptyState from '@/components/ui/EmptyState'
 import LevelChips from '@/components/kline/LevelChips'
@@ -19,6 +19,7 @@ interface KlineChartProps {
   data: KlineData[]
   symbol: string
   pricePrecision?: number
+  resetKey?: string | number
   supportLevels?: number[]
   resistanceLevels?: number[]
   onAddSupport?: (price: number) => void
@@ -33,6 +34,7 @@ export default function KlineChart({
   data: externalData,
   symbol,
   pricePrecision = 2,
+  resetKey,
   supportLevels = [],
   resistanceLevels = [],
   onAddSupport,
@@ -91,7 +93,7 @@ export default function KlineChart({
     })
   }, [])
 
-  const { instanceRef, setData } = useKlineChart({
+  const { instanceRef, setData, fitContent, resetFitFlag } = useKlineChart({
     containerRef: chartContainerRef,
     enabled: hasChartData,
     pricePrecision,
@@ -107,6 +109,13 @@ export default function KlineChart({
     pointByTimeRef.current = pointByTime
     setData(candleData, volumeData)
   }
+
+  // 当 resetKey 变化时重置视口
+  useEffect(() => {
+    if (resetKey === undefined) return
+    resetFitFlag()
+    fitContent()
+  }, [resetKey, resetFitFlag, fitContent])
 
   const openAnnotationMenu = (event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault()

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/components/auth/AuthProvider'
-import { useRouter } from 'next/navigation'
+import LoginRequired from '@/components/auth/LoginRequired'
 import StatCard from '@/components/metrics/StatCard'
 import TrendBars from '@/components/metrics/TrendBars'
 import { api } from '@/lib/api'
@@ -21,8 +21,7 @@ import {
 } from 'lucide-react'
 
 export default function MetricsPage() {
-  const { isAuthenticated } = useAuth()
-  const router = useRouter()
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [overview, setOverview] = useState<DashboardOverview | null>(null)
   const [activity, setActivity] = useState<DashboardActivity | null>(null)
   const [collection, setCollection] = useState<DashboardCollection | null>(null)
@@ -30,10 +29,7 @@ export default function MetricsPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/')
-      return
-    }
+    if (!isAuthenticated) return
 
     let cancelled = false
 
@@ -63,9 +59,21 @@ export default function MetricsPage() {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, router])
+  }, [isAuthenticated])
 
-  if (!isAuthenticated) return null
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#0b0f14] p-4 text-slate-200 md:p-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="flex items-center justify-center py-20 text-sm text-slate-500">
+            正在确认登录状态...
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) return <LoginRequired />
 
   return (
     <div className="min-h-screen bg-[#0b0f14] p-4 text-slate-200 md:p-8">
