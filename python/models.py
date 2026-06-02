@@ -158,6 +158,7 @@ class UserDB(Base):
     opinions = relationship("OpinionDB", back_populates="user", passive_deletes=True)
     price_alerts = relationship("PriceAlertDB", back_populates="user", passive_deletes=True)
     trade_records = relationship("TradeRecordDB", back_populates="user", passive_deletes=True)
+    chat_messages = relationship("ChatMessageDB", back_populates="user", passive_deletes=True)
     price_levels = relationship("PriceLevelDB", back_populates="user", passive_deletes=True)
     refresh_tokens = relationship("RefreshTokenDB", back_populates="user", passive_deletes=True)
 
@@ -387,6 +388,23 @@ class TradeRecordDB(Base):
     user = relationship("UserDB", back_populates="trade_records")
     variety = relationship("VarietyDB", back_populates="trade_records")
     opinion = relationship("OpinionDB", back_populates="trade_records")
+
+
+class ChatMessageDB(Base):
+    """AI 聊天对话历史。
+
+    存储用户与 AI 助手的对话消息，role 区分 user/assistant。
+    context_json 存储本次对话引用的数据库上下文摘要。
+    """
+
+    __tablename__ = "chat_messages"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(20), nullable=False)  # user | assistant
+    content = Column(Text, nullable=False)
+    context_json = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    user = relationship("UserDB", back_populates="chat_messages")
 
 
 class PriceLevelDB(Base):

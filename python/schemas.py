@@ -692,3 +692,21 @@ class TradeRecordResponse(BaseModel):
     created_at: dt
 
     model_config = ConfigDict(from_attributes=True)
+
+
+
+class ChatMessageCreate(BaseModel):
+    """发送 AI 聊天消息请求。"""
+
+    content: str = Field(..., min_length=1, max_length=4000)
+
+
+class ChatMessageResponse(BaseModel):
+    """AI 聊天消息响应。"""
+
+    id: int
+    role: str
+    content: str
+    created_at: dt
+
+    model_config = ConfigDict(from_attributes=True)

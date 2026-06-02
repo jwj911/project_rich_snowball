@@ -36,6 +36,11 @@ import {
   updateOpinion,
 } from './opinions'
 import {
+  clearChatHistory,
+  getChatHistory,
+  sendChatMessage,
+} from './chat'
+import {
   createPriceAlert,
   deletePriceAlert,
   getPriceAlerts,
@@ -77,6 +82,8 @@ import type {
   Opinion,
   OpinionCreate,
   OpinionUpdate,
+  ChatMessage,
+  ChatMessageCreate,
   PriceAlert,
   PriceAlertCreate,
   PriceAlertUpdate,
@@ -361,6 +368,18 @@ class ApiService extends AuthCore {
 
   deletePriceAlert(id: number): Promise<void> {
     return deletePriceAlert(this, id)
+  }
+
+  getChatHistory(params?: { skip?: number; limit?: number }): Promise<ChatMessage[]> {
+    return getChatHistory(this, params)
+  }
+
+  sendChatMessage(data: ChatMessageCreate): Promise<ChatMessage> {
+    return sendChatMessage(this, data)
+  }
+
+  clearChatHistory(): Promise<void> {
+    return clearChatHistory(this)
   }
 
   getPortfolio(params?: { status?: string; skip?: number; limit?: number }): Promise<TradeRecord[]> {

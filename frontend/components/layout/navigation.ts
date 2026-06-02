@@ -10,6 +10,7 @@ import {
   PenLine,
   Settings,
   ShieldCheck,
+  Sparkles,
   Wrench,
 } from 'lucide-react'
 
@@ -46,6 +47,7 @@ export const secondaryNavGroups: NavGroup[] = [
       { label: '新闻资讯', icon: Database, href: '/news' },
       { label: '交易观点', icon: PenLine, href: '/opinions' },
       { label: '模拟持仓', icon: Briefcase, href: '/portfolio' },
+      { label: 'AI 助手', icon: Sparkles, href: '/chat' },
       { label: '提醒事件', icon: Bell },
     ],
   },

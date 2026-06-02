@@ -57,6 +57,7 @@ from routers import (  # noqa: E402
     frontend_logs,
     health,
     kline,
+    chat,
     market,
     metrics_dashboard,
     news,
@@ -203,6 +204,7 @@ app.include_router(settings.router)
 app.include_router(news.router)
 app.include_router(opinions.router)
 app.include_router(portfolio.router)
+app.include_router(chat.router)
 app.include_router(price_alerts.router)
 
 

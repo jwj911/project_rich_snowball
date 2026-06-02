@@ -51,6 +51,13 @@ RATE_LIMIT_MAX_REQUESTS = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "100"))
 PIPELINE_COMMIT_BATCH_SIZE = int(os.getenv("PIPELINE_COMMIT_BATCH_SIZE", "50"))
 CIRCUIT_FAILURE_THRESHOLD = float(os.getenv("CIRCUIT_FAILURE_THRESHOLD", "0.5"))
 
+# AI 聊天配置（OpenAI 兼容 API）
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+# 最大对话历史条数（user + assistant 各算一条）
+CHAT_MAX_HISTORY = int(os.getenv("CHAT_MAX_HISTORY", "20"))
+
 # 安全与 CORS 配置
 BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "12"))
 CORS_MAX_AGE_SECONDS = int(os.getenv("CORS_MAX_AGE_SECONDS", "600"))
