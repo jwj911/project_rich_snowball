@@ -74,7 +74,7 @@
 |--------|------|------|----------|
 | P3 | **AI Chat（期货助手）** | ✅ 已完成 | OpenAI 兼容 API，上下文检索品种行情+观点 |
 | P4 | **Portfolio（模拟持仓）** | ✅ 已完成 | 新表 trade_records，支持 Opinion 关联，盈亏自动计算 |
-| P5 | **NewsCollector 增强** | RSS 源自动发现、内容摘要 AI 化 | 需外部 AI 服务，成本高 |
+| P5 | **NewsCollector 增强** | ✅ 已完成 | 用户自建 RSS 源 + AI 新闻解读 |
 
 ### 明确不做（偏离产品定位）
 
@@ -283,6 +283,11 @@ for alert in alerts:
 | | `ChatMessageDB` 模型 + Alembic 迁移 + Schema + Router + 9 tests | ✅ |
 | | OpenAI 兼容 API，上下文检索品种行情+用户观点 | ✅ |
 | | 前端 `/chat` 页面：对话界面 + 快捷提问 + 清空历史 | ✅ |
+| 2026-06-02 | Phase 3 P5：NewsCollector 增强（用户源 + AI 解读）| ✅ |
+| | 后端：`NewsSourceDB` 新增 `is_builtin`/`user_id`，`NewsArticleDB` 新增 `ai_summary` | ✅ |
+| | Alembic 迁移 `d4e5f6a7b8c9`；用户源 CRUD 权限模型；AI 摘要服务 | ✅ |
+| | 前端：`/news` 页面支持用户自建源管理、AI 解读展开/生成 | ✅ |
+| | pytest 20 tests 覆盖源权限与 AI 摘要流程 | ✅ |
 
 ---
 
