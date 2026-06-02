@@ -53,7 +53,7 @@ import {
   deleteTradeRecord,
   getPortfolio,
 } from './portfolio'
-import { getNewsArticles, getNewsSources } from './news'
+import { createNewsSource, deleteNewsSource, getNewsArticles, getNewsSources, summarizeArticle } from './news'
 import { getUserSettings, updateUserSettings } from './settings'
 import {
   createPriceLevel,
@@ -310,6 +310,18 @@ class ApiService extends AuthCore {
     limit?: number
   }): Promise<NewsArticle[]> {
     return getNewsArticles(this, params)
+  }
+
+  createNewsSource(data: { name: string; url: string; category?: string | null }): Promise<NewsSource> {
+    return createNewsSource(this, data)
+  }
+
+  deleteNewsSource(id: number): Promise<void> {
+    return deleteNewsSource(this, id)
+  }
+
+  summarizeArticle(id: number): Promise<NewsArticle> {
+    return summarizeArticle(this, id)
   }
 
   getOpinions(params?: {

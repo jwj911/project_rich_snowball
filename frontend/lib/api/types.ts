@@ -220,6 +220,8 @@ export interface NewsSource {
   url: string
   category: string | null
   is_enabled: boolean
+  is_builtin: boolean
+  user_id: number | null
   last_fetched_at: string | null
   fetch_error_count: number
   created_at: string
@@ -230,6 +232,7 @@ export interface NewsArticle {
   source_id: number
   title: string
   summary: string | null
+  ai_summary: string | null
   url: string
   published_at: string | null
   fetched_at: string

@@ -22,9 +22,9 @@ class TestNewsSourcesRead:
         assert r.status_code == 401
 
     def test_list_sources_returns_enabled_only(self, client, auth_headers, db_session):
-        """只返回启用的源。"""
-        db_session.add(NewsSourceDB(name="启用源", url="http://a.com/rss", is_enabled=True))
-        db_session.add(NewsSourceDB(name="禁用源", url="http://b.com/rss", is_enabled=False))
+        """只返回启用的源（内置源或当前用户添加的源）。"""
+        db_session.add(NewsSourceDB(name="启用源", url="http://a.com/rss", is_enabled=True, is_builtin=True))
+        db_session.add(NewsSourceDB(name="禁用源", url="http://b.com/rss", is_enabled=False, is_builtin=True))
         db_session.commit()
 
         r = client.get("/api/news/sources", headers=auth_headers)
@@ -32,6 +32,19 @@ class TestNewsSourcesRead:
         data = r.json()
         assert len(data) == 1
         assert data[0]["name"] == "启用源"
+
+    def test_list_sources_user_owned(self, client, auth_headers, db_session):
+        """用户只能看到自己添加的源和内置源。"""
+        db_session.add(NewsSourceDB(name="内置", url="http://builtin/rss", is_enabled=True, is_builtin=True))
+        # user_id=2 是另一个测试用户，不是当前登录用户
+        db_session.add(NewsSourceDB(name="别人的", url="http://other/rss", is_enabled=True, is_builtin=False, user_id=2))
+        db_session.commit()
+
+        r = client.get("/api/news/sources", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "内置"
 
 
 class TestNewsArticlesRead:
@@ -107,36 +120,66 @@ class TestNewsArticlesRead:
         assert data[0]["title"] == "新文章"
 
 
-class TestNewsSourceAdmin:
-    def test_create_source_requires_admin(self, client, auth_headers):
-        """普通用户创建源应返回 403。"""
-        r = client.post("/api/news/sources", json={"name": "源", "url": "http://a.com/rss"}, headers=auth_headers)
-        assert r.status_code == 403
-
-    def test_create_source_admin_success(self, client, admin_headers, db_session):
-        """admin 可成功创建源。"""
+class TestNewsSourceUser:
+    def test_user_create_source(self, client, auth_headers):
+        """普通用户可创建自己的 RSS 源。"""
         r = client.post(
             "/api/news/sources",
-            json={"name": "新浪期货", "url": "http://a.com/rss", "category": "期货"},
-            headers=admin_headers,
+            json={"name": "我的源", "url": "http://my.com/rss", "category": "自定义"},
+            headers=auth_headers,
         )
         assert r.status_code == 201
         data = r.json()
-        assert data["name"] == "新浪期货"
-        assert data["category"] == "期货"
-        assert data["is_enabled"] is True
+        assert data["name"] == "我的源"
+        assert data["is_builtin"] is False
+        assert data["user_id"] is not None
 
-    def test_delete_source_requires_admin(self, client, auth_headers, db_session):
-        """普通用户删除源应返回 403。"""
-        s = NewsSourceDB(name="源", url="http://a.com/rss")
+    def test_user_delete_own_source(self, client, auth_headers, db_session):
+        """用户可删除自己添加的源。"""
+        from models import UserDB
+        user = db_session.query(UserDB).filter(UserDB.username == "integration_tester").first()
+        s = NewsSourceDB(name="我的源", url="http://my.com/rss", user_id=user.id)
+        db_session.add(s)
+        db_session.commit()
+
+        r = client.delete(f"/api/news/sources/{s.id}", headers=auth_headers)
+        assert r.status_code == 204
+        assert db_session.get(NewsSourceDB, s.id) is None
+
+    def test_user_cannot_delete_builtin_source(self, client, auth_headers, db_session):
+        """普通用户不能删除内置源。"""
+        s = NewsSourceDB(name="内置源", url="http://builtin/rss", is_builtin=True)
         db_session.add(s)
         db_session.commit()
 
         r = client.delete(f"/api/news/sources/{s.id}", headers=auth_headers)
         assert r.status_code == 403
 
-    def test_delete_source_admin_success(self, client, admin_headers, db_session):
-        """admin 可成功删除源。"""
+    def test_user_cannot_delete_others_source(self, client, auth_headers, db_session):
+        """用户不能删除别人的源。"""
+        s = NewsSourceDB(name="别人的源", url="http://other/rss", user_id=2)
+        db_session.add(s)
+        db_session.commit()
+
+        r = client.delete(f"/api/news/sources/{s.id}", headers=auth_headers)
+        assert r.status_code == 403
+
+
+class TestNewsSourceAdmin:
+    def test_admin_create_builtin_source(self, client, admin_headers):
+        """admin 可通过 admin 端点创建内置源。"""
+        r = client.post(
+            "/api/news/sources/admin",
+            json={"name": "新浪期货", "url": "http://a.com/rss", "category": "期货"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 201
+        data = r.json()
+        assert data["name"] == "新浪期货"
+        assert data["is_builtin"] is True
+
+    def test_admin_delete_any_source(self, client, admin_headers, db_session):
+        """admin 可删除任何源。"""
         s = NewsSourceDB(name="源", url="http://a.com/rss")
         db_session.add(s)
         db_session.commit()

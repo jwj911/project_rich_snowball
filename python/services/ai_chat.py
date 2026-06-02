@@ -168,3 +168,48 @@ async def chat_with_ai(user_id: int, user_content: str, db: Session) -> tuple[st
     except Exception as e:
         logger.error("AI chat error: %s", e)
         return "请求 AI 服务时发生错误，请检查配置或稍后重试。", context
+
+
+_SUMMARIZE_PROMPT = (
+    "你是一位期货行业资深分析师。请对以下新闻标题和摘要进行深度解读，\n"
+    "输出一份 100-200 字的中文分析，包含：\n"
+    "1. 新闻核心要点提炼\n"
+    "2. 对相关期货品种的潜在影响\n"
+    "3. 风险提示（所有分析仅供参考，不构成投资建议）\n"
+)
+
+
+def summarize_article_sync(title: str, summary: str) -> str | None:
+    """同步调用 AI 为单篇新闻生成深度解读摘要。
+
+    供 scheduler 和手动触发端点使用（同步上下文）。
+    未配置 AI 时返回 None。
+    """
+    if not OPENAI_API_KEY:
+        return None
+
+    content = f"标题：{title}\n摘要：{summary}" if summary else f"标题：{title}"
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.post(
+                f"{OPENAI_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": OPENAI_MODEL,
+                    "messages": [
+                        {"role": "system", "content": _SUMMARIZE_PROMPT},
+                        {"role": "user", "content": content},
+                    ],
+                    "temperature": 0.5,
+                    "max_tokens": 512,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        logger.warning("AI summarize failed for article '%s...': %s", title[:30], e)
+        return None

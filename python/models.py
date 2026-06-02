@@ -723,6 +723,7 @@ class NewsSourceDB(Base):
 
     每个源对应一个 RSS 订阅地址，后台定时或手动触发抓取。
     采用启用/禁用开关控制，错误次数过多可人工介入。
+    user_id 为 NULL 时表示系统内置或公共源；有值时表示用户自定义源。
     """
 
     __tablename__ = "news_sources"
@@ -731,6 +732,8 @@ class NewsSourceDB(Base):
     url = Column(String(500), nullable=False)
     category = Column(String(50), nullable=True)
     is_enabled = Column(Boolean, default=True, nullable=False)
+    is_builtin = Column(Boolean, default=False, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     last_fetched_at = Column(DateTime(timezone=True), nullable=True)
     fetch_error_count = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime(timezone=True), default=_utc_now)
@@ -750,6 +753,7 @@ class NewsArticleDB(Base):
     )
     title = Column(String(300), nullable=False)
     summary = Column(Text, nullable=True)
+    ai_summary = Column(Text, nullable=True)
     url = Column(String(500), nullable=False)
     published_at = Column(DateTime(timezone=True), nullable=True, index=True)
     fetched_at = Column(DateTime(timezone=True), default=_utc_now)

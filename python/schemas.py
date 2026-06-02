@@ -505,10 +505,20 @@ class NewsSourceCreate(NewsSourceBase):
     pass
 
 
+class NewsSourceUserCreate(BaseModel):
+    """普通用户创建自定义新闻源请求。"""
+
+    name: str = Field(..., max_length=100)
+    url: str = Field(..., max_length=500)
+    category: str | None = Field(default=None, max_length=50)
+
+
 class NewsSourceResponse(NewsSourceBase):
     """新闻源响应。"""
 
     id: int
+    is_builtin: bool
+    user_id: int | None
     last_fetched_at: dt | None
     fetch_error_count: int
     created_at: dt
@@ -523,6 +533,7 @@ class NewsArticleResponse(BaseModel):
     source_id: int
     title: str
     summary: str | None
+    ai_summary: str | None
     url: str
     published_at: dt | None
     fetched_at: dt

@@ -14,7 +14,7 @@ from data_collector.collector_registry import (
     build_pipelines,
 )
 from data_collector.job_registry import build_job_configs, register_jobs
-from models import PriceAlertDB, RealtimeQuoteDB, SessionLocal, VarietyDB
+from models import NewsArticleDB, NewsSourceDB, PriceAlertDB, RealtimeQuoteDB, SessionLocal, VarietyDB
 from services.metrics import data_collection_duration_seconds, data_collection_runs_total
 from services.news_fetcher import fetch_all_enabled_sources
 from services.realtime_state import mark_realtime_updated
@@ -460,14 +460,46 @@ def sync_variety_metadata():
         logger.error("Failed to sync variety metadata: %s", e)
 
 
+def _ensure_builtin_news_sources(db):
+    """确保系统内置 RSS 新闻源已初始化。"""
+    builtins = [
+        ("新浪财经期货", "https://finance.sina.com.cn/future/", "综合财经"),
+        ("东方财富期货", "https://futures.eastmoney.com/", "综合财经"),
+        ("期货日报", "https://www.qhrb.com.cn/", "行业媒体"),
+    ]
+    for name, url, category in builtins:
+        exists = db.query(NewsSourceDB.id).filter(NewsSourceDB.url == url).first()
+        if not exists:
+            db.add(NewsSourceDB(name=name, url=url, category=category, is_builtin=True, is_enabled=True))
+    db.commit()
+
+
 def sync_news():
-    """定时抓取所有启用的 RSS 新闻源。"""
+    """定时抓取所有启用的 RSS 新闻源，并为新增文章生成 AI 摘要。"""
     logger.info("Syncing news from RSS sources...")
     db = SessionLocal()
     try:
+        _ensure_builtin_news_sources(db)
         result = fetch_all_enabled_sources(db)
         total_new = sum(result.values())
         logger.info("News sync completed: %d sources, %d new articles", len(result), total_new)
+
+        # 为未生成 AI 摘要的最新文章批量生成摘要
+        if total_new > 0:
+            from services.ai_chat import summarize_article_sync
+            unsummarized = (
+                db.query(NewsArticleDB)
+                .filter(NewsArticleDB.ai_summary.is_(None))
+                .order_by(NewsArticleDB.fetched_at.desc())
+                .limit(10)
+                .all()
+            )
+            for article in unsummarized:
+                summary = summarize_article_sync(article.title, article.summary or "")
+                if summary:
+                    article.ai_summary = summary
+                    db.commit()
+                    logger.info("AI summary generated for article: %s", article.title[:40])
     except (SQLAlchemyError, OSError) as e:
         logger.error("Failed to sync news: %s", e)
     finally:

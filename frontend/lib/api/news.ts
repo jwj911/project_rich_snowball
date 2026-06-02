@@ -5,6 +5,21 @@ export async function getNewsSources(core: RequestCore): Promise<NewsSource[]> {
   return core.request<NewsSource[]>('/api/news/sources')
 }
 
+export async function createNewsSource(
+  core: RequestCore,
+  data: { name: string; url: string; category?: string | null },
+): Promise<NewsSource> {
+  return core.request<NewsSource>('/api/news/sources', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteNewsSource(core: RequestCore, id: number): Promise<void> {
+  return core.request<void>(`/api/news/sources/${id}`, { method: 'DELETE' })
+}
+
 export async function getNewsArticles(
   core: RequestCore,
   params?: {
@@ -21,4 +36,8 @@ export async function getNewsArticles(
   if (params?.limit !== undefined) search.set('limit', String(params.limit))
   const query = search.toString()
   return core.request<NewsArticle[]>(`/api/news/articles${query ? `?${query}` : ''}`)
+}
+
+export async function summarizeArticle(core: RequestCore, id: number): Promise<NewsArticle> {
+  return core.request<NewsArticle>(`/api/news/articles/${id}/summarize`, { method: 'POST' })
 }
