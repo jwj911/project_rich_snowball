@@ -3,7 +3,7 @@
 > 基于架构师审查报告 `FRONTEND_FIX_LIST_20260601.md` 的细化迭代计划。
 > 梳理日期：2026-06-02
 > 范围：`frontend/app`、`components`、`hooks`、`lib`、`tests`、`e2e`、前端配置。
-> 当前评级：**B-**
+> 当前评级：**B**（Sprint 1 完成，P0 + P1 已修复）
 
 ---
 
@@ -40,9 +40,9 @@
 - `frontend/components/KlineChart.tsx` — 确保 chart 创建与数据同步的时序正确
 
 **验收标准**：
-- [ ] 首次进入 `/products/{symbol}` 时 K 线稳定显示，不再出现空 canvas
-- [ ] 切换周期/数据源后不出现空 canvas
-- [ ] `tests/hooks/useKlineChart.test.ts` 增加"chart 创建后首批数据被写入"测试（如文件不存在则新建）
+- [x] 首次进入 `/products/{symbol}` 时 K 线稳定显示，不再出现空 canvas
+- [x] 切换周期/数据源后不出现空 canvas
+- [x] `tests/hooks/useKlineChart.test.ts` 增加"chart 创建后首批数据被写入"测试（如文件不存在则新建）
 
 ---
 
@@ -59,8 +59,8 @@
 - `frontend/app/metrics/page.tsx` — 增加 `isLoading` 读取，鉴权加载期间显示加载态，未登录显示 `LoginRequired`
 
 **验收标准**：
-- [ ] 已登录用户刷新 `/metrics` 不跳回首页
-- [ ] 未登录访问 `/metrics` 显示 `LoginRequired` 登录门禁
+- [x] 已登录用户刷新 `/metrics` 不跳回首页
+- [x] 未登录访问 `/metrics` 显示 `LoginRequired` 登录门禁
 - [ ] `e2e/metrics.spec.ts` 增加已登录直达刷新测试（如文件不存在则新建）
 
 ---
@@ -76,8 +76,8 @@
 - `frontend/app/news/page.tsx` — 接入 `useAuth`、`authLoading`、`LoginRequired`，只在已登录后启用 SWR key
 
 **验收标准**：
-- [ ] 未登录访问 `/news` 显示 `LoginRequired` 登录门禁
-- [ ] 已登录访问 `/news` 正常加载新闻
+- [x] 未登录访问 `/news` 显示 `LoginRequired` 登录门禁
+- [x] 已登录访问 `/news` 正常加载新闻
 - [ ] `e2e/news.spec.ts` 增加未登录门禁测试（如文件不存在则新建）
 
 ---
@@ -94,20 +94,20 @@
 
 **修改文件**：
 - 新建 `frontend/hooks/usePreferences.ts` — 提供用户偏好读取和订阅机制
-- 新建 `frontend/components/PreferencesProvider.tsx` — 将偏好注入全局上下文
-- `frontend/app/layout.tsx` — `Toaster` 主题从偏好读取
-- `frontend/lib/swr-hooks.ts` — `refreshInterval` 从偏好读取，支持动态更新
+- 新建 `frontend/components/DynamicToaster.tsx` — Toaster 主题从 localStorage 偏好动态读取
+- `frontend/app/layout.tsx` — `Toaster` 替换为 `DynamicToaster`
+- `frontend/lib/swr-hooks.ts` — `refreshInterval` 从偏好读取
 - `frontend/hooks/useMarketPolling.ts` — 轮询间隔从偏好读取
-- `frontend/app/settings/page.tsx` — 保存后触发偏好上下文更新
+- `frontend/app/settings/page.tsx` — 保存后同步到本地偏好缓存
 
 **处理未实现项**：
-- `language`（多语言）：当前无 i18n 框架，建议先隐藏入口或标注"即将支持"
-- `notifications_enabled`（推送通知）：当前无通知服务，建议先隐藏入口或标注"即将支持"
+- `language`（多语言）：已隐藏入口
+- `notifications_enabled`（推送通知）：已隐藏入口
 
 **验收标准**：
-- [ ] 修改刷新间隔后，行情页/工作区刷新节奏按新值生效
-- [ ] 修改主题后 `Toaster` 主题同步变化
-- [ ] 不支持的设置项（language、notifications）不再表现为已生效功能
+- [x] 修改刷新间隔后，行情页/工作区刷新节奏按新值生效（组件重新挂载时读取）
+- [x] 修改主题后 `Toaster` 主题同步变化
+- [x] 不支持的设置项（language、notifications）不再表现为已生效功能
 
 ---
 
@@ -125,8 +125,8 @@
 - `frontend/hooks/useKlineChart.ts` — 暴露 `fitContent()` 方法或自动响应 reset
 
 **验收标准**：
-- [ ] 切换连续/主力/具体合约后图表回到合理视口
-- [ ] 切换周期后不会沿用旧缩放造成误读
+- [x] 切换连续/主力/具体合约后图表回到合理视口
+- [x] 切换周期后不会沿用旧缩放造成误读
 - [ ] E2E `product-detail.spec.ts` 增加视口切换断言
 
 ---

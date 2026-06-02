@@ -699,6 +699,16 @@ ruff format .
 - **合约详情展示**：`KlineSection` 单合约模式下展示合约信息（交易所、上市/退市日期、活跃状态）
 - API 层新增：`getContractById`、`getContractRollovers`、`ContractRollover` 类型、`lib/api/settings.ts`、`lib/api/news.ts`
 
+### 前端 Sprint 1 质量修复 — 已完成（2026-06-02）
+
+- **P0-1 K线首批数据灌入**：`useKlineChart.ts` 添加 `pendingDataRef`，chart 实例创建前调用 `setData` 会缓存数据，创建完成后自动灌入
+- **P1-1 指标页鉴权加载态**：`app/metrics/page.tsx` 读取 `isLoading`，加载期显示加载态，未登录显示 `LoginRequired`（不再 router.replace）
+- **P1-2 新闻页鉴权门禁**：`app/news/page.tsx` 接入 `useAuth` + `LoginRequired`，SWR key 条件化（仅在已登录时启用）
+- **P1-3 设置偏好实际生效**：新建 `usePreferences.ts`（localStorage 缓存用户偏好）+ `DynamicToaster.tsx`（主题动态化），`swr-hooks.ts` 和 `useMarketPolling.ts` 读取用户设置的刷新间隔，隐藏未实现的语言/通知入口
+- **P1-4 K线视口重置**：`KlineChart.tsx` 接收 `resetKey` prop，变化时调用 `fitContent()`；`KlineSection.tsx` 传入 `viewportResetKey`
+- 新增 `tests/hooks/useKlineChart.test.ts` 覆盖 pending 数据灌入、直接灌入、fitContent 三个场景
+- 更新 `tests/app/metrics.page.test.tsx` 适配新的鉴权行为
+
 ### 下一步推荐
 
 1. **Opinions（交易观点/日记）**：复用现有 `OpinionDB` 模型，补充 Schema + Router + Service
@@ -722,4 +732,4 @@ ruff format .
 
 ---
 
-*最后更新：2026-06-02，由 AI 助手根据 master 分支当前代码整理。*
+*最后更新：2026-06-02，由 AI 助手根据 master 分支当前代码整理。Sprint 1 已提交（0c809935）。*
