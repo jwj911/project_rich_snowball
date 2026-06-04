@@ -164,3 +164,24 @@ def test_contract_delete_sets_null_on_rollover(db_session):
     assert rollover_after is not None
     assert rollover_after.old_contract_id is None
     assert rollover_after.new_contract_id == new_contract.id
+
+
+def test_variety_delete_cascades_comments(db_session):
+    """删除品种时，关联评论应被 CASCADE 删除。"""
+    variety = VarietyDB(symbol="DEL_VAR", contract_code="DEL_VAR", name="删除测试", exchange="SHFE")
+    db_session.add(variety)
+    db_session.flush()
+
+    user = UserDB(username="var_del_user", email="vd@example.com", password_hash="x")
+    db_session.add(user)
+    db_session.flush()
+
+    comment = CommentDB(variety_id=variety.id, user_id=user.id, content="即将被级联删除")
+    db_session.add(comment)
+    db_session.commit()
+
+    comment_id = comment.id
+    db_session.delete(variety)
+    db_session.commit()
+
+    assert db_session.query(CommentDB).filter_by(id=comment_id).first() is None

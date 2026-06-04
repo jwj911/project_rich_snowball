@@ -93,3 +93,125 @@ def test_create_frontend_log_rate_limited(client):
     payload = {"type": "message", "payload": {}}
     r = client.post("/api/log/frontend", json=payload)
     assert r.status_code == 202
+
+
+# ========== 鉴权归属加固测试 ==========
+
+
+def test_create_frontend_log_with_token_ignores_client_user_id(
+    client, db_session_with_logs, auth_headers
+):
+    """携带有效 token 时，忽略客户端传入的 user_id，使用 token 中的用户。"""
+    payload = {
+        "type": "exception",
+        "payload": {"error": "FakeError"},
+        "user_id": 99999,  # 伪造的 user_id
+    }
+    r = client.post("/api/log/frontend", json=payload, headers=auth_headers)
+    assert r.status_code == 202
+
+    logs = db_session_with_logs.query(FrontendLogDB).all()
+    assert len(logs) == 1
+    # token 对应的是 integration_tester，不是 99999
+    assert logs[0].user_id is not None
+    assert logs[0].user_id != 99999
+
+
+def test_create_frontend_log_without_token_is_anonymous(
+    client, db_session_with_logs
+):
+    """未携带 token 时，日志匿名入库，user_id 为 None。"""
+    payload = {
+        "type": "exception",
+        "payload": {"error": "AnonymousError"},
+        "user_id": 88888,  # 伪造的 user_id，应被忽略
+    }
+    r = client.post("/api/log/frontend", json=payload)
+    assert r.status_code == 202
+
+    logs = db_session_with_logs.query(FrontendLogDB).all()
+    assert len(logs) == 1
+    assert logs[0].user_id is None
+
+
+# ========== Payload 限制测试 ==========
+
+
+def test_create_frontend_log_oversized_payload_rejected(client, db_session_with_logs):
+    """payload + meta 超过 8KB 时返回 422。"""
+    payload = {
+        "type": "exception",
+        "payload": {"large_text": "x" * (9 * 1024)},
+    }
+    r = client.post("/api/log/frontend", json=payload)
+    assert r.status_code == 422
+
+    # 数据库不应写入
+    logs = db_session_with_logs.query(FrontendLogDB).all()
+    assert len(logs) == 0
+
+
+def test_create_frontend_log_deep_nested_payload_rejected(client, db_session_with_logs):
+    """payload 嵌套深度超过 3 层时返回 422。"""
+    payload = {
+        "type": "exception",
+        "payload": {
+            "l1": {
+                "l2": {
+                    "l3": {
+                        "l4": "too deep",
+                    },
+                },
+            },
+        },
+    }
+    r = client.post("/api/log/frontend", json=payload)
+    assert r.status_code == 422
+
+    logs = db_session_with_logs.query(FrontendLogDB).all()
+    assert len(logs) == 0
+
+
+def test_create_frontend_log_too_many_keys_rejected(client, db_session_with_logs):
+    """payload 键数量超过 20 个时返回 422。"""
+    payload = {
+        "type": "exception",
+        "payload": {f"key_{i}": i for i in range(21)},
+    }
+    r = client.post("/api/log/frontend", json=payload)
+    assert r.status_code == 422
+
+    logs = db_session_with_logs.query(FrontendLogDB).all()
+    assert len(logs) == 0
+
+
+def test_create_frontend_log_exactly_max_depth_accepted(client, db_session_with_logs):
+    """payload 嵌套深度恰好为 3 层时应被接受。"""
+    payload = {
+        "type": "exception",
+        "payload": {
+            "l1": {
+                "l2": {
+                    "l3": "exactly 3 levels",
+                },
+            },
+        },
+    }
+    r = client.post("/api/log/frontend", json=payload)
+    assert r.status_code == 202
+
+    logs = db_session_with_logs.query(FrontendLogDB).all()
+    assert len(logs) == 1
+
+
+def test_create_frontend_log_exactly_max_keys_accepted(client, db_session_with_logs):
+    """payload 键数量恰好为 20 个时应被接受。"""
+    payload = {
+        "type": "exception",
+        "payload": {f"key_{i}": i for i in range(20)},
+    }
+    r = client.post("/api/log/frontend", json=payload)
+    assert r.status_code == 202
+
+    logs = db_session_with_logs.query(FrontendLogDB).all()
+    assert len(logs) == 1

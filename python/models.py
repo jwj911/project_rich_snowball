@@ -166,7 +166,7 @@ class UserDB(Base):
 class CommentDB(Base):
     __tablename__ = "comments"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="SET NULL"), nullable=False, index=True)
+    variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     price_level_id = Column(Integer, ForeignKey("price_levels.id", ondelete="SET NULL"), nullable=True, index=True)
     content = Column(Text, nullable=False)
@@ -428,6 +428,20 @@ class PriceLevelDB(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "variety_id", "type", "price", "scope", "contract_id",
                          name="uix_user_variety_type_price_scope_contract"),
+        # PostgreSQL partial unique indexes：NULL 值不参与标准唯一约束比较，
+        # 因此用 partial index 分别处理 contract_id 为 NULL 和 NOT NULL 的场景
+        Index(
+            "uix_price_levels_null_contract",
+            "user_id", "variety_id", "type", "price", "scope",
+            unique=True,
+            postgresql_where=text("contract_id IS NULL"),
+        ),
+        Index(
+            "uix_price_levels_not_null_contract",
+            "user_id", "variety_id", "type", "price", "scope", "contract_id",
+            unique=True,
+            postgresql_where=text("contract_id IS NOT NULL"),
+        ),
     )
 
 

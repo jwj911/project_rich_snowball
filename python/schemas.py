@@ -448,12 +448,48 @@ class MarketStatusResponse(BaseModel):
 
 # ========== Frontend Logs ==========
 
+def _validate_payload_structure(v: dict) -> dict:
+    """校验 payload 结构：深度不超过 3，key 数不超过 20。"""
+    if not isinstance(v, dict):
+        raise ValueError("payload 必须是对象")
+
+    def _count_keys(obj: dict | list | object, depth: int) -> tuple[int, int]:
+        """返回 (key_count, max_depth)。"""
+        if not isinstance(obj, dict):
+            return 0, depth
+        keys = len(obj)
+        max_d = depth
+        for val in obj.values():
+            if isinstance(val, dict):
+                k, d = _count_keys(val, depth + 1)
+                keys += k
+                max_d = max(max_d, d)
+            elif isinstance(val, list):
+                for item in val:
+                    if isinstance(item, (dict, list)):
+                        k, d = _count_keys(item, depth + 1)
+                        keys += k
+                        max_d = max(max_d, d)
+        return keys, max_d
+
+    key_count, max_depth = _count_keys(v, 1)
+    if max_depth > 3:
+        raise ValueError("payload 嵌套深度不得超过 3 层")
+    if key_count > 20:
+        raise ValueError("payload 键数量不得超过 20 个")
+    return v
+
+
 class FrontendLogCreate(BaseModel):
     type: str = Field(..., max_length=20)
     payload: dict = Field(default_factory=dict)
     level: str | None = Field(default=None, max_length=20)
     meta: dict = Field(default_factory=dict)
-    user_id: int | None = Field(default=None, ge=1, description="已登录用户上报时关联用户 ID")
+    user_id: int | None = Field(
+        default=None,
+        ge=1,
+        description="已废弃：后端从请求 token 中解析用户身份，此字段被忽略",
+    )
 
     @field_validator("type", "level", mode="before")
     @classmethod
@@ -461,6 +497,11 @@ class FrontendLogCreate(BaseModel):
         if isinstance(v, str):
             return v.strip()
         return v
+
+    @field_validator("payload")
+    @classmethod
+    def _validate_payload(cls, v):
+        return _validate_payload_structure(v)
 
 
 class FrontendLogResponse(BaseModel):
@@ -491,6 +532,38 @@ class FrontendLogResponse(BaseModel):
         return v
 
 
+def _validate_safe_url(v: str) -> str:
+    """校验 URL 安全：禁止非 HTTP(S) scheme 和内网/本地地址。"""
+    import ipaddress
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(v)
+    except Exception as exc:
+        raise ValueError("无效的 URL") from exc
+
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("URL scheme 必须是 http 或 https")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("URL 必须包含有效主机名")
+
+    hostname_lower = hostname.lower()
+    if hostname_lower in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        raise ValueError("禁止访问本地地址")
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        pass  # 不是 IP 地址，无需进一步检查
+    else:
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise ValueError("禁止访问内网地址")
+
+    return v
+
+
 class NewsSourceBase(BaseModel):
     """新闻源基础字段。"""
 
@@ -498,6 +571,11 @@ class NewsSourceBase(BaseModel):
     url: str = Field(..., max_length=500)
     category: str | None = Field(default=None, max_length=50)
     is_enabled: bool = Field(default=True)
+
+    @field_validator("url")
+    @classmethod
+    def _validate_url(cls, v: str) -> str:
+        return _validate_safe_url(v)
 
 
 class NewsSourceCreate(NewsSourceBase):
@@ -511,6 +589,11 @@ class NewsSourceUserCreate(BaseModel):
     name: str = Field(..., max_length=100)
     url: str = Field(..., max_length=500)
     category: str | None = Field(default=None, max_length=50)
+
+    @field_validator("url")
+    @classmethod
+    def _validate_url(cls, v: str) -> str:
+        return _validate_safe_url(v)
 
 
 class NewsSourceResponse(NewsSourceBase):
@@ -560,6 +643,11 @@ class OpinionCreate(BaseModel):
             return v
         return v
 
+    @field_validator("reason", mode="before")
+    @classmethod
+    def _sanitize_reason(cls, v):
+        return sanitize_html_text(v) if isinstance(v, str) else v
+
 
 class OpinionUpdate(BaseModel):
     """更新交易观点请求（Patch 语义）。"""
@@ -589,6 +677,11 @@ class OpinionUpdate(BaseModel):
                 raise ValueError("actual_outcome must be one of: profit, loss, breakeven")
             return v
         return v
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def _sanitize_reason(cls, v):
+        return sanitize_html_text(v) if isinstance(v, str) else v
 
 
 class OpinionResponse(BaseModel):

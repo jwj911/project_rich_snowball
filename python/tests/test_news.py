@@ -194,6 +194,53 @@ class TestNewsSourceAdmin:
         assert r.status_code == 404
 
 
+class TestNewsSourceUrlValidation:
+    def test_create_source_localhost_rejected(self, client, auth_headers):
+        """localhost URL 应被 schema 拒绝。"""
+        r = client.post(
+            "/api/news/sources",
+            json={"name": "内网源", "url": "http://localhost/rss"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 422
+
+    def test_create_source_private_ip_rejected(self, client, auth_headers):
+        """内网 IP URL 应被 schema 拒绝。"""
+        r = client.post(
+            "/api/news/sources",
+            json={"name": "内网源", "url": "http://192.168.1.1/rss"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 422
+
+    def test_create_source_file_scheme_rejected(self, client, auth_headers):
+        """file scheme URL 应被 schema 拒绝。"""
+        r = client.post(
+            "/api/news/sources",
+            json={"name": "本地文件", "url": "file:///etc/passwd"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 422
+
+    def test_create_source_link_local_rejected(self, client, auth_headers):
+        """link-local IP URL 应被 schema 拒绝。"""
+        r = client.post(
+            "/api/news/sources",
+            json={"name": "内网源", "url": "http://169.254.1.1/rss"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 422
+
+    def test_admin_create_source_localhost_rejected(self, client, admin_headers):
+        """admin 创建 localhost 源也应被拒绝。"""
+        r = client.post(
+            "/api/news/sources/admin",
+            json={"name": "内网源", "url": "http://127.0.0.1/rss"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 422
+
+
 class TestNewsFetch:
     def test_fetch_trigger_requires_admin(self, client, auth_headers):
         """普通用户触发全量抓取应返回 403。"""
@@ -214,6 +261,19 @@ class TestNewsFetch:
         r = client.post("/api/news/sources/99999/fetch", headers=admin_headers)
         assert r.status_code == 404
 
+    def test_fetch_unsafe_url_blocked(self, client, admin_headers, db_session):
+        """抓取内网 URL 时服务层应安全拦截，返回 0 且不抛出 500。"""
+        s = NewsSourceDB(name="内网源", url="http://192.168.1.1/rss", is_enabled=True)
+        db_session.add(s)
+        db_session.commit()
+
+        r = client.post(f"/api/news/sources/{s.id}/fetch", headers=admin_headers)
+        assert r.status_code == 200
+        assert r.json() == 0
+        # 错误计数应增加
+        db_session.refresh(s)
+        assert s.fetch_error_count >= 1
+
     def test_fetch_single_source_mock(self, client, admin_headers, db_session, monkeypatch):
         """mock feedparser 抓取应成功入库。"""
         s = NewsSourceDB(name="源", url="http://mock/rss", is_enabled=True)
@@ -232,7 +292,11 @@ class TestNewsFetch:
         fake_feed.entries = [fake_entry]
         fake_feed.bozo_exception = None
 
-        monkeypatch.setattr("services.news_fetcher.feedparser.parse", lambda url: fake_feed)
+        # mock httpx 抓取层，直接返回空 XML 字符串，然后 mock feedparser 解析结果
+        monkeypatch.setattr(
+            "services.news_fetcher._fetch_rss_content", lambda url: "<rss></rss>"
+        )
+        monkeypatch.setattr("services.news_fetcher.feedparser.parse", lambda content: fake_feed)
 
         r = client.post(f"/api/news/sources/{s.id}/fetch", headers=admin_headers)
         assert r.status_code == 200
@@ -260,7 +324,10 @@ class TestNewsFetch:
         fake_feed.entries = [fake_entry, fake_entry]
         fake_feed.bozo_exception = None
 
-        monkeypatch.setattr("services.news_fetcher.feedparser.parse", lambda url: fake_feed)
+        monkeypatch.setattr(
+            "services.news_fetcher._fetch_rss_content", lambda url: "<rss></rss>"
+        )
+        monkeypatch.setattr("services.news_fetcher.feedparser.parse", lambda content: fake_feed)
 
         r = client.post(f"/api/news/sources/{s.id}/fetch", headers=admin_headers)
         assert r.status_code == 200

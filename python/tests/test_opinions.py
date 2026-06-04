@@ -266,3 +266,42 @@ class TestOpinionsDelete:
         """删除不存在的观点应返回 404。"""
         r = client.delete("/api/opinions/99999", headers=auth_headers)
         assert r.status_code == 404
+
+
+class TestOpinionsXSS:
+    def test_create_opinion_reason_xss_escaped(self, client, auth_headers, db_session):
+        """reason 中的 <script> 标签应被 HTML escape。"""
+        from html import escape
+
+        variety = db_session.query(VarietyDB).first()
+        assert variety is not None
+
+        malicious_reason = "<script>alert('xss')</script>"
+        r = client.post(
+            "/api/opinions",
+            json={"variety_id": variety.id, "type": "long", "reason": malicious_reason},
+            headers=auth_headers,
+        )
+        assert r.status_code == 201
+        data = r.json()
+        assert data["reason"] == escape(malicious_reason)
+
+    def test_update_opinion_reason_xss_escaped(self, client, auth_headers, db_session):
+        """更新 reason 时 XSS 也应被清洗。"""
+        from html import escape
+
+        variety = db_session.query(VarietyDB).first()
+        user = db_session.query(UserDB).filter(UserDB.username == "integration_tester").first()
+        op = OpinionDB(user_id=user.id, variety_id=variety.id, type="long", reason="Original")
+        db_session.add(op)
+        db_session.commit()
+
+        malicious_reason = "<img src=x onerror=alert(1)>"
+        r = client.put(
+            f"/api/opinions/{op.id}",
+            json={"reason": malicious_reason},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["reason"] == escape(malicious_reason)

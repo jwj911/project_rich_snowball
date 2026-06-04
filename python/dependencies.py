@@ -73,6 +73,28 @@ def get_current_user_from_token(token: str, db: Session) -> UserDB:
     return user
 
 
+def get_optional_current_user(
+    request: Request,
+    authorization: str = Header(None),
+    access_token: str = Cookie(None),
+    db: Session = Depends(get_db),  # noqa: B008
+) -> UserDB | None:
+    """可选鉴权依赖：有有效 token 时返回用户，否则返回 None。
+
+    用于允许匿名访问但需要识别已登录用户的端点。
+    CSRF 防护：POST/PUT/PATCH/DELETE 必须显式携带 Authorization header。
+    """
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.replace("Bearer ", "")
+    elif access_token and request.method in ("GET", "HEAD"):
+        token = access_token
+
+    if not token:
+        return None
+    return get_current_user(token, db)
+
+
 def require_admin_user(
     request: Request,
     authorization: str = Header(None),

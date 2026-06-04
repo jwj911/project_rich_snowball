@@ -132,3 +132,10 @@ class TestRealtimeBatch:
         assert batch_data["quotes"][0]["change_percent"] == single_data["change_percent"]
         assert batch_data["quotes"][0]["limit_up"] == single_data["limit_up"]
         assert batch_data["quotes"][0]["limit_down"] == single_data["limit_down"]
+
+    def test_batch_too_many_symbols_returns_400(self, client, batch_auth_headers):
+        """symbols 数量超过 50 时应返回 400。"""
+        symbols_param = "&".join(f"symbols=S{i}" for i in range(51))
+        r = client.get(f"/api/realtime/batch?{symbols_param}", headers=batch_auth_headers)
+        assert r.status_code == 400
+        assert "上限" in r.json()["message"]

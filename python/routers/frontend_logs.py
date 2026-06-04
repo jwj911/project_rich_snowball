@@ -8,30 +8,68 @@ import json
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
-from dependencies import get_current_user_dependency, get_db
+from dependencies import (
+    get_current_user_dependency,
+    get_db,
+    get_optional_current_user,
+)
 from models import FrontendLogDB, UserDB
 from schemas import FrontendLogCreate, FrontendLogResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/log", tags=["前端监控"])
 
+# payload JSON 序列化后的最大字节数
+_MAX_PAYLOAD_BYTES = 8 * 1024
+
+
+def _payload_size_bytes(data: FrontendLogCreate) -> int:
+    """估算 payload + meta 序列化后的字节数。"""
+    try:
+        return len(
+            json.dumps(
+                {"payload": data.payload, "meta": data.meta},
+                ensure_ascii=False,
+                default=str,
+            ).encode("utf-8")
+        )
+    except (TypeError, ValueError):
+        return 0
+
 
 @router.post("/frontend", status_code=202)
-def create_frontend_log(data: FrontendLogCreate, db: Session = Depends(get_db)):  # noqa: B008
+def create_frontend_log(
+    request: Request,
+    data: FrontendLogCreate,
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: UserDB | None = Depends(get_optional_current_user),  # noqa: B008
+):
     """接收前端错误、日志和 Web Vitals 数据。
+
+    鉴权策略：
+    - 该端点允许匿名访问（未登录用户也能上报）
+    - 如果请求携带有效 Authorization: Bearer token，user_id 从 token 解析
+    - 客户端传入的 user_id 字段被忽略，防止伪造
 
     该端点不返回业务数据，仅确认接收（202 Accepted）。
     写入失败时降级为结构化日志，不向前端抛错。
     """
+    # payload 大小硬限制
+    if _payload_size_bytes(data) > _MAX_PAYLOAD_BYTES:
+        raise HTTPException(status_code=422, detail="payload 大小超过 8KB 限制")
+
+    # 身份归属：优先从 token 解析，忽略客户端 user_id
+    effective_user_id = current_user.id if current_user else None
+
     meta = data.meta or {}
     try:
         db.add(
             FrontendLogDB(
-                user_id=data.user_id,
+                user_id=effective_user_id,
                 log_type=data.type,
                 level=data.level,
                 url=meta.get("url"),
@@ -45,13 +83,14 @@ def create_frontend_log(data: FrontendLogCreate, db: Session = Depends(get_db)):
     except Exception:
         db.rollback()
         # 降级：写入失败时记录到服务端日志，避免丢失关键前端错误
+        # 不记录完整 payload，防止日志污染
         logger.warning(
             "frontend_log_persist_failed",
             extra={
                 "log_type": data.type,
                 "level": data.level,
                 "url": meta.get("url"),
-                "payload": data.payload,
+                "payload_size": _payload_size_bytes(data),
             },
         )
     return {"ok": True}

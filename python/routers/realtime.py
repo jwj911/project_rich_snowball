@@ -140,6 +140,11 @@ def get_realtime_batch(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
+    if len(symbols) > SSE_MAX_SYMBOLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"查询品种数超过上限 {SSE_MAX_SYMBOLS}"
+        )
     quotes, not_found = _fetch_realtime_batch(symbols, db)
     return {"quotes": quotes, "not_found": not_found}
 

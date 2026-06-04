@@ -166,8 +166,8 @@ class TestFrontendLogsQueryPayload:
         data = r.json()
         assert data[0]["payload"] == {"error": "TypeError", "message": "fail"}
 
-    def test_post_with_user_id(self, client, auth_headers, db_session):
-        """POST 时传入 user_id 应正确关联。"""
+    def test_post_with_token_resolves_user_id(self, client, auth_headers, db_session):
+        """携带有效 token 时，user_id 应从 token 解析，忽略客户端传入值。"""
         from models import UserDB
         user = db_session.query(UserDB).filter(UserDB.username == "integration_tester").first()
 
@@ -175,9 +175,9 @@ class TestFrontendLogsQueryPayload:
             "type": "exception",
             "payload": {"error": "Test"},
             "level": "error",
-            "user_id": user.id,
+            "user_id": 99999,  # 伪造值，应被忽略
         }
-        r = client.post("/api/log/frontend", json=payload)
+        r = client.post("/api/log/frontend", json=payload, headers=auth_headers)
         assert r.status_code == 202
 
         r = client.get("/api/log/frontend", headers=auth_headers)
