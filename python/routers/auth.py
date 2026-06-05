@@ -24,6 +24,8 @@ from utils import (
     hash_refresh_token,
     verify_password,
 )
+from errors import ErrorCode
+from services.domain.exceptions import ConflictError, ServiceError, UnauthorizedError
 from services.metrics import auth_operations_total
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
@@ -83,10 +85,7 @@ def _extract_refresh_token(request: Request, body: RefreshTokenRequest | None) -
         return refresh_token
     if body and body.refresh_token:
         return body.refresh_token
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Refresh token 无效或已过期",
-    )
+    raise UnauthorizedError("Refresh token 无效或已过期", code=ErrorCode.TOKEN_INVALID)
 
 
 def _check_rate_limit(client_ip: str) -> bool:
@@ -120,7 +119,7 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     ).first()
     if existing:
         auth_operations_total.labels(operation="register", result="failure").inc()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="用户名或邮箱已存在")
+        raise ConflictError("用户名或邮箱已存在", code=ErrorCode.USERNAME_TAKEN)
 
     db_user = UserDB(
         username=user.username,
@@ -163,10 +162,7 @@ def login(
 
     if not user or not password_ok:
         auth_operations_total.labels(operation="login", result="failure").inc()
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误"
-        )
+        raise UnauthorizedError("用户名或密码错误", code=ErrorCode.INVALID_CREDENTIALS)
 
     access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
     auth_operations_total.labels(operation="login", result="success").inc()
@@ -229,10 +225,7 @@ def refresh_token(
 
     if not rt:
         auth_operations_total.labels(operation="refresh", result="failure").inc()
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token 无效或已过期"
-        )
+        raise UnauthorizedError("Refresh token 无效或已过期", code=ErrorCode.TOKEN_INVALID)
 
     # Refresh token 轮转：生成新 token，吊销旧 token
     new_raw_refresh = generate_refresh_token()

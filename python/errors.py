@@ -1,0 +1,77 @@
+"""统一业务错误码枚举。
+
+错误码与 HTTP status 分离，提供稳定的客户端处理标识。
+规则：
+- 全大写，下划线分隔
+- 语义清晰，不随实现细节变化
+- 同一业务场景始终返回同一 code，不因路由不同而改变
+"""
+
+from enum import StrEnum
+
+
+class ErrorCode(StrEnum):
+    """业务错误码定义。"""
+
+    # 通用 / 系统
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+    RATE_LIMITED = "RATE_LIMITED"
+    SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
+
+    # 认证 / 授权
+    UNAUTHORIZED = "UNAUTHORIZED"
+    FORBIDDEN = "FORBIDDEN"
+    TOKEN_EXPIRED = "TOKEN_EXPIRED"
+    TOKEN_INVALID = "TOKEN_INVALID"
+    INSUFFICIENT_PERMISSIONS = "INSUFFICIENT_PERMISSIONS"
+
+    # 资源
+    NOT_FOUND = "NOT_FOUND"
+    ALREADY_EXISTS = "ALREADY_EXISTS"
+    CONFLICT = "CONFLICT"
+    RESOURCE_GONE = "RESOURCE_GONE"
+
+    # 行情 / 品种
+    INVALID_SYMBOL = "INVALID_SYMBOL"
+    SYMBOL_NOT_FOUND = "SYMBOL_NOT_FOUND"
+    CONTRACT_NOT_FOUND = "CONTRACT_NOT_FOUND"
+    REALTIME_DATA_UNAVAILABLE = "REALTIME_DATA_UNAVAILABLE"
+    KLINE_DATA_UNAVAILABLE = "KLINE_DATA_UNAVAILABLE"
+    TOO_MANY_SYMBOLS = "TOO_MANY_SYMBOLS"
+
+    # 用户 / 业务
+    USER_NOT_FOUND = "USER_NOT_FOUND"
+    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    PASSWORD_TOO_WEAK = "PASSWORD_TOO_WEAK"
+    USERNAME_TAKEN = "USERNAME_TAKEN"
+    EMAIL_TAKEN = "EMAIL_TAKEN"
+
+    # 新闻 / 采集
+    UNSAFE_URL = "UNSAFE_URL"
+    FETCH_TIMEOUT = "FETCH_TIMEOUT"
+    RSS_PARSE_ERROR = "RSS_PARSE_ERROR"
+
+    # 日志 / 监控
+    PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE"
+    PAYLOAD_TOO_DEEP = "PAYLOAD_TOO_DEEP"
+    PAYLOAD_TOO_MANY_KEYS = "PAYLOAD_TOO_MANY_KEYS"
+
+
+# HTTP status -> 默认错误码映射（当 router 直接抛 HTTPException 时兜底使用）
+_HTTP_STATUS_DEFAULT_CODES: dict[int, ErrorCode] = {
+    400: ErrorCode.VALIDATION_ERROR,
+    401: ErrorCode.UNAUTHORIZED,
+    403: ErrorCode.FORBIDDEN,
+    404: ErrorCode.NOT_FOUND,
+    409: ErrorCode.CONFLICT,
+    422: ErrorCode.VALIDATION_ERROR,
+    429: ErrorCode.RATE_LIMITED,
+    500: ErrorCode.INTERNAL_ERROR,
+    503: ErrorCode.SERVICE_UNAVAILABLE,
+}
+
+
+def get_default_error_code(status_code: int) -> ErrorCode:
+    """根据 HTTP status code 返回默认业务错误码。"""
+    return _HTTP_STATUS_DEFAULT_CODES.get(status_code, ErrorCode.INTERNAL_ERROR)

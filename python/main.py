@@ -71,6 +71,7 @@ from routers import (  # noqa: E402
     watchlists,
     workspace,
 )
+from errors import ErrorCode, get_default_error_code  # noqa: E402
 from services.domain.exceptions import ServiceError  # noqa: E402
 from services.metrics import (  # noqa: E402
     get_content_type,
@@ -265,9 +266,12 @@ def metrics(request: Request):
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc: HTTPException):
-    """统一 HTTPException 响应格式。"""
+    """统一 HTTPException 响应格式。
+
+    将 HTTP status code 映射为稳定业务错误码，避免客户端依赖数字字符串。
+    """
     return _error_response(
-        code=str(exc.status_code),
+        code=get_default_error_code(exc.status_code).value,
         message=exc.detail,
         status_code=exc.status_code,
     )
@@ -277,14 +281,11 @@ async def http_exception_handler(request, exc: HTTPException):
 async def service_error_handler(request, exc: ServiceError):
     """统一领域服务层异常响应格式。
 
-    将 ServiceError 及其子类（NotFoundError/ForbiddenError/ConflictError）
-    映射为统一错误体，避免业务异常退化为 500。
+    将 ServiceError 及其子类映射为统一错误体，避免业务异常退化为 500。
+    优先使用异常实例上绑定的稳定业务错误码（ErrorCode）。
     """
-    # 使用异常类名作为业务错误码，例如 NotFoundError -> NOT_FOUND_ERROR
-    import re
-    code = re.sub(r"(?<!^)(?=[A-Z])", "_", type(exc).__name__).upper()
     return _error_response(
-        code=code,
+        code=exc.code.value,
         message=exc.message,
         status_code=exc.status_code,
     )
@@ -298,7 +299,7 @@ async def validation_exception_handler(request, exc: RequestValidationError):
         for err in exc.errors()
     ]
     return _error_response(
-        code="VALIDATION_ERROR",
+        code=ErrorCode.VALIDATION_ERROR.value,
         message="请求参数校验失败",
         errors=errors,
         status_code=422,
@@ -315,7 +316,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
         detail["exception"] = str(exc)
         detail["traceback"] = traceback.format_exc()
     return _error_response(
-        code="INTERNAL_ERROR",
+        code=ErrorCode.INTERNAL_ERROR.value,
         message="服务器内部错误",
         status_code=500,
         detail=detail,

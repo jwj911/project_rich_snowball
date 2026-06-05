@@ -15,9 +15,11 @@ from config import SECRET_KEY as _SECRET_KEY
 
 SECRET_KEY: str = _SECRET_KEY
 from dependencies import get_current_user_dependency, get_db
+from errors import ErrorCode
 from models import RealtimeQuoteDB, SessionLocal, UserDB, VarietyDB
 from schemas import RealtimeBatchResponse, RealtimeResponse
 from services.cache import get_cached
+from services.domain.exceptions import NotFoundError, ServiceError, UnauthorizedError
 from services.realtime_state import get_last_update_time
 
 router = APIRouter(prefix="/api/realtime", tags=["实时行情"])
@@ -141,9 +143,10 @@ def get_realtime_batch(
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
     if len(symbols) > SSE_MAX_SYMBOLS:
-        raise HTTPException(
+        raise ServiceError(
+            message=f"查询品种数超过上限 {SSE_MAX_SYMBOLS}",
             status_code=400,
-            detail=f"查询品种数超过上限 {SSE_MAX_SYMBOLS}"
+            code=ErrorCode.TOO_MANY_SYMBOLS,
         )
     quotes, not_found = _fetch_realtime_batch(symbols, db)
     return {"quotes": quotes, "not_found": not_found}
@@ -242,11 +245,12 @@ async def get_realtime_stream(
     """
     effective_token = token or access_token
     if not effective_token or len(effective_token) < 10:
-        raise HTTPException(status_code=401, detail="未登录或 token 无效")
+        raise UnauthorizedError("未登录或 token 无效")
     if len(symbols) > SSE_MAX_SYMBOLS:
-        raise HTTPException(
+        raise ServiceError(
+            message=f"订阅品种数超过上限 {SSE_MAX_SYMBOLS}",
             status_code=400,
-            detail=f"订阅品种数超过上限 {SSE_MAX_SYMBOLS}"
+            code=ErrorCode.TOO_MANY_SYMBOLS,
         )
     # symbols 为空时自动订阅全部活跃品种
     if len(symbols) == 0:
@@ -257,23 +261,28 @@ async def get_realtime_stream(
         finally:
             db.close()
         if len(symbols) == 0:
-            raise HTTPException(status_code=400, detail="系统中暂无活跃品种")
+            raise ServiceError(
+                message="系统中暂无活跃品种",
+                status_code=400,
+                code=ErrorCode.SYMBOL_NOT_FOUND,
+            )
 
     # 验证 token 并获取 user_id
     try:
         payload = jwt.decode(effective_token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": True})
         user_id = int(payload.get("sub", 0))
         if not user_id:
-            raise HTTPException(status_code=401, detail="未登录或 token 无效")
+            raise UnauthorizedError("未登录或 token 无效")
     except PyJWTError:
-        raise HTTPException(status_code=401, detail="未登录或 token 无效")
+        raise UnauthorizedError("未登录或 token 无效")
 
     # 全局并发连接上限
     async with _sse_connections_lock:
         if len(_sse_connections) >= SSE_MAX_GLOBAL_CONNECTIONS and user_id not in _sse_connections:
-            raise HTTPException(
+            raise ServiceError(
+                message=f"SSE 连接数已达上限 {SSE_MAX_GLOBAL_CONNECTIONS}，请稍后重试",
                 status_code=503,
-                detail=f"SSE 连接数已达上限 {SSE_MAX_GLOBAL_CONNECTIONS}，请稍后重试"
+                code=ErrorCode.SERVICE_UNAVAILABLE,
             )
         # 取消同一用户的旧连接（每用户限 1 个）
         old_task = _sse_connections.get(user_id)
@@ -297,5 +306,5 @@ async def get_realtime_stream(
 def get_realtime(symbol: str, db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user_dependency)):
     quote = _fetch_realtime(symbol, db)
     if not quote:
-        raise HTTPException(status_code=404, detail="暂无实时行情数据")
+        raise NotFoundError("暂无实时行情数据", code=ErrorCode.REALTIME_DATA_UNAVAILABLE)
     return quote

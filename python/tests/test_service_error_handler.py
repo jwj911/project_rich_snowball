@@ -47,34 +47,35 @@ app.include_router(_test_router)
 
 class TestServiceErrorHandler:
     def test_not_found_error_returns_404(self, client, auth_headers):
-        """NotFoundError 应返回 404 和统一错误体。"""
+        """NotFoundError 应返回 404 和统一错误体，code 为稳定业务码。"""
         r = client.get("/__test_service_errors/not-found", headers=auth_headers)
         assert r.status_code == 404
         data = r.json()
-        assert data["code"] == "NOT_FOUND_ERROR"
+        assert data["code"] == "NOT_FOUND"
         assert data["message"] == "资源未找到"
         assert "timestamp" in data
 
     def test_forbidden_error_returns_403(self, client, auth_headers):
-        """ForbiddenError 应返回 403 和统一错误体。"""
+        """ForbiddenError 应返回 403 和统一错误体，code 为稳定业务码。"""
         r = client.get("/__test_service_errors/forbidden", headers=auth_headers)
         assert r.status_code == 403
         data = r.json()
-        assert data["code"] == "FORBIDDEN_ERROR"
+        assert data["code"] == "FORBIDDEN"
         assert data["message"] == "无权操作"
 
     def test_conflict_error_returns_409(self, client, auth_headers):
-        """ConflictError 应返回 409 和统一错误体。"""
+        """ConflictError 应返回 409 和统一错误体，code 为稳定业务码。"""
         r = client.get("/__test_service_errors/conflict", headers=auth_headers)
         assert r.status_code == 409
         data = r.json()
-        assert data["code"] == "CONFLICT_ERROR"
+        assert data["code"] == "CONFLICT"
         assert data["message"] == "资源冲突"
 
     def test_generic_service_error_returns_custom_status(self, client, auth_headers):
-        """自定义 status_code 的 ServiceError 应正确映射。"""
+        """自定义 status_code 的 ServiceError 应正确映射，code 使用默认值。"""
         r = client.get("/__test_service_errors/generic", headers=auth_headers)
         assert r.status_code == 418
         data = r.json()
-        assert data["code"] == "SERVICE_ERROR"
+        # 418 没有专门映射，fallback 到 INTERNAL_ERROR
+        assert data["code"] == "INTERNAL_ERROR"
         assert data["message"] == "通用业务错误"
