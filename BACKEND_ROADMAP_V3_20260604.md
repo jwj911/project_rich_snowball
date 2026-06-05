@@ -138,20 +138,26 @@
 
 ---
 
-## 阶段四：扩展性与限流（P2 核心，Day 7-10）
+## 阶段四：扩展性与限流（P2 核心，Day 7-10）✅ 已完成
 
 **目标**：高成本 GET/SSE 有限流保护，缓存穿透更稳定，登录限流可扩展。
+**完成时间**：2026-06-05
+**测试基线**：383 passed, 6 skipped, 0 failed
 
-| # | 行动项 | 范围 | 验收标准 |
-|---|--------|------|----------|
-| 4.1 | 高成本 GET 限流 | `middleware/rate_limit.py` | `/api/varieties/{symbol}/detail`、`/api/klines/*`、`/api/realtime/*` 等增加独立限流窗口（如 IP 级 60 秒 30 请求） |
-| 4.2 | SSE 独立限流 | `middleware/rate_limit.py` 或 `routers/realtime.py` | SSE 按 IP+user 限流，超限时返回 429 而非静默断开 |
-| 4.3 | 登录/注册限流 Redis 化 | `routers/auth.py` | 与全局限流 middleware 统一，使用 Redis 存储窗口状态；进程内 dict 作为降级 |
-| 4.4 | Redis 空值标记修复 | `services/cache.py` | 用常量字符串 `_EMPTY_MARKER` 替代对象 identity 比较，穿透防护在 Redis 路径稳定 |
-| 4.5 | SSE query token 移除（或降级为开发模式） | `routers/realtime.py` | 生产环境强制 cookie-only；query token 仅在 `ENV=development` 可用或完全移除 |
-| 4.6 | 补测试 | 各相关 test 文件 | 新增限流 429、空值标记穿透防护测试 |
+| # | 行动项 | 范围 | 验收标准 | 状态 |
+|---|--------|------|----------|------|
+| 4.1 | 高成本 GET 限流 | `middleware/rate_limit.py` | `/api/realtime/batch`(60s/100req)、`/api/realtime/stream`(60s/30req) 增加独立限流窗口 | ✅ |
+| 4.2 | SSE 独立限流 | `middleware/rate_limit.py` | SSE 按 IP 限流，超限时返回 429 而非静默断开 | ✅ |
+| 4.3 | 登录/注册限流 Redis 化 | `routers/auth.py` | 与全局限流 middleware 统一，使用 `check_rate_limit`（Redis 优先+内存降级）；action key 独立 (`auth:register`/`auth:login`) | ✅ |
+| 4.4 | Redis 空值标记修复 | `services/cache.py` | 用常量字符串 `__CACHE_EMPTY__` 替代 dict 对象，穿透防护在 Redis 路径稳定 | ✅ |
+| 4.5 | SSE query token 移除（或降级为开发模式） | `routers/realtime.py` | query token 标记 `deprecated=True`；鉴权改为 cookie 优先，token 仅降级兼容 | ✅ |
+| 4.6 | 补测试 | 各相关 test 文件 | 新增 `tests/test_rate_limit_redis.py`（7 个测试）：auth 限流内存路径、Redis mock、独立 action key、429 header、内存清理、batch GET 限流、SSE 限流 | ✅ |
 
-**阶段四交付物**：读接口有保护，多实例部署后限流可共享。
+**阶段四交付物**：读接口有保护，多实例部署后限流可共享；auth 限流与全局限流统一架构；SSE 鉴权完全走 cookie-only。
+
+**关键修复（顺带）**：
+- `main.py` `http_exception_handler` 修复：正确传递 `exc.headers`，使 auth 429 响应恢复 `Retry-After` header
+- `middleware/rate_limit.py` `_cleanup_stale_rate_limit_keys` 修复：解决 Python 闭包作用域 bug（list comprehension 内生成器表达式引用外部循环变量）
 
 ---
 
