@@ -18,6 +18,8 @@ from threading import Lock
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from errors import ErrorCode
+
 from config import RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS
 from services.redis_client import get_redis_client, is_redis_available
 
@@ -205,31 +207,51 @@ def clear_rate_limit_store():
                 pass
 
 
+# 高成本 GET/HEAD 端点独立限流配置（path -> (window_seconds, max_requests, action_name)）
+_GET_COSTLY_ENDPOINTS: dict[str, tuple[int, int, str]] = {
+    "/api/realtime/batch": (60, 100, "get:realtime:batch"),
+    "/api/realtime/stream": (60, 30, "get:realtime:stream"),
+}
+
+
 async def rate_limit_middleware(request: Request, call_next):
-    """FastAPI HTTP 中间件：全局写入端点限流。"""
+    """FastAPI HTTP 中间件：全局写入端点限流 + 高成本 GET 端点限流。"""
+    path = request.url.path
+    method = request.method
+
+    # 白名单排除（含常规 GET/HEAD/OPTIONS）
     if _is_excluded(request):
-        return await call_next(request)
+        # 但高成本 GET 端点仍需限流
+        if method not in _EXCLUDED_METHODS or path not in _GET_COSTLY_ENDPOINTS:
+            return await call_next(request)
 
     client_ip = _get_client_ip(request)
-    method = request.method
-    path = request.url.path
+
+    # 高成本 GET 端点使用独立限流参数
+    if method in ("GET", "HEAD") and path in _GET_COSTLY_ENDPOINTS:
+        window_seconds, max_requests, action = _GET_COSTLY_ENDPOINTS[path]
+    else:
+        window_seconds = _WINDOW_SECONDS
+        max_requests = _MAX_REQUESTS_PER_WINDOW
+        action = f"{method}:{path}"
 
     allowed = check_rate_limit(
         client_ip,
-        f"{method}:{path}",
-        window_seconds=_WINDOW_SECONDS,
-        max_requests=_MAX_REQUESTS_PER_WINDOW,
+        action,
+        window_seconds=window_seconds,
+        max_requests=max_requests,
     )
 
     if not allowed:
+        retry_after = window_seconds
         return JSONResponse(
             status_code=429,
             content={
-                "code": "RATE_LIMITED",
-                "message": f"请求过于频繁，请 {_RETRY_AFTER_SECONDS} 秒后再试",
-                "retry_after": _RETRY_AFTER_SECONDS,
+                "code": ErrorCode.RATE_LIMITED.value,
+                "message": f"请求过于频繁，请 {retry_after} 秒后再试",
+                "retry_after": retry_after,
             },
-            headers={"Retry-After": str(_RETRY_AFTER_SECONDS)},
+            headers={"Retry-After": str(retry_after)},
         )
 
     return await call_next(request)

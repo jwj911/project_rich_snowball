@@ -190,14 +190,56 @@ class TestAuthRateLimitRedis:
 
 
 class TestGetSSECostlyRateLimit:
-    """高成本 GET/SSE 限流测试（预留，待 middleware 实现后启用）。"""
+    """高成本 GET/SSE 限流测试。"""
 
-    @pytest.mark.skip(reason="高成本 GET 限流策略待 middleware 实现")
     def test_batch_get_rate_limit(self, client: TestClient):
-        """GET /api/realtime/batch 应在高频请求时被限流。"""
-        pass
+        """GET /api/realtime/batch 在超过 100 次/分钟时应被限流。"""
+        from middleware.rate_limit import clear_rate_limit_store
+        clear_rate_limit_store()
+        # 先注册并登录获取 cookie
+        client.post(
+            "/api/auth/register",
+            json={"username": "batchrl", "email": "batchrl@example.com", "password": "Password123!"},
+        )
+        client.post("/api/auth/login", data={"username": "batchrl", "password": "Password123!"})
+        clear_rate_limit_store()  # 清空登录计数器
 
-    @pytest.mark.skip(reason="SSE 限流策略待 middleware 实现")
+        # 触发 100 次 batch 请求
+        for i in range(100):
+            resp = client.get("/api/realtime/batch?symbols=AU")
+            assert resp.status_code == 200, f"第 {i+1} 次请求应成功"
+
+        # 第 101 次应被限流
+        resp = client.get("/api/realtime/batch?symbols=AU")
+        assert resp.status_code == 429
+        data = resp.json()
+        assert data.get("code") == "RATE_LIMITED"
+        assert resp.headers.get("retry-after") == "60"
+        clear_rate_limit_store()
+
     def test_sse_stream_rate_limit(self, client: TestClient):
-        """SSE 连接应在过量连接时被限流。"""
-        pass
+        """GET /api/realtime/stream 在超过 30 次/分钟时应被限流。"""
+        from middleware.rate_limit import clear_rate_limit_store
+        clear_rate_limit_store()
+        # 先注册并登录获取 cookie
+        client.post(
+            "/api/auth/register",
+            json={"username": "sserl", "email": "sserl@example.com", "password": "Password123!"},
+        )
+        client.post("/api/auth/login", data={"username": "sserl", "password": "Password123!"})
+        clear_rate_limit_store()  # 清空登录计数器
+
+        # SSE 在测试模式下会立即返回（非长连接），可以正常测试限流
+        # 触发 30 次 stream 请求
+        for i in range(30):
+            resp = client.get("/api/realtime/stream?symbols=AU")
+            # SSE 测试模式可能返回 200 或 503（连接数上限），限流前都视为成功
+            assert resp.status_code in (200, 503), f"第 {i+1} 次请求状态异常: {resp.status_code}"
+
+        # 第 31 次应被限流
+        resp = client.get("/api/realtime/stream?symbols=AU")
+        assert resp.status_code == 429
+        data = resp.json()
+        assert data.get("code") == "RATE_LIMITED"
+        assert resp.headers.get("retry-after") == "60"
+        clear_rate_limit_store()

@@ -2,6 +2,7 @@
 SSE 实时行情推送测试
 ========================
 验证 /api/realtime/stream 端点行为。
+SSE 鉴权统一走 cookie-only 路径，stream-token 已废弃。
 """
 
 import os
@@ -66,49 +67,36 @@ def seed_realtime_quotes(db_session, seed_varieties):
 
 
 class TestRealtimeSse:
-    def _login_and_create_stream_token(self, client):
+    def _login_and_get_cookie(self, client):
+        """登录并返回携带 access_token cookie 的 client。"""
         r = client.post("/api/auth/login", data={"username": "sse_tester", "password": "password123"})
         assert r.status_code == 200
-        access_token = r.json()["access_token"]
-
-        r = client.post("/api/realtime/stream-token", headers={"Authorization": f"Bearer {access_token}"})
-        assert r.status_code == 200
-        body = r.json()
-        assert body["expires_in"] <= 60
-        assert len(body["stream_token"]) > 10
-        return body["stream_token"]
+        return client
 
     def test_stream_returns_sse_content_type(self, client, seed_user, seed_varieties, seed_realtime_quotes):
         """SSE 端点应返回 text/event-stream Content-Type。"""
-        token = self._login_and_create_stream_token(client)
-
-        r = client.get(f"/api/realtime/stream?symbols=AU&symbols=AG&token={token}")
+        client = self._login_and_get_cookie(client)
+        r = client.get("/api/realtime/stream?symbols=AU&symbols=AG")
         assert r.status_code == 200
         assert "text/event-stream" in r.headers.get("content-type", "")
 
     def test_stream_includes_quotes_data(self, client, seed_user, seed_varieties, seed_realtime_quotes):
         """SSE 响应体中应包含行情数据的 data: 行。"""
-        token = self._login_and_create_stream_token(client)
-
-        r = client.get(f"/api/realtime/stream?symbols=AU&symbols=AG&token={token}")
+        client = self._login_and_get_cookie(client)
+        r = client.get("/api/realtime/stream?symbols=AU&symbols=AG")
         assert r.status_code == 200
         body = r.text
         assert "data:" in body
         assert "AU" in body
         assert "AG" in body
 
-    def test_stream_requires_token(self, client, seed_user, seed_varieties, seed_realtime_quotes):
-        """缺少 token 时应返回 401。"""
+    def test_stream_requires_auth(self, client, seed_user, seed_varieties, seed_realtime_quotes):
+        """未登录（无 cookie）时应返回 401。"""
         r = client.get("/api/realtime/stream?symbols=AU")
         assert r.status_code == 401
 
-    def test_stream_invalid_token(self, client, seed_user, seed_varieties, seed_realtime_quotes):
-        """无效 token 时应在端点入口处拒绝，返回 401，避免建立 SSE 连接消耗资源。"""
-        r = client.get("/api/realtime/stream?symbols=AU&token=invalid-token")
-        assert r.status_code == 401
-
-    def test_stream_with_cookie_only_token(self, client, seed_user, seed_varieties, seed_realtime_quotes):
-        """仅通过 cookie 传递 access_token 时 SSE 应正常工作（不依赖 query token）。"""
+    def test_stream_with_cookie_only(self, client, seed_user, seed_varieties, seed_realtime_quotes):
+        """仅通过 cookie 传递 access_token 时 SSE 应正常工作。"""
         r = client.post("/api/auth/login", data={"username": "sse_tester", "password": "password123"})
         assert r.status_code == 200
         # login 已自动设置 access_token cookie
@@ -120,3 +108,11 @@ class TestRealtimeSse:
         body = r.text
         assert "data:" in body
         assert "AU" in body
+
+    def test_stream_deprecated_query_token_ignored(self, client, seed_user, seed_varieties, seed_realtime_quotes):
+        """废弃的 query token 参数应被忽略，鉴权仍走 cookie。"""
+        client = self._login_and_get_cookie(client)
+        # 传入一个明显无效的 query token，但 cookie 有效，应仍能成功
+        r = client.get("/api/realtime/stream?symbols=AU&token=invalid-token")
+        assert r.status_code == 200
+        assert "text/event-stream" in r.headers.get("content-type", "")

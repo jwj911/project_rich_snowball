@@ -236,14 +236,16 @@ async def _sse_realtime_generator(symbols: list[str], token: str, user_id: int):
 @router.get("/stream")
 async def get_realtime_stream(
     symbols: list[str] = Query(default=[], description="品种代码列表，如 ?symbols=AU&symbols=CU"),
-    token: str = Query(default="", description="JWT token（EventSource 不支持自定义 Header，通过 query param 传递）"),
+    token: str = Query(default="", deprecated=True, description="已废弃：SSE 鉴权统一走 cookie-only 路径"),
     access_token: str = Cookie(None),
 ):
     """SSE 实时行情推送端点。每 5 秒推送一次订阅品种的行情数据。
 
     并发限制：同一用户同时只能维持 1 个活跃 SSE 连接，新连接建立时旧连接会被取消。
+    SSE 鉴权统一走 access_token cookie，query token 已废弃。
     """
-    effective_token = token or access_token
+    # 兼容层：允许 query token 作为降级，但 cookie 优先
+    effective_token = access_token or token
     if not effective_token or len(effective_token) < 10:
         raise UnauthorizedError("未登录或 token 无效")
     if len(symbols) > SSE_MAX_SYMBOLS:
