@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from threading import Lock
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -25,30 +24,21 @@ from utils import (
     verify_password,
 )
 from errors import ErrorCode
+from middleware.rate_limit import check_rate_limit, clear_rate_limit_store as _middleware_clear_rate_limit
 from services.domain.exceptions import ConflictError, ServiceError, UnauthorizedError
 from services.metrics import auth_operations_total
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
 REFRESH_TOKEN_COOKIE_NAME = "refresh_token"
 
-# 简单内存限流：IP -> [(timestamp, count)]
-_rate_limit_store: dict[str, list[datetime]] = {}
-_rate_limit_lock = Lock()
+# Auth 专用限流配置（比全局限流更严格）
+_AUTH_RATE_LIMIT_WINDOW = 60
+_AUTH_RATE_LIMIT_MAX = 10
 
 
 def clear_rate_limit_store():
     """清空限流计数器，供测试使用。"""
-    with _rate_limit_lock:
-        _rate_limit_store.clear()
-    # 同步清理中间件全局限流存储，避免测试间状态泄漏
-    try:
-        from middleware.rate_limit import clear_rate_limit_store as _middleware_clear
-        _middleware_clear()
-    except ImportError:
-        pass
-
-_RATE_LIMIT_WINDOW_SECONDS = 60
-_RATE_LIMIT_MAX_REQUESTS = 10
+    _middleware_clear_rate_limit()
 
 # 恒定时间比较用的 dummy hash（有效 bcrypt hash，确保计算耗时与真实 hash 接近）
 _DUMMY_HASH = "$2b$12$cPBBd9OrTIWiStqUdReQ9OJxJiPTUD.ux8DZ7UN8b4sEbmKn5jXL."
@@ -88,30 +78,18 @@ def _extract_refresh_token(request: Request, body: RefreshTokenRequest | None) -
     raise UnauthorizedError("Refresh token 无效或已过期", code=ErrorCode.TOKEN_INVALID)
 
 
-def _check_rate_limit(client_ip: str) -> bool:
-    now = datetime.now(timezone.utc)
-    window_start = now - timedelta(seconds=_RATE_LIMIT_WINDOW_SECONDS)
-
-    with _rate_limit_lock:
-        timestamps = _rate_limit_store.get(client_ip, [])
-        # 清理过期记录
-        timestamps = [ts for ts in timestamps if ts > window_start]
-        if len(timestamps) >= _RATE_LIMIT_MAX_REQUESTS:
-            _rate_limit_store[client_ip] = timestamps
-            return False
-        timestamps.append(now)
-        _rate_limit_store[client_ip] = timestamps
-        return True
-
-
 @router.post("/register", response_model=UserResponse, status_code=201)
 def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     client_ip = _get_client_ip(request)
-    if not _check_rate_limit(client_ip):
+    if not check_rate_limit(
+        client_ip, "auth:register",
+        window_seconds=_AUTH_RATE_LIMIT_WINDOW,
+        max_requests=_AUTH_RATE_LIMIT_MAX,
+    ):
         raise HTTPException(
             status_code=429,
             detail="请求过于频繁，请稍后再试",
-            headers={"Retry-After": str(_RATE_LIMIT_WINDOW_SECONDS)},
+            headers={"Retry-After": str(_AUTH_RATE_LIMIT_WINDOW)},
         )
 
     existing = db.query(UserDB).filter(
@@ -147,11 +125,15 @@ def login(
     db: Session = Depends(get_db),
 ):
     client_ip = _get_client_ip(request)
-    if not _check_rate_limit(client_ip):
+    if not check_rate_limit(
+        client_ip, "auth:login",
+        window_seconds=_AUTH_RATE_LIMIT_WINDOW,
+        max_requests=_AUTH_RATE_LIMIT_MAX,
+    ):
         raise HTTPException(
             status_code=429,
             detail="请求过于频繁，请稍后再试",
-            headers={"Retry-After": str(_RATE_LIMIT_WINDOW_SECONDS)},
+            headers={"Retry-After": str(_AUTH_RATE_LIMIT_WINDOW)},
         )
 
     user = db.query(UserDB).filter(UserDB.username == form_data.username).first()

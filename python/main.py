@@ -90,6 +90,7 @@ def _error_response(
     errors: list = None,
     status_code: int = 500,
     detail: dict = None,
+    headers: dict = None,
 ) -> JSONResponse:
     """统一错误响应格式。"""
     content = {
@@ -100,6 +101,10 @@ def _error_response(
     }
     if detail:
         content.update(detail)
+    kwargs = {}
+    if headers:
+        kwargs["headers"] = headers
+    return JSONResponse(content=content, status_code=status_code, **kwargs)
     return JSONResponse(
         status_code=status_code,
         content=content,
@@ -274,6 +279,7 @@ async def http_exception_handler(request, exc: HTTPException):
         code=get_default_error_code(exc.status_code).value,
         message=exc.detail,
         status_code=exc.status_code,
+        headers=exc.headers,
     )
 
 

@@ -107,7 +107,7 @@ class TestRateLimitSecurity:
         mock_pipe.execute.return_value = [0, 1, 1, 50]
 
         with patch("middleware.rate_limit.get_redis_client", return_value=mock_client):
-            result = _check_rate_limit_redis("1.2.3.4", "POST", "/api/test")
+            result = _check_rate_limit_redis("1.2.3.4", "POST", 60, 100)
 
         assert result is True
         call_args = mock_pipe.zremrangebyscore.call_args[0]
