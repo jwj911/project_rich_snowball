@@ -102,19 +102,39 @@
 
 ---
 
-## 阶段三：错误处理与契约收口（Day 5-7）
+## 阶段三：错误处理与契约收口（Day 5-7）✅ 已完成
 
 **目标**：ServiceError 有全局 handler，错误码有稳定契约。
+**完成时间**：2026-06-04
+**测试基线**：376 passed, 6 skipped, 0 failed
 
-| # | 行动项 | 范围 | 验收标准 |
-|---|--------|------|----------|
-| 3.1 | ServiceError 全局 exception handler 完善 | `main.py` | 所有 router 抛出的 `ServiceError` 统一返回 `{code, message}`，不回退成 500 |
-| 3.2 | 统一错误码枚举 | 新建 `errors.py` 或 `schemas.py` | 定义业务错误码枚举（如 `INVALID_SYMBOL`、`RATE_LIMITED`、`NOT_FOUND`），与 HTTP status 分离 |
-| 3.3 | 至少改造 2 条主路径使用新错误码 | 选 `routers/realtime.py` + `routers/auth.py` | 错误响应 `code` 是业务码而非状态码字符串 |
-| 3.4 | 写入错误码契约文档 | `python/docs/api_error_contract.md` | 包含：错误体结构、code 定义、HTTP status 映射、示例 |
-| 3.5 | 补测试 | `tests/test_service_error_handler.py` | 验证 ServiceError 各分支输出稳定 |
+| # | 行动项 | 范围 | 验收标准 | 状态 |
+|---|--------|------|----------|------|
+| 3.1 | ServiceError 全局 exception handler 完善 | `main.py` | 统一返回 `{code, message}`，不回退成 500 | ✅ |
+| 3.2 | 统一错误码枚举 | `errors.py` | 30+ 稳定业务错误码，与 HTTP status 分离 | ✅ |
+| 3.3 | 改造 2 条主路径使用新错误码 | `routers/realtime.py` + `routers/auth.py` | `code` 是业务码而非状态码字符串 | ✅ |
+| 3.4 | 写入错误码契约文档 | `python/docs/api_error_contract.md` | 错误体结构、code 定义、HTTP status 映射、示例 | ✅ |
+| 3.5 | 补测试 | `tests/test_service_error_handler.py` | 4 个测试验证各分支输出稳定 | ✅ |
 
-**阶段三交付物**：错误码文档 + 代码落地，前端可基于 `code` 做稳定处理。
+### 关键变更
+
+**新增文件**
+- `python/errors.py`：`ErrorCode(StrEnum)`，30+ 业务错误码（通用/认证/资源/行情/用户/新闻/日志）
+- `python/docs/api_error_contract.md`：完整契约文档，含向后兼容说明、Python/TS 示例
+
+**修改文件**
+- `main.py`：handler 使用 `get_default_error_code()` 映射 HTTP status；ServiceError handler 使用 `exc.code.value`；ValidationError/Generic 使用枚举值
+- `services/domain/exceptions.py`：`ServiceError` 支持 `code` 参数；`NotFoundError/ForbiddenError/ConflictError/UnauthorizedError/ValidationError` 均有默认枚举值
+- `routers/realtime.py`：5 处 HTTPException → ServiceError/NotFoundError/UnauthorizedError，使用 `TOO_MANY_SYMBOLS`、`REALTIME_DATA_UNAVAILABLE`、`SERVICE_UNAVAILABLE` 等精确码
+- `routers/auth.py`：4 处 HTTPException → UnauthorizedError/ConflictError，使用 `TOKEN_INVALID`、`INVALID_CREDENTIALS`、`USERNAME_TAKEN` 等精确码
+- `tests/test_service_error_handler.py`：断言更新为新的稳定码
+
+**向后兼容**
+- 旧客户端依赖 `message` 仍可工作
+- 新客户端应基于 `code` 做分支处理
+- 新增错误码遵循"只增不改"原则
+
+**阶段三交付物**：错误码文档 + 代码落地，前端可基于 `code` 做稳定处理。代码提交 `10b558e9`。
 
 ---
 
