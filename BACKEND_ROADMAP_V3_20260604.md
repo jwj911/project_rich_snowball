@@ -161,21 +161,35 @@
 
 ---
 
-## 阶段五：CI/运维与架构优化（Day 10-14）
+## 阶段五：CI/运维与架构优化（Day 10-14）✅ 已完成
 
 **目标**：CI 增加迁移校验，架构文档补齐，技术债逐步偿还。
+**完成时间**：2026-06-05
+**测试基线**：383 passed, 6 skipped, 0 failed
 
-| # | 行动项 | 范围 | 验收标准 |
-|---|--------|------|----------|
-| 5.1 | CI 增加 Alembic 迁移一致性检查 | `.github/workflows/backend-ci.yml` | 执行 `alembic upgrade head` 通过；可添加 autogenerate drift check |
-| 5.2 | CI 增加覆盖率阈值（低起点） | `.github/workflows/backend-ci.yml` | 增加 `pytest-cov`，先设 30% 阈值，逐步提升 |
-| 5.3 | SSE 部署约束文档 | `python/docs/sse_scaling_strategy.md` 或 README | 明确：单实例限制 / sticky session / 未 Redis 化前不宣称横向扩展完成 |
-| 5.4 | K 线表分区策略文档（先文档后代码） | 新建 `python/docs/kline_partitioning.md` | 包含：按 period + trading_time 的 range partition 方案、冷数据归档策略、实施时机（数据量阈值） |
-| 5.5 | 交易日历预测告警 | `services/trading_calendar.py` | 当使用预测日期时，日志输出 warning；或增加 metric 计数 |
-| 5.6 | 部分 router 业务下沉（选 1-2 个试点） | `routers/varieties.py` 或 `routers/opinions.py` | 提取 service 层，router 只负责 HTTP 契约转换 |
-| 5.7 | 补 compose backend service | `docker-compose.yml` | 取消 backend 注释，提供本地一键后端部署（可选，受限于测试时间） |
+| # | 行动项 | 范围 | 验收标准 | 状态 |
+|---|--------|------|----------|------|
+| 5.1 | CI 增加 Alembic 迁移一致性检查 | `.github/workflows/backend-ci.yml` | CI 配置 PostgreSQL service，`alembic upgrade head` 通过 | ✅ |
+| 5.2 | CI 增加覆盖率阈值（低起点） | `.github/workflows/backend-ci.yml` | 增加 `pytest-cov`，阈值 30% | ✅ |
+| 5.3 | SSE 部署约束文档 | `python/docs/sse_scaling_strategy.md` | 单实例限制 / sticky session / cookie-only / SSE 限流已补充 | ✅ |
+| 5.4 | K 线表分区策略文档（先文档后代码） | 新建 `python/docs/kline_partitioning.md` | period LIST + time RANGE 分区方案、冷数据归档策略、实施阈值 | ✅ |
+| 5.5 | 交易日历预测告警 | `services/trading_calendar.py` | `_fallback_is_trading_day` 使用预测年份时输出 warning 日志 | ✅ |
+| 5.6 | 部分 router 业务下沉（选 1-2 个试点） | `routers/opinions.py` + `services/domain/opinion_service.py` | 提取 OpinionService，router 仅负责 HTTP 契约转换；23 个测试全部通过 | ✅ |
+| 5.7 | 补 compose backend service | `docker-compose.yml` | 取消 backend 注释，配置健康检查、环境变量、端口映射 | ✅ |
 
-**阶段五交付物**：CI 更严格，运维有文档，架构有方向。
+**阶段五交付物**：CI 更严格（PG 迁移校验 + 覆盖率），运维有文档（SSE 约束 + K 线分区），架构有方向（service 层试点）。
+
+---
+
+## 迭代总结
+
+| 阶段 | 日期 | 测试基线 | 核心产出 |
+|------|------|---------|---------|
+| 阶段一：基础可运行性 | 2026-06-04 | 359 passed, 6 skipped | 本地测试环境可复现 |
+| 阶段二：安全与数据一致性 | 2026-06-04 | 376 passed, 6 skipped | P1 问题清零（6 项） |
+| 阶段三：错误码契约 | 2026-06-04 | 376 passed, 6 skipped | `errors.py` + 全局 handler + 文档 |
+| 阶段四：扩展性与限流 | 2026-06-05 | 383 passed, 6 skipped | auth Redis 化 + GET/SSE 限流 + SSE token 废弃 |
+| 阶段五：CI/运维与架构 | 2026-06-05 | 383 passed, 6 skipped | CI 增强 + 文档补齐 + service 层试点 |
 
 ---
 
