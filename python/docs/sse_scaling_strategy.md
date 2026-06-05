@@ -115,12 +115,13 @@
 
 ---
 
-## 4. 当前建议（2026-05-29）
+## 4. 当前建议（2026-06-05，Phase 4 完成后更新）
 
 1. **立即执行**：在 README/部署文档中声明 SSE 仅支持单实例，或必须通过 sticky session 路由。
 2. **暂不执行**：不引入 Redis pub/sub，不改造 `_sse_connections`。
 3. **监控指标**：关注 `/metrics` 中 SSE 相关指标（如有）或新增连接数日志，达到 50 并发时评估路线 B，达到 100 并发时评估路线 C。
-4. **鉴权保持**：继续 cookie-only 策略，stream-token 保持 deprecated，下个大版本考虑移除。
+4. **鉴权保持**：cookie-only 策略已统一，`/api/realtime/stream` 的 `token` Query 参数已标记 `deprecated=True`，仅作降级兼容。生产环境必须确保 cookie 正常工作。
+5. **限流保护**：`middleware/rate_limit.py` 已对 `/api/realtime/stream` 实施独立限流（60s/30req），防止恶意高频建立 SSE 连接。
 
 ---
 
@@ -128,8 +129,10 @@
 
 - [x] `_sse_connections` 确认为进程内状态
 - [x] cookie-only 鉴权已统一
+- [x] stream-token 已废弃（`deprecated=True`）
+- [x] SSE 独立限流已实施（60s/30req）
 - [x] 本文档已产出
-- [ ] 部署文档已补充单实例/sticky session 约束说明（待后续补充）
+- [x] 部署文档已补充单实例/sticky session 约束说明
 
 ---
 

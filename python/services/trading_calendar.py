@@ -39,6 +39,9 @@ _BUILTIN_HOLIDAYS = {
     "10-01", "10-02", "10-03",  # 国庆节法定假日（10/4-7 为调休，已在 FLOATING 中维护）
 }
 
+# 标记为"预测"的年份（尚未由国务院正式公布），使用 fallback 时应输出告警
+_PREDICTED_YEARS: set[int] = set()
+
 # 浮动假期的年份-日期映射（按国务院办公厅公布的年度节假日安排）
 # 数据来源：国务院发布的年度节假日安排通知 + 期货交易所实际休市公告
 # 后续可通过 scripts/update_trading_calendar.py 从 AKShare 拉取更新 JSON 文件
@@ -113,6 +116,9 @@ _FLOATING_HOLIDAYS = {
         "10-01", "10-02", "10-03", "10-04", "10-05", "10-06", "10-07",  # 国庆
     ],
 }
+
+# 标记为"预测"的年份（尚未由国务院正式公布），fallback 使用时输出告警
+_PREDICTED_YEARS: set[int] = {2027, 2028, 2029, 2030, 2031}
 
 
 class TradingCalendar:
@@ -254,6 +260,12 @@ class TradingCalendar:
 
         # 浮动节假日（春节等）
         year_holidays = _FLOATING_HOLIDAYS.get(d.year, [])
+        if d.year in _PREDICTED_YEARS:
+            logger.warning(
+                "TradingCalendar fallback using predicted holidays for year %s. "
+                "Date %s may be inaccurate until official announcement.",
+                d.year, d.isoformat(),
+            )
         return md not in year_holidays
 
 
