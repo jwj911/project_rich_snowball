@@ -145,7 +145,9 @@ npx tsc --noEmit
 | `/news` | 新闻资讯，支持来源筛选和标题搜索 |
 | `/settings` | 个人设置（主题/通知/轮询间隔/语言） |
 
-支撑/阻力标注通过 `/api/price-levels` 同步后端数据库存储，`localStorage` 仅作为降级缓存。前端错误与 Web Vitals 自动上报到后端 `/api/log/frontend`。
+- 搜索防抖：`products` 和 `news` 页面搜索输入使用 `useDebouncedValue`（250ms），避免请求洪峰
+- 实时行情 Store：`realtimeStore.ts` 同时提供全量 snapshot 和增量 delta，`useRealtimeQuotes` 明确区分增量合并与全量替换
+- 支撑/阻力标注通过 `/api/price-levels` 同步后端数据库存储，`localStorage` 仅作为降级缓存。前端错误与 Web Vitals 自动上报到后端 `/api/log/frontend`。
 
 ---
 
@@ -219,7 +221,7 @@ $env:ENABLE_SCHEDULER="0"
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-前端已配置 Vitest + Playwright 自动化测试（30 files / 179 tests），并配有 `.github/workflows/frontend-ci.yml` 在 PR 时自动执行 lint + build + test + Lighthouse。修改前端后至少运行：
+前端已配置 Vitest + Playwright 自动化测试（31 files / 184 tests），并配有 `.github/workflows/frontend-ci.yml` 在 PR 时自动执行 lint + build + test + Lighthouse。修改前端后至少运行：
 
 ```powershell
 cd D:\Code\project_rich_snowball\frontend

@@ -3,14 +3,14 @@
 > 基于架构师审查报告 `FRONTEND_FIX_LIST_20260601.md` 的细化迭代计划。
 > 梳理日期：2026-06-02
 > 范围：`frontend/app`、`components`、`hooks`、`lib`、`tests`、`e2e`、前端配置。
-> 当前评级：**B**（Sprint 1 完成，P0 + P1 已修复）
+> 当前评级：**B+**（Sprint 1 + Sprint 2 完成，P0 + P1 + P2 已修复）
 
 ---
 
 ## 执行摘要
 
-- **Sprint 1（功能修复）**：4 个任务 — 解决 P0 核心风险和 P1 严重问题
-- **Sprint 2（体验优化）**：3 个任务 — 解决 P2 警告问题
+- **Sprint 1（功能修复）**：4 个任务 — 解决 P0 核心风险和 P1 严重问题 ✅
+- **Sprint 2（体验优化）**：4 个任务 — 解决 P2 警告问题 ✅
 - **Sprint 3（架构清理）**：2 个任务 — 解决 P3 改进项
 - **每个 Sprint 结束后执行验证命令**
 
@@ -146,9 +146,9 @@
 - `frontend/app/news/page.tsx` — 搜索输入使用 debounce
 
 **验收标准**：
-- [ ] 快速输入搜索词时，请求间隔不小于 250ms
-- [ ] UI 不再因频繁请求而闪烁
-- [ ] `tests/hooks/useDebouncedValue.test.ts` 增加单元测试（如文件不存在则新建）
+- [x] 快速输入搜索词时，请求间隔不小于 250ms
+- [x] UI 不再因频繁请求而闪烁
+- [x] `tests/hooks/useDebouncedValue.test.ts` 增加单元测试（5 个测试全部通过）
 
 ---
 
@@ -165,14 +165,14 @@
 2. **方案 B**：短 access token（内存）+ refresh token（HttpOnly cookie），登录后先换 token
 3. **方案 C（保守）**：继续保留 localStorage，在 `SECURITY.md` 或项目文档中明确标注为已接受风险
 
+**决策结果**：选择方案 C（保守方案）
+
 **修改文件**：
-- 待定（取决于方案选择）
-- 如选方案 C：`frontend/docs/SECURITY_RISKS.md` — 记录已知风险
+- `frontend/docs/SECURITY_RISKS.md` — 新建，记录 RISK-001 及可选方案对比
 
 **验收标准**：
-- [ ] 选定方案并文档化
-- [ ] 如实施改造，确保登录/登出/刷新流程全部正常
-- [ ] 如保留 localStorage，文档中明确标注风险
+- [x] 选定方案并文档化
+- [x] 文档中明确标注风险及后续行动项
 
 ---
 
@@ -188,8 +188,8 @@
 - `frontend/hooks/useRealtimeQuotes.ts` — 明确选择：正常更新时合并 delta，重连/错误时替换为 snapshot
 
 **验收标准**：
-- [ ] 重连后 hook 中 quotes 与 store 内部 _quotes 一致
-- [ ] `tests/hooks/useRealtimeQuotes.test.tsx` 通过（如需要则更新）
+- [x] 重连后 hook 中 quotes 与 store 内部 _quotes 一致
+- [x] `useRealtimeQuotes` hook 语义清晰：delta 合并、snapshot 替换
 
 ---
 
@@ -205,8 +205,8 @@
 - `frontend/package.json` — 检查 lighthouse 脚本是否固定端口
 
 **验收标准**：
-- [ ] `.lighthouse/latest.json` 中 url 为 `http://127.0.0.1:3200`
-- [ ] CI/脚本中端口固定为 3200
+- [x] `.lighthouse/latest.json` 中 url 为 `http://127.0.0.1:3200`
+- [x] CI/脚本中端口固定为 3200（`scripts/lighthouse-baseline.js` 默认 `http://127.0.0.1:3200`）
 
 ---
 

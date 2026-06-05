@@ -11,6 +11,7 @@ import QuoteTable, { QuoteSortField, QuoteSortOrder } from '@/components/market/
 import { api, Product } from '@/lib/api'
 import { formatInteger } from '@/lib/format'
 import { useProductListRealtime } from '@/hooks/useProductListRealtime'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { Filter, Search, X } from 'lucide-react'
 
 type DirectionFilter = 'all' | 'up' | 'down'
@@ -24,6 +25,7 @@ export default function ProductsPage() {
   const [sortBy, setSortBy] = useState<QuoteSortField>('change_percent')
   const [sortOrder, setSortOrder] = useState<QuoteSortOrder>('desc')
   const [searchText, setSearchText] = useState('')
+  const debouncedSearchText = useDebouncedValue(searchText, 250)
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all')
   const [page, setPage] = useState(1)
@@ -31,12 +33,12 @@ export default function ProductsPage() {
   const query = useMemo(() => ({
     skip: (page - 1) * PAGE_SIZE,
     limit: PAGE_SIZE,
-    search: searchText.trim() || undefined,
+    search: debouncedSearchText.trim() || undefined,
     category: categoryFilter !== 'all' ? categoryFilter : undefined,
     direction: directionFilter,
     sortBy,
     sortOrder,
-  }), [page, searchText, categoryFilter, directionFilter, sortBy, sortOrder])
+  }), [page, debouncedSearchText, categoryFilter, directionFilter, sortBy, sortOrder])
 
   const {
     products,

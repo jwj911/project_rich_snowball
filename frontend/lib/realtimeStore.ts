@@ -9,7 +9,10 @@ const BATCH_INTERVAL_MS = MARKET.BATCH_INTERVAL_MS
 const MAX_RECONNECT_DELAY = MARKET.MAX_RECONNECT_DELAY
 
 export interface RealtimeStoreState {
-  quotes: Map<string, RealtimeQuote>
+  /** 全量快照 — 当前 store 中 subscriber 关注 symbols 的完整数据 */
+  snapshot: Map<string, RealtimeQuote>
+  /** 增量 — 本次更新的数据（可能为空） */
+  delta: Map<string, RealtimeQuote>
   source: 'sse' | 'polling' | null
   error: string | null
   loading: boolean
@@ -68,7 +71,8 @@ class RealtimeStore {
     })
 
     callback({
-      quotes: snapshot,
+      snapshot,
+      delta: new Map(),
       source: this._source,
       error: this._error,
       loading: this._loading,
@@ -277,18 +281,27 @@ class RealtimeStore {
     this.batchQueue = []
   }
 
-  private notifyAll(quotes?: Map<string, RealtimeQuote>): void {
+  private notifyAll(delta?: Map<string, RealtimeQuote>): void {
     this.subscribers.forEach((subscriber) => {
-      const filtered = new Map<string, RealtimeQuote>()
-      if (quotes) {
-        quotes.forEach((quote, symbol) => {
+      const filteredDelta = new Map<string, RealtimeQuote>()
+      if (delta) {
+        delta.forEach((quote, symbol) => {
           if (subscriber.symbols.has(symbol)) {
-            filtered.set(symbol, quote)
+            filteredDelta.set(symbol, quote)
           }
         })
       }
+
+      // 全量 snapshot（只包含 subscriber 关注的 symbols）
+      const snapshot = new Map<string, RealtimeQuote>()
+      subscriber.symbols.forEach((symbol) => {
+        const q = this._quotes.get(symbol)
+        if (q) snapshot.set(symbol, q)
+      })
+
       subscriber.callback({
-        quotes: filtered,
+        snapshot,
+        delta: filteredDelta,
         source: this._source,
         error: this._error,
         loading: this._loading,

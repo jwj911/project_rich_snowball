@@ -25,11 +25,13 @@ import {
 } from 'lucide-react'
 import useSWR from 'swr'
 import { toast } from 'sonner'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 
 export default function NewsPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [selectedSource, setSelectedSource] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 250)
   const [showSourceModal, setShowSourceModal] = useState(false)
 
   const {
@@ -49,11 +51,11 @@ export default function NewsPage() {
     isLoading: articlesLoading,
     mutate: mutateArticles,
   } = useSWR(
-    isAuthenticated ? ['news-articles', selectedSource, searchQuery] : null,
+    isAuthenticated ? ['news-articles', selectedSource, debouncedSearchQuery] : null,
     () =>
       api.getNewsArticles({
         source_id: selectedSource ?? undefined,
-        q: searchQuery || undefined,
+        q: debouncedSearchQuery || undefined,
         limit: 50,
       }),
     { revalidateOnFocus: false },

@@ -1,8 +1,8 @@
-# AGENTS.md — 期货交流社区
+<!-- AGENTS.md — 期货交流社区 -->
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-06-02，基于 master 分支当前代码。
+> **最后更新**：2026-06-04（含 Sprint 2 完成），基于 master 分支当前代码。
 
 ---
 
@@ -18,14 +18,20 @@
 
 ## 项目概览
 
-**期货交流社区**是一个前后端分离的期货行情与私密交流社区应用。当前产品形态为"登录后的行情工作台"：用户登录后查看热门期货、筛选品种、进入单品种 K 线复盘、添加云端支撑/阻力位标注、发表评论，并在个人工作区汇总自己的研究上下文。
+**期货交流社区**（产品名「倍增计划」）是一个前后端分离的期货行情与私密交流社区应用。当前产品形态为"登录后的行情工作台"：用户登录后查看热门期货、筛选品种、进入单品种 K 线复盘、添加云端支撑/阻力位标注、发表评论、记录交易观点、管理模拟持仓、设置价格预警、与 AI 助手对话，并在个人工作区汇总自己的研究上下文。
 
-主要功能：
+主要功能模块：
 - 登录/注册/JWT 鉴权（支持 access token + refresh token 双令牌），主页面均有登录门禁
 - 首页行情工作台：热门品种、领涨观察、30 秒轮询和刷新状态
 - 行情中心：搜索、分类、涨跌筛选，按价格/涨跌幅/成交量排序
 - 品种详情：实时行情、`lightweight-charts` K 线、技术分析、评论、支撑/阻力标注、合约切换（主力/连续/具体合约）
+- 交易观点：用户针对品种发表多空观点，记录目标价、止损价和理由，支持事后复盘标记状态
+- 模拟持仓：虚拟交易记录，支持做多/做空、盈亏计算与复盘统计
+- 价格预警：用户为品种设置 above/below 价格预警，实时行情刷新时自动检测触发
+- AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
+- 新闻资讯：RSS 源管理与聚合，支持 AI 新闻解读
 - 我的工作区：评论历史、云端价位标注、自选观察入口
+- 运营指标面板：`/metrics` 展示用户数/评论数/采集健康度
 - 数据采集：Mock / AkShare / Tushare，多源 fallback + 熔断器，定时刷新实时行情和 K 线
 - PostgreSQL 历史回填：`python/tushare_pg_ingest/` 下有独立脚本体系
 
@@ -42,14 +48,15 @@
 | K 线图 | lightweight-charts | ^5.2.0 |
 | 数据获取 | SWR | ^2.4.1 |
 | 消息提示 | sonner | ^2.0.7 |
-| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest 4.1.7，30 个测试文件 / 179 tests |
-| E2E 测试 | Playwright | ^1.60.0，5 个文件（4 spec + auth.setup.ts）/ 28 tests |
-| 后端框架 | Python + FastAPI | Python >=3.11，FastAPI 0.136 |
+| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest 4.1.6，约 39 个测试文件 |
+| E2E 测试 | Playwright | ^1.60.0，5 个文件（auth.setup.ts + 4 个 spec） |
+| 性能基线 | Lighthouse | ^13.3.0，`npm run lighthouse` |
+| 后端框架 | Python + FastAPI | Python >=3.11，FastAPI 0.136.3 |
 | 后端服务器 | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.25 |
 | 数据库 | SQLite / PostgreSQL | SQLite 开发零配置；PG 16 通过 compose 提供，映射端口 15432 |
-| 迁移 | Alembic | 1.13.1，当前共 30 个迁移文件 |
-| 认证 | JWT + OAuth2 密码流 | PyJWT 2.9.0，passlib bcrypt，access token 默认 15 分钟，refresh token 默认 7 天 |
+| 迁移 | Alembic | 1.13.1，当前共 45 个迁移文件 |
+| 认证 | JWT + OAuth2 密码流 | PyJWT 2.13.0，passlib bcrypt，access token 默认 15 分钟，refresh token 默认 7 天 |
 | 数据校验 | Pydantic v2 | 2.9.0 |
 | 数据采集 | Mock / AkShare / Tushare | `DATA_SOURCE` 控制，非生产可降级 Mock |
 | 定时任务 | APScheduler | BackgroundScheduler |
@@ -63,7 +70,7 @@
 
 - 后端 `python/main.py` 默认监听 `127.0.0.1:8200`，由 `HOST` / `PORT` 环境变量覆盖。
 - 前端 `npm run dev` 实际执行 `next dev -H 127.0.0.1 -p 3200`。
-- 前端 API 默认值在 `frontend/lib/api.ts`：`NEXT_PUBLIC_API_BASE || http://127.0.0.1:8200`。
+- 前端 API 默认值在 `frontend/lib/api/transport.ts`：`NEXT_PUBLIC_API_BASE || http://127.0.0.1:8200`。
 - CORS 默认允许 `localhost/127.0.0.1` 的 `3000` 和 `3200`。
 - `docker-compose.yml` 中 PostgreSQL 映射为 `15432:5432`，不是 5432。
 - Redis 映射为 `6379:6379`。
@@ -76,7 +83,7 @@
 project_rich_snowball/
 ├── frontend/
 │   ├── app/
-│   │   ├── layout.tsx              # 根布局，包裹 AuthProvider
+│   │   ├── layout.tsx              # 根布局，包裹 AuthProvider + ErrorBoundary + WebVitalsReporter
 │   │   ├── page.tsx                # 行情工作台，需登录
 │   │   ├── products/page.tsx       # 行情中心，搜索/筛选/排序
 │   │   ├── products/[id]/page.tsx  # 品种详情，K 线/评论/合约切换/标注/合约历史
@@ -85,9 +92,12 @@ project_rich_snowball/
 │   │   ├── metrics/page.tsx        # 运营指标面板
 │   │   ├── news/page.tsx           # 新闻资讯
 │   │   ├── settings/page.tsx       # 个人设置
+│   │   ├── chat/page.tsx           # AI 助手对话
+│   │   ├── portfolio/page.tsx      # 模拟持仓
+│   │   ├── opinions/page.tsx       # 交易观点
 │   │   └── globals.css
 │   ├── components/
-│   │   ├── auth/                   # AuthProvider、LoginRequired、RefreshTokenHandler
+│   │   ├── auth/                   # AuthProvider、LoginModal、RegisterModal、LoginRequired
 │   │   ├── layout/AppShell.tsx     # 全局应用壳，左侧导航偏移
 │   │   ├── market/                 # QuoteCard/Table、PriceChange、PriceFlash、TechnicalAnalysisPanel
 │   │   ├── product/                # ProductHeader、ContractSelector 等
@@ -95,52 +105,85 @@ project_rich_snowball/
 │   │   ├── activity/               # RefreshStatus、RealtimeStatusBar 等状态组件
 │   │   ├── ui/                     # Button/Input/EmptyState/ErrorState/Dialog/Toast
 │   │   ├── workspace/              # 工作区摘要、标注、评论时间线、自选面板
+│   │   ├── opinion/                # 观点卡片、创建/编辑表单
+│   │   ├── metrics/                # 运营指标图表
 │   │   └── Navbar.tsx
-│   ├── hooks/                      # 13 个自定义 hook
+│   ├── hooks/                      # 16 个自定义 hook
 │   │   ├── useMarketPolling.ts     # 轮询和 heartbeat 状态
 │   │   ├── usePriceLevels.ts       # 价位标注后端同步与 localStorage 降级
 │   │   ├── useRealtimeQuotes.ts    # 实时行情 hook
 │   │   ├── useProductDetail.ts     # 品种详情数据获取
 │   │   ├── useProductKline.ts      # K 线数据获取
 │   │   ├── useWatchlistRealtime.ts # 自选实时监听
+│   │   ├── useDebouncedValue.ts    # 通用防抖（搜索输入等）
 │   │   └── ...
 │   ├── lib/
-│   │   └── api.ts                  # 统一 API 客户端（ApiService → RequestCore → AuthCore），含 token 管理
-│   ├── tests/                      # Vitest 单元测试（26+ 文件）
+│   │   ├── api/                    # 模块化 API 客户端
+│   │   │   ├── client.ts           # ApiService 统一入口
+│   │   │   ├── transport.ts        # RequestCore 底层 fetch + token 管理
+│   │   │   ├── auth.ts             # AuthCore 登录/注册/token 刷新
+│   │   │   ├── market.ts           # 行情/K线/合约 API
+│   │   │   ├── workspace.ts        # 工作区/标注/自选 API
+│   │   │   ├── products.ts         # 品种/评论 API
+│   │   │   ├── portfolio.ts        # 模拟持仓 API
+│   │   │   ├── price_alerts.ts     # 价格预警 API
+│   │   │   ├── opinions.ts         # 交易观点 API
+│   │   │   ├── chat.ts             # AI 助手 API
+│   │   │   ├── news.ts             # 新闻 API
+│   │   │   ├── settings.ts         # 设置 API
+│   │   │   ├── metrics.ts          # 运营指标 API
+│   │   │   ├── logging.ts          # 前端日志上报
+│   │   │   ├── types.ts            # 共享类型定义
+│   │   │   └── errors.ts           # API 错误类型
+│   │   ├── format.ts               # 价格/日期格式化（含 formatPricePayload）
+│   │   ├── vitals.ts               # Web Vitals 上报
+│   │   ├── sentry-lite.ts          # 轻量异常捕获，同时上报后端
+│   │   ├── swr-hooks.ts            # SWR 封装 hook（含 useMarketStatus）
+│   │   └── realtimeStore.ts        # SSE 实时行情状态管理
+│   ├── tests/                      # Vitest 单元测试（约 39 个文件）
 │   │   ├── setup.ts
 │   │   ├── components/             # 组件测试
 │   │   ├── hooks/                  # Hook 测试
 │   │   └── lib/                    # 工具函数测试
-│   └── e2e/                        # Playwright E2E 测试（3 个 spec）
-│       ├── auth.spec.ts
-│       ├── market.spec.ts
-│       └── product-detail.spec.ts
+│   └── e2e/                        # Playwright E2E 测试
+│       ├── auth.setup.ts           # 登录态复用
+│       ├── auth.spec.ts            # 认证流程
+│       ├── market.spec.ts          # 行情页面
+│       ├── product-detail.spec.ts  # 品种详情
+│       └── performance.spec.ts     # 性能断言（已迁移到 Lighthouse）
 │
 ├── python/
 │   ├── main.py                     # FastAPI 入口、lifespan、CORS、异常处理、Prometheus 中间件
 │   ├── config.py                   # .env 加载、SECRET_KEY/生产环境校验、所有环境变量默认值
-│   ├── models.py                   # SQLAlchemy 模型，23 张表
+│   ├── models.py                   # SQLAlchemy 模型，28 张表
 │   ├── schemas.py                  # Pydantic v2，请求/响应模型和 XSS 过滤
-│   ├── dependencies.py             # get_db、JWT 用户解析
+│   ├── dependencies.py             # get_db、JWT 用户解析（含 CSRF 防护）
 │   ├── utils.py                    # bcrypt、JWT encode/decode
 │   ├── worker.py                   # 独立 scheduler 入口，不启动 FastAPI
-│   ├── routers/                    # 13 个领域路由
+│   ├── routers/                    # 19 个领域路由
 │   │   ├── auth.py
+│   │   ├── chat.py
 │   │   ├── comments.py
-│   │   ├── varieties.py
-│   │   ├── kline.py
-│   │   ├── realtime.py
-│   │   ├── watchlists.py
-│   │   ├── price_levels.py
-│   │   ├── workspace.py
 │   │   ├── contracts.py
+│   │   ├── frontend_logs.py
 │   │   ├── health.py
+│   │   ├── kline.py
 │   │   ├── market.py
 │   │   ├── metrics_dashboard.py
-│   │   └── settings.py
+│   │   ├── news.py
+│   │   ├── opinions.py
+│   │   ├── portfolio.py
+│   │   ├── price_alerts.py
+│   │   ├── price_levels.py
+│   │   ├── realtime.py
+│   │   ├── settings.py
+│   │   ├── varieties.py
+│   │   ├── watchlists.py
+│   │   └── workspace.py
 │   ├── data_collector/             # 在线采集、清洗、upsert、调度器
 │   │   ├── scheduler.py
 │   │   ├── pipeline.py
+│   │   ├── pipeline_tasks/         # Tushare 批量任务拆分
 │   │   ├── collectors/             # mock、akshare、tushare
 │   │   ├── adapters/
 │   │   ├── cleaners/
@@ -153,20 +196,30 @@ project_rich_snowball/
 │   │   ├── continuous_kline.py     # 主力连续 K 线拼接
 │   │   ├── metrics.py              # Prometheus 指标
 │   │   ├── logging_config.py       # structlog 结构化日志配置
-│   │   └── trading_calendar.py     # 交易日历
+│   │   ├── trading_calendar.py     # 交易日历
+│   │   ├── ai_chat.py              # AI 助手 OpenAI 兼容调用
+│   │   ├── news_fetcher.py         # RSS 新闻抓取与 AI 解读
+│   │   ├── domain/                 # 领域服务层
+│   │   │   ├── repositories/       # 数据访问层
+│   │   │   ├── comment_service.py
+│   │   │   ├── price_level_service.py
+│   │   │   ├── watchlist_service.py
+│   │   │   ├── workspace_service.py
+│   │   │   └── exceptions.py       # ServiceError 体系
+│   │   └── ...
 │   ├── middleware/
 │   │   └── rate_limit.py           # 限流中间件
 │   ├── tushare_pg_ingest/          # 独立历史数据回填脚本
 │   ├── scripts/                    # 一次性采集/验证/回填脚本
-│   ├── tests/                      # pytest 测试（28 个测试文件）
-│   └── alembic/versions/           # 28 个迁移脚本
+│   ├── tests/                      # pytest 测试（41 个测试文件）
+│   └── alembic/versions/           # 45 个迁移脚本
 │
 ├── docker-compose.yml              # PostgreSQL 16 + Redis 7，backend 服务已注释
 ├── Dockerfile                      # python:3.11-slim，非 root 用户
 ├── .env.example                    # 环境变量模板
 ├── pyproject.toml                  # Ruff + mypy 配置
 ├── README.md                       # 面向人类的快速开始
-└── ...                             # 审计/评审文档见下方"文档索引"
+└── ...                             # 审计/评审文档
 ```
 
 ---
@@ -174,14 +227,14 @@ project_rich_snowball/
 ## 前端开发规则
 
 - 页面和组件目前全部按 Client Component 写法组织，保持 `'use client'` 与 Hooks 风格一致。
-- API 调用统一通过 `frontend/lib/api.ts` 的 `api` 实例，不要在页面里散落裸 `fetch`。
+- API 调用统一通过 `frontend/lib/api/client.ts` 的 `api` 实例，不要在页面里散落裸 `fetch`。
 - 行情轮询优先使用 `useMarketPolling`，默认 30 秒。
 - 色彩语义遵循中国市场惯例：上涨红色，下跌绿色。
 - `KlineChart.tsx` 已使用 `lightweight-charts` v5.2.0，不要再按旧文档理解为自研 SVG 蜡烛图。
 - 支撑/阻力位已同步后端：`price_levels` 表存储（含 `scope` 和 `contract_id`，支持 continuous/main/contract 三种口径隔离），通过 `/api/price-levels` CRUD；`frontend/hooks/usePriceLevels.ts` 封装了后端同步逻辑，按 K 线 source 隔离，本地存储作为降级/缓存方案保留（key 格式 `price-levels:v2:{userId}:{symbol}:{scope}:{contractId}`）。
 - 主页面登录门禁来自 `AuthProvider` 和 `LoginRequired`。新增需要保护的页面时沿用该模式。
 - 修改前端后至少运行 `npx tsc --noEmit`；如涉及样式或路由，也运行 `npm run lint`，必要时用浏览器查看 `127.0.0.1:3200`。
-- 前端已配置 Vitest + Playwright + `.github/workflows/frontend-ci.yml`（lint + build + test），但 `npm run test` 在 Windows 上可能因路径解析问题偶发失败（`/@fs/D:/...` 映射已知问题）。
+- 前端已配置 Vitest + Playwright + `.github/workflows/frontend-ci.yml`（lint + build + test + Lighthouse），但 `npm run test` 在 Windows 上可能因路径解析问题偶发失败（`/@fs/D:/...` 映射已知问题）。
 
 ---
 
@@ -215,6 +268,7 @@ project_rich_snowball/
 - 分钟 K：每 15 分钟，走 AkShare 分钟线 pipeline
 - 品种元数据：每日 02:00
 - Tushare 扩展任务：日线、结算、仓单、持仓、涨跌停、周报等，仅在 Tushare pipeline 可用时注册
+- 价格预警检测：`refresh_realtime_quotes` 成功后遍历未触发预警与 `RealtimeQuoteDB.current_price` 比较
 
 `DATA_SOURCE`：
 - `mock`：开发默认
@@ -309,6 +363,16 @@ npm run test        # Vitest 单元测试
 npx playwright test # E2E 测试
 ```
 
+性能基线：
+
+```powershell
+cd frontend
+npm run build
+npm start
+# 另一终端
+npm run lighthouse
+```
+
 后端测试（**请使用项目内独立 venv，不要使用全局 Anaconda 环境**）：
 
 ```powershell
@@ -339,7 +403,7 @@ ruff format .
 
 ## 测试现状
 
-后端已有 pytest（35 个测试文件）：
+后端已有 pytest（41 个测试文件）：
 - `test_p0_fixes.py`
 - `test_phase1_3_integration.py`
 - `test_cors_variable.py`
@@ -366,20 +430,23 @@ ruff format .
 - `test_rate_limit_middleware.py`
 - `test_refresh_token.py`
 - `test_trading_date.py`
-- `test_backfill_kline_contract_id.py`
 - `test_csrf_protection.py`
 - `test_frontend_logs.py`
+- `test_frontend_logs_query.py`
 - `test_metrics_dashboard.py`
 - `test_varieties_enhanced.py`
 - `test_service_error_handler.py`
 - `test_settings.py`
-- `test_frontend_logs_query.py`
 - `test_news.py`
 - `test_opinions.py`
+- `test_chat.py`
+- `test_portfolio.py`
+- `test_price_alerts.py`
+- `test_password_strength.py`
 
 前端测试：
-- Vitest 单元测试：`frontend/tests/` 下 30 个测试文件，179 tests 全部通过
-- Playwright E2E：`frontend/e2e/` 下 5 个文件（auth.setup.ts + 4 个 spec），已登录测试需后端配合运行
+- Vitest 单元测试：`frontend/tests/` 下约 39 个测试文件
+- Playwright E2E：`frontend/e2e/` 下 5 个文件（auth.setup.ts + 4 个 spec）
 - Lighthouse 性能基线：`npm run lighthouse` 测量首页未登录态 Web Vitals（FCP/LCP/TBT/CLS/SI），报告输出到 `.lighthouse/latest.json`
 - 注意：`npm run test` 在 Windows 上可能因 Vitest 路径解析问题偶发失败（已知问题，见 `FRONTEND_QUALITY_AUDIT_V3_20260525.md`）
 
@@ -408,6 +475,10 @@ ruff format .
 | `PIPELINE_COMMIT_BATCH_SIZE` | 否 | `50` | Pipeline 批量提交大小 |
 | `CIRCUIT_FAILURE_THRESHOLD` | 否 | `0.5` | 熔断器失败阈值比例 |
 | `NEXT_PUBLIC_API_BASE` | 前端可选 | `http://127.0.0.1:8200` | 前端请求后端地址 |
+| `OPENAI_API_KEY` | AI 可选 | — | OpenAI 兼容 API Key |
+| `OPENAI_BASE_URL` | AI 可选 | `https://api.openai.com/v1` | OpenAI 兼容 Base URL |
+| `OPENAI_MODEL` | AI 可选 | `gpt-4o-mini` | 对话模型 |
+| `CHAT_MAX_HISTORY` | AI 可选 | `20` | 最大对话历史条数 |
 
 ---
 
@@ -433,20 +504,21 @@ ruff format .
 - Redis 服务可以启动，缓存层已实现 Redis 优先 + 内存 LRU 降级。
 - `node_modules`、`.next`、`venv`、数据库文件和日志可能在工作区中产生大量噪声，提交时不要顺手纳入。
 - 当前仓库可能已有用户或其他助手留下的未提交变更，修改前后都要用 `git status --short` 观察，不要回滚无关改动。
+- Windows 上 `python/main.py` 已 patch `asyncio.proactor_events._ProactorBasePipeTransport._call_connection_lost` 以抑制无害的 `ConnectionResetError 10054` 噪音，不要移除此 patch。
 
 ---
 
 ## CI/CD 与容器化
 
 - **GitHub Actions**：
-  - `.github/workflows/backend-ci.yml`：pytest + ruff + pip-audit，使用 `requirements.lock`
-  - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test`
+  - `.github/workflows/backend-ci.yml`：pytest + ruff + pip-audit，使用 `requirements.lock`，Python 3.12
+  - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test` → Lighthouse 基线
   - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发
 
 - **Dockerfile**：`python/Dockerfile`
   - 基于 `python:3.11-slim`
   - 创建非 root 用户 `app`
-  - 健康检查：`curl -f http://localhost:8200/health/ready || exit 1`
+  - 健康检查：`curl -f http://localhost:8200/health || exit 1`
   - 默认 CMD 为 `uvicorn main:app --host 0.0.0.0 --port 8200`
   - 生产建议使用 gunicorn + uvicorn worker
 
@@ -468,6 +540,7 @@ ruff format .
 
 - **前端**：ESLint（`next/core-web-vitals`），无 Prettier 配置
   - Tailwind 自定义颜色：`up`（红色系）、`down`（绿色系）反映中国市场惯例
+  - Bundle Budget 红线：任意路由 First Load JS 不得超过 180 kB（见 `next.config.js` 注释）
 
 ---
 
@@ -487,7 +560,7 @@ ruff format .
 
 ---
 
-## 当前迭代状态（2026-06-02）
+## 主要模块演进状态
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 
@@ -497,239 +570,114 @@ ruff format .
 
 ### Phase 4：ProductDB 全面退场 — 已完成（2026-05-28）
 
-**后端**
-- 删除 `products` 物理表（Alembic `5b2bada50d93`）
-- 删除 `comments.product_id` 列（Alembic `090b961056bb`）
-- 删除废弃 `routers/products.py`、`product_service.py`、`product_repository.py`、Product schema
-- 前端 API 全面迁移到 `/api/varieties` + symbol-based 路由
-- pytest 223 passed
-
-**前端**
-- `lib/api/products.ts`：`getProductBySymbol(symbol)` 替代 `getProduct(id)`
-- `app/products/[id]/page.tsx`：`params.id` 直接作为 symbol
-- 所有品种链接改为 `/products/{symbol}`
-- Vitest 177 passed，Playwright 28 passed
+- 删除 `products` 物理表及所有废弃代码，品种数据统一走 `VarietyDB`
+- pytest 全部通过
 
 ### 前端监控闭环 — 已完成（2026-06-01）
 
-- 后端：`POST /api/log/frontend` + `FrontendLogDB` + Alembic 迁移 `71cca1a466b4`
-- `test_frontend_logs.py` 4 个测试覆盖
-- `lib/api/logging.ts`：独立 `sendFrontendLog` 函数，POST 到 `/api/log/frontend`，不要求认证，失败静默丢弃
-- `sentry-lite.ts`：`captureException` / `captureMessage` 无论 Sentry 是否启用，总是同时发送到后端日志端点
-- `lib/vitals.ts`：Web Vitals 无论 Sentry 是否启用，总是同时发送到后端日志端点
+- 后端：`POST /api/log/frontend` + `FrontendLogDB` + Alembic 迁移
+- `sentry-lite.ts` + `lib/vitals.ts`：无论 Sentry 是否启用，总是同时发送到后端日志端点
 - 后端 `GET /api/log/frontend` 支持 admin 查询全部 / 普通用户查询自己的日志
 
 ### CSRF 防护 — 已完成（2026-05-29）
 
-- 后端：`dependencies.py` `get_current_user_dependency` 方法感知鉴权
-  - POST/PUT/PATCH/DELETE 只接受 `Authorization: Bearer` header，拒绝 cookie 回退
-  - GET/HEAD 保持 header 或 cookie 兼容（SSE 等场景）
-- 新增 `python/tests/test_csrf_protection.py`：10 个测试覆盖写接口拒绝/读接口兼容
+- 后端 `dependencies.py` 方法感知鉴权
+- `test_csrf_protection.py` 10 个测试覆盖写接口拒绝/读接口兼容
 
 ### SSE 鉴权统一 — 已完成（2026-05-29）
 
-- 方案 B：废弃 stream-token，SSE 鉴权统一走 cookie-only 路径（`withCredentials: true` + `access_token` cookie）
-- 前端 `createRealtimeStreamToken()` 标记 `@deprecated`，`lib/api/market.ts` + `lib/api/client.ts`
-- 后端 `/api/realtime/stream-token` endpoint 标记 `deprecated=True`，`_sse_fetch_once` 简化：直接走普通 access token 验证，不再尝试 stream token 回退
-- 清理未使用的 `_get_user_from_stream_token` 函数
-- 鉴权路径唯一化：cookie-only 为一等公民，stream-token 不再维护
+- 方案 B：废弃 stream-token，SSE 鉴权统一走 cookie-only 路径
+- `/api/realtime/stream-token` endpoint 标记 `deprecated=True`
 
 ### 交易时段 badge 后端权威化 — 已完成（2026-05-29）
 
-- 新增 `useMarketStatus()` SWR hook（`lib/swr-hooks.ts`），统一消费 `/api/market/status`
-- `MarketSessionBadge` 改用 hook 数据渲染 `day`/`night`/`closed`，后端不可用时 fallback 到 `getCurrentSession()`
-- `MarketClosedBanner` 也改用 `useMarketStatus()`，与 Badge 共用同一份后端状态（SWR 缓存避免重复请求）
-- `getCurrentSession()` 保留为后端不可用时的 fallback，不再作为首选来源
-- 新增 `MarketSessionBadge.test.tsx`：后端返回 day/night/closed 及 fallback 场景 4 个测试
+- `useMarketStatus()` SWR hook 统一消费 `/api/market/status`
+- `MarketSessionBadge` 和 `MarketClosedBanner` 共用同一份后端状态
 
 ### 价位标注 batch scope/contract 补齐 — 已完成（2026-05-29）
 
-- 后端 `python/schemas.py`：新增 `PriceLevelBatchItem`，`PriceLevelBatchCreate` 改用 `list[PriceLevelBatchItem]`，与单条 `PriceLevelCreate` 在 scope/contract_id 语义上完全一致
-- 后端 `python/services/domain/price_level_service.py`：`create_price_levels_batch` 增加校验：① contract scope 必须指定 contract_id；② continuous/main 的 contract_id 自动规范化为 None；③ 重复检测 key 扩展为 `(variety_id, type, price, scope, contract_id)`
-- 后端 `python/tests/test_price_levels.py`：新增 4 个测试覆盖 batch scope 隔离、contract_id 必填、默认值、规范化场景
-- 前端 `frontend/lib/api/workspace.ts`：`createPriceLevelsBatch` item 类型补齐 `scope`/`contract_id`
-- pytest：233 passed, 6 skipped（含 price_levels 14 个测试全部通过）
+- `PriceLevelBatchItem` schema 与单条在 scope/contract_id 语义上完全一致
+- 重复检测 key 扩展为 `(variety_id, type, price, scope, contract_id)`
 
 ### Lighthouse 性能基线 — 已完成（2026-05-29）
 
-- `scripts/lighthouse-baseline.js`：修复安全访问（`?.` 替代直接属性访问），避免某些 audit 缺失 numericValue 时脚本崩溃
-- 本地生产构建后运行 Lighthouse：Performance 98/100，LCP 2482ms，TBT 0ms，CLS 0，FCP 760ms
-- 报告输出到 `.lighthouse/latest.json`，支持历史对比
-- CI 中 Lighthouse 步骤已集成（`.github/workflows/frontend-ci.yml`）
+- `scripts/lighthouse-baseline.js`：headless Chrome 测量首页未登录态性能
+- 报告保存到 `.lighthouse/latest.json`
+- `frontend-ci.yml` 集成 Lighthouse，build 后自动跑基线
 
 ### 标注价格精度统一 — 已完成（2026-05-29）
 
-- 新增 `formatPricePayload(price, precision)`（`lib/format.ts`），语义与展示函数 `formatPrice` 分离，专用于 API payload 格式化
-- `LevelChips` 增加 `pricePrecision` prop，展示使用 `formatPrice()` 替代硬编码 `toFixed(2)`
-- `LevelEditor` 增加 `pricePrecision` prop，展示和 aria-label 均使用 `formatPrice()`
-- `usePriceLevels` 增加 `pricePrecision` 参数，创建/迁移标注时使用 `formatPricePayload()` 替代 `toFixed(2)`
-- `KlineChart` 透传 `pricePrecision` 到 `LevelChips`；品种详情页透传 `product.price_precision` 到 `LevelEditor`
-- 删除死代码 `hooks/useLightweightChart.ts`（无任何消费者，formatter 仍硬编码 `toFixed(2)`）
-- 更新 `KlinePieces.test.tsx` 适配 `formatPrice` 的千分位输出
+- `formatPricePayload(price, precision)` 专用于 API payload 格式化
+- `usePriceLevels` 创建/迁移标注时使用 `formatPricePayload()` 替代 `toFixed(2)`
 
 ### SSE URL 截断 — 已完成（2026-05-29）
 
 - `frontend/lib/realtimeStore.ts`：`buildSseUrl` 当 symbol 数量 >30 时省略 `symbols` 参数
-- 后端 `symbols` 为空时自动订阅全部活跃品种，避免 URL 超过长度限制返回 400
+- 后端 `symbols` 为空时自动订阅全部活跃品种
 
 ### 精度中立化 — 已完成（2026-05-29）
 
 - K 线价格显示统一使用 `formatPrice`，支持品种级别 `price_precision` 配置
 - `CrosshairTooltip`、`KlineChartHeader`、`PriceChange` 等组件接入精度配置
 
-### 前端 CI 流水线 — 已完成（2026-05-29）
-
-- 新增 `.github/workflows/frontend-ci.yml`：push/PR 触发，执行 lint + build + test
-
-### Lighthouse 性能基线 — 已完成（2026-05-29）
-
-- `scripts/lighthouse-baseline.js`：headless Chrome 测量首页未登录态性能
-- 输出核心 Web Vitals（FCP、LCP、TBT、CLS、SI、TTI）+ DOM size + Network requests + Total weight
-- 报告保存到 `.lighthouse/latest.json`，支持历史对比
-- `frontend-ci.yml` 集成 Lighthouse，build 后自动跑基线
-- Playwright E2E 保留功能测试，`performance.spec.ts` 中的性能断言迁移到 Lighthouse
-- token 持久化到 `localStorage`（`futures_access_token`），刷新不丢失登录态
-
 ### AI Chat（期货助手）— 已完成（2026-06-01）
 
 **后端**
-- `ChatMessageDB` 模型：user_id/role(user|assistant)/content/context_json
-- Alembic 迁移 `c3d4e5f6a7b8`
-- Schema：ChatMessageCreate/Response
+- `ChatMessageDB` 模型 + Alembic 迁移
 - Router `/api/chat`：历史记录查询 + 发送消息 + 清空对话
-- AI 服务 `services/ai_chat.py`：
-  - OpenAI 兼容 API（httpx 调用，无新增依赖）
-  - 环境变量控制：`OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`
-  - 上下文检索：从用户消息提取品种 symbol，查询 `RealtimeQuoteDB` + `OpinionDB`
-  - System Prompt 定制为期货领域分析助手
-  - 未配置时返回友好提示（不阻断应用启动）
-  - 对话历史窗口：`CHAT_MAX_HISTORY=20`
-- pytest 9 tests 覆盖
+- AI 服务 `services/ai_chat.py`：OpenAI 兼容 API，自动检索 `RealtimeQuoteDB` + `OpinionDB` 作为上下文
+- 未配置时返回友好提示（不阻断应用启动）
 
 **前端**
 - `/chat` 页面：ChatGPT 风格对话界面
-  - 消息气泡（用户右/助手左）
-  - 快捷提问按钮（预设 4 个常见期货问题）
-  - 加载动画、自动滚动到底部
-  - 清空对话按钮
 - 导航：`secondaryNavGroups` 新增「AI 助手」
 
 ### Portfolio（模拟持仓）— 已完成（2026-06-01）
 
 **后端**
-- `TradeRecordDB` 模型：user_id/variety_id/opinion_id/direction(long|short)/entry_price/exit_price/quantity/status/pnl/pnl_percent
-- Alembic 迁移 `b2c3d4e5f6a7`
-- Schema 含 `unrealized_pnl`（open 状态实时浮动盈亏）
-- Router `/api/portfolio`：列表（批量查询实时价计算浮动盈亏）+ 创建 + 平仓（自动计算 pnl）+ 删除
+- `TradeRecordDB` 模型 + Alembic 迁移
+- Router `/api/portfolio`：列表（含实时浮动盈亏）+ 创建 + 平仓 + 删除
 - 盈亏公式：`long: (exit - entry) * qty * multiplier`，`short: (entry - exit) * qty * multiplier`
-- pytest 15 tests 覆盖
 
 **前端**
-- `/portfolio` 页面：盈亏统计面板（总盈亏/浮动盈亏/胜率/持仓数）+ 筛选标签 + 交易卡片列表
-- 创建弹窗：品种选择/方向/入场价/手数
-- 平仓：卡片内展开出场价输入，一键确认
+- `/portfolio` 页面：盈亏统计面板 + 交易卡片列表
 - 导航：`secondaryNavGroups` 新增「模拟持仓」
 
 ### Price Alert（价格预警）— 已完成（2026-06-01）
 
 **后端**
-- `PriceAlertDB` 模型：user_id/variety_id/alert_type(above|below)/target_price/is_triggered/triggered_at
-- Alembic 迁移 `a1b2c3d4e5f6`
-- Schema 含字段校验（alert_type 只能是 above/below）
-- Router `/api/price-alerts`：列表/筛选/已触发查询/创建/更新/删除
-- 权限：仅 owner 可改删
-- Scheduler 集成：`refresh_realtime_quotes` 成功后调用 `_check_price_alerts()`，遍历所有未触发预警与 `RealtimeQuoteDB.current_price` 比较，满足条件自动标记触发
-- pytest 15 tests 覆盖
+- `PriceAlertDB` 模型 + Alembic 迁移
+- Router `/api/price-alerts`：CRUD + 触发查询
+- Scheduler 集成：`refresh_realtime_quotes` 成功后调用 `_check_price_alerts()`
 
 **前端**
-- API 层：`lib/api/price_alerts.ts` + `ApiService` 方法注册
-- 品种详情页右侧 aside：`PriceAlertPanel` 组件
-  - 展开表单：above/below 选择 + 目标价输入（placeholder 显示当前价）
-  - 列表展示：方向 badge + 目标价 + 触发状态 + 删除按钮
+- API 层：`lib/api/price_alerts.ts`
+- 品种详情页 `PriceAlertPanel`：表单 + 列表 + 删除
 
 ### Opinions（交易观点/日记）— 已完成（2026-05-30）
 
 **后端**
-- 复用已有 `opinions` 表（迁移 `7a8e00d86747`），新增 `status/closed_at/actual_outcome` 生命周期字段
-- `OpinionCreate`/`OpinionUpdate`/`OpinionResponse` schema，含 Decimal 精度校验
-- CRUD 路由：`/api/opinions`（公开列表）、`/api/opinions/me`（个人时间线）、单条详情/更新/删除
-- 权限：仅 owner 可改删；关闭时自动记 `closed_at`
-- pytest 21 tests 覆盖
+- `opinions` 表 + 生命周期字段（`status/closed_at/actual_outcome`）
+- Router `/api/opinions`：公开列表 + 个人时间线 + CRUD
 
 **前端**
 - `/opinions` 页面：双标签页「全部观点」+「我的观点」
-- 筛选：品种选择、方向（long/short/neutral）、状态（open/closed）
-- 创建/编辑/关闭（弹窗复盘）/删除确认
-- API 层：`lib/api/opinions.ts` + `ApiService` 方法注册
-- **品种详情页联动**：右侧 aside 显示当前品种最近 5 条观点 + 一键创建（自动锁定品种）+ 跳转全部观点
+- 筛选：品种、方向、状态
 
-### v5 审计债务修复 — 已完成（2026-05-28）
+### News（新闻资讯）— 已完成（2026-05-30）
 
-- venv 重建（Python 3.12.9），pytest/ruff/pip-audit 本地可复现
-- CI 统一使用 `requirements.lock`
-- 后端测试环境文档化：README/AGENTS 明确使用项目内 `.venv`，不要使用全局 Anaconda，提供 Powershell 一键命令和环境校验；已实际验证（`pytest tests/test_price_levels.py` 14 passed，`test_realtime_batch.py` 5 passed）
-- `fut_mapping_task` 循环依赖消除
-- `tushare_batch_tasks.py` 模板抽象（377→175 行）
-- ruff 质量门禁生效（移除 `continue-on-error`）
-- 数据库连接池监控落地
-- CORS `expose_headers` 修复（自定义响应头浏览器可读）
+**后端**
+- `NewsSourceDB` / `NewsArticleDB` 模型
+- RSS 抓取 + AI 摘要（`services/news_fetcher.py`）
+- Router `/api/news`：源管理 + 文章列表 + 单篇摘要
 
-### v6.1 债务修复 — 已完成（2026-05-30）
+**前端**
+- `/news` 页面：来源筛选 + 标题搜索 + AI 解读
 
-- **Metrics dashboard admin/RBAC**：`UserDB` 增加 `role` 字段 + Alembic 迁移 `b057bf013236` + `require_admin_user` dependency
-- **Varieties detail 评论 N+1 修复**：`CommentDB.user` `joinedload` 预加载
-- **ServiceError 全局 handler**：`main.py` 注册 `service_error_handler`，业务异常映射为统一错误体
+### 前端 Sprint 2：体验优化 — 已完成（2026-06-04）
 
-### 用户设置（Settings）— 已完成（2026-05-31）
-
-- 后端 `python/models.py`：新增 `UserPreferenceDB`，扁平字段设计（theme/polling_interval_seconds/notifications_enabled/language）
-- 后端 `python/routers/settings.py`：`GET /api/settings` + `PUT /api/settings`（Patch 语义）
-- 后端 `python/routers/auth.py`：注册时自动创建默认偏好
-- 后端 `python/tests/test_settings.py`：12 个测试覆盖鉴权/默认值/隔离/更新/校验
-- Alembic 迁移：`99c6cd55a7f4`
-- pytest：**317 passed, 6 skipped**
-
-### 前端功能补齐 — 已完成（2026-06-01）
-
-- **指标导航链接**：`navigation.ts` primaryNavItems 补入「指标」，Navbar.tsx 统一从 navigation.ts 导入（消除重复定义），移动端 grid-cols 修正为 5
-- **新闻资讯页**：`app/news/page.tsx`，对接 `/api/news/sources` + `/api/news/articles`，支持来源筛选、标题搜索、相对时间、外链跳转
-- **设置页**：`app/settings/page.tsx`，对接 `/api/settings` (GET/PUT)，支持主题切换、通知开关、轮询间隔、语言选择
-- **前端日志上报闭环**：`lib/api/logging.ts` 提供 `sendFrontendLog` → `/api/log/frontend`；`sentry-lite.ts` 的 `captureException` / `captureMessage` 总是同时发送到后端；`lib/vitals.ts` 的 Web Vitals 也总是同时发送到后端
-- **合约切换历史**：`components/product/ContractRolloverPanel.tsx`，在品种详情页右侧展示，对接 `/api/contracts/rollovers`
-- **合约详情展示**：`KlineSection` 单合约模式下展示合约信息（交易所、上市/退市日期、活跃状态）
-- API 层新增：`getContractById`、`getContractRollovers`、`ContractRollover` 类型、`lib/api/settings.ts`、`lib/api/news.ts`
-
-### 前端 Sprint 1 质量修复 — 已完成（2026-06-02）
-
-- **P0-1 K线首批数据灌入**：`useKlineChart.ts` 添加 `pendingDataRef`，chart 实例创建前调用 `setData` 会缓存数据，创建完成后自动灌入
-- **P1-1 指标页鉴权加载态**：`app/metrics/page.tsx` 读取 `isLoading`，加载期显示加载态，未登录显示 `LoginRequired`（不再 router.replace）
-- **P1-2 新闻页鉴权门禁**：`app/news/page.tsx` 接入 `useAuth` + `LoginRequired`，SWR key 条件化（仅在已登录时启用）
-- **P1-3 设置偏好实际生效**：新建 `usePreferences.ts`（localStorage 缓存用户偏好）+ `DynamicToaster.tsx`（主题动态化），`swr-hooks.ts` 和 `useMarketPolling.ts` 读取用户设置的刷新间隔，隐藏未实现的语言/通知入口
-- **P1-4 K线视口重置**：`KlineChart.tsx` 接收 `resetKey` prop，变化时调用 `fitContent()`；`KlineSection.tsx` 传入 `viewportResetKey`
-- 新增 `tests/hooks/useKlineChart.test.ts` 覆盖 pending 数据灌入、直接灌入、fitContent 三个场景
-- 更新 `tests/app/metrics.page.test.tsx` 适配新的鉴权行为
-
-### 下一步推荐
-
-1. **Opinions（交易观点/日记）**：复用现有 `OpinionDB` 模型，补充 Schema + Router + Service
-2. **News 定时抓取**：将 `fetch_all_enabled_sources` 注册到 APScheduler
-3. **Agent 状态 / 权限心跳 / 提醒事件 / 工具页面**：前后端均未开发，需产品设计
-
-> 详细技术路径与优先级见 `BACKEND_FEATURE_ROADMAP.md`
-
----
-
-## 文档索引
-
-- `README.md`：面向人类的快速开始与功能概览
-- `AGENTS.md`：本文档，面向 AI 编程助手的权威上下文
-- `DATA_PIPELINE_AND_POSTGRES_GUIDE.md`：PostgreSQL 与数据流水线运维
-- `TUSHARE_POSTGRES_VERIFICATION.md`：Tushare + PostgreSQL 验证记录
-- `BACKEND_ARCHITECTURE_AUDIT_V4_READINESS_20260525.md`：后端架构审计 v4（评分 6.2/10，10 项行动建议）
-- `BACKEND_AUDIT_REPORT_v3_20260523.md`：后端审计报告 v3（评分 78/100）
-- `FRONTEND_QUALITY_AUDIT_V3_20260525.md`：前端质量审计 v3（Grade B，测试/可访问性/监控建议）
-- `python/tushare_pg_ingest/README.md`：历史数据回填脚本说明
-
----
-
-*最后更新：2026-06-02，由 AI 助手根据 master 分支当前代码整理。Sprint 1 已提交（0c809935）。*
+- **搜索防抖**（P2-1）：新建 `useDebouncedValue.ts`，products 和 news 页面搜索输入防抖 250ms，消除请求洪峰和 UI 闪烁
+- **Token 安全评估**（P2-2）：选择方案 C（保守），新建 `frontend/docs/SECURITY_RISKS.md` 记录 RISK-001（access token 存 localStorage）及后续行动项
+- **实时行情 Store 语义清晰化**（P2-3）：`realtimeStore.ts` 的 `notifyAll` 同时提供 `snapshot`（全量）和 `delta`（增量），`useRealtimeQuotes.ts` 明确区分增量合并与全量替换场景
+- **Lighthouse 端口基线修复**（P2-4）：`.lighthouse/latest.json` url 修正为 `http://127.0.0.1:3200`，与 `npm run dev` 实际端口一致
+- **验证**：`npx tsc --noEmit` 通过，`npm run lint` 通过，`useDebouncedValue.test.ts` 5 个测试通过

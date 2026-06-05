@@ -39,7 +39,8 @@ vi.mock('lightweight-charts', () => ({
 }))
 
 // mock ResizeObserver 为构造函数
-function MockResizeObserver(this: unknown, callback: ResizeObserverCallback) {
+type MockRObserverInstance = { _callback?: ResizeObserverCallback }
+function MockResizeObserver(this: MockRObserverInstance, callback: ResizeObserverCallback) {
   this._callback = callback
 }
 MockResizeObserver.prototype.observe = vi.fn()

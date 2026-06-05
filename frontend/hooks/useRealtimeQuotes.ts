@@ -29,14 +29,21 @@ export function useRealtimeQuotes(symbols: string[]): UseRealtimeQuotesResult {
       return
     }
 
-    return realtimeStore.subscribe(symbols, ({ quotes: delta, source: newSource, error: newError, loading: newLoading }) => {
+    return realtimeStore.subscribe(symbols, ({ snapshot, delta, source: newSource, error: newError, loading: newLoading }) => {
       setQuotes((prev) => {
-        if (delta.size === 0) return prev
-        const merged = new Map(prev)
-        delta.forEach((v, k) => {
-          merged.set(k, v)
-        })
-        return merged
+        if (delta.size > 0) {
+          // 正常增量更新：合并 delta
+          const merged = new Map(prev)
+          delta.forEach((v, k) => {
+            merged.set(k, v)
+          })
+          return merged
+        }
+        if (snapshot.size > 0) {
+          // 重连/错误/状态变化场景：用 snapshot 替换，确保与 store 一致
+          return new Map(snapshot)
+        }
+        return prev
       })
       setSource(newSource)
       setError(newError)
