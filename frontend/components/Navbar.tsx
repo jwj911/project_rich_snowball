@@ -8,7 +8,7 @@ import LoginModal from '@/components/auth/LoginModal'
 import RegisterModal from '@/components/auth/RegisterModal'
 import Button from '@/components/ui/Button'
 import { Bot, LogIn, LogOut } from 'lucide-react'
-import { primaryNavItems, secondaryNavGroups } from '@/components/layout/navigation'
+import { isActivePath, primaryNavItems, secondaryNavGroups } from '@/components/layout/navigation'
 
 export default function Navbar() {
   const pathname = usePathname()
@@ -195,11 +195,6 @@ export default function Navbar() {
       )}
     </>
   )
-}
-
-function isActivePath(pathname: string, href: string) {
-  if (href === '/') return pathname === '/'
-  return pathname === href || pathname.startsWith(`${href}/`)
 }
 
 function NavLink({

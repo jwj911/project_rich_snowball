@@ -147,6 +147,7 @@ npx tsc --noEmit
 
 - 搜索防抖：`products` 和 `news` 页面搜索输入使用 `useDebouncedValue`（250ms），避免请求洪峰
 - 实时行情 Store：`realtimeStore.ts` 同时提供全量 snapshot 和增量 delta，`useRealtimeQuotes` 明确区分增量合并与全量替换
+- 导航组件：`Navbar.tsx` 统一桌面/移动端导航，`navigation.ts` 集中管理导航配置与 `isActivePath`
 - 支撑/阻力标注通过 `/api/price-levels` 同步后端数据库存储，`localStorage` 仅作为降级缓存。前端错误与 Web Vitals 自动上报到后端 `/api/log/frontend`。
 
 ---

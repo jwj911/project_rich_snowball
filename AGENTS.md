@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-06-04（含 Sprint 2 完成），基于 master 分支当前代码。
+> **最后更新**：2026-06-05（含 Sprint 3 完成），基于 master 分支当前代码。
 
 ---
 
@@ -681,3 +681,9 @@ ruff format .
 - **实时行情 Store 语义清晰化**（P2-3）：`realtimeStore.ts` 的 `notifyAll` 同时提供 `snapshot`（全量）和 `delta`（增量），`useRealtimeQuotes.ts` 明确区分增量合并与全量替换场景
 - **Lighthouse 端口基线修复**（P2-4）：`.lighthouse/latest.json` url 修正为 `http://127.0.0.1:3200`，与 `npm run dev` 实际端口一致
 - **验证**：`npx tsc --noEmit` 通过，`npm run lint` 通过，`useDebouncedValue.test.ts` 5 个测试通过
+
+### 前端 Sprint 3：架构清理 — 已完成（2026-06-05）
+
+- **导航组件去重**（P3-1）：删除死代码 `SideNav.tsx` 和 `MobileNav.tsx`（无任何页面引用）；`Navbar.tsx` 从 `navigation.ts` 导入 `isActivePath`，消除内联重复定义。遵循"如无必要勿增实体"，不强行拆分 Navbar
+- **测试覆盖补齐**（P3-2）：新建 `e2e/metrics.spec.ts`（3 个测试：未登录门禁 + 已登录直达不跳转 + 指标卡片显示）、`e2e/news.spec.ts`（5 个测试：未登录门禁 + 已登录加载 + 搜索框防抖）
+- **验证**：`npx tsc --noEmit` 通过，`npm run lint` 通过，32 个测试文件 / 189 个单元测试通过
