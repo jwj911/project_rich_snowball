@@ -2,7 +2,7 @@ import { api, RealtimeQuote } from '@/lib/api'
 import { captureMessage } from '@/lib/sentry-lite'
 import { MARKET } from '@/lib/constants'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8200'
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8401'
 const SSE_RETRY_DELAY_MS = MARKET.SSE_RETRY_DELAY_MS
 const POLL_INTERVAL_MS = MARKET.SSE_FALLBACK_INTERVAL_MS
 const BATCH_INTERVAL_MS = MARKET.BATCH_INTERVAL_MS

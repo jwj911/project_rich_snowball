@@ -50,11 +50,11 @@ services:
       - ENV=production
       - ENABLE_SCHEDULER=1
       - HOST=0.0.0.0
-      - PORT=8200
+      - PORT=8401
     ports:
-      - "8200:8200"
+      - "8401:8401"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8200/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8401/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

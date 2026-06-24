@@ -1,6 +1,6 @@
 import { ApiError } from './errors'
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8200'
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8401'
 
 const DEFAULT_TIMEOUT_MS = 15_000
 

@@ -338,5 +338,5 @@ if __name__ == "__main__":
     import uvicorn
 
     host = os.getenv("HOST", "127.0.0.1")
-    port = int(os.getenv("PORT", "8200"))
+    port = int(os.getenv("PORT", "8401"))
     uvicorn.run(app, host=host, port=port, timeout_graceful_shutdown=5)

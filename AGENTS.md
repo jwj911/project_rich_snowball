@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-06-05（含 Sprint 3 完成），基于 master 分支当前代码。
+> **最后更新**：2026-06-11（基于 master 分支当前代码校验重写）
 
 ---
 
@@ -48,29 +48,29 @@
 | K 线图 | lightweight-charts | ^5.2.0 |
 | 数据获取 | SWR | ^2.4.1 |
 | 消息提示 | sonner | ^2.0.7 |
-| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest 4.1.6，约 39 个测试文件 |
-| E2E 测试 | Playwright | ^1.60.0，5 个文件（auth.setup.ts + 4 个 spec） |
+| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，33 个测试文件 |
+| E2E 测试 | Playwright | ^1.60.0，7 个文件（auth.setup.ts + 6 个 spec） |
 | 性能基线 | Lighthouse | ^13.3.0，`npm run lighthouse` |
 | 后端框架 | Python + FastAPI | Python >=3.11，FastAPI 0.136.3 |
 | 后端服务器 | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.25 |
 | 数据库 | SQLite / PostgreSQL | SQLite 开发零配置；PG 16 通过 compose 提供，映射端口 15432 |
-| 迁移 | Alembic | 1.13.1，当前共 45 个迁移文件 |
+| 迁移 | Alembic | 1.13.1，当前 46 个迁移文件 |
 | 认证 | JWT + OAuth2 密码流 | PyJWT 2.13.0，passlib bcrypt，access token 默认 15 分钟，refresh token 默认 7 天 |
 | 数据校验 | Pydantic v2 | 2.9.0 |
 | 数据采集 | Mock / AkShare / Tushare | `DATA_SOURCE` 控制，非生产可降级 Mock |
 | 定时任务 | APScheduler | BackgroundScheduler |
 | 缓存 | Redis 优先 + 内存 LRU 降级 | `services/cache.py` 线程安全实现；Redis 可接入，内存作为降级 |
 | 可观测性 | Prometheus 风格指标 + structlog 结构化日志 | `services/metrics.py` + `services/logging_config.py` |
-| 限流 | 内存滑动窗口 | `middleware/rate_limit.py`，覆盖所有写入端点 |
+| 限流 | 内存/Redis 滑动窗口 | `middleware/rate_limit.py`，覆盖所有写入端点 |
 
 ---
 
 ## 真实端口与环境
 
-- 后端 `python/main.py` 默认监听 `127.0.0.1:8200`，由 `HOST` / `PORT` 环境变量覆盖。
+- 后端 `python/main.py` 默认监听 `127.0.0.1:8401`，由 `HOST` / `PORT` 环境变量覆盖。
 - 前端 `npm run dev` 实际执行 `next dev -H 127.0.0.1 -p 3200`。
-- 前端 API 默认值在 `frontend/lib/api/transport.ts`：`NEXT_PUBLIC_API_BASE || http://127.0.0.1:8200`。
+- 前端 API 默认值在 `frontend/lib/api/request.ts`：`NEXT_PUBLIC_API_BASE || http://127.0.0.1:8401`。
 - CORS 默认允许 `localhost/127.0.0.1` 的 `3000` 和 `3200`。
 - `docker-compose.yml` 中 PostgreSQL 映射为 `15432:5432`，不是 5432。
 - Redis 映射为 `6379:6379`。
@@ -82,7 +82,7 @@
 ```text
 project_rich_snowball/
 ├── frontend/
-│   ├── app/
+│   ├── app/                        # 11 个页面路由
 │   │   ├── layout.tsx              # 根布局，包裹 AuthProvider + ErrorBoundary + WebVitalsReporter
 │   │   ├── page.tsx                # 行情工作台，需登录
 │   │   ├── products/page.tsx       # 行情中心，搜索/筛选/排序
@@ -96,7 +96,7 @@ project_rich_snowball/
 │   │   ├── portfolio/page.tsx      # 模拟持仓
 │   │   ├── opinions/page.tsx       # 交易观点
 │   │   └── globals.css
-│   ├── components/
+│   ├── components/                 # 50+ 个组件文件
 │   │   ├── auth/                   # AuthProvider、LoginModal、RegisterModal、LoginRequired
 │   │   ├── layout/AppShell.tsx     # 全局应用壳，左侧导航偏移
 │   │   ├── market/                 # QuoteCard/Table、PriceChange、PriceFlash、TechnicalAnalysisPanel
@@ -108,19 +108,28 @@ project_rich_snowball/
 │   │   ├── opinion/                # 观点卡片、创建/编辑表单
 │   │   ├── metrics/                # 运营指标图表
 │   │   └── Navbar.tsx
-│   ├── hooks/                      # 16 个自定义 hook
+│   ├── hooks/                      # 15 个自定义 hook
 │   │   ├── useMarketPolling.ts     # 轮询和 heartbeat 状态
 │   │   ├── usePriceLevels.ts       # 价位标注后端同步与 localStorage 降级
 │   │   ├── useRealtimeQuotes.ts    # 实时行情 hook
 │   │   ├── useProductDetail.ts     # 品种详情数据获取
 │   │   ├── useProductKline.ts      # K 线数据获取
+│   │   ├── useProductListRealtime.ts # 品种列表实时监听
+│   │   ├── useProductPolling.ts    # 品种轮询
 │   │   ├── useWatchlistRealtime.ts # 自选实时监听
 │   │   ├── useDebouncedValue.ts    # 通用防抖（搜索输入等）
+│   │   ├── useKlineChart.ts        # K 线图表交互
+│   │   ├── useKlinePriceLines.ts   # K 线价格线管理
+│   │   ├── usePriceLines.ts        # 价格线通用 hook
+│   │   ├── useAnnotationMenu.ts    # 标注菜单交互
+│   │   ├── useMediaQuery.ts        # 响应式断点
+│   │   ├── usePreferences.ts       # 用户偏好设置
 │   │   └── ...
 │   ├── lib/
 │   │   ├── api/                    # 模块化 API 客户端
 │   │   │   ├── client.ts           # ApiService 统一入口
 │   │   │   ├── transport.ts        # RequestCore 底层 fetch + token 管理
+│   │   │   ├── request.ts          # 请求封装与拦截
 │   │   │   ├── auth.ts             # AuthCore 登录/注册/token 刷新
 │   │   │   ├── market.ts           # 行情/K线/合约 API
 │   │   │   ├── workspace.ts        # 工作区/标注/自选 API
@@ -134,13 +143,14 @@ project_rich_snowball/
 │   │   │   ├── metrics.ts          # 运营指标 API
 │   │   │   ├── logging.ts          # 前端日志上报
 │   │   │   ├── types.ts            # 共享类型定义
-│   │   │   └── errors.ts           # API 错误类型
+│   │   │   ├── errors.ts           # API 错误类型
+│   │   │   └── index.ts            # API 模块统一导出
 │   │   ├── format.ts               # 价格/日期格式化（含 formatPricePayload）
 │   │   ├── vitals.ts               # Web Vitals 上报
 │   │   ├── sentry-lite.ts          # 轻量异常捕获，同时上报后端
 │   │   ├── swr-hooks.ts            # SWR 封装 hook（含 useMarketStatus）
 │   │   └── realtimeStore.ts        # SSE 实时行情状态管理
-│   ├── tests/                      # Vitest 单元测试（约 39 个文件）
+│   ├── tests/                      # Vitest 单元测试（33 个测试文件）
 │   │   ├── setup.ts
 │   │   ├── components/             # 组件测试
 │   │   ├── hooks/                  # Hook 测试
@@ -150,9 +160,12 @@ project_rich_snowball/
 │       ├── auth.spec.ts            # 认证流程
 │       ├── market.spec.ts          # 行情页面
 │       ├── product-detail.spec.ts  # 品种详情
+│       ├── metrics.spec.ts         # 运营指标面板
+│       ├── news.spec.ts            # 新闻资讯
 │       └── performance.spec.ts     # 性能断言（已迁移到 Lighthouse）
 │
 ├── python/
+│   ├── errors.py                   # ErrorCode(StrEnum) 统一业务错误码
 │   ├── main.py                     # FastAPI 入口、lifespan、CORS、异常处理、Prometheus 中间件
 │   ├── config.py                   # .env 加载、SECRET_KEY/生产环境校验、所有环境变量默认值
 │   ├── models.py                   # SQLAlchemy 模型，28 张表
@@ -202,6 +215,7 @@ project_rich_snowball/
 │   │   ├── domain/                 # 领域服务层
 │   │   │   ├── repositories/       # 数据访问层
 │   │   │   ├── comment_service.py
+│   │   │   ├── opinion_service.py  # 交易观点领域服务（试点）
 │   │   │   ├── price_level_service.py
 │   │   │   ├── watchlist_service.py
 │   │   │   ├── workspace_service.py
@@ -211,13 +225,13 @@ project_rich_snowball/
 │   │   └── rate_limit.py           # 限流中间件
 │   ├── tushare_pg_ingest/          # 独立历史数据回填脚本
 │   ├── scripts/                    # 一次性采集/验证/回填脚本
-│   ├── tests/                      # pytest 测试（41 个测试文件）
-│   └── alembic/versions/           # 45 个迁移脚本
+│   ├── tests/                      # pytest 测试（40 个测试文件）
+│   ├── alembic/versions/           # 46 个迁移脚本
+│   └── pyproject.toml              # Ruff + mypy 配置
 │
-├── docker-compose.yml              # PostgreSQL 16 + Redis 7，backend 服务已注释
-├── Dockerfile                      # python:3.11-slim，非 root 用户
+├── docker-compose.yml              # PostgreSQL 16 + Redis 7 + backend 服务
+├── python/Dockerfile               # python:3.11-slim，非 root 用户
 ├── .env.example                    # 环境变量模板
-├── pyproject.toml                  # Ruff + mypy 配置
 ├── README.md                       # 面向人类的快速开始
 └── ...                             # 审计/评审文档
 ```
@@ -251,9 +265,10 @@ project_rich_snowball/
 - JWT 解码捕获 PyJWT 异常，不要裸 `except:`。
 - 评论内容通过 Pydantic validator 和 `html.escape()` 做 XSS 过滤，长度限制在 schema 中维护。
 - 生产环境约束在 `config.py`：必须设置强 `SECRET_KEY`（>=32 字符），且不允许 SQLite。
-- 全局限流中间件覆盖所有写入端点（POST/PUT/PATCH/DELETE），默认 60 秒窗口内 100 请求。
+- 全局限流中间件覆盖所有写入端点（POST/PUT/PATCH/DELETE），默认 60 秒窗口内 100 请求；高成本 GET（`/api/realtime/batch`、`/api/realtime/stream`）有独立限流窗口。
 - 每个请求都有 `X-Request-ID`，通过 `request_id_middleware` 注入，structlog 上下文自动绑定。
 - Prometheus 指标通过 `prometheus_middleware` 自动收集，排除 `/metrics`、`/docs`、`/redoc`、`/openapi.json`。
+- **错误码契约**（2026-06-04）：`python/errors.py` 定义 `ErrorCode(StrEnum)`，30+ 稳定业务错误码；`ServiceError` 及其子类（`NotFoundError`、`ForbiddenError` 等）携带 `code` 参数；全局 exception handler 统一返回 `{code, message}`。新增 router 业务错误优先使用 `ServiceError` 而非裸 `HTTPException`。
 
 ---
 
@@ -315,6 +330,18 @@ alembic upgrade head
 - `ingest_commission_9qihuo.py`：九期网/AKShare 手续费与保证金
 
 运行前阅读 `python/tushare_pg_ingest/README.md`。
+
+### 后端文档目录
+
+`python/docs/` 存放架构决策、运维手册和 API 契约文档：
+- `api_error_contract.md`：统一业务错误码契约（`errors.py` 配套文档）
+- `kline_partitioning.md`：K 线表 LIST+RANGE 分区策略与冷数据归档方案
+- `sse_scaling_strategy.md`：SSE 单实例限制、sticky session、cookie-only 鉴权部署约束
+- `observability_runbook.md`：可观测性运维手册（指标、日志、告警）
+- `postgres_acceptance.md` / `postgres_backup_runbook.md`：PostgreSQL 验收与备份手册
+- `productdb_sunset_plan.md`：ProductDB 退场完整计划与验证清单
+- `settings_api.md`：用户偏好设置 API 设计文档
+- `kline_benchmark_20260529.md`：K 线性能基准测试记录
 
 ---
 
@@ -403,7 +430,7 @@ ruff format .
 
 ## 测试现状
 
-后端已有 pytest（41 个测试文件）：
+后端已有 pytest（40 个测试文件，约 389 个测试函数）：
 - `test_p0_fixes.py`
 - `test_phase1_3_integration.py`
 - `test_cors_variable.py`
@@ -428,6 +455,7 @@ ruff format .
 - `test_ondelete_cascade.py`
 - `test_products_query.py`
 - `test_rate_limit_middleware.py`
+- `test_rate_limit_redis.py`
 - `test_refresh_token.py`
 - `test_trading_date.py`
 - `test_csrf_protection.py`
@@ -445,8 +473,8 @@ ruff format .
 - `test_password_strength.py`
 
 前端测试：
-- Vitest 单元测试：`frontend/tests/` 下约 39 个测试文件
-- Playwright E2E：`frontend/e2e/` 下 5 个文件（auth.setup.ts + 4 个 spec）
+- Vitest 单元测试：`frontend/tests/` 下 33 个测试文件
+- Playwright E2E：`frontend/e2e/` 下 7 个文件（auth.setup.ts + 6 个 spec）
 - Lighthouse 性能基线：`npm run lighthouse` 测量首页未登录态 Web Vitals（FCP/LCP/TBT/CLS/SI），报告输出到 `.lighthouse/latest.json`
 - 注意：`npm run test` 在 Windows 上可能因 Vitest 路径解析问题偶发失败（已知问题，见 `FRONTEND_QUALITY_AUDIT_V3_20260525.md`）
 
@@ -474,7 +502,8 @@ ruff format .
 | `RATE_LIMIT_MAX_REQUESTS` | 否 | `100` | 限流窗口内最大请求数 |
 | `PIPELINE_COMMIT_BATCH_SIZE` | 否 | `50` | Pipeline 批量提交大小 |
 | `CIRCUIT_FAILURE_THRESHOLD` | 否 | `0.5` | 熔断器失败阈值比例 |
-| `NEXT_PUBLIC_API_BASE` | 前端可选 | `http://127.0.0.1:8200` | 前端请求后端地址 |
+| `REDIS_URL` | 否 | — | Redis 连接串，留空则使用内存 LRU 降级 |
+| `NEXT_PUBLIC_API_BASE` | 前端可选 | `http://127.0.0.1:8401` | 前端请求后端地址 |
 | `OPENAI_API_KEY` | AI 可选 | — | OpenAI 兼容 API Key |
 | `OPENAI_BASE_URL` | AI 可选 | `https://api.openai.com/v1` | OpenAI 兼容 Base URL |
 | `OPENAI_MODEL` | AI 可选 | `gpt-4o-mini` | 对话模型 |
@@ -499,33 +528,35 @@ ruff format .
 - 导入任何依赖 `config.py` 的模块前必须有 `SECRET_KEY`，测试中通常用环境变量设置。
 - README 旧说法里的 `python/init_data.py` 已过时，主流程使用 `data_collector/init_mock_data.py`。
 - 前端端口不是默认 3000，而是 `127.0.0.1:3200`。
-- 后端端口不是 8000，而是 `127.0.0.1:8200`，除非 `HOST` / `PORT` 覆盖。
+- 后端端口不是 8000，而是 `127.0.0.1:8401`，除非 `HOST` / `PORT` 覆盖。
 - `docker-compose.yml` 的 PostgreSQL 暴露端口是 15432。
 - Redis 服务可以启动，缓存层已实现 Redis 优先 + 内存 LRU 降级。
 - `node_modules`、`.next`、`venv`、数据库文件和日志可能在工作区中产生大量噪声，提交时不要顺手纳入。
 - 当前仓库可能已有用户或其他助手留下的未提交变更，修改前后都要用 `git status --short` 观察，不要回滚无关改动。
 - Windows 上 `python/main.py` 已 patch `asyncio.proactor_events._ProactorBasePipeTransport._call_connection_lost` 以抑制无害的 `ConnectionResetError 10054` 噪音，不要移除此 patch。
+- **错误码契约**：新增业务错误优先使用 `python/errors.py` 中的 `ErrorCode` 和 `ServiceError`，避免裸 `HTTPException` 导致前端无法稳定分支处理。
+- **docker-compose backend**：backend 服务已在 compose 中启用（2026-06-05），启动 `docker-compose up -d` 会同时拉起 postgres、redis 和 backend。
 
 ---
 
 ## CI/CD 与容器化
 
 - **GitHub Actions**：
-  - `.github/workflows/backend-ci.yml`：pytest + ruff + pip-audit，使用 `requirements.lock`，Python 3.12
+  - `.github/workflows/backend-ci.yml`：pytest + ruff + pip-audit + Alembic 迁移一致性检查 + pytest-cov（阈值 30%），使用 `requirements.lock`，Python 3.12，CI 内嵌 PostgreSQL service
   - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test` → Lighthouse 基线
   - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发
 
 - **Dockerfile**：`python/Dockerfile`
   - 基于 `python:3.11-slim`
   - 创建非 root 用户 `app`
-  - 健康检查：`curl -f http://localhost:8200/health || exit 1`
-  - 默认 CMD 为 `uvicorn main:app --host 0.0.0.0 --port 8200`
+  - 健康检查：`curl -f http://localhost:8401/health || exit 1`
+  - 默认 CMD 为 `uvicorn main:app --host 0.0.0.0 --port 8401`
   - 生产建议使用 gunicorn + uvicorn worker
 
 - **docker-compose.yml**：
   - `postgres`：PostgreSQL 16-alpine，端口 15432，用户 `futures`/`futures123`
   - `redis`：Redis 7-alpine，端口 6379，AOF 持久化
-  - `backend`：**已注释掉**，尚未在 compose 中启用
+  - `backend`：FastAPI 服务，端口 8401，依赖 postgres 和 redis，带健康检查
 
 ---
 
@@ -536,7 +567,8 @@ ruff format .
   - 忽略：E501（由 line-length 控制）
   - Docstring 风格：Google
   - 格式化：双引号字符串，空格缩进
-  - mypy：py311，但排除了 `data_collector/`、`routers/`、`models.py`、`tests/`、`alembic/` 等目录（SQLAlchemy 1.x 类型误报兼容策略）
+  - mypy：py311，但排除了 `data_collector/`（除 pipeline_tasks 外）、`routers/`、`models.py`、`tests/`、`alembic/` 等目录（SQLAlchemy 1.x 类型误报兼容策略）
+  - 配置位置：`python/pyproject.toml`
 
 - **前端**：ESLint（`next/core-web-vitals`），无 Prettier 配置
   - Tailwind 自定义颜色：`up`（红色系）、`down`（绿色系）反映中国市场惯例
@@ -687,3 +719,21 @@ ruff format .
 - **导航组件去重**（P3-1）：删除死代码 `SideNav.tsx` 和 `MobileNav.tsx`（无任何页面引用）；`Navbar.tsx` 从 `navigation.ts` 导入 `isActivePath`，消除内联重复定义。遵循"如无必要勿增实体"，不强行拆分 Navbar
 - **测试覆盖补齐**（P3-2）：新建 `e2e/metrics.spec.ts`（3 个测试：未登录门禁 + 已登录直达不跳转 + 指标卡片显示）、`e2e/news.spec.ts`（5 个测试：未登录门禁 + 已登录加载 + 搜索框防抖）
 - **验证**：`npx tsc --noEmit` 通过，`npm run lint` 通过，32 个测试文件 / 189 个单元测试通过
+
+### 后端 Roadmap V3 阶段四：扩展性与限流 — 已完成（2026-06-05）
+
+- **高成本 GET 限流**：`/api/realtime/batch`（60s/100req）、`/api/realtime/stream`（60s/30req）增加独立限流窗口
+- **SSE 独立限流**：按 IP 限流，超限时返回 429 而非静默断开
+- **登录/注册限流 Redis 化**：与全局限流 middleware 统一，使用 `check_rate_limit`（Redis 优先+内存降级）；action key 独立（`auth:register`/`auth:login`）
+- **Redis 空值标记修复**：用常量字符串 `__CACHE_EMPTY__` 替代 dict 对象，穿透防护在 Redis 路径稳定
+- **SSE query token 移除**：标记 `deprecated=True`；鉴权改为 cookie 优先，token 仅降级兼容
+- **测试**：新增 `test_rate_limit_redis.py`（7 个测试），383 passed, 6 skipped, 0 failed
+
+### 后端 Roadmap V3 阶段五：CI/运维与架构优化 — 已完成（2026-06-05）
+
+- **CI 增强**：backend-ci.yml 增加 Alembic 迁移一致性检查（CI 内嵌 PostgreSQL service）+ pytest-cov（阈值 30%）
+- **运维文档补齐**：`python/docs/sse_scaling_strategy.md`（SSE 部署约束）、`python/docs/kline_partitioning.md`（K 线表分区策略）
+- **交易日历预测告警**：`services/trading_calendar.py` 使用预测年份时输出 warning 日志
+- **Service 层试点**：`routers/opinions.py` 提取 `OpinionService`，router 仅负责 HTTP 契约转换
+- **compose backend service**：取消 backend 注释，配置健康检查、环境变量、端口映射
+- **测试**：383 passed, 6 skipped, 0 failed

@@ -7,7 +7,7 @@
 ## 当前状态
 
 - 前端：Next.js 14 App Router，默认开发地址 `http://127.0.0.1:3200`
-- 后端：FastAPI，默认开发地址 `http://127.0.0.1:8200`
+- 后端：FastAPI，默认开发地址 `http://127.0.0.1:8401`
 - 数据库：开发可用 SQLite；PostgreSQL 16 通过 `docker-compose.yml` 提供
 - K 线：前端使用 `lightweight-charts`，后端支持 `1m/5m/15m/30m/1h/1d/1w`
 - 访问控制：主要页面需要登录，未登录时显示登录引导
@@ -46,7 +46,7 @@ project_rich_snowball/
 │   └── lib/                     # API 客户端与格式化工具
 │
 ├── python/
-│   ├── main.py                  # FastAPI 应用入口，默认 127.0.0.1:8200
+│   ├── main.py                  # FastAPI 应用入口，默认 127.0.0.1:8401
 │   ├── config.py                # .env 加载、安全配置、生产环境约束
 │   ├── models.py                # SQLAlchemy 模型
 │   ├── routers/                 # auth/comments/varieties/kline/realtime/health/price-levels/settings/news
@@ -77,13 +77,13 @@ DATA_SOURCE=mock
 ENABLE_SCHEDULER=1
 ENV=development
 HOST=127.0.0.1
-PORT=8200
+PORT=8401
 ```
 
 说明：
 - 生产环境必须使用长度至少 32 的 `SECRET_KEY`，且不能使用 SQLite。
 - 后端优先读取 `CORS_ORIGINS`，也兼容旧变量 `ALLOW_ORIGINS`。
-- 前端 API 地址由 `NEXT_PUBLIC_API_BASE` 控制，代码默认是 `http://127.0.0.1:8200`。
+- 前端 API 地址由 `NEXT_PUBLIC_API_BASE` 控制，代码默认是 `http://127.0.0.1:8401`。
 - 若使用 `DATA_SOURCE=tushare`，需要提供 `TUSHARE_TOKEN`。
 
 ---
@@ -99,10 +99,10 @@ python main.py
 ```
 
 默认服务地址：
-- API: `http://127.0.0.1:8200`
-- Swagger UI: `http://127.0.0.1:8200/docs`
-- ReDoc: `http://127.0.0.1:8200/redoc`
-- 健康检查: `http://127.0.0.1:8200/health/ready`
+- API: `http://127.0.0.1:8401`
+- Swagger UI: `http://127.0.0.1:8401/docs`
+- ReDoc: `http://127.0.0.1:8401/redoc`
+- 健康检查: `http://127.0.0.1:8401/health/ready`
 
 启动时会执行：
 - `init_db()`：非生产环境自动建表，SQLite 启用 WAL

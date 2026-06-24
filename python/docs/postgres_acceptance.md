@@ -99,7 +99,7 @@ $env:SECRET_KEY="test-secret-key-for-local-dev-only-must-be-32-characters-long"
 另开终端访问 metrics：
 
 ```powershell
-curl http://127.0.0.1:8200/metrics | findstr db_pool
+curl http://127.0.0.1:8401/metrics | findstr db_pool
 ```
 
 预期看到：

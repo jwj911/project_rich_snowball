@@ -1,7 +1,7 @@
 # 后端 API 参考（面向前端）
 
 > 本文档由 FastAPI OpenAPI schema 自动生成，日期：2026-06-01。
-> 所有端点前缀为 `http://127.0.0.1:8200`（或 `NEXT_PUBLIC_API_BASE` 配置值）。
+> 所有端点前缀为 `http://127.0.0.1:8401`（或 `NEXT_PUBLIC_API_BASE` 配置值）。
 
 ---
 
