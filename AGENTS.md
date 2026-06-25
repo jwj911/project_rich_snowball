@@ -821,7 +821,7 @@ ruff format .
 
 以下问题已被识别，但在当前阶段作为**风险接受项**处理，不影响当前产品形态上线；后续可按业务增长逐步推进：
 
-1. **API 版本治理**：当前所有接口统一在 `/api/` 前缀下，无 `/api/v1` 版本隔离。后续若出现 breaking change，建议通过网关路由或新增版本前缀治理。
+1. ~~**API 版本治理**：当前所有接口统一在 `/api/` 前缀下，无 `/api/v1` 版本隔离。~~ **已修复（2026-06-24）**：新增 `ApiVersionMiddleware`，`/api/v1/*` 透明映射到 `/api/*`，`/api/` 继续兼容；前端可逐步迁移，详见 `BACKEND_API_VERSIONING_GUIDE.md`。
 2. **`kline_data` 表分区/归档**：K 线数据目前单表存储，PostgreSQL 大数据量场景下需按 `trading_time` + `period` 做 range partition 并冷数据归档。方案已记录在 `python/docs/kline_partitioning.md`。
 3. **RSS fetch 后台化**：~~`/api/news/sources/{id}/fetch` 在 API 请求内同步执行，慢源可能导致请求超时。~~ **已修复（2026-06-24）**：手动触发接口改为 `BackgroundTasks` 异步执行。
 4. ~~**自动备份/恢复演练**：`python/docs/postgres_backup_runbook.md` 已提供手动 runbook，但尚未自动化。~~ **已修复（2026-06-24）**：新增 `python/scripts/backup_postgres.py`（逻辑/物理备份 + 过期清理）与 `python/scripts/restore_postgres.py`（恢复演练 + 核心表行数校验），支持 `DATABASE_URL` / `PG*` 环境变量与 `--dry-run`。

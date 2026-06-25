@@ -49,6 +49,7 @@ from services.logging_config import setup_logging
 # 最早初始化结构化日志（必须在其他模块导入前完成，确保全链路日志一致）
 setup_logging()
 
+from middleware.api_version import ApiVersionMiddleware  # noqa: E402
 from middleware.rate_limit import _is_trusted_proxy, rate_limit_middleware  # noqa: E402
 from routers import (  # noqa: E402
     auth,
@@ -226,6 +227,11 @@ async def request_id_middleware(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
     return response
+
+
+# API 版本治理：为 /api/* 提供 /api/v1/* 别名。
+# 该中间件注册在最外层，确保后续所有中间件和 router 都能看到重写后的路径。
+app.add_middleware(ApiVersionMiddleware)
 
 
 @app.middleware("http")
