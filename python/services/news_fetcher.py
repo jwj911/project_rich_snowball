@@ -19,7 +19,7 @@ import feedparser
 import httpx
 from sqlalchemy.orm import Session
 
-from models import NewsArticleDB, NewsSourceDB
+from models import NewsArticleDB, NewsSourceDB, SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -146,9 +146,7 @@ def fetch_source(source: NewsSourceDB, db: Session) -> int:
 
         # 数据库去重：同一 source + url 已存在则跳过
         exists = (
-            db.query(NewsArticleDB.id)
-            .filter(NewsArticleDB.source_id == source.id, NewsArticleDB.url == url)
-            .first()
+            db.query(NewsArticleDB.id).filter(NewsArticleDB.source_id == source.id, NewsArticleDB.url == url).first()
         )
         if exists:
             continue
@@ -183,3 +181,40 @@ def fetch_all_enabled_sources(db: Session) -> dict[int, int]:
     for source in sources:
         results[source.id] = fetch_source(source, db)
     return results
+
+
+def fetch_source_background(source_id: int) -> None:
+    """在后台执行单个 RSS 源抓取。
+
+    供 API 端点通过 FastAPI BackgroundTasks 调用，避免阻塞 HTTP 响应。
+    函数内部自行创建数据库会话，不继承调用方 session。
+    """
+    db = SessionLocal()
+    try:
+        source = db.get(NewsSourceDB, source_id)
+        if source is None:
+            logger.warning("rss_background_source_not_found", extra={"source_id": source_id})
+            return
+        if not source.is_enabled:
+            logger.info("rss_background_source_disabled", extra={"source_id": source_id})
+            return
+        fetch_source(source, db)
+    except Exception:
+        logger.exception("rss_background_source_failed", extra={"source_id": source_id})
+    finally:
+        db.close()
+
+
+def fetch_all_enabled_sources_background() -> None:
+    """在后台执行所有启用 RSS 源的抓取。
+
+    供 API 端点通过 FastAPI BackgroundTasks 调用，避免阻塞 HTTP 响应。
+    函数内部自行创建数据库会话，不继承调用方 session。
+    """
+    db = SessionLocal()
+    try:
+        fetch_all_enabled_sources(db)
+    except Exception:
+        logger.exception("rss_background_fetch_all_failed")
+    finally:
+        db.close()

@@ -13,6 +13,7 @@ os.environ["ENABLE_SCHEDULER"] = "0"
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models import NewsArticleDB, NewsSourceDB
+from services.news_fetcher import fetch_source
 
 
 class TestNewsSourcesRead:
@@ -37,7 +38,9 @@ class TestNewsSourcesRead:
         """用户只能看到自己添加的源和内置源。"""
         db_session.add(NewsSourceDB(name="内置", url="http://builtin/rss", is_enabled=True, is_builtin=True))
         # user_id=2 是另一个测试用户，不是当前登录用户
-        db_session.add(NewsSourceDB(name="别人的", url="http://other/rss", is_enabled=True, is_builtin=False, user_id=2))
+        db_session.add(
+            NewsSourceDB(name="别人的", url="http://other/rss", is_enabled=True, is_builtin=False, user_id=2)
+        )
         db_session.commit()
 
         r = client.get("/api/news/sources", headers=auth_headers)
@@ -108,7 +111,9 @@ class TestNewsArticlesRead:
         db_session.add(NewsArticleDB(source_id=s.id, title="旧文章", url="http://a.com/1", published_at=now))
         db_session.add(
             NewsArticleDB(
-                source_id=s.id, title="新文章", url="http://a.com/2",
+                source_id=s.id,
+                title="新文章",
+                url="http://a.com/2",
                 published_at=datetime(2099, 1, 1, tzinfo=UTC),
             )
         )
@@ -137,6 +142,7 @@ class TestNewsSourceUser:
     def test_user_delete_own_source(self, client, auth_headers, db_session):
         """用户可删除自己添加的源。"""
         from models import UserDB
+
         user = db_session.query(UserDB).filter(UserDB.username == "integration_tester").first()
         s = NewsSourceDB(name="我的源", url="http://my.com/rss", user_id=user.id)
         db_session.add(s)
@@ -262,15 +268,20 @@ class TestNewsFetch:
         assert r.status_code == 404
 
     def test_fetch_unsafe_url_blocked(self, client, admin_headers, db_session):
-        """抓取内网 URL 时服务层应安全拦截，返回 0 且不抛出 500。"""
+        """抓取内网 URL 时服务层应安全拦截，后台任务不抛出 500，错误计数增加。"""
         s = NewsSourceDB(name="内网源", url="http://192.168.1.1/rss", is_enabled=True)
         db_session.add(s)
         db_session.commit()
 
         r = client.post(f"/api/news/sources/{s.id}/fetch", headers=admin_headers)
         assert r.status_code == 200
-        assert r.json() == 0
-        # 错误计数应增加
+        data = r.json()
+        assert data["status"] == "accepted"
+        assert data["source_id"] == s.id
+
+        # 后台任务使用独立 session，测试 fixture 的 transaction 隔离导致其无法读取未提交数据。
+        # 这里直接调用同步 fetch_source 验证业务逻辑：错误计数应增加。
+        fetch_source(s, db_session)
         db_session.refresh(s)
         assert s.fetch_error_count >= 1
 
@@ -293,15 +304,18 @@ class TestNewsFetch:
         fake_feed.bozo_exception = None
 
         # mock httpx 抓取层，直接返回空 XML 字符串，然后 mock feedparser 解析结果
-        monkeypatch.setattr(
-            "services.news_fetcher._fetch_rss_content", lambda url: "<rss></rss>"
-        )
+        monkeypatch.setattr("services.news_fetcher._fetch_rss_content", lambda url: "<rss></rss>")
         monkeypatch.setattr("services.news_fetcher.feedparser.parse", lambda content: fake_feed)
 
         r = client.post(f"/api/news/sources/{s.id}/fetch", headers=admin_headers)
         assert r.status_code == 200
-        assert r.json() == 1
+        data = r.json()
+        assert data["status"] == "accepted"
+        assert data["source_id"] == s.id
 
+        # 后台任务使用独立 session，测试 fixture 的 transaction 隔离导致其无法读取未提交数据。
+        # 这里直接调用同步 fetch_source 验证业务逻辑：文章应成功入库。
+        fetch_source(s, db_session)
         article = db_session.query(NewsArticleDB).filter(NewsArticleDB.source_id == s.id).first()
         assert article is not None
         assert article.title == "Mock 新闻"
@@ -324,11 +338,17 @@ class TestNewsFetch:
         fake_feed.entries = [fake_entry, fake_entry]
         fake_feed.bozo_exception = None
 
-        monkeypatch.setattr(
-            "services.news_fetcher._fetch_rss_content", lambda url: "<rss></rss>"
-        )
+        monkeypatch.setattr("services.news_fetcher._fetch_rss_content", lambda url: "<rss></rss>")
         monkeypatch.setattr("services.news_fetcher.feedparser.parse", lambda content: fake_feed)
 
         r = client.post(f"/api/news/sources/{s.id}/fetch", headers=admin_headers)
         assert r.status_code == 200
-        assert r.json() == 1
+        data = r.json()
+        assert data["status"] == "accepted"
+        assert data["source_id"] == s.id
+
+        # 后台任务使用独立 session，测试 fixture 的 transaction 隔离导致其无法读取未提交数据。
+        # 这里直接调用同步 fetch_source 验证业务逻辑：同一 URL 去重后只入库一条。
+        fetch_source(s, db_session)
+        articles = db_session.query(NewsArticleDB).filter(NewsArticleDB.source_id == s.id).all()
+        assert len(articles) == 1

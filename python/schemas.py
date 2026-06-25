@@ -337,6 +337,7 @@ class WorkspaceSummary(BaseModel):
 
 # ========== Contract / Rollover schemas ==========
 
+
 class ContractResponse(BaseModel):
     id: int
     ts_code: str
@@ -373,6 +374,7 @@ class ContinuousKlineResponse(KlineResponse):
 
 # ========== Batch Price Levels ==========
 
+
 class PriceLevelBatchItem(BaseModel):
     """批量导入价位标注的单项模型。
 
@@ -406,6 +408,7 @@ class PriceLevelBatchResponse(BaseModel):
 
 # ========== Variety Fee ==========
 
+
 class VarietyFeeResponse(BaseModel):
     symbol: str
     name: str | None
@@ -422,6 +425,7 @@ class VarietyFeeResponse(BaseModel):
 
 
 # ========== Trading Calendar / Market Status ==========
+
 
 class TradingCalendarEntry(BaseModel):
     trade_date: dt
@@ -447,6 +451,7 @@ class MarketStatusResponse(BaseModel):
 
 
 # ========== Frontend Logs ==========
+
 
 def _validate_payload_structure(v: dict) -> dict:
     """校验 payload 结构：深度不超过 3，key 数不超过 20。"""
@@ -525,6 +530,7 @@ class FrontendLogResponse(BaseModel):
     def _parse_payload_json(cls, v):
         if isinstance(v, str):
             import json
+
             try:
                 return json.loads(v)
             except (json.JSONDecodeError, TypeError):
@@ -580,6 +586,7 @@ class NewsSourceBase(BaseModel):
 
 class NewsSourceCreate(NewsSourceBase):
     """创建新闻源请求。"""
+
     pass
 
 
@@ -622,6 +629,14 @@ class NewsArticleResponse(BaseModel):
     fetched_at: dt
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class NewsFetchTaskResponse(BaseModel):
+    """RSS 抓取任务提交响应。"""
+
+    status: str = Field(default="accepted")
+    message: str
+    source_id: int | None = Field(default=None)
 
 
 class OpinionCreate(BaseModel):
@@ -704,7 +719,6 @@ class OpinionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-
 class PriceAlertCreate(BaseModel):
     """创建价格预警请求。"""
 
@@ -745,7 +759,6 @@ class PriceAlertResponse(BaseModel):
     created_at: dt
 
     model_config = ConfigDict(from_attributes=True)
-
 
 
 class TradeRecordCreate(BaseModel):
@@ -796,7 +809,6 @@ class TradeRecordResponse(BaseModel):
     created_at: dt
 
     model_config = ConfigDict(from_attributes=True)
-
 
 
 class ChatMessageCreate(BaseModel):

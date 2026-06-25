@@ -6,15 +6,21 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query  # noqa: F401
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import desc, or_
 from sqlalchemy.orm import Session
 
 from dependencies import get_current_user_dependency, get_db, require_admin_user
 from models import NewsArticleDB, NewsSourceDB, UserDB
-from schemas import NewsArticleResponse, NewsSourceCreate, NewsSourceResponse, NewsSourceUserCreate
+from schemas import (
+    NewsArticleResponse,
+    NewsFetchTaskResponse,
+    NewsSourceCreate,
+    NewsSourceResponse,
+    NewsSourceUserCreate,
+)
 from services.ai_chat import summarize_article_sync
-from services.news_fetcher import fetch_all_enabled_sources, fetch_source
+from services.news_fetcher import fetch_all_enabled_sources_background, fetch_source_background
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/news", tags=["新闻资讯"])
@@ -23,6 +29,7 @@ router = APIRouter(prefix="/api/news", tags=["新闻资讯"])
 # ---------------------------------------------------------------------------
 # 公开/用户端点
 # ---------------------------------------------------------------------------
+
 
 @router.get("/sources", response_model=list[NewsSourceResponse])
 def list_news_sources(
@@ -59,12 +66,7 @@ def list_news_articles(
         query = query.filter(NewsArticleDB.source_id == source_id)
     if q:
         query = query.filter(NewsArticleDB.title.ilike(f"%{q}%"))
-    return (
-        query.order_by(desc(NewsArticleDB.published_at))
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    return query.order_by(desc(NewsArticleDB.published_at)).offset(skip).limit(limit).all()
 
 
 @router.post("/sources", response_model=NewsSourceResponse, status_code=201)
@@ -128,6 +130,7 @@ def summarize_article(
 # Admin 端点
 # ---------------------------------------------------------------------------
 
+
 @router.post("/sources/admin", response_model=NewsSourceResponse, status_code=201)
 def create_admin_news_source(
     data: NewsSourceCreate,
@@ -142,23 +145,48 @@ def create_admin_news_source(
     return source
 
 
-@router.post("/fetch", response_model=dict[int, int])
+@router.post("/fetch", response_model=NewsFetchTaskResponse)
 def trigger_news_fetch(
+    background_tasks: BackgroundTasks,
     _admin=Depends(require_admin_user),  # noqa: B008
     db: Session = Depends(get_db),  # noqa: B008
 ):
-    """手动触发所有启用源的 RSS 抓取（admin），返回 {source_id: new_count}。"""
-    return fetch_all_enabled_sources(db)
+    """手动触发所有启用源的 RSS 抓取（admin）。
+
+    抓取任务提交到后台执行，接口立即返回任务提交确认，不再同步等待抓取结果。
+    """
+    has_source = db.query(NewsSourceDB.id).filter(NewsSourceDB.is_enabled.is_(True)).first()
+    if not has_source:
+        return NewsFetchTaskResponse(status="accepted", message="no_enabled_sources_to_fetch")
+
+    background_tasks.add_task(fetch_all_enabled_sources_background)
+    return NewsFetchTaskResponse(status="accepted", message="fetch_all_task_submitted")
 
 
-@router.post("/sources/{source_id}/fetch", response_model=int)
+@router.post("/sources/{source_id}/fetch", response_model=NewsFetchTaskResponse)
 def trigger_single_source_fetch(
     source_id: int,
+    background_tasks: BackgroundTasks,
     _admin=Depends(require_admin_user),  # noqa: B008
     db: Session = Depends(get_db),  # noqa: B008
 ):
-    """手动触发单个源的 RSS 抓取（admin），返回新增文章数。"""
+    """手动触发单个源的 RSS 抓取（admin）。
+
+    抓取任务提交到后台执行，接口立即返回任务提交确认，不再同步等待抓取结果。
+    """
     source = db.get(NewsSourceDB, source_id)
     if not source:
         raise HTTPException(status_code=404, detail="source_not_found")
-    return fetch_source(source, db)
+    if not source.is_enabled:
+        return NewsFetchTaskResponse(
+            status="accepted",
+            message="source_disabled",
+            source_id=source_id,
+        )
+
+    background_tasks.add_task(fetch_source_background, source_id)
+    return NewsFetchTaskResponse(
+        status="accepted",
+        message="fetch_source_task_submitted",
+        source_id=source_id,
+    )
