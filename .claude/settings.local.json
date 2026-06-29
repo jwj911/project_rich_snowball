@@ -20,7 +20,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:3000)",
       "Bash(python/.venv/Scripts/python.exe -m pytest python/tests/test_price_levels.py::test_create_price_level_contract_requires_contract_id python/tests/test_price_levels.py::test_create_price_level_continuous_normalizes_contract_id python/tests/test_price_levels.py::test_create_price_level_main_normalizes_contract_id -v)",
       "Bash(./node_modules/.bin/tsc --noEmit)",
-      "Bash(cd /d/Code/project_rich_snowball/frontend && ls node_modules/.bin/ | grep -E \"tsc|next\" | head -10)"
+      "Bash(cd /d/Code/project_rich_snowball/frontend && ls node_modules/.bin/ | grep -E \"tsc|next\" | head -10)",
+      "Bash(dir frontend/ /b)"
     ]
   }
 }

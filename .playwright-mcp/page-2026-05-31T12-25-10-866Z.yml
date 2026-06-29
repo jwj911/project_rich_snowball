@@ -1,0 +1,114 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "Alice" [ref=e6]
+      - heading "OpenAlice" [level=1] [ref=e7]
+    - navigation [ref=e8]:
+      - generic [ref=e10]:
+        - link "Chat" [ref=e11] [cursor=pointer]:
+          - /url: /
+          - img [ref=e14]
+          - text: Chat
+        - link "Portfolio" [ref=e16] [cursor=pointer]:
+          - /url: /portfolio
+          - img [ref=e19]
+          - text: Portfolio
+        - link "Market" [ref=e22] [cursor=pointer]:
+          - /url: /market
+          - img [ref=e25]
+          - text: Market
+        - link "News" [ref=e28] [cursor=pointer]:
+          - /url: /news
+          - img [ref=e31]
+          - text: News
+        - link "Diary" [ref=e33] [cursor=pointer]:
+          - /url: /diary
+          - img [ref=e36]
+          - text: Diary
+      - generic [ref=e39]:
+        - paragraph [ref=e40]: Automation
+        - link "Automation" [ref=e42] [cursor=pointer]:
+          - /url: /automation
+          - img [ref=e45]
+          - text: Automation
+      - generic [ref=e47]:
+        - paragraph [ref=e48]: Market Data
+        - generic [ref=e49]:
+          - link "Market Data" [ref=e50] [cursor=pointer]:
+            - /url: /market-data
+            - img [ref=e53]
+            - text: Market Data
+          - link "News Collector" [ref=e57] [cursor=pointer]:
+            - /url: /news-collector
+            - img [ref=e60]
+            - text: News Collector
+      - generic [ref=e64]:
+        - paragraph [ref=e65]: Connectors
+        - generic [ref=e66]:
+          - link "Connectors" [ref=e67] [cursor=pointer]:
+            - /url: /connectors
+            - img [ref=e70]
+            - text: Connectors
+          - link "Trading Account" [ref=e74] [cursor=pointer]:
+            - /url: /trading
+            - img [ref=e77]
+            - text: Trading Account
+          - link "AI Provider" [ref=e78] [cursor=pointer]:
+            - /url: /ai-provider
+            - img [ref=e81]
+            - text: AI Provider
+      - generic [ref=e84]:
+        - paragraph [ref=e85]: Logs
+        - generic [ref=e86]:
+          - link "Logs" [ref=e87] [cursor=pointer]:
+            - /url: /logs
+            - img [ref=e90]
+            - text: Logs
+          - link "Settings" [ref=e92] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e95]
+            - text: Settings
+          - link "Dev" [ref=e98] [cursor=pointer]:
+            - /url: /dev
+            - img [ref=e101]
+            - text: Dev
+    - generic [ref=e104]:
+      - generic [ref=e109]: Reconnecting…
+      - button "中文" [ref=e110]
+  - main [ref=e111]:
+    - generic [ref=e113]:
+      - heading "Dev" [level=2] [ref=e117]
+      - generic [ref=e119]:
+        - button "Connectors" [ref=e120]: Connectors
+        - button "Tools" [ref=e122]
+        - button "Sessions" [ref=e123]
+        - button "Snapshots" [ref=e124]
+      - generic [ref=e127]:
+        - generic [ref=e129]:
+          - heading "Connector Registry" [level=3] [ref=e130]
+          - paragraph [ref=e131]: Active connectors and last user interaction.
+          - button "Refresh" [ref=e133]
+        - generic [ref=e135]:
+          - heading "Test Send" [level=3] [ref=e136]
+          - paragraph [ref=e137]: Send a test message or notification through the connector pipeline.
+          - generic [ref=e138]:
+            - generic [ref=e139]:
+              - generic [ref=e140]:
+                - generic [ref=e141]: Channel
+                - combobox [ref=e142]:
+                  - option "auto (resolveDeliveryTarget)" [selected]
+              - generic [ref=e143]:
+                - generic [ref=e144]: Kind
+                - combobox [ref=e145]:
+                  - option "notification" [selected]
+                  - option "message"
+              - generic [ref=e146]:
+                - generic [ref=e147]: Source
+                - combobox [ref=e148]:
+                  - option "manual" [selected]
+                  - option "heartbeat"
+                  - option "cron"
+            - generic [ref=e149]:
+              - generic [ref=e150]: Message
+              - textbox "Test message..." [ref=e151]
+            - button "Send" [disabled] [ref=e152]

@@ -25,7 +25,8 @@ DEFAULT_TTL_SECONDS = CACHE_DEFAULT_TTL_SECONDS
 _MAX_SIZE = CACHE_MAX_SIZE
 
 # 缓存穿透防护：空结果占位标记（Redis/内存通用）
-_EMPTY_MARKER = {"__cache_empty_marker__": True}
+# 使用常量字符串而非 dict，确保 json.dumps/loads 后身份比较仍成立
+_EMPTY_MARKER = "__CACHE_EMPTY_MARKER__"
 
 # 内存降级缓存
 _cache: OrderedDict[str, Any] = OrderedDict()
