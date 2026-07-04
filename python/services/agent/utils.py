@@ -148,6 +148,88 @@ def resolve_symbol(db: Session, query: str) -> str | None:
     return None
 
 
+_CATEGORY_KEYWORDS: dict[str, str] = {
+    "黑色系": "黑色系",
+    "有色金属": "有色金属",
+    "农产品": "农产品",
+    "能源化工": "能源化工",
+    "贵金属": "贵金属",
+}
+
+
+def resolve_symbols(db: Session, query: str) -> list[str]:
+    """从用户查询中解析多个品种代码。
+
+    支持：
+    - 逗号分隔：RB, HC, I 或 螺纹钢, 热卷, 铁矿石
+    - 中文连接词分隔：螺纹钢和热卷以及铁矿石
+    - 中文顿号：螺纹钢、热卷、铁矿石
+    - 类别关键词：黑色系、有色金属、农产品、能源化工、贵金属
+    - 排除语法：除螺纹钢外的黑色系
+
+    Args:
+        db: 数据库会话。
+        query: 用户原始查询。
+
+    Returns:
+        品种代码列表（大写，去重），若无法解析则返回空列表。
+    """
+    if not query:
+        return []
+
+    # 1. 排除语法：除 X 外的 Y
+    exclude_set: set[str] = set()
+    exclude_match = re.search(r"除\s*(.+?)\s*(?:外|之外|以外)", query)
+    if exclude_match:
+        exclude_text = exclude_match.group(1)
+        for part in _split_variety_parts(exclude_text):
+            sym = resolve_symbol(db, part)
+            if sym:
+                exclude_set.add(sym)
+
+    # 2. 类别关键词
+    for cat_kw, cat_name in _CATEGORY_KEYWORDS.items():
+        if cat_kw in query:
+            from models import VarietyDB
+
+            varieties = (
+                db.query(VarietyDB)
+                .filter(VarietyDB.category == cat_name, VarietyDB.is_active == True)  # noqa: E712
+                .all()
+            )
+            symbols = [v.symbol.upper() for v in varieties if v.symbol.upper() not in exclude_set]
+            if symbols:
+                return symbols
+
+    # 3. 尝试多种分隔方式提取品种名称/代码
+    parts = _split_variety_parts(query)
+    if len(parts) >= 2:
+        symbols: list[str] = []
+        for part in parts:
+            sym = resolve_symbol(db, part)
+            if sym and sym not in symbols:
+                symbols.append(sym)
+        if symbols:
+            return symbols
+
+    # 4. 降级：单个品种
+    single = resolve_symbol(db, query)
+    return [single] if single else []
+
+
+def _split_variety_parts(text: str) -> list[str]:
+    """将文本按品种分隔符拆分为片段列表。"""
+    # 1. 先按逗号拆分
+    if "，" in text or "," in text:
+        return [p.strip() for p in re.split(r"[，,]", text) if p.strip()]
+
+    # 2. 按中文连接词拆分
+    connectors = r"(?:和|与|及|以及|、)"
+    parts = re.split(connectors, text)
+    return [p.strip() for p in parts if p.strip()]
+
+
+
 def extract_direction(query: str) -> str | None:
     """从查询中提取交易方向。"""
     if any(w in query for w in ["做多", "买入", "看涨", "多单", "多"]):

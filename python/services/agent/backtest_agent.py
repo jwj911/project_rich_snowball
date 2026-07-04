@@ -36,10 +36,16 @@ class BacktestAgent(Agent):
                 tool_input={"query": query},
                 tool_output=dsl.to_dict(),
             )
+
+            # Multi-symbol backtest
+            symbols = dsl.universe
+            if len(symbols) > 1:
+                return await self._run_multi_symbol(dsl, symbols)
+
             try:
                 result = run_dsl_backtest(
                     self.context.db,
-                    symbol=dsl.universe[0],
+                    symbol=symbols[0],
                     period=dsl.timeframe,
                     direction=dsl.direction,
                     entry_conditions=dsl.entry["conditions"],
@@ -80,6 +86,45 @@ class BacktestAgent(Agent):
             )
 
         return self._format_result(result)
+
+    async def _run_multi_symbol(self, dsl, symbols: list[str]) -> AgentResult:
+        """Run backtest across multiple symbols and produce a comparison report."""
+        results: list[dict[str, Any]] = []
+        errors: list[str] = []
+
+        for sym in symbols:
+            try:
+                result = run_dsl_backtest(
+                    self.context.db,
+                    symbol=sym,
+                    period=dsl.timeframe,
+                    direction=dsl.direction,
+                    entry_conditions=dsl.entry["conditions"],
+                    exit_conditions=dsl.exit["conditions"],
+                )
+                results.append(result)
+            except ValueError as exc:
+                errors.append(f"{sym}: {exc}")
+
+        if not results and errors:
+            return AgentResult(
+                status=AgentStatus.FAILED,
+                error_message="; ".join(errors),
+                steps=self.get_steps(),
+            )
+
+        answer = _format_comparison_report(results, dsl=dsl.to_dict(), errors=errors)
+        return AgentResult(
+            status=AgentStatus.COMPLETED,
+            answer=answer,
+            data={
+                "comparison": True,
+                "symbols": symbols,
+                "results": results,
+                "errors": errors,
+            },
+            steps=self.get_steps(),
+        )
 
     def _format_result(self, result: dict, dsl: dict | None = None) -> AgentResult:
         metrics = result["metrics"]
@@ -181,3 +226,63 @@ def _format_backtest_report(result: dict, dsl: dict | None = None) -> str:
         "",
         "> 回测基于历史数据和固定规则，不构成投资建议；后续应加入滑点、合约换月和样本外验证。",
     ])
+
+
+def _format_comparison_report(results: list[dict], dsl: dict, errors: list[str] | None = None) -> str:
+    """Generate a multi-symbol comparison backtest report."""
+    errors = errors or []
+    direction = dsl.get("direction", "long")
+    direction_label = "做多" if direction == "long" else "做空"
+
+    lines = [
+        f"## 多品种策略对比回测",
+        "",
+        f"**策略**：{dsl.get('description', '—')}",
+        f"**方向**：{direction_label}",
+        f"**对比品种数**：{len(results)}{f'（{len(errors)} 个失败）' if errors else ''}",
+        "",
+        "| 品种 | 评分 | 总收益 | 年化收益 | 最大回撤 | 胜率 | 盈亏比 | 夏普 | 交易次数 |",
+        "|------|------|--------|----------|----------|------|--------|------|----------|",
+    ]
+
+    best_idx = 0
+    best_score = -1
+    for i, r in enumerate(results):
+        m = r["metrics"]
+        v = r["variety"]
+        lines.append(
+            f"| {v['name']}({v.get('symbol', r['config']['symbol'])}) "
+            f"| {m['score']} "
+            f"| {m['total_return_pct']}% "
+            f"| {m['annualized_return_pct']}% "
+            f"| {m['max_drawdown_pct']}% "
+            f"| {m['win_rate_pct']}% "
+            f"| {m['profit_factor']} "
+            f"| {m['sharpe']} "
+            f"| {m['trade_count']} |"
+        )
+        if m["score"] > best_score:
+            best_score = m["score"]
+            best_idx = i
+
+    if errors:
+        lines.extend(["", "### 失败的品种", ""])
+        for e in errors:
+            lines.append(f"- {e}")
+
+    if results:
+        best = results[best_idx]
+        best_v = best["variety"]
+        lines.extend([
+            "",
+            "### 最佳表现",
+            f"- **{best_v['name']}** 评分 {best_score}/100，在 {len(results)} 个品种中表现最优",
+            f"- 总收益 {best['metrics']['total_return_pct']}%，最大回撤 {best['metrics']['max_drawdown_pct']}%",
+        ])
+
+    lines.extend([
+        "",
+        "> 回测基于历史数据和固定规则，不构成投资建议；跨品种对比需注意合约乘数和保证金差异。",
+    ])
+
+    return "\n".join(lines)
