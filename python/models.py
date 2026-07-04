@@ -786,7 +786,13 @@ class AgentTaskDB(Base):
     __tablename__ = "agent_tasks"
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    agent_type = Column(String(30), nullable=False, index=True)  # data | tech_analysis | orchestrator | factor_mining
+    parent_task_id = Column(
+        Integer,
+        ForeignKey("agent_tasks.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    agent_type = Column(String(30), nullable=False, index=True)  # data | tech_analysis | risk_management | backtest | orchestrator | factor_mining
     query = Column(Text, nullable=False)
     status = Column(String(20), nullable=False, default="pending")  # pending | running | completed | failed
     result_json = Column(Text, nullable=True)
@@ -796,6 +802,19 @@ class AgentTaskDB(Base):
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     user = relationship("UserDB", back_populates="agent_tasks")
     steps = relationship("AgentTaskStepDB", back_populates="task", passive_deletes=True)
+    sub_tasks = relationship(
+        "AgentTaskDB",
+        back_populates="parent_task",
+        passive_deletes=True,
+        remote_side=[id],
+        foreign_keys=[parent_task_id],
+    )
+    parent_task = relationship(
+        "AgentTaskDB",
+        back_populates="sub_tasks",
+        remote_side=[parent_task_id],
+        foreign_keys=[parent_task_id],
+    )
 
     __table_args__ = (
         Index("idx_agent_tasks_user_status", "user_id", "status"),

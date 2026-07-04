@@ -838,6 +838,8 @@ class AgentType(StrEnum):
     DATA = "data"
     TECH_ANALYSIS = "tech_analysis"
     RISK_MANAGEMENT = "risk_management"
+    ANALYSIS_PIPELINE = "analysis_pipeline"
+    BACKTEST = "backtest"
     ORCHESTRATOR = "orchestrator"
     FACTOR_MINING = "factor_mining"
 
@@ -864,7 +866,7 @@ class AgentTaskStepRole(StrEnum):
 class AgentTaskCreate(BaseModel):
     """创建 Agent 任务请求。"""
 
-    agent_type: str = Field(..., pattern=r"^(data|tech_analysis|risk_management|orchestrator|factor_mining)$")
+    agent_type: str = Field(..., pattern=r"^(data|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining)$")
     query: str = Field(..., min_length=1, max_length=4000)
 
 
@@ -901,6 +903,7 @@ class AgentTaskResponse(BaseModel):
 
     id: int
     user_id: int
+    parent_task_id: int | None = None
     agent_type: str
     query: str
     status: str
@@ -910,6 +913,7 @@ class AgentTaskResponse(BaseModel):
     finished_at: dt | None
     created_at: dt
     steps: list[AgentTaskStepResponse] = Field(default_factory=list)
+    sub_tasks: list["AgentTaskResponse"] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -933,7 +937,7 @@ class AgentChatRequest(BaseModel):
     """
 
     content: str = Field(..., min_length=1, max_length=4000)
-    agent_type: str = Field(default="data", pattern=r"^(data|tech_analysis|risk_management|orchestrator|factor_mining)$")
+    agent_type: str = Field(default="data", pattern=r"^(data|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining)$")
 
 
 class AgentStreamEvent(BaseModel):

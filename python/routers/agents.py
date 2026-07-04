@@ -16,6 +16,8 @@ from dependencies import get_current_user_dependency, get_db
 from errors import ErrorCode
 from models import AgentTaskDB, UserDB
 from schemas import AgentChatRequest, AgentTaskCreate, AgentTaskResponse
+from services.agent.analysis_pipeline_agent import AnalysisPipelineAgent
+from services.agent.backtest_agent import BacktestAgent
 from services.agent.context import AgentContext
 from services.agent.core import Agent
 from services.agent.data_agent import DataAgent
@@ -64,6 +66,7 @@ def _task_to_response(task: AgentTaskDB) -> dict[str, Any]:
     return {
         "id": task.id,
         "user_id": task.user_id,
+        "parent_task_id": task.parent_task_id,
         "agent_type": task.agent_type,
         "query": task.query,
         "status": task.status,
@@ -73,6 +76,7 @@ def _task_to_response(task: AgentTaskDB) -> dict[str, Any]:
         "finished_at": task.finished_at,
         "created_at": task.created_at,
         "steps": steps,
+        "sub_tasks": [_task_to_response(t) for t in (task.sub_tasks or [])],
     }
 
 
@@ -84,6 +88,10 @@ def _build_agent(agent_type: str, context: AgentContext) -> Agent:
         return TechAnalysisAgent(context)
     if agent_type == "risk_management":
         return RiskManagementAgent(context)
+    if agent_type == "analysis_pipeline":
+        return AnalysisPipelineAgent(context)
+    if agent_type == "backtest":
+        return BacktestAgent(context)
     raise ServiceError(
         code=ErrorCode.AGENT_INVALID_MODE,
         message=f"暂不支持 Agent 类型：{agent_type}",

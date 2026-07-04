@@ -19,10 +19,12 @@ import {
   ChevronUp,
   TrendingUp,
   Shield,
+  BarChart3,
+  Workflow,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-type AgentMode = 'chat' | 'data' | 'tech_analysis' | 'risk_management'
+type AgentMode = 'chat' | 'data' | 'tech_analysis' | 'risk_management' | 'analysis_pipeline' | 'backtest'
 
 interface AgentMessage {
   id: number
@@ -58,6 +60,12 @@ const quickPrompts: Record<AgentMode, string[]> = {
     '原油 5000 元做空风控',
     '铜的止损止盈怎么设',
   ],
+  backtest: [
+    '螺纹钢 5 日上穿 20 日均线回测',
+    '黄金 10 和 30 日均线策略回测',
+    '铜 20 万资金 2 手均线回测',
+    '原油做空 5/20 均线回测',
+  ],
 }
 
 const modeLabels: Record<AgentMode, { label: string; icon: typeof Database; desc: string }> = {
@@ -65,6 +73,7 @@ const modeLabels: Record<AgentMode, { label: string; icon: typeof Database; desc
   data: { label: '数据助手', icon: Database, desc: '实时行情、品种信息、K 线数据查询' },
   tech_analysis: { label: '技术分析', icon: TrendingUp, desc: '基于经典指标的综合技术面分析' },
   risk_management: { label: '风控管理', icon: Shield, desc: '仓位管理、止损止盈、回撤控制' },
+  backtest: { label: '策略回测', icon: BarChart3, desc: '口头策略解析、历史回测与策略评分' },
 }
 
 export default function ChatPage() {
@@ -131,7 +140,7 @@ export default function ChatPage() {
       setInput('')
       setIsLoading(true)
 
-      if (agentMode === 'data' || agentMode === 'tech_analysis') {
+      if (agentMode === 'data' || agentMode === 'tech_analysis' || agentMode === 'risk_management' || agentMode === 'backtest') {
         // Agent 流式模式
         const assistantId = Date.now() + 1
         const assistantMsg: AgentMessage = {
@@ -377,6 +386,7 @@ export default function ChatPage() {
             {agentMode === 'data' && ' · 数据助手会调用实时行情和品种数据库'}
             {agentMode === 'tech_analysis' && ' · 技术分析基于 10+ 经典指标进行综合评分'}
             {agentMode === 'risk_management' && ' · 风控方案基于账户 10 万模拟资金，支持自定义'}
+            {agentMode === 'backtest' && ' · 策略回测会解析口头策略并计算收益、回撤、胜率和评分'}
           </p>
         </div>
       </div>

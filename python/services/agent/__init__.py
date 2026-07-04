@@ -5,9 +5,10 @@
 - AgentContext
 - Tool / ToolRegistry
 - AgentExecutor
-- DataAgent
+- DataAgent / TechAnalysisAgent / RiskManagementAgent / AnalysisPipelineAgent
 """
 
+from services.agent.analysis_pipeline_agent import AnalysisPipelineAgent
 from services.agent.core import Agent, AgentResult, AgentStatus, AgentStep
 from services.agent.context import AgentContext
 from services.agent.data_agent import DataAgent
@@ -22,6 +23,7 @@ __all__ = [
     "AgentStep",
     "AgentContext",
     "AgentExecutor",
+    "AnalysisPipelineAgent",
     "DataAgent",
     "TechAnalysisAgent",
     "RiskManagementAgent",

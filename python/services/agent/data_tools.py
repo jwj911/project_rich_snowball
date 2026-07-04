@@ -92,7 +92,7 @@ class ListActiveVarietiesTool(Tool):
     """列出活跃品种。"""
 
     name = "list_active_varieties"
-    description = "列出所有当前活跃的期货品种，可按类别筛选。"
+    description = "列出所有当前活跃的期货品种，可按类别筛选并排序。"
 
     def _build_definition(self) -> ToolDefinition:
         return ToolDefinition(
@@ -100,12 +100,26 @@ class ListActiveVarietiesTool(Tool):
             description=self.description,
             parameters=[
                 ToolParameter(name="category", type="string", description="类别筛选，如有色金属、黑色系、农产品等", required=False),
+                ToolParameter(name="sort_by", type="string", description="排序字段：change_percent（涨跌幅）、volume（成交量）、current_price（最新价）、symbol（品种代码）", required=False),
+                ToolParameter(name="sort_order", type="string", description="排序方向：asc（升序）或 desc（降序），默认 asc", required=False),
+                ToolParameter(name="limit", type="number", description="返回数量上限，默认 50，最大 200", required=False),
             ],
         )
 
     async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
         category = kwargs.get("category")
-        return _list_active_varieties(context.db, category=category)
+        sort_by = kwargs.get("sort_by")
+        sort_order = kwargs.get("sort_order", "asc")
+        limit = kwargs.get("limit", 50)
+        if isinstance(limit, str):
+            limit = int(limit)
+        return _list_active_varieties(
+            context.db,
+            category=category,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            limit=limit,
+        )
 
 
 class GetMarketStatusTool(Tool):
@@ -216,21 +230,67 @@ def _get_kline_data(
     ]
 
 
-def _list_active_varieties(db: Session, category: str | None = None) -> list[dict[str, Any]]:
-    """列出活跃品种。"""
+def _list_active_varieties(
+    db: Session,
+    category: str | None = None,
+    sort_by: str | None = None,
+    sort_order: str = "asc",
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """列出活跃品种。
+
+    Args:
+        category: 类别筛选。
+        sort_by: 排序字段，支持 change_percent / volume / current_price / symbol。
+        sort_order: asc 或 desc。
+        limit: 返回数量上限。
+    """
+    from sqlalchemy import desc
+
     q = db.query(VarietyDB).filter(VarietyDB.is_active == True)  # noqa: E712
     if category:
         q = q.filter(VarietyDB.category.ilike(f"%{category}%"))
-    varieties = q.order_by(VarietyDB.symbol).all()
-    return [
-        {
+
+    sort_by = (sort_by or "").lower().strip()
+    sort_order = (sort_order or "asc").lower().strip()
+
+    # 需要按行情字段排序时，外联 realtime_quotes
+    if sort_by in ("change_percent", "volume", "current_price"):
+        q = q.outerjoin(RealtimeQuoteDB, VarietyDB.id == RealtimeQuoteDB.variety_id)
+        sort_column = {
+            "change_percent": RealtimeQuoteDB.change_percent,
+            "volume": RealtimeQuoteDB.volume,
+            "current_price": RealtimeQuoteDB.current_price,
+        }.get(sort_by)
+        if sort_column is not None:
+            if sort_order == "desc":
+                q = q.order_by(desc(sort_column), VarietyDB.symbol)
+            else:
+                q = q.order_by(sort_column, VarietyDB.symbol)
+    else:
+        # 默认按品种代码排序
+        if sort_order == "desc":
+            q = q.order_by(desc(VarietyDB.symbol))
+        else:
+            q = q.order_by(VarietyDB.symbol)
+
+    varieties = q.limit(min(limit, 200)).all()
+
+    # 组装结果，包含行情数据（如有）
+    result = []
+    for v in varieties:
+        item: dict[str, Any] = {
             "symbol": v.symbol,
             "name": v.name,
             "exchange": v.exchange,
             "category": v.category,
         }
-        for v in varieties
-    ]
+        if v.realtime:
+            item["current_price"] = float(v.realtime.current_price) if v.realtime.current_price else None
+            item["change_percent"] = float(v.realtime.change_percent) if v.realtime.change_percent else None
+            item["volume"] = v.realtime.volume
+        result.append(item)
+    return result
 
 
 def _get_market_status(db: Session) -> dict[str, Any]:

@@ -30,10 +30,11 @@ class AgentExecutor:
         self.db = db
         self.user_id = user_id
 
-    def create_task(self, agent_type: str, query: str) -> int:
+    def create_task(self, agent_type: str, query: str, parent_task_id: int | None = None) -> int:
         """创建任务记录，返回 task_id。"""
         task = AgentTaskDB(
             user_id=self.user_id,
+            parent_task_id=parent_task_id,
             agent_type=agent_type,
             query=query,
             status="pending",

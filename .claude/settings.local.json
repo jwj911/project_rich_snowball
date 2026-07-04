@@ -21,7 +21,8 @@
       "Bash(python/.venv/Scripts/python.exe -m pytest python/tests/test_price_levels.py::test_create_price_level_contract_requires_contract_id python/tests/test_price_levels.py::test_create_price_level_continuous_normalizes_contract_id python/tests/test_price_levels.py::test_create_price_level_main_normalizes_contract_id -v)",
       "Bash(./node_modules/.bin/tsc --noEmit)",
       "Bash(cd /d/Code/project_rich_snowball/frontend && ls node_modules/.bin/ | grep -E \"tsc|next\" | head -10)",
-      "Bash(dir frontend/ /b)"
+      "Bash(dir frontend/ /b)",
+      "Bash(python -m py_compile services/agent/utils.py services/agent/core.py services/agent/executor.py services/agent/data_agent.py services/agent/tech_analysis_agent.py services/agent/risk_management_agent.py services/agent/data_tools.py routers/agents.py models.py schemas.py alembic/versions/d5e6f7a8b9c0_add_parent_task_id_to_agent_tasks.py)"
     ]
   }
 }

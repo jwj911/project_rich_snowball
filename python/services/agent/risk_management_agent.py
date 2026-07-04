@@ -7,12 +7,13 @@
 from __future__ import annotations
 
 import logging
+from typing import Any, AsyncIterator
 
 import pandas as pd
 
 from lib.technical_indicators import calculate_all_indicators
 from services.agent.context import AgentContext
-from services.agent.core import Agent, AgentResult, AgentStatus
+from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
 from services.agent.data_tools import _get_kline_data, _get_realtime_quote, _get_variety_info
 from services.agent.risk_management.drawdown_control import generate_risk_management_plan
 from services.agent.utils import extract_direction, extract_price, resolve_symbol
@@ -219,3 +220,47 @@ class RiskManagementAgent(Agent):
             data=report,
             steps=self.get_steps(),
         )
+
+    async def run_stream(self, query: str) -> AsyncIterator[dict[str, Any]]:
+        """流式执行风控方案生成任务。
+
+        风控计算为本地确定性计算，先执行完整分析，再按步骤 yield 事件。
+        """
+        result = await self.run(query)
+
+        for step in result.steps:
+            yield AgentEvent(
+                event_type=self._map_role_to_event_type(step.role),
+                step_number=step.step_number,
+                role=step.role,
+                content=step.content,
+                tool_name=step.tool_name,
+                tool_input=step.tool_input,
+                tool_output=step.tool_output,
+            ).to_dict()
+
+        if result.success:
+            yield AgentEvent(
+                event_type=AgentEventType.RESULT,
+                content=result.answer,
+                result=result.to_dict(),
+            ).to_dict()
+        else:
+            yield AgentEvent(
+                event_type=AgentEventType.ERROR,
+                content=result.error_message or "风控方案生成失败",
+                error_message=result.error_message,
+                result=result.to_dict(),
+            ).to_dict()
+
+    @staticmethod
+    def _map_role_to_event_type(role: str) -> AgentEventType:
+        """将步骤 role 映射到 SSE 事件类型。"""
+        mapping = {
+            "thought": AgentEventType.THOUGHT,
+            "action": AgentEventType.ACTION,
+            "observation": AgentEventType.OBSERVATION,
+            "system": AgentEventType.THOUGHT,
+            "error": AgentEventType.ERROR,
+        }
+        return mapping.get(role, AgentEventType.THOUGHT)
