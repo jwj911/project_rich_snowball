@@ -209,6 +209,21 @@ class TestStrategyCompilerAgent:
         assert dsl["entry"]["conditions"][0]["operator"] == "cross_above"
         assert dsl["entry"]["conditions"][0]["indicator2"] == "boll_lower"
 
+    def test_breakout_strategy_compilation(self, db_session):
+        user = _create_user(db_session)
+        variety, contract = _create_test_variety(db_session)
+        executor = AgentExecutor(db_session, user.id)
+        task_id = executor.create_task("strategy_compiler", "螺纹钢突破20日高点做多")
+        agent = StrategyCompilerAgent(AgentContext(db_session, user.id, task_id))
+
+        result = asyncio.run(executor.execute(agent, "螺纹钢突破20日高点做多", task_id=task_id))
+
+        assert result.success is True
+        dsl = result.data["dsl"]
+        assert dsl["entry"]["conditions"][0]["indicator"] == "close"
+        assert dsl["entry"]["conditions"][0]["operator"] == "cross_above"
+        assert dsl["entry"]["conditions"][0]["indicator2"] == "high_20"
+
     def test_strategy_with_custom_risk(self, db_session):
         user = _create_user(db_session)
         variety, contract = _create_test_variety(db_session)

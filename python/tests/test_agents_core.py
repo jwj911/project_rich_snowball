@@ -279,21 +279,53 @@ def test_risk_management_agent_returns_failed_for_unknown_symbol(db_session):
     assert "无法识别" in task.error_message or "未找到" in task.error_message
 
 
-def test_data_agent_without_llm_config_marks_task_failed(client, auth_headers, monkeypatch):
+def test_data_agent_fallback_without_llm_returns_result(client, auth_headers, monkeypatch, seed_varieties):
     import config
 
     monkeypatch.setattr(config, "OPENAI_API_KEY", "")
 
     resp = client.post(
         "/api/agents/tasks",
-        json={"agent_type": "data", "query": "黄金最新价格是多少"},
+        json={"agent_type": "data", "query": "螺纹钢最新价格是多少"},
         headers=auth_headers,
     )
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "failed"
-    assert "OPENAI_API_KEY" in data["error_message"]
+    assert data["status"] == "completed"
+    assert "螺纹钢" in data["result"]["answer"]
+    assert data["result"]["data"].get("symbol") == "RB"
+
+
+def test_data_agent_fallback_sorts_top_gainers(client, auth_headers, monkeypatch, seed_varieties, db_session):
+    import config
+    from models import RealtimeQuoteDB, VarietyDB
+    from decimal import Decimal
+
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "")
+
+    for symbol, change in [("CU", Decimal("5.0")), ("AL", Decimal("2.0")), ("ZN", Decimal("3.0"))]:
+        v = db_session.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
+        if v:
+            quote = db_session.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == v.id).first()
+            if quote is None:
+                quote = RealtimeQuoteDB(variety_id=v.id)
+                db_session.add(quote)
+            quote.current_price = 1000.0
+            quote.change_percent = change
+            quote.volume = int(float(change) * 10000)
+            db_session.commit()
+
+    resp = client.post(
+        "/api/agents/tasks",
+        json={"agent_type": "data", "query": "有色金属涨幅前 3"},
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "completed"
+    assert "铜" in data["result"]["answer"]
 
 
 def test_agent_status_endpoint_returns_task_summary(client, auth_headers):
