@@ -165,6 +165,7 @@ class BacktestAgent(Agent):
             },
             steps=self.get_steps(),
         )
+    async def _run_multi_symbol(self, dsl, symbols: list[str]) -> AgentResult:
         """Run backtest across multiple symbols and produce a comparison report."""
         results: list[dict[str, Any]] = []
         errors: list[str] = []
