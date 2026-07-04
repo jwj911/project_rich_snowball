@@ -182,11 +182,28 @@ class DataAgent(Agent):
         db = self.context.db
         symbol = resolve_symbol(db, query)
 
-        # 1. 排名 / 列表类查询
-        if any(k in query for k in ["涨幅", "跌幅", "前", "排名", "排序", "活跃品种"]):
+        # 1. 排名 / 列表类查询（中文 + 英文）
+        # 中文关键词
+        cn_ranking = any(k in query for k in ["涨幅", "跌幅", "前", "排名", "排序", "活跃品种"])
+        # 英文关键词
+        en_ranking = any(k in query.lower() for k in ["top", "ranking", "gainer", "loser", "active", "sort"])
+        if cn_ranking or en_ranking:
             sort_by = "change_percent"
-            sort_order = "desc" if "涨幅" in query or "前" in query else "asc"
-            if "成交量" in query or "成交" in query:
+            # 中文排序方向
+            if "涨幅" in query or "前" in query:
+                sort_order = "desc"
+            elif "跌幅" in query:
+                sort_order = "asc"
+            # 英文排序方向
+            elif any(k in query.lower() for k in ["top gainer", "top", "gainer", "bull"]):
+                sort_order = "desc"
+            elif any(k in query.lower() for k in ["top loser", "loser", "bear"]):
+                sort_order = "asc"
+            else:
+                sort_order = "desc"  # 默认降序
+
+            # 成交量排序
+            if "成交量" in query or "成交" in query or "volume" in query.lower():
                 sort_by = "volume"
             # 提取类别
             category = None
@@ -210,6 +227,8 @@ class DataAgent(Agent):
             self._add_step("observation", f"工具返回结果：{result}", tool_name="list_active_varieties", tool_input={"category": category, "sort_by": sort_by, "sort_order": sort_order, "limit": limit}, tool_output=result)
 
             lines = [f"{'类别：' + category + ' ' if category else ''}品种排名（按 {sort_by} {'降序' if sort_order == 'desc' else '升序'}）："]
+            label = "Ranking" if any(k in query.lower() for k in ["top", "ranking", "gainer", "loser"]) else "品种排名"
+            lines = [f"{'Category: ' + category + ' | ' if category else ''}{label} (sort by {sort_by} {'DESC' if sort_order == 'desc' else 'ASC'}):"]
             for i, item in enumerate(result, 1):
                 lines.append(
                     f"{i}. {item.get('name', item.get('symbol'))} ({item.get('symbol')}): "

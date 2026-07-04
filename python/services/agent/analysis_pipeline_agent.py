@@ -1,15 +1,14 @@
 """分析流水线 Agent。
 
 第一个多 Agent 编排场景：
-用户提出「帮我完整分析某品种」类请求时，系统自动串行执行：
-  DataAgent（品种概况 + 实时行情）
-  → TechAnalysisAgent（技术面分析）
-  → RiskManagementAgent（风控方案）
-最后汇总为三合一报告。
+用户提出「帮我完整分析某品种」类请求时，系统自动并行执行
+DataAgent + TechAnalysisAgent（两者无依赖），然后串行执行
+RiskManagementAgent（依赖前两者的结果），最后汇总为三合一报告。
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, AsyncIterator
 
@@ -60,23 +59,42 @@ class AnalysisPipelineAgent(Agent):
         executor = AgentExecutor(db, user_id)
         sub_results: list[tuple[str, AgentResult]] = []
 
-        # Step 1: DataAgent - 品种概况与行情
+        # Step 1 & 2: DataAgent + TechAnalysisAgent 并行执行（无依赖关系）
         data_query = f"获取 {symbol} 的品种信息和最新行情"
-        self._add_step("thought", f"步骤 1：调用 DataAgent - {data_query}")
+        ta_query = f"分析 {symbol} 日线技术面"
+
+        self._add_step("thought", f"并行执行：DataAgent + TechAnalysisAgent")
         data_task_id = executor.create_task("data", data_query, parent_task_id=parent_task_id)
+        ta_task_id = executor.create_task("tech_analysis", ta_query, parent_task_id=parent_task_id)
+
         data_agent = DataAgent(AgentContext(db=db, user_id=user_id, task_id=data_task_id))
-        data_result = await executor.execute(data_agent, data_query, task_id=data_task_id)
+        ta_agent = TechAnalysisAgent(AgentContext(db=db, user_id=user_id, task_id=ta_task_id))
+
+        data_task = executor.execute(data_agent, data_query, task_id=data_task_id)
+        ta_task = executor.execute(ta_agent, ta_query, task_id=ta_task_id)
+
+        data_result, ta_result = await asyncio.gather(data_task, ta_task)
         sub_results.append(("data", data_result))
+        sub_results.append(("tech_analysis", ta_result))
         self._add_step(
             "observation",
-            f"DataAgent 执行完成：{data_result.status.value}",
-            tool_name="DataAgent",
-            tool_input={"query": data_query},
-            tool_output=data_result.to_dict(),
+            f"DataAgent 完成：{data_result.status.value}  |  TechAnalysisAgent 完成：{ta_result.status.value}",
+            tool_name="DataAgent + TechAnalysisAgent",
+            tool_input={"data_query": data_query, "ta_query": ta_query},
+            tool_output={"data": data_result.to_dict(), "tech_analysis": ta_result.to_dict()},
         )
 
         if not data_result.success:
             error_message = f"数据获取失败：{data_result.error_message}"
+            self._add_step("error", error_message)
+            return AgentResult(
+                status=AgentStatus.FAILED,
+                error_message=error_message,
+                steps=self.get_steps(),
+            )
+
+        if not ta_result.success:
+            error_message = f"技术分析失败：{ta_result.error_message}"
             self._add_step("error", error_message)
             return AgentResult(
                 status=AgentStatus.FAILED,
@@ -89,31 +107,7 @@ class AnalysisPipelineAgent(Agent):
         if data_result.data and isinstance(data_result.data, dict):
             current_price = data_result.data.get("current_price")
 
-        # Step 2: TechAnalysisAgent - 技术面分析
-        ta_query = f"分析 {symbol} 日线技术面"
-        self._add_step("thought", f"步骤 2：调用 TechAnalysisAgent - {ta_query}")
-        ta_task_id = executor.create_task("tech_analysis", ta_query, parent_task_id=parent_task_id)
-        ta_agent = TechAnalysisAgent(AgentContext(db=db, user_id=user_id, task_id=ta_task_id))
-        ta_result = await executor.execute(ta_agent, ta_query, task_id=ta_task_id)
-        sub_results.append(("tech_analysis", ta_result))
-        self._add_step(
-            "observation",
-            f"TechAnalysisAgent 执行完成：{ta_result.status.value}",
-            tool_name="TechAnalysisAgent",
-            tool_input={"query": ta_query},
-            tool_output=ta_result.to_dict(),
-        )
-
-        if not ta_result.success:
-            error_message = f"技术分析失败：{ta_result.error_message}"
-            self._add_step("error", error_message)
-            return AgentResult(
-                status=AgentStatus.FAILED,
-                error_message=error_message,
-                steps=self.get_steps(),
-            )
-
-        # Step 3: RiskManagementAgent - 风控方案
+        # Step 3: RiskManagementAgent - 风控方案（依赖 Data + Tech 结果）
         risk_query = f"{symbol} { '做多' if direction == 'long' else '做空' } 风控方案"
         if current_price:
             risk_query += f"，入场价 {current_price}"
