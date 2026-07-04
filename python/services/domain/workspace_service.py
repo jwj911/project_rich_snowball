@@ -83,6 +83,7 @@ class WorkspaceService:
                 user_id=c.user_id,
                 username=user.username,
                 content=c.content,
+                sentiment=c.sentiment,
                 price_level_id=c.price_level_id,
                 created_at=c.created_at,
             )

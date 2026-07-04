@@ -8,6 +8,10 @@ export interface Product {
   high: number | null
   low: number | null
   volume: number | null
+  pre_settlement: number | null
+  open_interest: number | null
+  bid1: number | null
+  ask1: number | null
   category: string | null
   margin: number | null
   commission: number | null
@@ -50,6 +54,7 @@ export interface Comment {
   user_id: number
   username: string
   content: string
+  sentiment: 'bullish' | 'bearish' | 'neutral' | null
   price_level_id: number | null
   created_at: string
 }
@@ -74,6 +79,8 @@ export interface RealtimeQuote {
   high: number | null
   low: number | null
   volume: number | null
+  open_interest: number | null
+  pre_settlement: number | null
   updated_at: string
   limit_up: number | null
   limit_down: number | null

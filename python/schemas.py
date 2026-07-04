@@ -134,6 +134,7 @@ class CommentCreate(BaseModel):
     variety_id: int = Field(..., ge=1)
     content: str = Field(..., min_length=1, max_length=2000)
     price_level_id: int | None = Field(None, ge=1)
+    sentiment: str | None = Field(None, pattern=r"^(bullish|bearish|neutral)$")
 
     @field_validator("content", mode="before")
     @classmethod
@@ -154,6 +155,7 @@ class CommentResponse(BaseModel):
     user_id: int
     username: str
     content: str
+    sentiment: str | None = None
     price_level_id: int | None = None
     created_at: dt
 
@@ -178,9 +180,14 @@ class VarietyDetailResponse(BaseModel):
     high: float | None = None
     low: float | None = None
     volume: int | None = None
+    pre_settlement: float | None = None
+    open_interest: int | None = None
+    bid1: float | None = None
+    ask1: float | None = None
     limit_up: float | None = None
     limit_down: float | None = None
     price_precision: int = 2
+    updated_at: dt | None = None
     comments: list[CommentResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -252,6 +259,10 @@ class RealtimeResponse(BaseModel):
     high: float | None
     low: float | None
     volume: int | None
+    pre_settlement: float | None = None
+    open_interest: int | None = None
+    bid1: float | None = None
+    ask1: float | None = None
     updated_at: dt
     delayed: bool = False
     data_source: str | None = None

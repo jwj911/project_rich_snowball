@@ -36,6 +36,7 @@ class CommentService:
             user_id=user.id,
             price_level_id=comment.price_level_id,
             content=comment.content,
+            sentiment=comment.sentiment,
         )
 
         return CommentResponse(
@@ -48,6 +49,7 @@ class CommentService:
             user_id=db_comment.user_id,
             username=user.username,
             content=db_comment.content,
+            sentiment=db_comment.sentiment,
             price_level_id=db_comment.price_level_id,
             created_at=db_comment.created_at,
         )
@@ -75,6 +77,7 @@ class CommentService:
                 user_id=c.user_id,
                 username=user.username,
                 content=c.content,
+                sentiment=c.sentiment,
                 price_level_id=c.price_level_id,
                 created_at=c.created_at,
             )

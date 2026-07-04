@@ -8,10 +8,8 @@ import {
   Home,
   LineChart,
   MessageSquare,
-  PenLine,
   Settings,
   Sparkles,
-  Wrench,
 } from 'lucide-react'
 
 export const primaryNavItems = [
@@ -19,7 +17,6 @@ export const primaryNavItems = [
   { href: '/products', label: '行情', icon: LineChart },
   { href: '/workspace', label: '我的', icon: Briefcase },
   { href: '/my-comments', label: '评论', icon: MessageSquare },
-  { href: '/metrics', label: '指标', icon: BarChart3 },
 ]
 
 export interface SecondaryNavItem {
@@ -46,14 +43,12 @@ export const secondaryNavGroups: NavGroup[] = [
     title: 'DATA',
     items: [
       { label: '新闻资讯', icon: Database, href: '/news' },
-      { label: '交易观点', icon: PenLine, href: '/opinions' },
       { label: '预警中心', icon: Bell, href: '/alerts' },
     ],
   },
   {
     title: 'SYSTEM',
     items: [
-      { label: '工具', icon: Wrench },
       { label: '设置', icon: Settings, href: '/settings' },
     ],
   },

@@ -203,6 +203,7 @@ class CommentDB(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     price_level_id = Column(Integer, ForeignKey("price_levels.id", ondelete="SET NULL"), nullable=True, index=True)
     content = Column(Text, nullable=False)
+    sentiment = Column(String(10), nullable=True)  # bullish | bearish | neutral
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     __table_args__ = (Index("idx_comments_created_at", "created_at"),)
     user = relationship("UserDB", back_populates="comments")

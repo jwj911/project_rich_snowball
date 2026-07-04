@@ -32,6 +32,8 @@ describe('useProductDetail', () => {
       high: 3660,
       low: 3490,
       volume: 11000,
+      open_interest: null,
+      pre_settlement: null,
       updated_at: '2026-05-16T01:01:00.000Z',
       limit_up: 3800,
       limit_down: 3200,

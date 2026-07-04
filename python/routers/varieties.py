@@ -210,9 +210,14 @@ def get_variety_detail(
         high=_to_float(r.high) if r else None,
         low=_to_float(r.low) if r else None,
         volume=r.volume if r else None,
+        pre_settlement=_to_float(r.pre_settlement) if r else None,
+        open_interest=r.open_interest if r else None,
+        bid1=_to_float(r.bid1) if r else None,
+        ask1=_to_float(r.ask1) if r else None,
         limit_up=_to_float(r.limit_up) if r else None,
         limit_down=_to_float(r.limit_down) if r else None,
         price_precision=_price_precision(v.tick_size),
+        updated_at=r.updated_at if r else None,
         comments=[
             CommentResponse(
                 id=c.id,
@@ -224,6 +229,7 @@ def get_variety_detail(
                 user_id=c.user_id,
                 username=c.user.username if c.user else "未知用户",
                 content=c.content,
+                sentiment=c.sentiment,
                 price_level_id=c.price_level_id,
                 created_at=c.created_at,
             )

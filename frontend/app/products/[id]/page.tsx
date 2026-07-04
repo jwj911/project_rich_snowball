@@ -17,20 +17,8 @@ import { captureMessage } from '@/lib/sentry-lite'
 import { formatInteger, formatPrice, getChangeTone } from '@/lib/format'
 import { toast } from 'sonner'
 import useSWR from 'swr'
-import {
-  ArrowLeft,
-  CheckCircle2,
-  TrendingUp,
-  PenLine,
-  TrendingDown,
-  Minus,
-  Plus,
-  Trash2,
-  Bell,
-} from 'lucide-react'
-import CreateOpinionModal from '@/components/opinion/CreateOpinionModal'
-import type { OpinionFormData } from '@/components/opinion/CreateOpinionModal'
-import type { Opinion, PriceAlert } from '@/lib/api'
+import { ArrowLeft, CheckCircle2, TrendingUp, Plus, Trash2, Bell } from 'lucide-react'
+import type { PriceAlert } from '@/lib/api'
 
 import WatchlistButton from '@/components/product/WatchlistButton'
 import { useProductKline } from '@/hooks/useProductKline'
@@ -69,7 +57,6 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const [watchlistId, setWatchlistId] = useState<number | null>(null)
   const [rollovers, setRollovers] = useState<ContractRollover[]>([])
   const [rolloversLoading, setRolloversLoading] = useState(false)
-  const [showOpinionModal, setShowOpinionModal] = useState(false)
   const [showAlertForm, setShowAlertForm] = useState(false)
   const [alertType, setAlertType] = useState<'above' | 'below'>('above')
   const [alertPrice, setAlertPrice] = useState('')
@@ -106,15 +93,6 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     contractId: selectedContractId,
     pricePrecision: product?.price_precision,
   })
-
-  const {
-    data: productOpinions,
-    mutate: mutateOpinions,
-  } = useSWR(
-    varietyId ? ['product-opinions', varietyId] : null,
-    () => api.getOpinions({ variety_id: varietyId!, limit: 5 }),
-    { revalidateOnFocus: false },
-  )
 
   useEffect(() => {
     if (productDetail?.comments) {
@@ -197,13 +175,12 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     }
   }
 
-  const handleSubmitComment = async (event: FormEvent) => {
-    event.preventDefault()
+  const handleSubmitComment = async (_event: FormEvent, sentiment: 'bullish' | 'bearish' | 'neutral' | null) => {
     if (!newComment.trim() || !user) return
     try {
       setIsSubmittingComment(true)
       setCommentError(null)
-      const comment = await api.createComment(newComment.trim(), undefined, varietyId ?? undefined)
+      const comment = await api.createComment(newComment.trim(), undefined, varietyId ?? undefined, sentiment ?? undefined)
       setComments((current) => [comment, ...current])
       setNewComment('')
       toast.success('评论已发表')
@@ -212,21 +189,6 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
       setCommentError(err instanceof Error ? err.message : '评论发送失败')
     } finally {
       setIsSubmittingComment(false)
-    }
-  }
-
-  const handleCreateOpinion = async (data: OpinionFormData) => {
-    try {
-      await api.createOpinion({
-        ...data,
-        target_price: data.target_price || null,
-        stop_loss: data.stop_loss || null,
-      })
-      toast.success('观点已创建')
-      setShowOpinionModal(false)
-      mutateOpinions()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '创建失败')
     }
   }
 
@@ -312,11 +274,15 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[560px]">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8 lg:min-w-[800px]">
               <QuoteMetric label="最新价" value={formatPrice(displayPrice, product?.price_precision)} tone={getChangeTone(displayChange)} />
               <QuoteMetric label="涨跌幅" value={<PriceChange value={displayChange} />} />
+              <QuoteMetric label="开盘价" value={formatPrice(realtime?.open_price ?? product?.open_price, product?.price_precision)} />
               <QuoteMetric label="最高" value={formatPrice(realtime?.high ?? product?.high, product?.price_precision)} />
+              <QuoteMetric label="最低" value={formatPrice(realtime?.low ?? product?.low, product?.price_precision)} />
               <QuoteMetric label="成交量" value={formatInteger(realtime?.volume ?? product?.volume)} />
+              <QuoteMetric label="持仓量" value={formatInteger(realtime?.open_interest ?? product?.open_interest)} />
+              <QuoteMetric label="昨结" value={formatPrice(realtime?.pre_settlement ?? product?.pre_settlement, product?.price_precision)} />
             </div>
           </div>
 
@@ -412,107 +378,12 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                   onDelete={handleDeleteAlert}
                 />
               )}
-
-              {varietyId && (
-                <ProductOpinionsPanel
-                  symbol={symbol}
-                  opinions={productOpinions}
-                  onCreate={() => setShowOpinionModal(true)}
-                />
-              )}
             </aside>
           </div>
 
-          {showOpinionModal && varietyId && (
-            <CreateOpinionModal
-              varieties={[{ id: varietyId, symbol: product.symbol, name: product.name }]}
-              defaultVarietyId={varietyId}
-              readOnlyVariety
-              onSubmit={handleCreateOpinion}
-              onClose={() => setShowOpinionModal(false)}
-            />
-          )}
         </div>
       )}
     </AppShell>
-  )
-}
-
-function ProductOpinionsPanel({
-  symbol,
-  opinions,
-  onCreate,
-}: {
-  symbol: string
-  opinions?: Opinion[]
-  onCreate: () => void
-}) {
-  const typeIconMap: Record<string, typeof TrendingUp> = {
-    long: TrendingUp,
-    short: TrendingDown,
-    neutral: Minus,
-  }
-  const typeColorMap: Record<string, string> = {
-    long: 'text-red-400',
-    short: 'text-green-400',
-    neutral: 'text-slate-400',
-  }
-
-  return (
-    <div className="rounded-lg border border-slate-800 bg-surface p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-          <PenLine size={15} className="text-red-400" />
-          品种观点
-        </h3>
-        <Link href="/alerts" className="mr-2 text-xs text-slate-500 transition hover:text-amber-300">
-          预警中心
-        </Link>
-        <button
-          type="button"
-          onClick={onCreate}
-          className="inline-flex items-center gap-1 rounded-md bg-red-600/10 px-2 py-1 text-xs font-medium text-red-400 transition hover:bg-red-600/20"
-        >
-          <Plus size={12} />
-          新建
-        </button>
-      </div>
-
-      {!opinions || opinions.length === 0 ? (
-        <p className="mt-3 text-xs text-slate-500">暂无观点，记录第一条交易决策。</p>
-      ) : (
-        <div className="mt-3 space-y-2">
-          {opinions.map((op) => {
-            const Icon = typeIconMap[op.type] ?? Minus
-            const color = typeColorMap[op.type] ?? 'text-slate-400'
-            return (
-              <div
-                key={op.id}
-                className="flex items-start gap-2 rounded border border-slate-800 bg-black/20 p-2"
-              >
-                <Icon size={14} className={`mt-0.5 shrink-0 ${color}`} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs text-slate-300">{op.reason}</p>
-                  <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
-                    <span className={color}>
-                      {op.type === 'long' ? '看多' : op.type === 'short' ? '看空' : '观望'}
-                    </span>
-                    {op.target_price && <span>目标 {op.target_price}</span>}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      <Link
-        href="/opinions"
-        className="mt-3 block text-center text-xs text-slate-500 transition hover:text-slate-300"
-      >
-        查看全部观点 →
-      </Link>
-    </div>
   )
 }
 

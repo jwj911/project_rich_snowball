@@ -14,6 +14,10 @@ function _mapVarietyToProduct(v: Record<string, unknown>): Product {
     high: (v.high as number | null) ?? null,
     low: (v.low as number | null) ?? null,
     volume: (v.volume as number | null) ?? null,
+    pre_settlement: (v.pre_settlement as number | null) ?? null,
+    open_interest: (v.open_interest as number | null) ?? null,
+    bid1: (v.bid1 as number | null) ?? null,
+    ask1: (v.ask1 as number | null) ?? null,
     category: (v.category as string | null) ?? null,
     margin: (v.margin_rate as number | null) ?? (v.margin as number | null) ?? null,
     commission: (v.commission as number | null) ?? null,
@@ -89,10 +93,11 @@ export function createComment(
   content: string,
   priceLevelId?: number,
   varietyId?: number,
+  sentiment?: 'bullish' | 'bearish' | 'neutral',
 ): Promise<Comment> {
   return transport.request<Comment>('/api/comments', {
     method: 'POST',
-    body: JSON.stringify({ content, price_level_id: priceLevelId, variety_id: varietyId }),
+    body: JSON.stringify({ content, price_level_id: priceLevelId, variety_id: varietyId, sentiment }),
   })
 }
 

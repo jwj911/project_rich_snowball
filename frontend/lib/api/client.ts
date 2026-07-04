@@ -165,8 +165,8 @@ class ApiService extends AuthCore {
     return getProductBySymbol(this, symbol, options)
   }
 
-  createComment(content: string, priceLevelId?: number, varietyId?: number): Promise<Comment> {
-    return createComment(this, content, priceLevelId, varietyId)
+  createComment(content: string, priceLevelId?: number, varietyId?: number, sentiment?: 'bullish' | 'bearish' | 'neutral'): Promise<Comment> {
+    return createComment(this, content, priceLevelId, varietyId, sentiment)
   }
 
   getUserComments(username: string): Promise<Comment[]> {

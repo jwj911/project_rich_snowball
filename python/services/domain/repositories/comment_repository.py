@@ -34,12 +34,14 @@ class CommentRepository:
         user_id: int,
         price_level_id: int | None,
         content: str,
+        sentiment: str | None = None,
     ) -> CommentDB:
         db_comment = CommentDB(
             variety_id=variety_id,
             user_id=user_id,
             price_level_id=price_level_id,
             content=content,
+            sentiment=sentiment,
         )
         self._db.add(db_comment)
         self._db.commit()

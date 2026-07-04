@@ -88,6 +88,10 @@ const quickPrompts: Record<AgentMode, string[]> = {
     '评估 "ts_corr(close, volume, 10)" 在能源化工的表现',
   ],
   strategy_compiler: [
+    '螺纹钢 ATR 20 通道 2 倍突破做多策略',
+    '原油布林带下轨均线过滤做多策略',
+    '铜 RSI 超卖 30 且价格在 20 日均线上方做多策略',
+    '黄金 MACD 金叉放量 1.5 倍做多策略',
     '螺纹钢5日上穿20日均线做多策略',
     '黄金MACD金叉做多策略',
     '铜RSI超卖30做多策略',
