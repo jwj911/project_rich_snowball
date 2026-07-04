@@ -46,6 +46,10 @@ def db_session() -> Generator:
     # 创建所有表
     Base.metadata.create_all(bind=connection)
 
+    # 清理进程内缓存，避免测试间数据污染（每次测试有独立 DB 事务）
+    from services.cache import invalidate_cache
+    invalidate_cache()
+
     yield session
 
     session.close()

@@ -4,12 +4,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from dependencies import get_current_user_dependency, get_db
-from models import ContractRolloverDB, FutContractDB, KlineDataDB, UserDB, VarietyDB
+from models import ContractRolloverDB, FutContractDB, UserDB, VarietyDB
 from schemas import ContractResponse, ContractRolloverResponse, KlineResponse
-from services.kline_period import period_candidates
+from services.domain.kline_service import KlineService
 from utils import ensure_utc
 
 router = APIRouter(prefix="/api/contracts", tags=["合约"])
+
+
+def _get_kline_service(db: Session = Depends(get_db)) -> KlineService:
+    return KlineService(db)
 
 
 @router.get("", response_model=list[ContractResponse])
@@ -75,37 +79,10 @@ def get_contract_kline(
     start: datetime | None = Query(None),
     end: datetime | None = Query(None),
     limit: int = Query(500, ge=1, le=5000),
-    db: Session = Depends(get_db),
+    service: KlineService = Depends(_get_kline_service),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
     """获取单个合约的 K 线数据。"""
-    c = db.query(FutContractDB).filter(FutContractDB.id == contract_id).first()
-    if not c:
-        raise HTTPException(status_code=404, detail="合约不存在")
-
-    rows = []
-    for candidate in period_candidates(period):
-        q = (
-            db.query(KlineDataDB)
-            .filter(KlineDataDB.contract_id == contract_id)
-            .filter(KlineDataDB.period == candidate)
-        )
-        if start:
-            q = q.filter(KlineDataDB.trading_time >= ensure_utc(start))
-        if end:
-            q = q.filter(KlineDataDB.trading_time <= ensure_utc(end))
-
-        rows = q.order_by(KlineDataDB.trading_time.asc()).limit(limit).all()
-        if rows:
-            break
-    return [
-        KlineResponse(
-            time=r.trading_time.isoformat(),
-            open=r.open_price,
-            high=r.high_price,
-            low=r.low_price,
-            close=r.close_price,
-            volume=r.volume,
-        )
-        for r in rows
-    ]
+    return service.get_contract_klines(
+        contract_id, period=period, start=ensure_utc(start), end=ensure_utc(end), limit=limit
+    )

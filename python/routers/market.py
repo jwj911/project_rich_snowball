@@ -2,12 +2,13 @@
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from dependencies import get_db
-from models import TradingCalendarDB
-from schemas import MarketStatusResponse
+from dependencies import get_current_user_dependency, get_db
+from models import TradingCalendarDB, UserDB
+from schemas import DataQualityResponse, MarketComparisonResponse, MarketStatusResponse
+from services.domain.market_data_service import MarketDataService
 
 router = APIRouter(prefix="/api/market", tags=["市场状态"])
 
@@ -42,6 +43,10 @@ def _get_session_status(calendar_entry: TradingCalendarDB | None) -> str:
                 return "night"
 
     return "closed"
+
+
+def _get_market_data_service(db: Session = Depends(get_db)) -> MarketDataService:
+    return MarketDataService(db)
 
 
 @router.get("/status", response_model=MarketStatusResponse)
@@ -79,3 +84,24 @@ def get_market_status(db: Session = Depends(get_db)):
         next_trade_date=next_trade.trade_date.strftime("%Y-%m-%d") if next_trade else None,
         remark=remark,
     )
+
+
+@router.get("/comparison", response_model=MarketComparisonResponse)
+def get_market_comparison(
+    symbols: list[str] = Query(..., description="品种代码列表，如 ?symbols=AU&symbols=CU"),
+    service: MarketDataService = Depends(_get_market_data_service),
+    current_user: UserDB = Depends(get_current_user_dependency),
+):
+    """跨品种涨跌幅/方向对比。"""
+    result = service.get_market_comparison(symbols)
+    return {"items": result}
+
+
+@router.get("/data-quality", response_model=DataQualityResponse)
+def get_data_quality(
+    symbol: str | None = Query(None, description="品种代码，不传则返回整体质量摘要"),
+    service: MarketDataService = Depends(_get_market_data_service),
+    current_user: UserDB = Depends(get_current_user_dependency),
+):
+    """获取实时行情数据质量状态。"""
+    return service.get_data_quality(symbol)

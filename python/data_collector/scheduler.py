@@ -16,6 +16,8 @@ from data_collector.collector_registry import (
 from data_collector.job_registry import build_job_configs, register_jobs
 from models import NewsArticleDB, NewsSourceDB, PriceAlertDB, RealtimeQuoteDB, SessionLocal, VarietyDB
 from services.metrics import data_collection_duration_seconds, data_collection_runs_total
+from services.domain.kline_service import KlineService
+from services.domain.market_data_service import MarketDataService
 from services.news_fetcher import fetch_all_enabled_sources
 from services.realtime_state import mark_realtime_updated
 from services.trading_calendar import _cn_date, is_trading_day
@@ -149,6 +151,7 @@ def refresh_realtime_quotes():
             },
         )
         mark_realtime_updated()
+        MarketDataService.invalidate_realtime_cache()
         _check_price_alerts(db)
         data_collection_runs_total.labels(task_name="refresh_realtime", status="success").inc()
     except (SQLAlchemyError, OSError) as e:
@@ -161,26 +164,20 @@ def refresh_realtime_quotes():
 
 
 def _check_price_alerts(db):
-    """检查所有未触发的价格预警，根据实时行情标记触发状态。"""
+    """检查所有未触发的价格预警，根据实时行情标记触发状态。
+
+    使用 JOIN 一次性查询所有待触发预警与最新行情，避免 N+1。
+    """
     try:
-        alerts = (
-            db.query(PriceAlertDB)
+        results = (
+            db.query(PriceAlertDB, RealtimeQuoteDB)
+            .join(RealtimeQuoteDB, PriceAlertDB.variety_id == RealtimeQuoteDB.variety_id)
             .filter(PriceAlertDB.is_triggered.is_(False))
             .all()
         )
-        if not alerts:
-            return
 
         triggered_count = 0
-        for alert in alerts:
-            quote = (
-                db.query(RealtimeQuoteDB)
-                .filter(RealtimeQuoteDB.variety_id == alert.variety_id)
-                .first()
-            )
-            if not quote:
-                continue
-
+        for alert, quote in results:
             current = quote.current_price
             if current is None:
                 continue
@@ -232,6 +229,7 @@ def sync_daily_kline():
             data_collection_runs_total.labels(task_name="sync_kline", status="success").inc()
         else:
             data_collection_runs_total.labels(task_name="sync_kline", status="partial").inc()
+        KlineService.invalidate_kline_cache()
     except (SQLAlchemyError, OSError) as e:
         logger.error("Sync kline failed: %s", e)
         data_collection_runs_total.labels(task_name="sync_kline", status="failed").inc()

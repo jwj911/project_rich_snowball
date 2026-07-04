@@ -191,6 +191,27 @@ def invalidate_cache(key: str | None = None):
             _cache_time.clear()
 
 
+def invalidate_cache_pattern(prefix: str):
+    """按前缀清除缓存。Redis 使用 scan_iter，内存使用前缀匹配。"""
+    if is_redis_available():
+        client = get_redis_client()
+        if client:
+            try:
+                # Redis 默认支持 glob 风格通配符；若调用方已带 *，则直接使用；否则补全
+                pattern = prefix if "*" in prefix else f"{prefix}*"
+                for k in client.scan_iter(match=pattern):
+                    client.delete(k)
+            except (OSError, ConnectionError) as exc:
+                logger.warning("Redis invalidate pattern failed for %s: %s", prefix, exc)
+                mark_redis_unavailable()
+
+    with _lock:
+        keys = [k for k in _cache if k.startswith(prefix.rstrip("*"))]
+        for k in keys:
+            _cache.pop(k, None)
+            _cache_time.pop(k, None)
+
+
 def get_cache_stats() -> dict:
     """返回缓存统计。Redis 优先，不可用时返回内存统计。"""
     if is_redis_available():

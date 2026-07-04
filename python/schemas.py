@@ -373,6 +373,30 @@ class ContinuousKlineResponse(KlineResponse):
     contract_id: int | None
 
 
+class IndicatorResponse(BaseModel):
+    """技术指标响应项。
+
+    固定返回基础 OHLCV 和时间，其余指标字段通过 extra='allow' 动态附加。
+    """
+
+    time: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+
+    model_config = ConfigDict(extra="allow")
+
+
+class KlineSummaryResponse(BaseModel):
+    """多周期 K 线汇总响应。"""
+
+    data: dict[str, list[KlineResponse]]
+
+    model_config = ConfigDict(extra="allow")
+
+
 # ========== Batch Price Levels ==========
 
 
@@ -447,6 +471,36 @@ class MarketStatusResponse(BaseModel):
     current_session: str
     next_trade_date: str | None
     remark: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MarketComparisonItem(BaseModel):
+    symbol: str
+    current_price: float | None
+    change_percent: float
+    direction: str
+
+
+class MarketComparisonResponse(BaseModel):
+    items: list[MarketComparisonItem]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DataQualityDetail(BaseModel):
+    symbol: str
+    data_source: str | None
+    updated_at: str | None
+    stale: bool
+
+
+class DataQualityResponse(BaseModel):
+    overall: str
+    total: int
+    stale_count: int
+    stale_threshold_seconds: float
+    details: list[DataQualityDetail]
 
     model_config = ConfigDict(from_attributes=True)
 

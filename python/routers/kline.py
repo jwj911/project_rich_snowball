@@ -1,16 +1,20 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from dependencies import get_current_user_dependency, get_db
-from models import KlineDataDB, UserDB, VarietyDB
-from schemas import ContinuousKlineResponse, KlineResponse
-from services.continuous_kline import get_continuous_kline, get_main_contract_kline
-from services.kline_period import period_candidates
+from models import UserDB
+from schemas import ContinuousKlineResponse, IndicatorResponse, KlineResponse, KlineSummaryResponse
+from services.domain.exceptions import NotFoundError
+from services.domain.kline_service import KlineService
 from utils import ensure_utc
 
 router = APIRouter(prefix="/api/klines", tags=["K线"])
+
+
+def _get_kline_service(db: Session = Depends(get_db)) -> KlineService:
+    return KlineService(db)
 
 
 @router.get("/{symbol}", response_model=list[KlineResponse])
@@ -18,36 +22,12 @@ def get_kline(
     symbol: str,
     period: str = Query("1h", pattern="^(1m|5m|15m|30m|1h|1d|1w)$"),
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db),
+    contract_id: int | None = Query(None, ge=1, description="合约 ID，不传则返回当前主力合约 K 线"),
+    service: KlineService = Depends(_get_kline_service),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
-    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
-    if not variety:
-        raise HTTPException(status_code=404, detail="品种不存在")
-
-    klines = []
-    for candidate in period_candidates(period):
-        klines = (
-            db.query(KlineDataDB)
-            .filter(KlineDataDB.variety_id == variety.id, KlineDataDB.period == candidate)
-            .order_by(KlineDataDB.trading_time.desc())
-            .limit(limit)
-            .all()
-        )
-        if klines:
-            break
-
-    return [
-        KlineResponse(
-            time=k.trading_time.isoformat(),
-            open=k.open_price,
-            high=k.high_price,
-            low=k.low_price,
-            close=k.close_price,
-            volume=k.volume,
-        )
-        for k in reversed(klines)
-    ]
+    rows = service.get_klines(symbol, period=period, limit=limit, contract_id=contract_id)
+    return rows
 
 
 @router.get("/{symbol}/continuous", response_model=list[ContinuousKlineResponse])
@@ -57,30 +37,14 @@ def get_continuous_kline_api(
     start: datetime | None = Query(None),
     end: datetime | None = Query(None),
     limit: int = Query(500, ge=1, le=5000),
-    db: Session = Depends(get_db),
+    service: KlineService = Depends(_get_kline_service),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
     """获取连续 K 线（按主力切换拼接多合约）。"""
-    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
-    if not variety:
-        raise HTTPException(status_code=404, detail="品种不存在")
-
-    rows = get_continuous_kline(
-        db, variety.id, period=period, start=ensure_utc(start), end=ensure_utc(end), limit=limit, adjustment="backward"
+    rows = service.get_continuous_klines(
+        symbol, period=period, start=ensure_utc(start), end=ensure_utc(end), limit=limit
     )
-    return [
-        ContinuousKlineResponse(
-            time=r["time"],
-            open=r["open"],
-            high=r["high"],
-            low=r["low"],
-            close=r["close"],
-            volume=r["volume"],
-            contract_code=r.get("contract_code"),
-            contract_id=r.get("contract_id"),
-        )
-        for r in rows
-    ]
+    return rows
 
 
 @router.get("/{symbol}/main", response_model=list[ContinuousKlineResponse])
@@ -90,27 +54,37 @@ def get_main_contract_kline_api(
     start: datetime | None = Query(None),
     end: datetime | None = Query(None),
     limit: int = Query(500, ge=1, le=5000),
-    db: Session = Depends(get_db),
+    service: KlineService = Depends(_get_kline_service),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
     """获取当前主力合约的 K 线（不拼接）。"""
-    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
-    if not variety:
-        raise HTTPException(status_code=404, detail="品种不存在")
-
-    rows = get_main_contract_kline(
-        db, variety.id, period=period, start=ensure_utc(start), end=ensure_utc(end), limit=limit
+    rows = service.get_main_klines(
+        symbol, period=period, start=ensure_utc(start), end=ensure_utc(end), limit=limit
     )
-    return [
-        ContinuousKlineResponse(
-            time=r["time"],
-            open=r["open"],
-            high=r["high"],
-            low=r["low"],
-            close=r["close"],
-            volume=r["volume"],
-            contract_code=r.get("contract_code"),
-            contract_id=r.get("contract_id"),
-        )
-        for r in rows
-    ]
+    return rows
+
+
+@router.get("/{symbol}/indicators", response_model=list[IndicatorResponse])
+def get_kline_indicators(
+    symbol: str,
+    period: str = Query("1d", pattern=r"^(1m|5m|15m|30m|1h|1d|1w)$"),
+    indicators: list[str] | None = Query(None, description="指标名列表，如 MA,MACD,RSI；为空则返回全部"),
+    limit: int = Query(500, ge=10, le=1000),
+    service: KlineService = Depends(_get_kline_service),
+    current_user: UserDB = Depends(get_current_user_dependency),
+):
+    """获取 K 线技术指标。"""
+    return service.calculate_indicators(symbol, period=period, indicators=indicators, limit=limit)
+
+
+@router.get("/{symbol}/summary", response_model=KlineSummaryResponse)
+def get_kline_summary(
+    symbol: str,
+    periods: list[str] = Query(..., description="周期列表，如 ?periods=1d&periods=1h"),
+    limit: int = Query(100, ge=1, le=500),
+    service: KlineService = Depends(_get_kline_service),
+    current_user: UserDB = Depends(get_current_user_dependency),
+):
+    """获取多周期 K 线汇总。"""
+    result = service.get_kline_summary(symbol, periods=periods, limit=limit)
+    return {"data": result}

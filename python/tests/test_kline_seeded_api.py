@@ -44,7 +44,9 @@ def test_kline_seeded_data(client, db_session, auth_headers):
         ))
     db_session.commit()
 
-    r = client.get("/api/klines/AU?period=1h&limit=10", headers=auth_headers)
+    # 新版 /api/klines/{symbol} 默认返回当前主力合约 K 线；
+    # 为验证显式插入的合约数据，需显式传入 contract_id。
+    r = client.get(f"/api/klines/AU?period=1h&contract_id={contract.id}&limit=10", headers=auth_headers)
     assert r.status_code == 200
     data = r.json()
     assert len(data) >= 5

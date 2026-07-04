@@ -294,3 +294,24 @@ def test_data_agent_without_llm_config_marks_task_failed(client, auth_headers, m
     data = resp.json()
     assert data["status"] == "failed"
     assert "OPENAI_API_KEY" in data["error_message"]
+
+
+def test_agent_status_endpoint_returns_task_summary(client, auth_headers):
+    resp = client.get("/api/agents/status", headers=auth_headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_tasks"] >= 0
+    assert "llm_configured" in data
+    assert any(item["agent_type"] == "data" for item in data["capabilities"])
+
+
+def test_agent_permission_heartbeat_returns_current_permissions(client, auth_headers):
+    resp = client.get("/api/agents/permission-heartbeat", headers=auth_headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["authenticated"] is True
+    assert data["can_create_tasks"] is True
+    assert data["can_view_own_tasks"] is True
+    assert "data" in data["allowed_agent_types"] or "tech_analysis" in data["allowed_agent_types"]

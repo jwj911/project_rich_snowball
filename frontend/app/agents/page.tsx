@@ -1,11 +1,21 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import AppShell from '@/components/layout/AppShell'
 import { api } from '@/lib/api'
-import type { AgentTaskResponse } from '@/lib/api'
-import { Loader2, Trash2, Bot } from 'lucide-react'
+import type { AgentPermissionHeartbeat, AgentStatusSummary, AgentTaskResponse } from '@/lib/api'
+import {
+  Activity,
+  AlertTriangle,
+  Bot,
+  CheckCircle2,
+  Clock3,
+  Loader2,
+  ShieldCheck,
+  Trash2,
+  XCircle,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 type TaskStatus = 'pending' | 'running' | 'completed' | 'failed'
@@ -37,11 +47,15 @@ const agentTypeLabels: Record<string, string> = {
 
 export default function AgentsPage() {
   const [tasks, setTasks] = useState<AgentTaskResponse[]>([])
-  const [loading, setLoading] = useState(true)
+  const [tasksLoading, setTasksLoading] = useState(true)
+  const [statusLoading, setStatusLoading] = useState(true)
+  const [agentStatus, setAgentStatus] = useState<AgentStatusSummary | null>(null)
+  const [heartbeat, setHeartbeat] = useState<AgentPermissionHeartbeat | null>(null)
+  const [heartbeatError, setHeartbeatError] = useState(false)
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
 
-  const fetchTasks = async () => {
-    setLoading(true)
+  const fetchTasks = useCallback(async () => {
+    setTasksLoading(true)
     try {
       const params = statusFilter === 'all' ? undefined : { status: statusFilter }
       const data = await api.getAgentTasks(params)
@@ -49,13 +63,48 @@ export default function AgentsPage() {
     } catch {
       toast.error('加载任务列表失败')
     } finally {
-      setLoading(false)
+      setTasksLoading(false)
     }
-  }
+  }, [statusFilter])
+
+  const fetchWorkspaceStatus = useCallback(async () => {
+    setStatusLoading(true)
+    const [statusResult, heartbeatResult] = await Promise.allSettled([
+      api.getAgentStatus(),
+      api.getAgentPermissionHeartbeat(),
+    ])
+
+    if (statusResult.status === 'fulfilled') {
+      setAgentStatus(statusResult.value)
+    } else {
+      toast.error('加载 Agent 状态失败')
+    }
+
+    if (heartbeatResult.status === 'fulfilled') {
+      setHeartbeat(heartbeatResult.value)
+      setHeartbeatError(false)
+    } else {
+      setHeartbeat(null)
+      setHeartbeatError(true)
+    }
+
+    setStatusLoading(false)
+  }, [])
 
   useEffect(() => {
     fetchTasks()
   }, [statusFilter])
+
+  useEffect(() => {
+    fetchWorkspaceStatus()
+    const timer = window.setInterval(fetchWorkspaceStatus, 30000)
+    return () => window.clearInterval(timer)
+  }, [fetchWorkspaceStatus])
+
+  const visibleCapabilities = useMemo(
+    () => (agentStatus?.capabilities ?? []).filter((item) => item.agent_type !== 'orchestrator'),
+    [agentStatus],
+  )
 
   const handleDelete = async (id: number) => {
     if (!confirm('确定删除该任务？')) return
@@ -70,7 +119,7 @@ export default function AgentsPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-4xl px-4 py-6">
+      <div className="mx-auto max-w-5xl px-4 py-6">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
@@ -78,10 +127,101 @@ export default function AgentsPage() {
             </div>
             <div>
               <h1 className="text-lg font-semibold text-white">Agent 工作台</h1>
-              <p className="text-sm text-slate-400">查看和管理你的 AI Agent 任务</p>
+              <p className="text-sm text-slate-400">查看 Agent 能力、权限状态和任务执行记录</p>
             </div>
           </div>
+        </div>
 
+        <div className="mb-6 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Metric label="全部任务" value={agentStatus?.total_tasks ?? 0} loading={statusLoading} />
+            <Metric label="运行中" value={agentStatus?.running_tasks ?? 0} tone="blue" loading={statusLoading} />
+            <Metric label="已完成" value={agentStatus?.completed_tasks ?? 0} tone="green" loading={statusLoading} />
+            <Metric label="失败" value={agentStatus?.failed_tasks ?? 0} tone="red" loading={statusLoading} />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
+            <section className="rounded-lg border border-slate-800 bg-surface p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-medium text-white">
+                  <Activity size={16} className="text-blue-400" />
+                  Agent 能力
+                </div>
+                {agentStatus && (
+                  <span className="text-xs text-slate-500">
+                    {new Date(agentStatus.server_time).toLocaleTimeString('zh-CN')}
+                  </span>
+                )}
+              </div>
+
+              {statusLoading && visibleCapabilities.length === 0 ? (
+                <div className="flex h-24 items-center justify-center">
+                  <Loader2 size={18} className="animate-spin text-slate-500" />
+                </div>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {visibleCapabilities.map((item) => (
+                    <div key={item.agent_type} className="rounded-lg border border-slate-800 bg-slate-900/50 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-white">{item.label}</div>
+                          <div className="mt-0.5 truncate text-xs text-slate-500">{item.agent_type}</div>
+                        </div>
+                        {item.enabled ? (
+                          <CheckCircle2 size={17} className="shrink-0 text-green-400" />
+                        ) : (
+                          <XCircle size={17} className="shrink-0 text-red-400" />
+                        )}
+                      </div>
+                      <div className="mt-2 text-xs text-slate-400">
+                        {item.enabled ? '可用' : item.reason || '暂不可用'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-lg border border-slate-800 bg-surface p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
+                <ShieldCheck size={16} className={heartbeatError ? 'text-red-400' : 'text-green-400'} />
+                权限心跳
+              </div>
+              {heartbeatError ? (
+                <div className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">
+                  登录态异常或权限检查失败
+                </div>
+              ) : heartbeat ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-green-400">
+                    <CheckCircle2 size={16} />
+                    权限正常
+                  </div>
+                  <div className="grid gap-2 text-xs">
+                    <Info label="用户" value={`${heartbeat.username} (#${heartbeat.user_id})`} />
+                    <Info label="角色" value={heartbeat.role} />
+                    <Info label="可用 Agent" value={`${heartbeat.allowed_agent_types.length} 个`} />
+                    <Info label="检查时间" value={new Date(heartbeat.server_time).toLocaleTimeString('zh-CN')} />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex h-24 items-center justify-center">
+                  <Loader2 size={18} className="animate-spin text-slate-500" />
+                </div>
+              )}
+            </section>
+          </div>
+
+          {agentStatus?.capabilities.some((item) => !item.enabled) && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              <AlertTriangle size={16} />
+              部分 Agent 暂不可用，请查看能力卡片中的原因。
+            </div>
+          )}
+        </div>
+
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-white">任务记录</h2>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as TaskStatus | 'all')}
@@ -95,7 +235,7 @@ export default function AgentsPage() {
           </select>
         </div>
 
-        {loading ? (
+        {tasksLoading ? (
           <div className="flex h-64 items-center justify-center">
             <Loader2 size={24} className="animate-spin text-slate-500" />
           </div>
@@ -140,5 +280,44 @@ export default function AgentsPage() {
         )}
       </div>
     </AppShell>
+  )
+}
+
+function Metric({
+  label,
+  value,
+  tone = 'slate',
+  loading,
+}: {
+  label: string
+  value: number
+  tone?: 'slate' | 'blue' | 'green' | 'red'
+  loading?: boolean
+}) {
+  const colors = {
+    slate: 'text-white',
+    blue: 'text-blue-400',
+    green: 'text-green-400',
+    red: 'text-red-400',
+  }
+  return (
+    <div className="rounded-lg border border-slate-800 bg-surface p-4">
+      <div className="flex items-center gap-2 text-xs text-slate-500">
+        <Clock3 size={13} />
+        {label}
+      </div>
+      <div className={`mt-2 text-2xl font-semibold ${colors[tone]}`}>
+        {loading ? <Loader2 size={18} className="animate-spin text-slate-500" /> : value}
+      </div>
+    </div>
+  )
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-slate-800 bg-slate-900/50 px-2.5 py-2">
+      <div className="text-[11px] text-slate-500">{label}</div>
+      <div className="mt-0.5 truncate text-xs text-slate-200">{value}</div>
+    </div>
   )
 }

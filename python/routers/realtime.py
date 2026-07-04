@@ -18,8 +18,8 @@ from dependencies import get_current_user_dependency, get_db
 from errors import ErrorCode
 from models import RealtimeQuoteDB, SessionLocal, UserDB, VarietyDB
 from schemas import RealtimeBatchResponse, RealtimeResponse
-from services.cache import get_cached
 from services.domain.exceptions import NotFoundError, ServiceError, UnauthorizedError
+from services.domain.market_data_service import MarketDataService
 from services.realtime_state import get_last_update_time
 
 router = APIRouter(prefix="/api/realtime", tags=["实时行情"])
@@ -51,39 +51,6 @@ SSE_MAX_GLOBAL_CONNECTIONS = 100  # 全局 SSE 并发连接上限
 def _sse_test_mode() -> bool:
     """运行时读取环境变量，避免导入期求值与测试模块加载顺序冲突。"""
     return os.getenv("SSE_TEST_MODE") == "1"
-
-
-def _fetch_realtime(symbol: str, db: Session, variety: VarietyDB | None = None):
-    """获取单个品种实时行情，返回 dict 或 None（不抛异常）。
-
-    支持传入预查的 variety 对象，避免 batch 场景下的 N+1 查询。
-    """
-    if variety is None:
-        variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
-    if not variety:
-        return None
-
-    def _fetch():
-        q = db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).first()
-        if not q:
-            return None
-        # 缓存纯 dict，不存 ORM 实例，避免 detached session 风险
-        return {
-            "symbol": variety.symbol,
-            "current_price": q.current_price,
-            "change_percent": q.change_percent or 0,
-            "open_price": q.open_price,
-            "high": q.high,
-            "low": q.low,
-            "volume": q.volume,
-            "updated_at": q.updated_at,
-            "delayed": q.data_source == "akshare",
-            "data_source": q.data_source,
-            "limit_up": q.limit_up,
-            "limit_down": q.limit_down,
-        }
-
-    return get_cached(f"futures:realtime:{symbol}", _fetch)
 
 
 def _fetch_realtime_batch(symbols: list[str], db: Session) -> tuple[list[dict], list[str]]:
@@ -136,19 +103,17 @@ def _fetch_realtime_batch(symbols: list[str], db: Session) -> tuple[list[dict], 
     return quotes, not_found
 
 
+def _get_market_data_service(db: Session = Depends(get_db)) -> MarketDataService:
+    return MarketDataService(db)
+
+
 @router.get("/batch", response_model=RealtimeBatchResponse)
 def get_realtime_batch(
     symbols: list[str] = Query(default=[], description="品种代码列表，如 ?symbols=AU&symbols=CU"),
-    db: Session = Depends(get_db),
+    service: MarketDataService = Depends(_get_market_data_service),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
-    if len(symbols) > SSE_MAX_SYMBOLS:
-        raise ServiceError(
-            message=f"查询品种数超过上限 {SSE_MAX_SYMBOLS}",
-            status_code=400,
-            code=ErrorCode.TOO_MANY_SYMBOLS,
-        )
-    quotes, not_found = _fetch_realtime_batch(symbols, db)
+    quotes, not_found = service.get_realtime_batch(symbols, max_symbols=SSE_MAX_SYMBOLS)
     return {"quotes": quotes, "not_found": not_found}
 
 
@@ -305,8 +270,9 @@ async def get_realtime_stream(
 
 
 @router.get("/{symbol}", response_model=RealtimeResponse)
-def get_realtime(symbol: str, db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user_dependency)):
-    quote = _fetch_realtime(symbol, db)
-    if not quote:
-        raise NotFoundError("暂无实时行情数据", code=ErrorCode.REALTIME_DATA_UNAVAILABLE)
-    return quote
+def get_realtime(
+    symbol: str,
+    service: MarketDataService = Depends(_get_market_data_service),
+    current_user: UserDB = Depends(get_current_user_dependency),
+):
+    return service.get_realtime(symbol)
