@@ -269,3 +269,99 @@ class TestStrategyCompilerAgent:
         parsed = json.loads(result.data["json"])
         assert parsed["universe"] == ["RB"]
         assert parsed["direction"] == "short"
+
+
+class TestSignalTemplates:
+    """验证 quantative_tools signals 中的信号被抽象为可一键调用的策略模板。"""
+
+    def test_kdj_oversold_strategy(self, db_session):
+        user = _create_user(db_session)
+        _create_test_variety(db_session)
+        executor = AgentExecutor(db_session, user.id)
+        task_id = executor.create_task("strategy_compiler", "螺纹钢 KDJ 超卖做多")
+        agent = StrategyCompilerAgent(AgentContext(db_session, user.id, task_id))
+
+        result = asyncio.run(executor.execute(agent, "螺纹钢 KDJ 超卖做多", task_id=task_id))
+
+        assert result.success is True
+        dsl = result.data["dsl"]
+        assert dsl["entry"]["conditions"][0]["indicator"] == "kdj_k"
+        assert dsl["entry"]["conditions"][0]["operator"] == "cross_above"
+        assert dsl["entry"]["conditions"][0]["indicator2"] == "kdj_d"
+        assert dsl["entry"]["conditions"][1]["indicator"] == "kdj_j"
+        assert dsl["entry"]["conditions"][1]["operator"] == "less_than"
+
+    def test_cci_mean_reversion_strategy(self, db_session):
+        user = _create_user(db_session)
+        _create_test_variety(db_session)
+        executor = AgentExecutor(db_session, user.id)
+        task_id = executor.create_task("strategy_compiler", "螺纹钢 CCI 低于 -100 做多")
+        agent = StrategyCompilerAgent(AgentContext(db_session, user.id, task_id))
+
+        result = asyncio.run(executor.execute(agent, "螺纹钢 CCI 低于 -100 做多", task_id=task_id))
+
+        assert result.success is True
+        dsl = result.data["dsl"]
+        assert dsl["entry"]["conditions"][0]["indicator"].startswith("cci")
+        assert dsl["entry"]["conditions"][0]["operator"] == "less_than"
+        assert dsl["entry"]["conditions"][0]["value"] == -100
+
+    def test_rsv_extreme_reversal_strategy(self, db_session):
+        user = _create_user(db_session)
+        _create_test_variety(db_session)
+        executor = AgentExecutor(db_session, user.id)
+        task_id = executor.create_task("strategy_compiler", "螺纹钢 RSV 小于 10 做多")
+        agent = StrategyCompilerAgent(AgentContext(db_session, user.id, task_id))
+
+        result = asyncio.run(executor.execute(agent, "螺纹钢 RSV 小于 10 做多", task_id=task_id))
+
+        assert result.success is True
+        dsl = result.data["dsl"]
+        assert dsl["entry"]["conditions"][0]["indicator"] == "kdj_j"
+        assert dsl["entry"]["conditions"][0]["operator"] == "less_than"
+        assert dsl["entry"]["conditions"][0]["value"] == 10
+
+    def test_ma_bias_strategy(self, db_session):
+        user = _create_user(db_session)
+        _create_test_variety(db_session)
+        executor = AgentExecutor(db_session, user.id)
+        task_id = executor.create_task("strategy_compiler", "螺纹钢均线偏离 2% 做多")
+        agent = StrategyCompilerAgent(AgentContext(db_session, user.id, task_id))
+
+        result = asyncio.run(executor.execute(agent, "螺纹钢均线偏离 2% 做多", task_id=task_id))
+
+        assert result.success is True
+        dsl = result.data["dsl"]
+        assert dsl["entry"]["conditions"][0]["indicator"] == "close"
+        assert dsl["entry"]["conditions"][0]["indicator2"] == "sma20"
+        assert dsl["entry"]["conditions"][0]["operator"] == "greater_than"
+
+    def test_bollinger_breakout_strategy(self, db_session):
+        user = _create_user(db_session)
+        _create_test_variety(db_session)
+        executor = AgentExecutor(db_session, user.id)
+        task_id = executor.create_task("strategy_compiler", "螺纹钢布林带突破上轨做多")
+        agent = StrategyCompilerAgent(AgentContext(db_session, user.id, task_id))
+
+        result = asyncio.run(executor.execute(agent, "螺纹钢布林带突破上轨做多", task_id=task_id))
+
+        assert result.success is True
+        dsl = result.data["dsl"]
+        assert dsl["entry"]["conditions"][0]["indicator"] == "close"
+        assert dsl["entry"]["conditions"][0]["operator"] == "cross_above"
+        assert dsl["entry"]["conditions"][0]["indicator2"] == "boll_upper"
+
+    def test_hl_breakout_strategy(self, db_session):
+        user = _create_user(db_session)
+        _create_test_variety(db_session)
+        executor = AgentExecutor(db_session, user.id)
+        task_id = executor.create_task("strategy_compiler", "螺纹钢突破昨日高点做多")
+        agent = StrategyCompilerAgent(AgentContext(db_session, user.id, task_id))
+
+        result = asyncio.run(executor.execute(agent, "螺纹钢突破昨日高点做多", task_id=task_id))
+
+        assert result.success is True
+        dsl = result.data["dsl"]
+        assert dsl["entry"]["conditions"][0]["indicator"] == "close"
+        assert dsl["entry"]["conditions"][0]["operator"] == "cross_above"
+        assert dsl["entry"]["conditions"][0]["indicator2"] == "high_1"

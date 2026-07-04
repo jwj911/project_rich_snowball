@@ -678,6 +678,9 @@ function StrategyCard({
             <h3 className="font-semibold text-white">{strategy.name}</h3>
             <DirectionBadge direction={strategy.direction} />
             <span className="text-xs text-slate-500">{strategy.symbol}</span>
+            {strategy.is_builtin && (
+              <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-400">示例</span>
+            )}
           </div>
           <p className="mt-1 line-clamp-2 text-xs text-slate-400">{readStrategyDescription(strategy)}</p>
         </div>
@@ -698,13 +701,15 @@ function StrategyCard({
           >
             {expanded ? '收起' : '展开'}
           </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="rounded-md p-1.5 text-slate-500 transition hover:bg-red-500/10 hover:text-red-400"
-          >
-            <Trash2 size={14} />
-          </button>
+          {!strategy.is_builtin && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="rounded-md p-1.5 text-slate-500 transition hover:bg-red-500/10 hover:text-red-400"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       </div>
 

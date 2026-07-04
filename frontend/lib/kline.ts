@@ -2,10 +2,10 @@ import { api, KlineData } from '@/lib/api'
 import { KLINE } from '@/lib/constants'
 
 export type KlinePeriod = '1d'
-export type KlineSource = 'continuous'
+export type KlineSource = 'main'
 
 export const KLINE_SOURCES: Array<{ value: KlineSource; label: string }> = [
-  { value: 'continuous', label: '连续 K 线' },
+  { value: 'main', label: '主力合约' },
 ]
 
 export const KLINE_PERIODS: Array<{ value: KlinePeriod; label: string }> = [
@@ -43,8 +43,8 @@ export async function loadKlineBySource(
   const defaultEnd = '2026-07-02'
   try {
     let rows: KlineData[]
-    if (source === 'continuous') {
-      rows = await api.getContinuousKline(symbol, period, defaultStart, defaultEnd, limit, { signal: options.signal })
+    if (source === 'main') {
+      rows = await api.getMainContractKline(symbol, period, defaultStart, defaultEnd, limit, { signal: options.signal })
     } else {
       rows = []
     }
@@ -56,7 +56,7 @@ export async function loadKlineBySource(
     return {
       rows,
       period,
-      notice: `连续 K 线（${period}）暂无数据`,
+      notice: `主力合约（${period}）暂无数据`,
     }
   } catch (err) {
     if (options.signal?.aborted) {

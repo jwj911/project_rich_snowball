@@ -19,7 +19,6 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from services.agent.strategy_compiler_agent import StrategyDSL
-from services.backtest.service import run_dsl_backtest
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +151,8 @@ def optimize_strategy(
     """
     symbol = dsl.universe[0] if dsl.universe else "?"
     param_grid = _infer_param_grid(query or dsl.description)
+
+    from services.backtest.service import run_dsl_backtest
 
     results: list[OptimizationResult] = []
     errors = 0

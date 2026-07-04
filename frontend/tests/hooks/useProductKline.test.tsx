@@ -21,9 +21,9 @@ describe('useProductKline', () => {
     vi.clearAllMocks()
   })
 
-  it('loads continuous kline by default', async () => {
+  it('loads main contract kline by default', async () => {
     vi.mocked(api.getContracts).mockResolvedValue([])
-    vi.mocked(api.getContinuousKline).mockResolvedValue(rows)
+    vi.mocked(api.getMainContractKline).mockResolvedValue(rows)
 
     const { result } = renderHook(() => useProductKline('RB', true, 1))
 
@@ -35,10 +35,11 @@ describe('useProductKline', () => {
       signal: expect.any(AbortSignal),
     }))
 
-    expect(api.getContinuousKline).toHaveBeenCalledWith('RB', '1d', '2025-01-01', '2026-07-02', 90, expect.objectContaining({
+    expect(api.getMainContractKline).toHaveBeenCalledWith('RB', '1d', '2025-01-01', '2026-07-02', 90, expect.objectContaining({
       signal: expect.any(AbortSignal),
     }))
-    expect(result.current.displayedKlineSource).toBe('continuous')
+    expect(api.getContinuousKline).not.toHaveBeenCalled()
+    expect(result.current.displayedKlineSource).toBe('main')
     expect(result.current.displayedKlinePeriod).toBe('1d')
     expect(result.current.klineNotice).toBeNull()
   })
@@ -47,13 +48,14 @@ describe('useProductKline', () => {
     renderHook(() => useProductKline('RB', false, 1))
 
     expect(api.getContracts).not.toHaveBeenCalled()
+    expect(api.getMainContractKline).not.toHaveBeenCalled()
     expect(api.getContinuousKline).not.toHaveBeenCalled()
   })
 
   it('aborts the active request on unmount', () => {
     let capturedSignal: AbortSignal | null | undefined
     vi.mocked(api.getContracts).mockResolvedValue([])
-    vi.mocked(api.getContinuousKline).mockImplementation((_symbol, _period, _start, _end, _limit, options) => {
+    vi.mocked(api.getMainContractKline).mockImplementation((_symbol, _period, _start, _end, _limit, options) => {
       capturedSignal = options?.signal
       return new Promise(() => undefined)
     })

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from models import AgentTaskDB
-
 
 class TestListAgentTasks:
     """GET /api/agents/tasks — 任务列表查询。"""
@@ -146,6 +144,25 @@ class TestGetAgentTask:
 
         assert resp.status_code == 404
 
+    def test_returns_sub_tasks_for_parent_task(self, client, auth_headers, db_session):
+        """验证 parent/sub_tasks 关系能正确序列化为列表。"""
+        from models import UserDB
+        from services.agent.executor import AgentExecutor
+
+        user = db_session.query(UserDB).filter(UserDB.username == "integration_tester").first()
+        executor = AgentExecutor(db_session, user.id)
+        parent_id = executor.create_task("data_quality", "父任务")
+        child_id = executor.create_task("data_quality", "子任务", parent_task_id=parent_id)
+
+        resp = client.get(f"/api/agents/tasks/{parent_id}", headers=auth_headers)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data["sub_tasks"], list)
+        assert len(data["sub_tasks"]) == 1
+        assert data["sub_tasks"][0]["id"] == child_id
+        assert data["sub_tasks"][0]["parent_task_id"] == parent_id
+
     def test_returns_403_for_other_users_task(self, client, auth_headers, db_session):
         """验证用户不能查看他人的任务。"""
         from models import UserDB
@@ -240,14 +257,14 @@ class TestCreateAgentTask:
         db_session.commit()
 
         # 创建几根 K 线
-        from datetime import datetime, timedelta, timezone
+        from datetime import UTC, datetime, timedelta
 
         for day_offset in range(30):
             kline = KlineDataDB(
                 variety_id=variety.id,
                 contract_id=contract.id,
                 period="1d",
-                trading_time=datetime.now(timezone.utc) - timedelta(days=day_offset),
+                trading_time=datetime.now(UTC) - timedelta(days=day_offset),
                 open_price=445.0 + day_offset * 0.5,
                 high_price=455.0 + day_offset * 0.5,
                 low_price=440.0 + day_offset * 0.5,

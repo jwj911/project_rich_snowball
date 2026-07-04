@@ -126,7 +126,7 @@ export default function KlineSection({
 }
 
 function getSourceTitle(source: KlineSource) {
-  if (source === 'continuous') return '按主力切换拼接的连续价格序列'
+  if (source === 'main') return '当前主力合约的独立 K 线'
   return ''
 }
 

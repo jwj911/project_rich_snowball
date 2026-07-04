@@ -11,7 +11,13 @@ def _get_auth_user(db_session):
     return db_session.query(UserDB).filter_by(username="integration_tester").first()
 
 
-def _create_strategy(db_session, user_id: int, symbol: str = "AU", direction: str = "long") -> StrategyDB:
+def _create_strategy(
+    db_session,
+    user_id: int,
+    symbol: str = "AU",
+    direction: str = "long",
+    is_builtin: bool = False,
+) -> StrategyDB:
     strategy = StrategyDB(
         user_id=user_id,
         name=f"{symbol} test strategy",
@@ -21,6 +27,7 @@ def _create_strategy(db_session, user_id: int, symbol: str = "AU", direction: st
         timeframe="1d",
         direction=direction,
         is_active=True,
+        is_builtin=is_builtin,
     )
     db_session.add(strategy)
     db_session.flush()
@@ -41,6 +48,109 @@ def _seed_quote(db_session, variety_id: int, price: str = "5000") -> None:
         )
     )
     db_session.flush()
+
+
+class TestListStrategies:
+    def test_returns_own_strategies(self, client, auth_headers, db_session):
+        user = _get_auth_user(db_session)
+        strategy = _create_strategy(db_session, user.id)
+
+        resp = client.get("/api/strategies", headers=auth_headers)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert any(s["id"] == strategy.id for s in data)
+
+    def test_returns_builtin_strategies_for_other_users(self, client, auth_headers, db_session):
+        other_user = UserDB(
+            username="strategy_builtin_owner",
+            email="builtin_owner@test.com",
+            password_hash=hash_password("password123"),
+        )
+        db_session.add(other_user)
+        db_session.flush()
+        db_session.refresh(other_user)
+        builtin = _create_strategy(db_session, other_user.id, is_builtin=True)
+
+        resp = client.get("/api/strategies", headers=auth_headers)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert any(s["id"] == builtin.id and s["is_builtin"] is True for s in data)
+
+    def test_hides_non_builtin_strategies_from_others(self, client, auth_headers, db_session):
+        other_user = UserDB(
+            username="strategy_private_owner",
+            email="private_owner@test.com",
+            password_hash=hash_password("password123"),
+        )
+        db_session.add(other_user)
+        db_session.flush()
+        db_session.refresh(other_user)
+        private = _create_strategy(db_session, other_user.id, is_builtin=False)
+
+        resp = client.get("/api/strategies", headers=auth_headers)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert all(s["id"] != private.id for s in data)
+
+
+class TestGetStrategy:
+    def test_can_view_builtin_strategy(self, client, auth_headers, db_session):
+        other_user = UserDB(
+            username="strategy_builtin_get_owner",
+            email="builtin_get_owner@test.com",
+            password_hash=hash_password("password123"),
+        )
+        db_session.add(other_user)
+        db_session.flush()
+        db_session.refresh(other_user)
+        builtin = _create_strategy(db_session, other_user.id, is_builtin=True)
+
+        resp = client.get(f"/api/strategies/{builtin.id}", headers=auth_headers)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == builtin.id
+        assert data["is_builtin"] is True
+
+    def test_cannot_view_private_strategy_of_other_user(self, client, auth_headers, db_session):
+        other_user = UserDB(
+            username="strategy_private_get_owner",
+            email="private_get_owner@test.com",
+            password_hash=hash_password("password123"),
+        )
+        db_session.add(other_user)
+        db_session.flush()
+        db_session.refresh(other_user)
+        private = _create_strategy(db_session, other_user.id, is_builtin=False)
+
+        resp = client.get(f"/api/strategies/{private.id}", headers=auth_headers)
+
+        assert resp.status_code == 403
+
+
+class TestDeleteStrategy:
+    def test_cannot_delete_builtin_strategy(self, client, auth_headers, db_session):
+        user = _get_auth_user(db_session)
+        builtin = _create_strategy(db_session, user.id, is_builtin=True)
+
+        resp = client.delete(f"/api/strategies/{builtin.id}", headers=auth_headers)
+
+        assert resp.status_code == 403
+        db_session.refresh(builtin)
+        assert builtin.is_active is True
+
+    def test_can_delete_own_non_builtin_strategy(self, client, auth_headers, db_session):
+        user = _get_auth_user(db_session)
+        strategy = _create_strategy(db_session, user.id, is_builtin=False)
+
+        resp = client.delete(f"/api/strategies/{strategy.id}", headers=auth_headers)
+
+        assert resp.status_code == 200
+        db_session.refresh(strategy)
+        assert strategy.is_active is False
 
 
 class TestStrategyPortfolioPlan:

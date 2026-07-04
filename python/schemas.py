@@ -1181,6 +1181,7 @@ class StrategyResponse(BaseModel):
     timeframe: str
     direction: str
     is_active: bool
+    is_builtin: bool
     created_at: str
     updated_at: str | None
 

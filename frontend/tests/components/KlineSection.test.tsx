@@ -22,14 +22,14 @@ function renderKlineSection(overrides: Partial<React.ComponentProps<typeof Kline
     symbol: 'RB',
     contracts,
     selectedContractId: 12,
-    selectedSource: 'continuous',
+    selectedSource: 'main',
     selectedPeriod: '1d',
-    displayedSource: 'continuous',
+    displayedSource: 'main',
     displayedPeriod: '1d',
     isLoading: false,
     isContractsLoading: false,
     notice: null,
-    viewportResetKey: 'RB:continuous:1d:none',
+    viewportResetKey: 'RB:main:1d:none',
     supportLevels: [],
     resistanceLevels: [],
     onSelectContract: vi.fn(),
@@ -47,7 +47,7 @@ function renderKlineSection(overrides: Partial<React.ComponentProps<typeof Kline
 }
 
 describe('KlineSection', () => {
-  it('renders continuous kline by default', () => {
+  it('renders main contract kline by default', () => {
     renderKlineSection()
     expect(screen.getByTestId('kline-chart')).toHaveTextContent('RB:1')
   })

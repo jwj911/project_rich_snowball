@@ -258,33 +258,26 @@ def get_fut_daily_main_kline(
     if not variety:
         return []
 
-    # 1. 优先：通过 VarietyDB.contract_code 获取当前主力合约，再查 fut_contracts 获取 ts_code
-    main_ts_code = None
-    main_contract_id = None
+    # 1. 优先：通过 contract_type='MAIN' 识别主力合约
+    main_contract = db.query(FutContractDB).filter(
+        FutContractDB.fut_code == variety.symbol,
+        FutContractDB.contract_type == 'MAIN',
+    ).first()
 
-    if variety.contract_code:
-        contract = db.query(FutContractDB).filter(
-            FutContractDB.symbol == variety.contract_code,
-        ).first()
-        if contract:
-            main_ts_code = contract.ts_code
-            main_contract_id = contract.id
+    # 2. 其次：通过 VarietyDB.contract_code 获取当前主力合约
+    if not main_contract:
+        if variety.contract_code:
+            contract = db.query(FutContractDB).filter(
+                FutContractDB.symbol == variety.contract_code,
+            ).first()
+            if contract:
+                main_contract = contract
 
-    # 2. 其次：通过 contract_type 识别主力/连续合约（支持多种数据源格式）
-    if not main_ts_code:
-        contract = db.query(FutContractDB).filter(
-            FutContractDB.fut_code == variety.symbol,
-            FutContractDB.contract_type.in_(['MAIN', '1', '2', '3']),
-        ).first()
-        if contract:
-            main_ts_code = contract.ts_code
-            main_contract_id = contract.id
-
-    # 3. 如果找到了主力合约的 ts_code，直接查询 fut_daily_data（不 JOIN）
-    if main_ts_code:
+    # 3. 如果找到了主力合约，直接查询 fut_daily_data（不 JOIN）
+    if main_contract:
         q = db.query(FutDailyDataDB).filter(
             FutDailyDataDB.variety_id == variety_id,
-            FutDailyDataDB.ts_code == main_ts_code,
+            FutDailyDataDB.ts_code == main_contract.ts_code,
             FutDailyDataDB.period == "D",
         )
         if start:
@@ -304,7 +297,7 @@ def get_fut_daily_main_kline(
                     "close": float(row.close_price),
                     "volume": row.volume,
                     "contract_code": row.ts_code,
-                    "contract_id": main_contract_id,
+                    "contract_id": main_contract.id,
                 }
                 for row in rows
             ]

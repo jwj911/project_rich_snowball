@@ -159,3 +159,38 @@ class TestFactorStrategyValidation:
         )
         errors = StrategyValidator.validate(dsl)
         assert errors == []
+
+
+class TestFactorBacktestIntegration:
+    def test_run_backtest_with_multiple_stock_factors(self, db_session, seed_user):
+        from services.backtest.service import run_dsl_backtest
+
+        user = seed_user
+        variety = _create_test_variety(db_session)
+        _seed_klines(db_session, variety.id, n=120)
+
+        # 从股票库抽象出的典型技术因子
+        factors = [
+            ("PriceVol20", "price_vol_20", "ts_std(close, 20)", "量价"),
+            ("MaDisplaced20", "ma_displaced_20", "close / ts_delay(ts_mean(close, 40), 20) - 1", "动量"),
+            ("CRet10", "c_ret_10", "ts_delay(close / ts_delay(close, 20) - 1, 10)", "反转"),
+            ("MtmHcm20", "mtm_hcm_20", "ts_mean(close / ts_delay(close, 20) - 1, 20) / (close / ts_mean(close, 20)) - 1", "动量"),
+            ("G161", "g_161", "ts_mean(max_df(max_df(high - low, abs(ts_delay(close, 1) - high)), abs(ts_delay(close, 1) - low)), 12)", "波动"),
+        ]
+        for name, fid, expr, _category in factors:
+            _create_factor(db_session, user.id, name, fid, expr)
+
+        # 用 MtmHcm20 因子做一个多空策略
+        result = run_dsl_backtest(
+            db_session,
+            symbol=variety.symbol,
+            period="1d",
+            direction="long",
+            entry_conditions=[{"indicator": "factor:mtm_hcm_20", "operator": "greater_than", "value": 0.0}],
+            exit_conditions=[{"indicator": "factor:mtm_hcm_20", "operator": "less_than", "value": 0.0}],
+            limit=120,
+        )
+
+        assert "metrics" in result
+        assert "trades" in result
+        assert result["metrics"]["trade_count"] >= 0

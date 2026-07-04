@@ -152,6 +152,14 @@ class StrategyParser:
     # 策略模板：关键词 -> 解析函数
     # 注意：顺序重要 —— 更具体的关键词在前，避免通用模板吃掉复合查询
     _TEMPLATES = [
+        ("KDJ", "_parse_kdj"),
+        ("CCI", "_parse_cci"),
+        ("RSV", "_parse_rsv"),
+        ("均线偏离", "_parse_ma_bias"),
+        ("布林带突破", "_parse_bollinger_breakout"),
+        ("高低点", "_parse_hl_breakout"),
+        ("高点", "_parse_hl_breakout"),
+        ("低点", "_parse_hl_breakout"),
         ("均线交叉", "_parse_ma_cross"),
         ("RSI均线", "_parse_rsi_with_ma_filter"),
         ("RSI MA", "_parse_rsi_with_ma_filter"),
@@ -493,6 +501,251 @@ class StrategyParser:
         return StrategyDSL(
             name=f"{symbols[0] if len(symbols) == 1 else '多品种'} ATR{period}x{mult} 通道突破策略",
             description=f"基于 ATR 通道突破：{'上轨突破做多' if direction == 'long' else '下轨突破做空'}",
+            universe=symbols,
+            timeframe=timeframe,
+            direction=direction,
+            entry={"conditions": entry_conditions + extra_entry, "logic": logic},
+            exit={"conditions": exit_conditions, "logic": "and"},
+            risk=_default_risk(query),
+        )
+
+    def _parse_kdj(
+        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
+    ) -> StrategyDSL:
+        """解析 KDJ 信号策略：金叉且超卖做多，死叉且超买平仓。"""
+        # 提取 K/D/J 周期
+        period_match = re.search(r"KDJ\s*(?:周期|参数)?\s*(\d+)", query, re.IGNORECASE)
+        period = int(period_match.group(1)) if period_match else 9
+
+        # 超卖/超买阈值，默认 10/90
+        oversold_match = re.search(r"(?:超卖|低位|小于|低于)\s*(\d+)", query)
+        overbought_match = re.search(r"(?:超买|高位|大于|高于)\s*(\d+)", query)
+        oversold = int(oversold_match.group(1)) if oversold_match else 10
+        overbought = int(overbought_match.group(1)) if overbought_match else 90
+
+        kdj_suffix = f"{period}" if period != 9 else ""
+        k_line = f"kdj_k{kdj_suffix}" if kdj_suffix else "kdj_k"
+        d_line = f"kdj_d{kdj_suffix}" if kdj_suffix else "kdj_d"
+        j_line = f"kdj_j{kdj_suffix}" if kdj_suffix else "kdj_j"
+
+        if direction == "long":
+            entry_conditions = [
+                {"indicator": k_line, "operator": "cross_above", "indicator2": d_line},
+                {"indicator": j_line, "operator": "less_than", "value": oversold},
+            ]
+            exit_conditions = [
+                {"indicator": k_line, "operator": "cross_below", "indicator2": d_line},
+                {"indicator": j_line, "operator": "greater_than", "value": overbought},
+            ]
+        else:
+            entry_conditions = [
+                {"indicator": k_line, "operator": "cross_below", "indicator2": d_line},
+                {"indicator": j_line, "operator": "greater_than", "value": overbought},
+            ]
+            exit_conditions = [
+                {"indicator": k_line, "operator": "cross_above", "indicator2": d_line},
+                {"indicator": j_line, "operator": "less_than", "value": oversold},
+            ]
+
+        extra_entry = _parse_extra_conditions(query)
+
+        return StrategyDSL(
+            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} KDJ{period} 极值反转策略",
+            description=f"KDJ{period} {'金叉且 J<{oversold} 做多，死叉且 J>{overbought} 平仓' if direction == 'long' else '死叉且 J>{overbought} 做空，金叉且 J<{oversold} 平仓'}",
+            universe=symbols,
+            timeframe=timeframe,
+            direction=direction,
+            entry={"conditions": entry_conditions + extra_entry, "logic": logic},
+            exit={"conditions": exit_conditions, "logic": "and"},
+            risk=_default_risk(query),
+        )
+
+    def _parse_cci(
+        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
+    ) -> StrategyDSL:
+        """解析 CCI 信号策略：简化版 CCI < -100 做多，CCI > 100 平仓。"""
+        period_match = re.search(r"CCI\s*(?:周期|参数)?\s*(\d+)", query, re.IGNORECASE)
+        period = int(period_match.group(1)) if period_match else 20
+        cci_indicator = f"cci{period}"
+
+        # 阈值
+        lower_match = re.search(r"(?:低于|小于|<)\s*([-\d]+)", query)
+        upper_match = re.search(r"(?:高于|大于|>)\s*([-\d]+)", query)
+        lower = int(lower_match.group(1)) if lower_match else -100
+        upper = int(upper_match.group(1)) if upper_match else 100
+
+        if direction == "long":
+            entry_conditions = [{"indicator": cci_indicator, "operator": "less_than", "value": lower}]
+            exit_conditions = [{"indicator": cci_indicator, "operator": "greater_than", "value": upper}]
+        else:
+            entry_conditions = [{"indicator": cci_indicator, "operator": "greater_than", "value": upper}]
+            exit_conditions = [{"indicator": cci_indicator, "operator": "less_than", "value": lower}]
+
+        extra_entry = _parse_extra_conditions(query)
+
+        return StrategyDSL(
+            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} CCI{period} 均值回归策略",
+            description=f"CCI{period} {'低于 {lower} 做多，高于 {upper} 平仓' if direction == 'long' else '高于 {upper} 做空，低于 {lower} 平仓'}",
+            universe=symbols,
+            timeframe=timeframe,
+            direction=direction,
+            entry={"conditions": entry_conditions + extra_entry, "logic": logic},
+            exit={"conditions": exit_conditions, "logic": "and"},
+            risk=_default_risk(query),
+        )
+
+    def _parse_rsv(
+        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
+    ) -> StrategyDSL:
+        """解析 RSV 信号策略：RSV < 10 做多，RSV > 90 平仓。"""
+        # 使用 KDJ 的 J 值近似 RSV 极端位置
+        period_match = re.search(r"RSV\s*(?:周期|参数)?\s*(\d+)", query, re.IGNORECASE)
+        period = int(period_match.group(1)) if period_match else 9
+        j_line = f"kdj_j{period}" if period != 9 else "kdj_j"
+
+        oversold_match = re.search(r"(?:低于|小于|低于|超卖)\s*(\d+)", query)
+        overbought_match = re.search(r"(?:高于|大于|超买)\s*(\d+)", query)
+        oversold = int(oversold_match.group(1)) if oversold_match else 10
+        overbought = int(overbought_match.group(1)) if overbought_match else 90
+
+        if direction == "long":
+            entry_conditions = [{"indicator": j_line, "operator": "less_than", "value": oversold}]
+            exit_conditions = [{"indicator": j_line, "operator": "greater_than", "value": overbought}]
+        else:
+            entry_conditions = [{"indicator": j_line, "operator": "greater_than", "value": overbought}]
+            exit_conditions = [{"indicator": j_line, "operator": "less_than", "value": oversold}]
+
+        extra_entry = _parse_extra_conditions(query)
+
+        return StrategyDSL(
+            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} RSV/KDJ{period} 极端反转策略",
+            description=f"{'RSV 低位' if direction == 'long' else 'RSV 高位'}反转策略",
+            universe=symbols,
+            timeframe=timeframe,
+            direction=direction,
+            entry={"conditions": entry_conditions + extra_entry, "logic": logic},
+            exit={"conditions": exit_conditions, "logic": "and"},
+            risk=_default_risk(query),
+        )
+
+    def _parse_ma_bias(
+        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
+    ) -> StrategyDSL:
+        """解析均线偏离策略：价格偏离均线超过阈值时入场。"""
+        ma_match = re.search(r"(\d+)\s*(?:日|天|周期|根)?(?:均线|ma|MA)", query)
+        ma_period = int(ma_match.group(1)) if ma_match else 20
+
+        threshold_match = re.search(r"(?:偏离|bias|阈值)\s*(\d+(?:\.\d+)?)\s*%?", query, re.IGNORECASE)
+        threshold = float(threshold_match.group(1)) / 100 if threshold_match else 0.02
+
+        ma_indicator = f"sma{ma_period}"
+
+        if direction == "long":
+            entry_conditions = [
+                {
+                    "indicator": "close",
+                    "operator": "greater_than",
+                    "indicator2": ma_indicator,
+                    "value": threshold,
+                    "transform": "multiply_value",
+                }
+            ]
+            exit_conditions = [
+                {
+                    "indicator": "close",
+                    "operator": "less_than",
+                    "indicator2": ma_indicator,
+                    "value": threshold,
+                    "transform": "multiply_value",
+                }
+            ]
+        else:
+            entry_conditions = [
+                {
+                    "indicator": "close",
+                    "operator": "less_than",
+                    "indicator2": ma_indicator,
+                    "value": threshold,
+                    "transform": "multiply_value",
+                }
+            ]
+            exit_conditions = [
+                {
+                    "indicator": "close",
+                    "operator": "greater_than",
+                    "indicator2": ma_indicator,
+                    "value": threshold,
+                    "transform": "multiply_value",
+                }
+            ]
+
+        extra_entry = _parse_extra_conditions(query)
+
+        return StrategyDSL(
+            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} SMA{ma_period} 偏离{threshold*100:.1f}%策略",
+            description=f"价格相对 SMA{ma_period} {'上偏' if direction == 'long' else '下偏'} {threshold*100:.1f}% 入场",
+            universe=symbols,
+            timeframe=timeframe,
+            direction=direction,
+            entry={"conditions": entry_conditions + extra_entry, "logic": logic},
+            exit={"conditions": exit_conditions, "logic": "and"},
+            risk=_default_risk(query),
+        )
+
+    def _parse_bollinger_breakout(
+        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
+    ) -> StrategyDSL:
+        """解析布林带方向性突破策略：上轨突破做多/下轨突破做空。"""
+        period_match = re.search(r"(?:布林带|boll|bollinger)\s*(?:周期|参数)?\s*(\d+)", query, re.IGNORECASE)
+        period = int(period_match.group(1)) if period_match else 20
+        upper = f"boll_upper_{period}_2" if period != 20 else "boll_upper"
+        lower = f"boll_lower_{period}_2" if period != 20 else "boll_lower"
+
+        if direction == "long":
+            entry_conditions = [{"indicator": "close", "operator": "cross_above", "indicator2": upper}]
+            exit_conditions = [{"indicator": "close", "operator": "cross_below", "indicator2": lower}]
+        else:
+            entry_conditions = [{"indicator": "close", "operator": "cross_below", "indicator2": lower}]
+            exit_conditions = [{"indicator": "close", "operator": "cross_above", "indicator2": upper}]
+
+        extra_entry = _parse_extra_conditions(query)
+
+        return StrategyDSL(
+            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} 布林带{period} 方向突破策略",
+            description=f"布林带{period} {'上轨突破做多，下轨突破平仓' if direction == 'long' else '下轨突破做空，上轨突破平仓'}",
+            universe=symbols,
+            timeframe=timeframe,
+            direction=direction,
+            entry={"conditions": entry_conditions + extra_entry, "logic": logic},
+            exit={"conditions": exit_conditions, "logic": "and"},
+            risk=_default_risk(query),
+        )
+
+    def _parse_hl_breakout(
+        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
+    ) -> StrategyDSL:
+        """解析高低点突破策略：突破前 n 根 K 线高点/低点。"""
+        # 优先匹配 "昨日/前日/前 n 周期/高点" 等写法
+        window_match = re.search(
+            r"(?:昨日|前日|前\s*(\d+)\s*(?:日|天|周期|根)|(\d+)\s*(?:日|天|周期|根)?)(?:高低点|高低|高点|低点)",
+            query,
+        )
+        window = int(window_match.group(1) or window_match.group(2) or "1") if window_match else 1
+        high_indicator = f"high_{window}"
+        low_indicator = f"low_{window}"
+
+        if direction == "long":
+            entry_conditions = [{"indicator": "close", "operator": "cross_above", "indicator2": high_indicator}]
+            exit_conditions = [{"indicator": "close", "operator": "cross_below", "indicator2": low_indicator}]
+        else:
+            entry_conditions = [{"indicator": "close", "operator": "cross_below", "indicator2": low_indicator}]
+            exit_conditions = [{"indicator": "close", "operator": "cross_above", "indicator2": high_indicator}]
+
+        extra_entry = _parse_extra_conditions(query)
+
+        return StrategyDSL(
+            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} {window}周期高低点突破策略",
+            description=f"突破最近 {window} 周期 {'高点做多，低点平仓' if direction == 'long' else '低点做空，高点平仓'}",
             universe=symbols,
             timeframe=timeframe,
             direction=direction,

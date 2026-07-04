@@ -149,6 +149,7 @@ def init_db():
     """
     if ENV == "production":
         from alembic.config import Config as AlembicConfig
+
         from alembic import command
 
         alembic_cfg = AlembicConfig(os.path.join(os.path.dirname(__file__), "alembic.ini"))
@@ -946,14 +947,16 @@ class AgentTaskDB(Base):
         "AgentTaskDB",
         back_populates="parent_task",
         passive_deletes=True,
-        remote_side=[id],
+        remote_side=[parent_task_id],
         foreign_keys=[parent_task_id],
+        uselist=True,
     )
     parent_task = relationship(
         "AgentTaskDB",
         back_populates="sub_tasks",
-        remote_side=[parent_task_id],
+        remote_side=[id],
         foreign_keys=[parent_task_id],
+        uselist=False,
     )
 
     __table_args__ = (
@@ -1045,6 +1048,7 @@ class StrategyDB(Base):
     timeframe = Column(String(10), nullable=False, default="1d")
     direction = Column(String(10), nullable=False, default="long")
     is_active = Column(Boolean, nullable=False, default=True)
+    is_builtin = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
     user = relationship("UserDB", back_populates="strategies")

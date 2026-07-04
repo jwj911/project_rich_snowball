@@ -170,6 +170,41 @@ def _ts_zscore(df: pd.DataFrame, window: int) -> pd.DataFrame:
     return (df - mean) / std.replace(0, np.nan)
 
 
+def _ts_rank_pct(df: pd.DataFrame, window: int) -> pd.DataFrame:
+    """时间序列百分比排名（0~1）。"""
+    return df.rolling(window=window, min_periods=1).rank(pct=True)
+
+
+def _ts_mad(df: pd.DataFrame, window: int) -> pd.DataFrame:
+    """平均绝对偏差（Mean Absolute Deviation）。"""
+    mean = df.rolling(window=window, min_periods=1).mean()
+    return (df - mean).abs().rolling(window=window, min_periods=1).mean()
+
+
+def _max_df(a: pd.DataFrame, b: pd.DataFrame) -> pd.DataFrame:
+    """两个 DataFrame 逐元素取较大值。"""
+    return pd.DataFrame(np.maximum(a.values, b.values), index=a.index, columns=a.columns)
+
+
+def _min_df(a: pd.DataFrame, b: pd.DataFrame) -> pd.DataFrame:
+    """两个 DataFrame 逐元素取较小值。"""
+    return pd.DataFrame(np.minimum(a.values, b.values), index=a.index, columns=a.columns)
+
+
+def _tr(high: pd.DataFrame, low: pd.DataFrame, close: pd.DataFrame) -> pd.DataFrame:
+    """True Range = max(high-low, |high-delay(close,1)|, |low-delay(close,1)|)。"""
+    prev_close = close.shift(1)
+    return _max_df(
+        high - low,
+        _max_df((high - prev_close).abs(), (low - prev_close).abs()),
+    )
+
+
+def _atr(high: pd.DataFrame, low: pd.DataFrame, close: pd.DataFrame, window: int) -> pd.DataFrame:
+    """Average True Range。"""
+    return _tr(high, low, close).rolling(window=window, min_periods=1).mean()
+
+
 def _ts_corr(x: pd.DataFrame, y: pd.DataFrame, window: int) -> pd.DataFrame:
     """两个序列的滚动相关系数。"""
     return x.rolling(window=window, min_periods=1).corr(y)
@@ -247,6 +282,8 @@ def _build_namespace(panel: PanelData) -> dict[str, Any]:
         "ts_delta": _ts_delta,
         "ts_rank": _ts_rank,
         "ts_zscore": _ts_zscore,
+        "ts_rank_pct": _ts_rank_pct,
+        "ts_mad": _ts_mad,
         "ts_corr": _ts_corr,
         "ts_cov": _ts_cov,
         "ts_regression_beta": _ts_regression_beta,
@@ -254,6 +291,11 @@ def _build_namespace(panel: PanelData) -> dict[str, Any]:
         "rank": _rank,
         "zscore": _zscore,
         "sign": _sign,
+        # 多序列运算
+        "max_df": _max_df,
+        "min_df": _min_df,
+        "tr": _tr,
+        "atr": _atr,
         # 逐元素函数
         "abs": _abs,
         "log": _log,

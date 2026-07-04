@@ -11,6 +11,7 @@ import math
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from dependencies import get_current_user_dependency, get_db
@@ -46,10 +47,13 @@ def list_strategies(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
-    """获取当前用户的策略列表。"""
+    """获取当前用户的策略列表，同时包含系统内置示例策略。"""
     rows = (
         db.query(StrategyDB)
-        .filter(StrategyDB.user_id == current_user.id, StrategyDB.is_active.is_(True))
+        .filter(
+            StrategyDB.is_active.is_(True),
+            or_(StrategyDB.user_id == current_user.id, StrategyDB.is_builtin.is_(True)),
+        )
         .order_by(StrategyDB.created_at.desc())
         .all()
     )
@@ -95,11 +99,11 @@ def get_strategy(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
-    """获取策略详情。"""
+    """获取策略详情。系统内置策略对所有用户可见。"""
     row = db.query(StrategyDB).filter(StrategyDB.id == strategy_id).first()
     if not row:
         raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
-    if row.user_id != current_user.id:
+    if row.user_id != current_user.id and not row.is_builtin:
         raise ForbiddenError("无权访问该策略")
     return row
 
@@ -110,10 +114,12 @@ def delete_strategy(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
-    """软删除策略。"""
+    """软删除策略。系统内置策略不可删除。"""
     row = db.query(StrategyDB).filter(StrategyDB.id == strategy_id).first()
     if not row:
         raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
+    if row.is_builtin:
+        raise ForbiddenError("系统内置策略不可删除")
     if row.user_id != current_user.id:
         raise ForbiddenError("无权删除该策略")
     row.is_active = False
