@@ -220,6 +220,11 @@ class AnalysisPipelineAgent(Agent):
                 "score": ta.get("score"),
                 "rating": ta.get("rating"),
                 "direction": ta.get("direction"),
+                "bias": ta.get("bias"),
+                "money_flow": ta.get("money_flow"),
+                "kline_trend": ta.get("kline_trend"),
+                "key_levels": ta.get("key_levels"),
+                "risk_note": ta.get("risk_note"),
                 "trend": ta.get("trend"),
                 "pattern": ta.get("pattern"),
                 "divergence": ta.get("divergence"),
@@ -264,10 +269,18 @@ class AnalysisPipelineAgent(Agent):
             lines.append(f"- 综合评分：{tech['score']}/100（{tech.get('rating', '—')}）")
         if tech.get("direction"):
             lines.append(f"- 趋势方向：{tech['direction']}")
+        if tech.get("bias"):
+            lines.append(f"- 多空倾向：{tech['bias']}")
+        if tech.get("money_flow"):
+            lines.append(f"- 资金流向：{tech['money_flow']}")
+        if tech.get("kline_trend"):
+            lines.append(f"- K线走势：{tech['kline_trend']}")
         if tech.get("pattern") and isinstance(tech["pattern"], dict):
             lines.append(f"- 形态：{tech['pattern'].get('pattern', '—')}")
         if tech.get("divergence") and isinstance(tech["divergence"], dict):
             lines.append(f"- 背离：{tech['divergence'].get('divergence', '—')}")
+        if tech.get("risk_note"):
+            lines.append(f"- 风险提示：{tech['risk_note']}")
 
         lines.extend([
             "",

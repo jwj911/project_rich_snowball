@@ -114,6 +114,58 @@ class TechAnalysisAgent(Agent):
         # 构建结构化报告
         latest = df.iloc[-1]
         latest_bar = kline_data[-1]
+        prev = df.iloc[-2] if len(df) > 1 else latest
+
+        # 趋势方向映射为向上/向下/震荡
+        raw_trend = trend["direction"]
+        if raw_trend in ("上涨", "偏多震荡"):
+            direction = "向上"
+        elif raw_trend in ("下跌", "偏空震荡"):
+            direction = "向下"
+        else:
+            direction = "震荡"
+
+        # 多空倾向
+        bias = composite["direction"]
+
+        # 资金流向：基于量比与价格变化
+        vol_ratio = latest.get("vol_ratio")
+        price_change = latest["close"] - prev["close"]
+        if vol_ratio is not None and vol_ratio > 1.2:
+            if price_change > 0:
+                money_flow = "量价配合，资金流入"
+            else:
+                money_flow = "放量下跌，资金流出"
+        elif vol_ratio is not None and vol_ratio < 0.8:
+            if price_change > 0:
+                money_flow = "缩量上涨，上涨动能减弱（量价背离风险）"
+            else:
+                money_flow = "缩量下跌，抛压减轻"
+        else:
+            money_flow = "量能中性，观望资金动向"
+
+        # K线走势：近 5 日涨跌描述
+        recent = df.iloc[-5:]
+        up_days = int((recent["close"].diff() > 0).sum())
+        down_days = 4 - up_days
+        recent_change = round(recent["close"].iloc[-1] - recent["close"].iloc[0], 2)
+        kline_trend = f"近 5 日 {up_days} 涨 {down_days} 跌，累计变动 {recent_change:+.2f}"
+
+        # 关键价位：支撑/阻力/均线
+        recent_20 = df.iloc[-20:]
+        key_levels = {
+            "support": round(recent_20["low"].min(), 2),
+            "resistance": round(recent_20["high"].max(), 2),
+            "ma5": round(latest.get("sma5", 0), 2) if latest.get("sma5") else None,
+            "ma10": round(latest.get("sma10", 0), 2) if latest.get("sma10") else None,
+            "ma20": round(latest.get("sma20", 0), 2) if latest.get("sma20") else None,
+            "ma60": round(latest.get("sma60", 0), 2) if latest.get("sma60") else None,
+        }
+
+        # 风险提示
+        atr14 = latest.get("atr14")
+        atr_note = f"ATR {atr14:.2f}，波动{'较大' if atr14 and atr14 > latest['close'] * 0.02 else '一般'}" if atr14 is not None else "波动数据不足"
+        risk_note = f"{atr_note}；当前评分 {composite['score']}/100（{composite['rating']}），建议结合仓位与止损规则。"
 
         report = {
             "symbol": symbol,
@@ -125,13 +177,19 @@ class TechAnalysisAgent(Agent):
             "kline_count": len(kline_data),
             "score": composite["score"],
             "rating": composite["rating"],
-            "direction": composite["direction"],
+            "direction": direction,
+            "bias": bias,
+            "money_flow": money_flow,
+            "kline_trend": kline_trend,
+            "key_levels": key_levels,
+            "risk_note": risk_note,
             "trend": trend,
             "pattern": pattern,
             "divergence": divergence,
             "details": composite["details"],
             "indicators": {
                 "sma5": round(latest.get("sma5", 0), 2) if latest.get("sma5") else None,
+                "sma10": round(latest.get("sma10", 0), 2) if latest.get("sma10") else None,
                 "sma20": round(latest.get("sma20", 0), 2) if latest.get("sma20") else None,
                 "sma60": round(latest.get("sma60", 0), 2) if latest.get("sma60") else None,
                 "rsi6": round(latest.get("rsi6", 0), 1) if latest.get("rsi6") else None,
@@ -151,6 +209,7 @@ class TechAnalysisAgent(Agent):
                 "dmi_plus": round(latest.get("dmi_plus", 0), 1) if latest.get("dmi_plus") else None,
                 "dmi_minus": round(latest.get("dmi_minus", 0), 1) if latest.get("dmi_minus") else None,
                 "vol_ratio": round(latest.get("vol_ratio", 0), 2) if latest.get("vol_ratio") else None,
+                "volume_change": round(latest.get("volume") / prev.get("volume") - 1, 2) if prev.get("volume") else None,
                 "wr14": round(latest.get("wr14", 0), 1) if latest.get("wr14") else None,
             },
             "notes": composite["notes"],
@@ -162,7 +221,11 @@ class TechAnalysisAgent(Agent):
             "",
             f"**最新价**：{report['current_price']}  **涨跌**：{report['change_percent']}%",
             f"**综合评分**：{composite['score']}/100  **评级**：{composite['rating']}",
-            f"**趋势方向**：{trend['direction']}  **强度**：{trend['strength']}",
+            f"**趋势方向**：{direction}（{trend['strength']}） **多空倾向**：{bias}",
+            f"**资金流向**：{money_flow}",
+            f"**K线走势**：{kline_trend}",
+            f"**关键价位**：支撑 {key_levels['support']} / 阻力 {key_levels['resistance']} / MA5 {key_levels['ma5']} / MA20 {key_levels['ma20']}",
+            f"**风险提示**：{risk_note}",
             "",
             "### 关键指标",
             f"- RSI(24)：{report['indicators']['rsi24']}（>70 超买，<30 超卖）",

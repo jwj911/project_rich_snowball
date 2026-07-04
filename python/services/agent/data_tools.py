@@ -5,12 +5,18 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from models import (
+    FutDailyDataDB,
+    FutHoldingDB,
+    FutPriceLimitDB,
+    FutSettleDB,
+    FutWsrDB,
     KlineDataDB,
     RealtimeQuoteDB,
     TradingCalendarDB,
@@ -18,6 +24,9 @@ from models import (
 )
 from services.agent.context import AgentContext
 from services.agent.tools import Tool, ToolDefinition, ToolParameter, register_tool
+from services.agent.utils import resolve_symbol
+
+logger = logging.getLogger(__name__)
 
 
 class GetVarietyInfoTool(Tool):
@@ -92,7 +101,7 @@ class ListActiveVarietiesTool(Tool):
     """列出活跃品种。"""
 
     name = "list_active_varieties"
-    description = "列出所有当前活跃的期货品种，可按类别筛选并排序。"
+    description = "列出所有当前活跃的期货品种，可按类别筛选并排序。注意：查询『涨幅前 N』时使用 sort_order='desc'，查询『跌幅前 N』时使用 sort_order='asc'。"
 
     def _build_definition(self) -> ToolDefinition:
         return ToolDefinition(
@@ -139,7 +148,7 @@ class GetMarketStatusTool(Tool):
         return _get_market_status(context.db)
 
 
-# 注册工具（实例化后注册到全局注册表）
+# 注册基础工具（实例化后注册到全局注册表）
 register_tool(GetVarietyInfoTool())
 register_tool(GetRealtimeQuoteTool())
 register_tool(GetKlineDataTool())
@@ -151,8 +160,13 @@ register_tool(GetMarketStatusTool())
 
 
 def _get_variety_info(db: Session, symbol: str) -> dict[str, Any] | None:
-    """查询品种基础信息。"""
-    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol.upper(), VarietyDB.is_active == True).first()  # noqa: E712
+    """查询品种基础信息，支持品种代码或中文别名。"""
+    symbol = symbol.upper().strip()
+    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol, VarietyDB.is_active == True).first()  # noqa: E712
+    if not variety:
+        resolved = resolve_symbol(db, symbol)
+        if resolved and resolved != symbol:
+            variety = db.query(VarietyDB).filter(VarietyDB.symbol == resolved, VarietyDB.is_active == True).first()  # noqa: E712
     if not variety:
         return None
     return {
@@ -169,8 +183,13 @@ def _get_variety_info(db: Session, symbol: str) -> dict[str, Any] | None:
 
 
 def _get_realtime_quote(db: Session, symbol: str) -> dict[str, Any] | None:
-    """获取实时行情。"""
-    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol.upper(), VarietyDB.is_active == True).first()  # noqa: E712
+    """获取实时行情，支持品种代码或中文别名。"""
+    symbol = symbol.upper().strip()
+    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol, VarietyDB.is_active == True).first()  # noqa: E712
+    if not variety:
+        resolved = resolve_symbol(db, symbol)
+        if resolved and resolved != symbol:
+            variety = db.query(VarietyDB).filter(VarietyDB.symbol == resolved, VarietyDB.is_active == True).first()  # noqa: E712
     if not variety:
         return None
     quote = db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).first()
@@ -200,24 +219,55 @@ def _get_kline_data(
     period: str = "1d",
     limit: int = 100,
 ) -> list[dict[str, Any]]:
-    """获取 K 线数据。"""
-    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol.upper(), VarietyDB.is_active == True).first()  # noqa: E712
+    """获取 K 线数据，支持品种代码或中文别名。"""
+    symbol = symbol.upper().strip()
+    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol, VarietyDB.is_active == True).first()  # noqa: E712
+    if not variety:
+        resolved = resolve_symbol(db, symbol)
+        if resolved and resolved != symbol:
+            variety = db.query(VarietyDB).filter(VarietyDB.symbol == resolved, VarietyDB.is_active == True).first()  # noqa: E712
     if not variety:
         return []
 
-    # 周期映射：统一处理
-    period_map = {"1d": "1d", "D": "1d", "1h": "1h", "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1w": "1w"}
-    mapped = period_map.get(period, period)
+    limit = min(limit, 500)
+
+    # 周期映射：kline_data 使用前端周期，fut_daily_data 使用 Tushare D/W/M 周期。
+    kline_period_map = {
+        "1d": "1d",
+        "D": "1d",
+        "d": "1d",
+        "1h": "1h",
+        "1m": "1m",
+        "5m": "5m",
+        "15m": "15m",
+        "30m": "30m",
+        "1w": "1w",
+        "W": "1w",
+        "w": "1w",
+    }
+    fut_daily_period_map = {
+        "1d": "D",
+        "D": "D",
+        "d": "D",
+        "1w": "W",
+        "W": "W",
+        "w": "W",
+        "1M": "M",
+        "1mo": "M",
+        "M": "M",
+        "mth": "M",
+    }
+    mapped = kline_period_map.get(period, period)
 
     klines = (
         db.query(KlineDataDB)
         .filter(KlineDataDB.variety_id == variety.id, KlineDataDB.period == mapped)
         .order_by(KlineDataDB.trading_time.desc())
-        .limit(min(limit, 500))
+        .limit(limit)
         .all()
     )
 
-    return [
+    kline_result = [
         {
             "time": k.trading_time.isoformat(),
             "open": float(k.open_price),
@@ -228,6 +278,42 @@ def _get_kline_data(
         }
         for k in reversed(klines)
     ]
+    if period not in fut_daily_period_map:
+        return kline_result
+
+    fut_period = fut_daily_period_map[period]
+    daily_rows = (
+        db.query(FutDailyDataDB)
+        .filter(FutDailyDataDB.variety_id == variety.id, FutDailyDataDB.period == fut_period)
+        .order_by(FutDailyDataDB.trade_date.desc())
+        .limit(limit)
+        .all()
+    )
+    daily_result = [
+        {
+            "time": row.trade_date.isoformat(),
+            "open": float(row.open_price),
+            "high": float(row.high_price),
+            "low": float(row.low_price),
+            "close": float(row.close_price),
+            "volume": row.volume,
+        }
+        for row in reversed(daily_rows)
+        if row.open_price is not None
+        and row.high_price is not None
+        and row.low_price is not None
+        and row.close_price is not None
+    ]
+    if not daily_result:
+        return kline_result
+    if not kline_result:
+        return daily_result
+
+    latest_kline_time = klines[0].trading_time if klines else None
+    latest_daily_time = daily_rows[0].trade_date if daily_rows else None
+    if latest_daily_time and latest_kline_time and latest_daily_time >= latest_kline_time:
+        return daily_result
+    return kline_result
 
 
 def _list_active_varieties(
@@ -269,10 +355,7 @@ def _list_active_varieties(
                 q = q.order_by(sort_column, VarietyDB.symbol)
     else:
         # 默认按品种代码排序
-        if sort_order == "desc":
-            q = q.order_by(desc(VarietyDB.symbol))
-        else:
-            q = q.order_by(VarietyDB.symbol)
+        q = q.order_by(desc(VarietyDB.symbol)) if sort_order == "desc" else q.order_by(VarietyDB.symbol)
 
     varieties = q.limit(min(limit, 200)).all()
 
@@ -337,3 +420,549 @@ def _get_market_status(db: Session) -> dict[str, Any]:
         "current_session": session_status,
         "next_trade_date": next_trade.trade_date.strftime("%Y-%m-%d") if next_trade else None,
     }
+
+
+# =====================================================================
+# 扩展专用数据工具 — 覆盖 Tushare 回填的仓单/持仓/结算/涨跌停等数据
+# =====================================================================
+
+
+class GetWarehouseReceiptsTool(Tool):
+    """查询仓单日报数据。"""
+
+    name = "get_warehouse_receipts"
+    description = (
+        "查询期货品种的仓单日报数据（仓库库存、品级、年度等）。"
+        "可分析库存压力、交割博弈和基差变化。"
+    )
+
+    def _build_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(name="symbol", type="string", description="品种代码，如 RB、CU、AU", required=True),
+                ToolParameter(name="days", type="number", description="查询最近 N 天，默认 30，最大 365", required=False),
+            ],
+        )
+
+    async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
+        symbol = kwargs.get("symbol", "").upper().strip()
+        days = kwargs.get("days", 30)
+        if isinstance(days, str):
+            days = int(days)
+        days = min(max(days, 1), 365)
+        return _get_warehouse_receipts(context.db, symbol, days=days)
+
+
+class GetHoldingRankingsTool(Tool):
+    """查询持仓排名数据。"""
+
+    name = "get_holding_rankings"
+    description = (
+        "查询期货品种的成交持仓排名数据（成交量/多空持仓前 N 券商）。"
+        "可分析资金流向、多空博弈和主力动向。"
+    )
+
+    def _build_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(name="symbol", type="string", description="品种代码，如 RB、AU", required=True),
+                ToolParameter(name="trade_date", type="string", description="交易日，格式 YYYY-MM-DD。不填则取最新", required=False),
+                ToolParameter(name="top_n", type="number", description="返回前 N 名，默认 20，最大 50", required=False),
+            ],
+        )
+
+    async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
+        symbol = kwargs.get("symbol", "").upper().strip()
+        trade_date = kwargs.get("trade_date")
+        top_n = kwargs.get("top_n", 20)
+        if isinstance(top_n, str):
+            top_n = int(top_n)
+        top_n = min(max(top_n, 1), 50)
+        return _get_holding_rankings(context.db, symbol, trade_date=trade_date, top_n=top_n)
+
+
+class GetSettlementParamsTool(Tool):
+    """查询结算参数数据。"""
+
+    name = "get_settlement_params"
+    description = (
+        "查询期货品种的每日结算参数（保证金率、手续费率、交割结算价等）。"
+        "可分析保证金变化对杠杆和风控的影响。"
+    )
+
+    def _build_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(name="symbol", type="string", description="品种代码，如 RB、AU", required=True),
+                ToolParameter(name="days", type="number", description="查询最近 N 天，默认 30，最大 365", required=False),
+            ],
+        )
+
+    async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
+        symbol = kwargs.get("symbol", "").upper().strip()
+        days = kwargs.get("days", 30)
+        if isinstance(days, str):
+            days = int(days)
+        days = min(max(days, 1), 365)
+        return _get_settlement_params(context.db, symbol, days=days)
+
+
+class GetPriceLimitsTool(Tool):
+    """查询涨跌停价格数据。"""
+
+    name = "get_price_limits"
+    description = (
+        "查询期货品种的涨跌停价格数据（涨停价、跌停价、保证金比例）。"
+        "可分析当日交易边界和波动率预期。"
+    )
+
+    def _build_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(name="symbol", type="string", description="品种代码，如 RB、AU", required=True),
+                ToolParameter(name="days", type="number", description="查询最近 N 天，默认 10，最大 90", required=False),
+            ],
+        )
+
+    async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
+        symbol = kwargs.get("symbol", "").upper().strip()
+        days = kwargs.get("days", 10)
+        if isinstance(days, str):
+            days = int(days)
+        days = min(max(days, 1), 90)
+        return _get_price_limits(context.db, symbol, days=days)
+
+
+class GetContinuousKlinesTool(Tool):
+    """查询连续 K 线（主力切换拼接）。"""
+
+    name = "get_continuous_klines"
+    description = (
+        "获取期货品种的连续 K 线数据（主力合约切换时自动拼接）。"
+        "适合长期趋势分析和策略回测，避免换月跳空影响。"
+    )
+
+    def _build_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(name="symbol", type="string", description="品种代码，如 RB、AU", required=True),
+                ToolParameter(name="period", type="string", description="周期，如 1d(日线)、1h(小时线)。默认 1d", required=False),
+                ToolParameter(name="limit", type="number", description="返回条数，默认 120，最大 500", required=False),
+            ],
+        )
+
+    async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
+        symbol = kwargs.get("symbol", "").upper().strip()
+        period = kwargs.get("period", "1d")
+        limit = kwargs.get("limit", 120)
+        if isinstance(limit, str):
+            limit = int(limit)
+        limit = min(max(limit, 1), 500)
+        return _get_continuous_klines(context.db, symbol, period=period, limit=limit)
+
+
+class GetMainKlinesTool(Tool):
+    """查询当前主力合约 K 线。"""
+
+    name = "get_main_klines"
+    description = (
+        "获取期货品种当前主力合约的 K 线数据（不拼接历史合约）。"
+        "适合分析当前主力合约的独立走势。"
+    )
+
+    def _build_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(name="symbol", type="string", description="品种代码，如 RB、AU", required=True),
+                ToolParameter(name="period", type="string", description="周期，如 1d(日线)、1h(小时线)。默认 1d", required=False),
+                ToolParameter(name="limit", type="number", description="返回条数，默认 120，最大 500", required=False),
+            ],
+        )
+
+    async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
+        symbol = kwargs.get("symbol", "").upper().strip()
+        period = kwargs.get("period", "1d")
+        limit = kwargs.get("limit", 120)
+        if isinstance(limit, str):
+            limit = int(limit)
+        limit = min(max(limit, 1), 500)
+        return _get_main_klines(context.db, symbol, period=period, limit=limit)
+
+
+# ---------- 专用工具的服务层实现 ----------
+
+
+def _get_warehouse_receipts(
+    db: Session,
+    symbol: str,
+    days: int = 30,
+) -> dict[str, Any]:
+    """查询仓单日报数据。"""
+    symbol = symbol.upper().strip()
+    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol, VarietyDB.is_active == True).first()  # noqa: E712
+    if not variety:
+        resolved = resolve_symbol(db, symbol)
+        if resolved and resolved != symbol:
+            variety = db.query(VarietyDB).filter(VarietyDB.symbol == resolved, VarietyDB.is_active == True).first()  # noqa: E712
+            symbol = resolved
+    if not variety:
+        return {"error": f"未找到品种 {symbol}"}
+
+    from datetime import timedelta
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+
+    rows = (
+        db.query(FutWsrDB)
+        .filter(FutWsrDB.symbol == symbol, FutWsrDB.trade_date >= cutoff)
+        .order_by(FutWsrDB.trade_date.desc(), FutWsrDB.warehouse)
+        .limit(500)
+        .all()
+    )
+
+    if not rows:
+        return {"symbol": symbol, "days": days, "data": [], "note": "该品种暂无仓单数据"}
+
+    # 按日期聚合汇总
+    daily_summary: dict[str, dict[str, Any]] = {}
+    detail_records = []
+    for r in rows:
+        date_key = r.trade_date.strftime("%Y-%m-%d") if r.trade_date else ""
+        if date_key and date_key not in daily_summary:
+            daily_summary[date_key] = {"date": date_key, "total_vol": 0, "warehouse_count": 0}
+        if date_key:
+            daily_summary[date_key]["total_vol"] += r.vol or 0
+            daily_summary[date_key]["warehouse_count"] += 1
+        detail_records.append({
+            "date": date_key,
+            "warehouse": r.warehouse,
+            "vol": r.vol,
+            "vol_chg": r.vol_chg,
+            "area": r.area,
+            "year": r.year,
+            "grade": r.grade,
+        })
+
+    return {
+        "symbol": symbol,
+        "name": variety.name,
+        "days": days,
+        "summary": list(daily_summary.values())[:days],
+        "latest_detail": detail_records[:20],
+        "total_records": len(rows),
+    }
+
+
+def _get_holding_rankings(
+    db: Session,
+    symbol: str,
+    trade_date: str | None = None,
+    top_n: int = 20,
+) -> dict[str, Any]:
+    """查询持仓排名数据。"""
+    symbol = symbol.upper().strip()
+    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol, VarietyDB.is_active == True).first()  # noqa: E712
+    if not variety:
+        resolved = resolve_symbol(db, symbol)
+        if resolved and resolved != symbol:
+            variety = db.query(VarietyDB).filter(VarietyDB.symbol == resolved, VarietyDB.is_active == True).first()  # noqa: E712
+            symbol = resolved
+    if not variety:
+        return {"error": f"未找到品种 {symbol}"}
+
+    query = db.query(FutHoldingDB).filter(FutHoldingDB.symbol == symbol)
+    if trade_date:
+        from datetime import datetime as _dt
+        try:
+            dt = _dt.strptime(trade_date, "%Y-%m-%d")
+            query = query.filter(FutHoldingDB.trade_date >= dt.replace(hour=0, minute=0))
+            query = query.filter(FutHoldingDB.trade_date < dt.replace(hour=23, minute=59))
+        except ValueError:
+            return {"error": f"日期格式错误: {trade_date}，应为 YYYY-MM-DD"}
+    else:
+        # 取最新一天
+        latest = (
+            db.query(FutHoldingDB)
+            .filter(FutHoldingDB.symbol == symbol)
+            .order_by(FutHoldingDB.trade_date.desc())
+            .first()
+        )
+        if latest and latest.trade_date:
+            dt = latest.trade_date
+            query = query.filter(FutHoldingDB.trade_date >= dt.replace(hour=0, minute=0))
+            query = query.filter(FutHoldingDB.trade_date < dt.replace(hour=23, minute=59))
+
+    # 多头排名
+    longs = (
+        query.order_by(FutHoldingDB.long_hld.desc())
+        .limit(top_n)
+        .all()
+    )
+    # 空头排名（重新查，因为 order_by 不能复用）
+    query2 = db.query(FutHoldingDB).filter(FutHoldingDB.symbol == symbol)
+    if trade_date:
+        from datetime import datetime as _dt
+        dt = _dt.strptime(trade_date, "%Y-%m-%d")
+        query2 = query2.filter(FutHoldingDB.trade_date >= dt.replace(hour=0, minute=0))
+        query2 = query2.filter(FutHoldingDB.trade_date < dt.replace(hour=23, minute=59))
+    else:
+        if latest and latest.trade_date:
+            dt = latest.trade_date
+            query2 = query2.filter(FutHoldingDB.trade_date >= dt.replace(hour=0, minute=0))
+            query2 = query2.filter(FutHoldingDB.trade_date < dt.replace(hour=23, minute=59))
+
+    shorts = (
+        query2.order_by(FutHoldingDB.short_hld.desc())
+        .limit(top_n)
+        .all()
+    )
+
+    actual_date = longs[0].trade_date.strftime("%Y-%m-%d") if longs and longs[0].trade_date else trade_date or ""
+
+    return {
+        "symbol": symbol,
+        "name": variety.name,
+        "trade_date": actual_date,
+        "long_rankings": [
+            {
+                "broker": r.broker,
+                "long_hld": r.long_hld,
+                "long_chg": r.long_chg,
+                "vol": r.vol,
+            }
+            for r in longs
+        ],
+        "short_rankings": [
+            {
+                "broker": r.broker,
+                "short_hld": r.short_hld,
+                "short_chg": r.short_chg,
+                "vol": r.vol,
+            }
+            for r in shorts
+        ],
+    }
+
+
+def _get_settlement_params(
+    db: Session,
+    symbol: str,
+    days: int = 30,
+) -> dict[str, Any]:
+    """查询结算参数数据。"""
+    symbol = symbol.upper().strip()
+    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol, VarietyDB.is_active == True).first()  # noqa: E712
+    if not variety:
+        resolved = resolve_symbol(db, symbol)
+        if resolved and resolved != symbol:
+            variety = db.query(VarietyDB).filter(VarietyDB.symbol == resolved, VarietyDB.is_active == True).first()  # noqa: E712
+            symbol = resolved
+    if not variety:
+        return {"error": f"未找到品种 {symbol}"}
+
+    contract_code = variety.contract_code
+    from datetime import timedelta
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+
+    rows = (
+        db.query(FutSettleDB)
+        .filter(FutSettleDB.ts_code.like(f"{contract_code}%"), FutSettleDB.trade_date >= cutoff)
+        .order_by(FutSettleDB.trade_date.desc())
+        .limit(200)
+        .all()
+    )
+
+    if not rows:
+        # 尝试用 symbol 直接匹配
+        rows = (
+            db.query(FutSettleDB)
+            .filter(FutSettleDB.ts_code.like(f"{symbol}%"), FutSettleDB.trade_date >= cutoff)
+            .order_by(FutSettleDB.trade_date.desc())
+            .limit(200)
+            .all()
+        )
+
+    if not rows:
+        return {"symbol": symbol, "contract_code": contract_code, "days": days, "data": [], "note": "该品种暂无结算参数数据（SHFE/INE 覆盖较好，其他交易所可能缺失）"}
+
+    return {
+        "symbol": symbol,
+        "name": variety.name,
+        "contract_code": contract_code,
+        "days": days,
+        "data": [
+            {
+                "trade_date": r.trade_date.strftime("%Y-%m-%d") if r.trade_date else "",
+                "ts_code": r.ts_code,
+                "settle": float(r.settle) if r.settle else None,
+                "long_margin_rate": float(r.long_margin_rate) if r.long_margin_rate else None,
+                "short_margin_rate": float(r.short_margin_rate) if r.short_margin_rate else None,
+                "trading_fee_rate": float(r.trading_fee_rate) if r.trading_fee_rate else None,
+                "trading_fee": float(r.trading_fee) if r.trading_fee else None,
+                "offset_today_fee": float(r.offset_today_fee) if r.offset_today_fee else None,
+            }
+            for r in rows
+        ],
+    }
+
+
+def _get_price_limits(
+    db: Session,
+    symbol: str,
+    days: int = 10,
+) -> dict[str, Any]:
+    """查询涨跌停价格数据。"""
+    symbol = symbol.upper().strip()
+    variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol, VarietyDB.is_active == True).first()  # noqa: E712
+    if not variety:
+        resolved = resolve_symbol(db, symbol)
+        if resolved and resolved != symbol:
+            variety = db.query(VarietyDB).filter(VarietyDB.symbol == resolved, VarietyDB.is_active == True).first()  # noqa: E712
+            symbol = resolved
+    if not variety:
+        return {"error": f"未找到品种 {symbol}"}
+
+    contract_code = variety.contract_code
+    from datetime import timedelta
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+
+    rows = (
+        db.query(FutPriceLimitDB)
+        .filter(FutPriceLimitDB.ts_code.like(f"{contract_code}%"), FutPriceLimitDB.trade_date >= cutoff)
+        .order_by(FutPriceLimitDB.trade_date.desc())
+        .limit(200)
+        .all()
+    )
+
+    if not rows:
+        rows = (
+            db.query(FutPriceLimitDB)
+            .filter(FutPriceLimitDB.ts_code.like(f"{symbol}%"), FutPriceLimitDB.trade_date >= cutoff)
+            .order_by(FutPriceLimitDB.trade_date.desc())
+            .limit(200)
+            .all()
+        )
+
+    if not rows:
+        return {"symbol": symbol, "contract_code": contract_code, "days": days, "data": [], "note": "该品种暂无涨跌停数据"}
+
+    return {
+        "symbol": symbol,
+        "name": variety.name,
+        "contract_code": contract_code,
+        "days": days,
+        "data": [
+            {
+                "trade_date": r.trade_date.strftime("%Y-%m-%d") if r.trade_date else "",
+                "ts_code": r.ts_code,
+                "name": r.name,
+                "up_limit": float(r.up_limit) if r.up_limit else None,
+                "down_limit": float(r.down_limit) if r.down_limit else None,
+                "m_ratio": float(r.m_ratio) if r.m_ratio else None,
+            }
+            for r in rows
+        ],
+    }
+
+
+def _get_continuous_klines(
+    db: Session,
+    symbol: str,
+    period: str = "1d",
+    limit: int = 120,
+) -> list[dict[str, Any]] | dict[str, Any]:
+    """获取连续 K 线（主力切换拼接）。"""
+    symbol = symbol.upper().strip()
+    try:
+        from services.domain.kline_service import KlineService
+        svc = KlineService(db)
+        # 将前端周期映射为 KlineService 格式
+        period_map = {"1d": "D", "1w": "W", "1h": "1h", "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m"}
+        svc_period = period_map.get(period, period)
+        rows = svc.get_continuous_klines(symbol, period=svc_period, limit=limit)
+        return rows
+    except Exception as e:
+        logger.warning("Get continuous klines failed for %s: %s", symbol, e)
+        return {"error": f"获取连续 K 线失败: {e}"}
+
+
+def _get_main_klines(
+    db: Session,
+    symbol: str,
+    period: str = "1d",
+    limit: int = 120,
+) -> list[dict[str, Any]] | dict[str, Any]:
+    """获取当前主力合约 K 线。"""
+    symbol = symbol.upper().strip()
+    try:
+        from services.domain.kline_service import KlineService
+        svc = KlineService(db)
+        period_map = {"1d": "D", "1w": "W", "1h": "1h", "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m"}
+        svc_period = period_map.get(period, period)
+        rows = svc.get_main_klines(symbol, period=svc_period, limit=limit)
+        return rows
+    except Exception as e:
+        logger.warning("Get main klines failed for %s: %s", symbol, e)
+        return {"error": f"获取主力合约 K 线失败: {e}"}
+    """获取市场状态。"""
+    today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    entry = (
+        db.query(TradingCalendarDB)
+        .filter(TradingCalendarDB.trade_date == today, TradingCalendarDB.exchange == "ALL")
+        .first()
+    )
+    is_trading = entry.is_trading_day if entry else True
+    session_status = "unknown"
+    if entry and entry.is_trading_day:
+        time_str = datetime.now(UTC).strftime("%H:%M")
+        day_start = entry.day_session_start or "09:00"
+        day_end = entry.day_session_end or "15:00"
+        if day_start <= time_str <= day_end:
+            session_status = "day"
+        else:
+            night_start = entry.night_session_start
+            night_end = entry.night_session_end
+            if night_start and night_end:
+                if night_start < night_end:
+                    if night_start <= time_str <= night_end:
+                        session_status = "night"
+                else:
+                    if time_str >= night_start or time_str <= night_end:
+                        session_status = "night"
+            if session_status == "unknown":
+                session_status = "closed"
+    else:
+        session_status = "closed"
+
+    next_trade = (
+        db.query(TradingCalendarDB)
+        .filter(TradingCalendarDB.trade_date > today, TradingCalendarDB.is_trading_day == True, TradingCalendarDB.exchange == "ALL")  # noqa: E712
+        .order_by(TradingCalendarDB.trade_date.asc())
+        .first()
+    )
+
+    return {
+        "date": today.strftime("%Y-%m-%d"),
+        "is_trading_day": is_trading,
+        "current_session": session_status,
+        "next_trade_date": next_trade.trade_date.strftime("%Y-%m-%d") if next_trade else None,
+    }
+
+# 注册扩展专用工具
+register_tool(GetWarehouseReceiptsTool())
+register_tool(GetHoldingRankingsTool())
+register_tool(GetSettlementParamsTool())
+register_tool(GetPriceLimitsTool())
+register_tool(GetContinuousKlinesTool())
+register_tool(GetMainKlinesTool())
