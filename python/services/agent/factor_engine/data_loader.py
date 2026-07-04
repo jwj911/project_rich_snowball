@@ -13,7 +13,7 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 from models import KlineDataDB, VarietyDB
-from services.agent.utils import resolve_symbol
+from services.agent.utils import resolve_symbol, resolve_symbols
 
 logger = logging.getLogger(__name__)
 
@@ -136,18 +136,31 @@ def extract_factor_universe(query: str, db: Session) -> tuple[list[str] | None, 
 
     返回 (symbols, category)。
     若用户给出具体品种列表，返回 symbols；否则尝试返回 category。
-    """
-    # 尝试解析单个品种
-    single_symbol = resolve_symbol(db, query)
-    if single_symbol:
-        return [single_symbol], None
 
-    # 类别关键词兜底
+    支持：
+    - 精确代码 + 分隔符：RB, HC, I 或 螺纹钢、热卷
+    - 排除语法：除螺纹钢外的黑色系
+    - 类别关键词：黑色系 / 有色金属 / 农产品 / 能源化工 / 贵金属
+    """
+    # 1. 尝试多品种解析（使用 resolve_symbols）
+    symbols = resolve_symbols(db, query)
+    if symbols and len(symbols) >= 1:
+        # 如果只有一个品种，检查是否来自类别匹配（类别匹配应返回 category）
+        # 区分精确指定 vs 类别兜底
+        if len(symbols) >= 2:
+            return symbols, None
+        # 单个品种：确认是否用户精确指定的
+        single = resolve_symbol(db, query)
+        if single:
+            return [single], None
+
+    # 2. 类别关键词兜底
     category_keywords = {
         "黑色系": ["黑色", "螺纹", "铁矿", "焦煤", "焦炭", "热卷"],
         "有色金属": ["有色", "铜", "铝", "锌", "铅", "镍", "锡", "黄金", "白银"],
         "农产品": ["农产品", "豆粕", "菜粕", "豆油", "棕榈", "棉花", "白糖", "玉米"],
         "能源化工": ["能源", "化工", "原油", "沥青", "燃油", "甲醇", "PTA", "PP"],
+        "贵金属": ["贵金属", "黄金", "白银"],
     }
     for category, keywords in category_keywords.items():
         if any(kw in query for kw in keywords):

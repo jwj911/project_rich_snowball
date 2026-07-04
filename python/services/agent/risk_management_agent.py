@@ -35,7 +35,113 @@ _SYSTEM_PROMPT = (
     "风险提示：所有方案仅供参考，不构成投资建议。\n"
 )
 
-_DEFAULT_ACCOUNT_BALANCE = 100000.0  # 默认虚拟资金 10 万
+_DEFAULT_ACCOUNT_BALANCE = 100000.0  # 默认虚拟资金 10 万（无持仓记录时使用）
+
+
+def _load_position_context(db, user_id: int, symbol: str | None) -> dict[str, Any]:
+    """从 trade_records 表加载用户当前持仓上下文。
+
+    Returns:
+        {
+            "account_balance": float,  # 账户权益（净值）
+            "initial_balance": float,   # 初始资金（取回测/策略配置，否则默认）
+            "open_positions": [...],    # 当前持仓列表
+            "total_floating_pnl": float,# 总浮动盈亏
+            "total_drawdown_pct": float,# 当前回撤比例
+            "has_positions": bool,
+        }
+    """
+    context = {
+        "account_balance": _DEFAULT_ACCOUNT_BALANCE,
+        "initial_balance": _DEFAULT_ACCOUNT_BALANCE,
+        "open_positions": [],
+        "total_floating_pnl": 0.0,
+        "total_drawdown_pct": 0.0,
+        "has_positions": False,
+    }
+
+    try:
+        from sqlalchemy import text
+
+        # 查询用户未平仓的 trade_records
+        rows = db.execute(
+            text(
+                "SELECT id, symbol, direction, entry_price, quantity, "
+                "stop_loss_price, take_profit_price, created_at, notes "
+                "FROM trade_records "
+                "WHERE user_id = :uid AND status = 'open' "
+                "ORDER BY created_at DESC"
+            ),
+            {"uid": user_id},
+        ).mappings().all()
+
+        if not rows:
+            return context
+
+        positions = [dict(r) for r in rows]
+        if symbol:
+            # 过滤指定品种的持仓（优先级：指定品种 > 全部）
+            filtered = [p for p in positions if p["symbol"] and p["symbol"].upper() == symbol.upper()]
+            if filtered:
+                positions = filtered
+
+        # 获取最新行情计算浮动盈亏
+        total_pnl = 0.0
+        for pos in positions:
+            sym = pos.get("symbol", "")
+            if not sym:
+                continue
+            quote_row = db.execute(
+                text(
+                    "SELECT r.current_price FROM realtime_quotes r "
+                    "JOIN varieties v ON r.variety_id = v.id "
+                    "WHERE v.symbol = :sym AND v.is_active = 1"
+                ),
+                {"sym": sym},
+            ).mappings().first()
+
+            current_price = float(quote_row["current_price"]) if quote_row else float(pos.get("entry_price", 0))
+            entry_price = float(pos.get("entry_price", 0))
+            quantity = int(pos.get("quantity", 1))
+            direction = pos.get("direction", "long")
+
+            if direction == "long":
+                pnl = (current_price - entry_price) * quantity * 10  # multiplier=10
+            else:
+                pnl = (entry_price - current_price) * quantity * 10
+            pos["_current_price"] = current_price
+            pos["_floating_pnl"] = round(pnl, 2)
+            total_pnl += pnl
+
+        # 查找该用户是否设置过初始资金（从 strategies 或 backtest_runs 推断）
+        initial_balance = _DEFAULT_ACCOUNT_BALANCE
+        try:
+            strategy_row = db.execute(
+                text(
+                    "SELECT initial_capital FROM strategies "
+                    "WHERE user_id = :uid ORDER BY updated_at DESC LIMIT 1"
+                ),
+                {"uid": user_id},
+            ).mappings().first()
+            if strategy_row and strategy_row.get("initial_capital"):
+                initial_balance = float(strategy_row["initial_capital"])
+        except Exception:
+            pass
+
+        account_balance = initial_balance + total_pnl
+        drawdown_pct = max(0.0, (initial_balance - account_balance) / initial_balance * 100) if total_pnl < 0 else 0.0
+
+        return {
+            "account_balance": round(max(account_balance, initial_balance * 0.5), 2),
+            "initial_balance": initial_balance,
+            "open_positions": positions,
+            "total_floating_pnl": round(total_pnl, 2),
+            "total_drawdown_pct": round(drawdown_pct, 2),
+            "has_positions": True,
+        }
+    except Exception:
+        logger.exception("Failed to load position context, using defaults")
+        return context
 
 
 class RiskManagementAgent(Agent):
@@ -108,7 +214,18 @@ class RiskManagementAgent(Agent):
         else:
             self._add_step("observation", "K 线数据不足，使用固定百分比风控")
 
-        # 5. 生成风控方案
+        # 5. 加载用户持仓上下文
+        pos_ctx = _load_position_context(db, self.context.user_id, symbol)
+        account_balance = pos_ctx["account_balance"]
+        if pos_ctx["has_positions"]:
+            self._add_step(
+                "observation",
+                f"检测到现有持仓：{len(pos_ctx['open_positions'])} 个，"
+                f"浮动盈亏 {pos_ctx['total_floating_pnl']:+,.2f}，"
+                f"当前权益 {account_balance:,.0f}",
+            )
+
+        # 6. 生成风控方案
         risk_level = "medium"  # 默认中等风险
         if any(w in query for w in ["保守", "低", "谨慎", "conservative"]):
             risk_level = "low"
@@ -120,7 +237,7 @@ class RiskManagementAgent(Agent):
             margin_rate = float(margin_rate)
 
         plan = generate_risk_management_plan(
-            account_balance=_DEFAULT_ACCOUNT_BALANCE,
+            account_balance=account_balance,
             entry_price=entry_price,
             direction=direction,  # type: ignore[arg-type]
             risk_level=risk_level,  # type: ignore[arg-type]
@@ -146,6 +263,7 @@ class RiskManagementAgent(Agent):
             "direction": direction,
             "entry_price": entry_price,
             "account_balance": pos["account_balance"],
+            "initial_balance": pos_ctx["initial_balance"],
             "risk_level": risk_level,
             "position": pos,
             "stop_loss": sl,
@@ -159,19 +277,31 @@ class RiskManagementAgent(Agent):
             },
             "daily_limits": plan.daily_limits,
             "total_limits": plan.total_limits,
+            "position_context": {
+                "has_positions": pos_ctx["has_positions"],
+                "open_positions": pos_ctx["open_positions"],
+                "total_floating_pnl": pos_ctx["total_floating_pnl"],
+                "total_drawdown_pct": pos_ctx["total_drawdown_pct"],
+            },
         }
 
         # 7. 自然语言总结
         summary_lines = [
             f"## {variety_info['name']} ({symbol}) { '做多' if direction == 'long' else '做空' } 风控方案",
             "",
-            f"**入场价格**：{entry_price}  **账户资金**：{pos['account_balance']:.0f}  **风险等级**：{risk_level}",
-            "",
-            "### 1. 仓位管理",
+            f"**入场价格**：{entry_price}  **账户权益**：{pos['account_balance']:.0f}  **风险等级**：{risk_level}",
+        ]
+        if pos_ctx["has_positions"]:
+            summary_lines.extend([
+                f"**现有持仓**：{len(pos_ctx['open_positions'])} 个，浮动盈亏 {pos_ctx['total_floating_pnl']:+,.2f}",
+                f"**初始资金**：{pos_ctx['initial_balance']:.0f}，当前回撤 {pos_ctx['total_drawdown_pct']:.1f}%",
+            ])
+        summary_lines.extend(["", "### 1. 仓位管理"])
+        summary_lines.extend([
             f"- 建议仓位：{pos['suggested_lots']:.2f} 手（占用资金 {pos['position_size_pct']:.1f}%）",
             f"- 单次风险：{pos['risk_per_trade_pct']:.1f}%（{pos['risk_amount']:.0f}）",
             f"- 最大允许仓位：{pos['max_position_size_pct']:.1f}%",
-        ]
+        ])
         if pos.get("margin_ratio"):
             summary_lines.append(f"- 保证金占用：{pos['margin_ratio']:.1f}%（{pos['margin_required']:.0f}）")
 
