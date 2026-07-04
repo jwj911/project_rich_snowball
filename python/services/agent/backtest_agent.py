@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from typing import Any, AsyncIterator
 
-from services.agent.core import Agent, AgentResult, AgentStatus
+from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
 from services.agent.strategy_compiler_agent import StrategyParser
 from services.backtest.parser import parse_strategy_intent
 from services.backtest.service import run_dsl_backtest, run_strategy_backtest
@@ -93,6 +94,51 @@ class BacktestAgent(Agent):
             data=result,
             steps=self.get_steps(),
         )
+
+    async def run_stream(self, query: str) -> AsyncIterator[dict[str, Any]]:
+        """流式执行策略回测任务。
+
+        按「解析策略 → 获取数据 → 运行回测 → 计算指标 → 返回结果」各阶段
+        yield 事件，前端可实时展示执行过程。
+        """
+        result = await self.run(query)
+
+        for step in result.steps:
+            yield AgentEvent(
+                event_type=self._map_role_to_event_type(step.role),
+                step_number=step.step_number,
+                role=step.role,
+                content=step.content,
+                tool_name=step.tool_name,
+                tool_input=step.tool_input,
+                tool_output=step.tool_output,
+            ).to_dict()
+
+        if result.success:
+            yield AgentEvent(
+                event_type=AgentEventType.RESULT,
+                content=result.answer,
+                result=result.to_dict(),
+            ).to_dict()
+        else:
+            yield AgentEvent(
+                event_type=AgentEventType.ERROR,
+                content=result.error_message or "策略回测失败",
+                error_message=result.error_message,
+                result=result.to_dict(),
+            ).to_dict()
+
+    @staticmethod
+    def _map_role_to_event_type(role: str) -> AgentEventType:
+        """将步骤 role 映射到 SSE 事件类型。"""
+        mapping = {
+            "thought": AgentEventType.THOUGHT,
+            "action": AgentEventType.ACTION,
+            "observation": AgentEventType.OBSERVATION,
+            "system": AgentEventType.THOUGHT,
+            "error": AgentEventType.ERROR,
+        }
+        return mapping.get(role, AgentEventType.THOUGHT)
 
 
 def _format_backtest_report(result: dict, dsl: dict | None = None) -> str:

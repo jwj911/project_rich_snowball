@@ -459,19 +459,19 @@ function MessageBubble({ message }: { message: AgentMessage }) {
         </div>
 
         {isFactorMining && !message.isStreaming && (
-          <FactorResultCard result={message.result} steps={message.steps} />
+          <FactorResultCard result={message.result?.data as Record<string, unknown>} steps={message.steps} />
         )}
 
         {message.agentMode === 'strategy_compiler' && !message.isStreaming && (
-          <StrategyResultCard result={message.result} />
+          <StrategyResultCard result={message.result?.data as Record<string, unknown>} />
         )}
 
         {message.agentMode === 'backtest' && !message.isStreaming && (
-          <BacktestResultCard result={message.result} />
+          <BacktestResultCard result={message.result?.data as Record<string, unknown>} />
         )}
 
         {message.agentMode === 'tech_analysis' && !message.isStreaming && (
-          <TechAnalysisReportCard result={message.result} />
+          <TechAnalysisReportCard result={message.result?.data as Record<string, unknown>} />
         )}
 
         {message.isStreaming && (

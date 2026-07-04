@@ -14,10 +14,10 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Any
+from typing import Any, AsyncIterator
 
 from services.agent.context import AgentContext
-from services.agent.core import Agent, AgentResult, AgentStatus
+from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
 from services.agent.utils import resolve_symbol
 
 logger = logging.getLogger(__name__)
@@ -384,8 +384,8 @@ def _extract_timeframe(query: str) -> str:
 
 def _default_risk(query: str) -> dict[str, Any]:
     """生成默认风控参数。"""
-    # 提取止损
-    stop_match = re.search(r"跌破\s*(\d+(?:\.\d+)?)", query)
+    # 提取止损：排除「跌破20日均线/周期/根」等技术指标表达
+    stop_match = re.search(r"跌破\s*(\d+(?:\.\d+)?)(?!\d)(?!\s*(?:日|天|周期|根|ma|MA|均线))", query)
     stop_price = float(stop_match.group(1)) if stop_match else None
 
     # 提取止盈
@@ -476,6 +476,51 @@ class StrategyCompilerAgent(Agent):
             },
             steps=self.get_steps(),
         )
+
+    async def run_stream(self, query: str) -> AsyncIterator[dict[str, Any]]:
+        """流式执行策略编译任务。
+
+        按「解析意图 → 提取策略要素 → 生成 DSL → 校验 → 返回」各阶段
+        yield 事件，前端可实时展示执行过程。
+        """
+        result = await self.run(query)
+
+        for step in result.steps:
+            yield AgentEvent(
+                event_type=self._map_role_to_event_type(step.role),
+                step_number=step.step_number,
+                role=step.role,
+                content=step.content,
+                tool_name=step.tool_name,
+                tool_input=step.tool_input,
+                tool_output=step.tool_output,
+            ).to_dict()
+
+        if result.success:
+            yield AgentEvent(
+                event_type=AgentEventType.RESULT,
+                content=result.answer,
+                result=result.to_dict(),
+            ).to_dict()
+        else:
+            yield AgentEvent(
+                event_type=AgentEventType.ERROR,
+                content=result.error_message or "策略编译失败",
+                error_message=result.error_message,
+                result=result.to_dict(),
+            ).to_dict()
+
+    @staticmethod
+    def _map_role_to_event_type(role: str) -> AgentEventType:
+        """将步骤 role 映射到 SSE 事件类型。"""
+        mapping = {
+            "thought": AgentEventType.THOUGHT,
+            "action": AgentEventType.ACTION,
+            "observation": AgentEventType.OBSERVATION,
+            "system": AgentEventType.THOUGHT,
+            "error": AgentEventType.ERROR,
+        }
+        return mapping.get(role, AgentEventType.THOUGHT)
 
 
 def _format_explanation(dsl: StrategyDSL) -> str:

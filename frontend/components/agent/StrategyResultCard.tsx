@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Code, FileText, TrendingUp, AlertTriangle } from 'lucide-react'
+import { ChevronDown, ChevronUp, Code, FileText, TrendingUp, AlertTriangle, BarChart3 } from 'lucide-react'
 import type { StrategyCompilerData, StrategyDSL } from './backtest-types'
 
 export default function StrategyResultCard({ result }: { result: Record<string, unknown> | null | undefined }) {
@@ -60,6 +60,16 @@ export default function StrategyResultCard({ result }: { result: Record<string, 
             {data.json || JSON.stringify(dsl, null, 2)}
           </pre>
         )}
+      </div>
+
+      <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-2 text-xs text-amber-200">
+        <BarChart3 size={14} className="mt-0.5 shrink-0" />
+        <div>
+          <div className="font-medium">去回测</div>
+          <div className="mt-0.5 text-amber-200/80">
+            切换到「策略回测」模式并输入相同策略描述，即可运行历史回测并查看收益、回撤、胜率等指标。
+          </div>
+        </div>
       </div>
     </div>
   )

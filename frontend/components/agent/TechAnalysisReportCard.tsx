@@ -8,6 +8,11 @@ export default function TechAnalysisReportCard({ result }: TechAnalysisReportCar
   const score = typeof result.score === 'number' ? result.score : null
   const rating = typeof result.rating === 'string' ? result.rating : null
   const direction = typeof result.direction === 'string' ? result.direction : null
+  const bias = typeof result.bias === 'string' ? result.bias : null
+  const moneyFlow = typeof result.money_flow === 'string' ? result.money_flow : null
+  const klineTrend = typeof result.kline_trend === 'string' ? result.kline_trend : null
+  const riskNote = typeof result.risk_note === 'string' ? result.risk_note : null
+  const keyLevels = (result.key_levels as Record<string, number | null> | undefined) || {}
   const indicators = (result.indicators as Record<string, number> | undefined) || {}
   const trend = (result.trend as Record<string, unknown> | undefined) || {}
   const pattern = (result.pattern as Record<string, unknown> | undefined) || {}
@@ -36,7 +41,8 @@ export default function TechAnalysisReportCard({ result }: TechAnalysisReportCar
 
       <div className="mb-4 flex flex-wrap gap-2">
         {rating && <Badge label={rating} />}
-        {direction && <Badge label={direction} />}
+        {direction && <Badge label={`趋势：${direction}`} />}
+        {bias && <Badge label={`多空：${bias}`} />}
         {typeof trend.direction === 'string' && (
           <Badge label={`趋势：${trend.direction}`} />
         )}
@@ -48,20 +54,51 @@ export default function TechAnalysisReportCard({ result }: TechAnalysisReportCar
         )}
       </div>
 
+      {(moneyFlow || klineTrend || riskNote) && (
+        <div className="mb-4 space-y-1.5 text-xs text-slate-300">
+          {moneyFlow && <InfoRow label="资金流向" value={moneyFlow} />}
+          {klineTrend && <InfoRow label="K线走势" value={klineTrend} />}
+          {riskNote && <InfoRow label="风险提示" value={riskNote} />}
+        </div>
+      )}
+
+      {(keyLevels.support !== undefined || keyLevels.resistance !== undefined) && (
+        <div className="mb-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+          <Metric label="支撑位" value={keyLevels.support ?? undefined} />
+          <Metric label="阻力位" value={keyLevels.resistance ?? undefined} />
+          <Metric label="MA5" value={keyLevels.ma5 ?? undefined} />
+          <Metric label="MA20" value={keyLevels.ma20 ?? undefined} />
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
         <Metric label="RSI(24)" value={indicators.rsi24} />
         <Metric label="MACD DIF" value={indicators.macd_dif} />
         <Metric label="MACD DEA" value={indicators.macd_dea} />
         <Metric label="MACD 柱" value={indicators.macd_bar} />
+        <Metric label="MA5" value={indicators.sma5} />
+        <Metric label="MA10" value={indicators.sma10} />
+        <Metric label="MA20" value={indicators.sma20} />
+        <Metric label="ATR" value={indicators.atr14} />
         <Metric label="KDJ K" value={indicators.kdj_k} />
         <Metric label="KDJ D" value={indicators.kdj_d} />
         <Metric label="KDJ J" value={indicators.kdj_j} />
-        <Metric label="布林带上轨" value={indicators.boll_upper} />
-        <Metric label="布林带中轨" value={indicators.boll_mid} />
-        <Metric label="布林带下轨" value={indicators.boll_lower} />
         <Metric label="ADX" value={indicators.adx14} />
+        <Metric label="布林上轨" value={indicators.boll_upper} />
+        <Metric label="布林中轨" value={indicators.boll_mid} />
+        <Metric label="布林下轨" value={indicators.boll_lower} />
         <Metric label="量比" value={indicators.vol_ratio} />
+        <Metric label="成交量变化" value={indicators.volume_change} />
       </div>
+    </div>
+  )
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2">
+      <span className="shrink-0 text-slate-500">{label}:</span>
+      <span className="text-slate-200">{value}</span>
     </div>
   )
 }
