@@ -18,8 +18,11 @@ from errors import ErrorCode
 from models import BacktestRunDB, RealtimeQuoteDB, StrategyDB, UserDB, VarietyDB
 from schemas import (
     BacktestRunResponse,
+    OptimizationRunItem,
     StrategyBacktestRequest,
     StrategyCreate,
+    StrategyOptimizationRequest,
+    StrategyOptimizationResponse,
     StrategyPortfolioPlanRequest,
     StrategyPortfolioPlanResponse,
     StrategyResponse,
@@ -269,6 +272,70 @@ def generate_strategy_portfolio_plan(
         risk_amount=Decimal(str(position.get("risk_amount", 0) or 0)),
         risk_reward_ratio=Decimal(str(take_profit.get("risk_reward_ratio", 0) or 0)),
         notes=notes,
+    )
+
+
+
+# ------------------------------------------------------------------
+# 参数优化引擎
+# ------------------------------------------------------------------
+
+@router.post("/{strategy_id}/optimize", response_model=StrategyOptimizationResponse)
+def optimize_strategy_params_api(
+    strategy_id: int,
+    params: StrategyOptimizationRequest,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user_dependency),
+):
+    """对已有策略执行参数网格搜索优化。"""
+    strategy = db.query(StrategyDB).filter(StrategyDB.id == strategy_id).first()
+    if not strategy:
+        raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
+    if strategy.user_id != current_user.id:
+        raise ForbiddenError("无权访问该策略")
+
+    dsl = json.loads(strategy.dsl_json)
+    entry_conditions = dsl.get("entry", {}).get("conditions", [])
+    exit_conditions = dsl.get("exit", {}).get("conditions", [])
+
+    from services.backtest.optimization_engine import optimize_strategy_params
+
+    result = optimize_strategy_params(
+        db,
+        symbol=strategy.symbol,
+        period=strategy.timeframe,
+        direction=strategy.direction,
+        entry_conditions=entry_conditions,
+        exit_conditions=exit_conditions,
+        param_space=params.param_space,
+        initial_cash=params.initial_cash,
+        quantity=params.quantity,
+        limit=params.limit,
+        top_n=params.top_n,
+        metric_weights=params.metric_weights,
+    )
+
+    top_results = [
+        OptimizationRunItem(
+            params=r["params"],
+            metrics=r.get("metrics"),
+            score=r["score"],
+            trades_count=r.get("trades_count", 0),
+        )
+        for r in result["top_results"]
+    ]
+
+    return StrategyOptimizationResponse(
+        strategy_id=strategy.id,
+        best_params=result["best_params"],
+        best_score=result["best_score"],
+        best_metrics=result.get("best_metrics"),
+        top_results=top_results,
+        param_space=result["param_space"],
+        total_combinations=result["total_combinations"],
+        tested_combinations=result["tested_combinations"],
+        runtime_seconds=result["runtime_seconds"],
+        sensitivity_matrix=result["sensitivity_matrix"],
     )
 
 
