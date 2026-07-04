@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse
 
 from errors import ErrorCode
 
-from config import RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS
+from config import ALGORITHM, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS, SECRET_KEY
 from services.redis_client import get_redis_client, is_redis_available
 
 # 配置
@@ -39,6 +39,36 @@ _EXCLUDED_PATHS = {
 
 # 中间件层面不限流的方法
 _EXCLUDED_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+def _get_user_id_from_request(request: Request) -> str | None:
+    """从 Authorization header 或 access_token cookie 解析 user_id。"""
+    import jwt
+
+    token = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+    if not token:
+        token = request.cookies.get("access_token")
+    if not token:
+        return None
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+        user_id = payload.get("sub")
+        return str(user_id) if user_id is not None else None
+    except Exception:
+        return None
+
+
+def _get_client_id(request: Request) -> str:
+    """获取限流标识：优先使用 IP+user_id，未登录则使用 IP。"""
+    client_ip = _get_client_ip(request)
+    user_id = _get_user_id_from_request(request)
+    if user_id:
+        return f"{client_ip}:{user_id}"
+    return client_ip
 
 # ---- 内存降级实现 ----
 _rate_limit_store: dict[str, list[datetime]] = {}
@@ -211,6 +241,9 @@ def clear_rate_limit_store():
 _GET_COSTLY_ENDPOINTS: dict[str, tuple[int, int, str]] = {
     "/api/realtime/batch": (60, 100, "get:realtime:batch"),
     "/api/realtime/stream": (60, 30, "get:realtime:stream"),
+    "/api/klines/": (60, 120, "get:klines"),
+    "/api/market/comparison": (60, 60, "get:market:comparison"),
+    "/api/market/data-quality": (60, 60, "get:market:data-quality"),
 }
 
 
@@ -225,18 +258,25 @@ async def rate_limit_middleware(request: Request, call_next):
         if method not in _EXCLUDED_METHODS or path not in _GET_COSTLY_ENDPOINTS:
             return await call_next(request)
 
-    client_ip = _get_client_ip(request)
+    # 高成本 GET/SSE 端点使用 IP+user 维度；普通写入端点使用 IP 维度
+    costly_endpoint = next((p for p in _GET_COSTLY_ENDPOINTS if path.startswith(p)), None)
+    is_costly_get = method in ("GET", "HEAD") and costly_endpoint is not None
+    is_sse = method == "GET" and path == "/api/realtime/stream"
+    if is_costly_get or is_sse:
+        client_id = _get_client_id(request)
+    else:
+        client_id = _get_client_ip(request)
 
     # 高成本 GET 端点使用独立限流参数
-    if method in ("GET", "HEAD") and path in _GET_COSTLY_ENDPOINTS:
-        window_seconds, max_requests, action = _GET_COSTLY_ENDPOINTS[path]
+    if method in ("GET", "HEAD") and costly_endpoint:
+        window_seconds, max_requests, action = _GET_COSTLY_ENDPOINTS[costly_endpoint]
     else:
         window_seconds = _WINDOW_SECONDS
         max_requests = _MAX_REQUESTS_PER_WINDOW
         action = f"{method}:{path}"
 
     allowed = check_rate_limit(
-        client_ip,
+        client_id,
         action,
         window_seconds=window_seconds,
         max_requests=max_requests,

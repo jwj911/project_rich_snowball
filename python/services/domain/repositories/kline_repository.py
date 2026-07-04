@@ -86,9 +86,9 @@ class KlineRepository:
         start: datetime | None = None,
         end: datetime | None = None,
         limit: int = 1000,
-        order_desc: bool = False,
+        order_desc: bool = True,
     ) -> list[dict[str, Any]]:
-        """查询 K 线并附加合约元数据，返回标准 dict 列表。"""
+        """查询 K 线并附加合约元数据，默认返回最近的 limit 条（trading_time 降序）。"""
         rows = self.list_klines(
             variety_id=variety_id,
             contract_id=contract_id,

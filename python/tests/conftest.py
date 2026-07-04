@@ -12,6 +12,7 @@ from typing import Generator
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-local-development")
 os.environ["ENABLE_SCHEDULER"] = "0"
 os.environ["DOTENV_PATH"] = "/nonexistent/.env"
+os.environ["PYTEST_RUNNING"] = "1"
 
 # 创建临时数据库文件，确保所有测试共享同一个物理数据库（避免 :memory: 多连接隔离问题）
 _TEST_DB_FILE = tempfile.mktemp(suffix="_test.db")

@@ -31,7 +31,7 @@ def seed_quotes(db_session, seed_varieties):
             data_source="mock",
             updated_at=now,
         ))
-    db_session.commit()
+    db_session.flush()
     return {"au": au, "ag": ag, "cu": cu}
 
 

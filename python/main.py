@@ -49,18 +49,19 @@ from services.logging_config import setup_logging
 # 最早初始化结构化日志（必须在其他模块导入前完成，确保全链路日志一致）
 setup_logging()
 
+from errors import ErrorCode, get_default_error_code  # noqa: E402
 from middleware.api_version import ApiVersionMiddleware  # noqa: E402
 from middleware.rate_limit import _is_trusted_proxy, rate_limit_middleware  # noqa: E402
 from routers import (  # noqa: E402
     agents,
     alerts,
     auth,
+    chat,
     comments,
     contracts,
     frontend_logs,
     health,
     kline,
-    chat,
     market,
     metrics_dashboard,
     news,
@@ -75,7 +76,6 @@ from routers import (  # noqa: E402
     watchlists,
     workspace,
 )
-from errors import ErrorCode, get_default_error_code  # noqa: E402
 from services.domain.exceptions import ServiceError  # noqa: E402
 from services.metrics import (  # noqa: E402
     get_content_type,

@@ -11,7 +11,7 @@ from sqlalchemy import desc, or_
 from sqlalchemy.orm import Session
 
 from dependencies import get_current_user_dependency, get_db, require_admin_user
-from models import NewsArticleDB, NewsSourceDB, UserDB
+from models import AlertEventDB, NewsArticleDB, NewsSourceDB, UserDB
 from schemas import (
     NewsArticleResponse,
     NewsFetchTaskResponse,
@@ -20,6 +20,7 @@ from schemas import (
     NewsSourceUserCreate,
 )
 from services.ai_chat import summarize_article_sync
+from services.alert_events import NEWS_SOURCE_TYPE
 from services.news_fetcher import fetch_all_enabled_sources_background, fetch_source_background
 
 logger = logging.getLogger(__name__)

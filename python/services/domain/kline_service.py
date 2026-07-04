@@ -90,8 +90,9 @@ class KlineService:
                     variety_id=variety.id,
                     period=period,
                     limit=limit,
-                    order_desc=False,
                 )
+                if rows:
+                    rows.reverse()
                 return rows or None
 
             return get_cached(cache_key, _fetch, ttl=_KLINE_TTL_SECONDS) or []
@@ -104,6 +105,8 @@ class KlineService:
                 period=period,
                 limit=limit,
             )
+            if rows:
+                rows.reverse()
             return rows or None
 
         return get_cached(cache_key, _fetch, ttl=_KLINE_TTL_SECONDS) or []
@@ -259,6 +262,7 @@ class KlineService:
             )
             if not rows:
                 return None
+            rows.reverse()
 
             df = pd.DataFrame([{
                 "open": float(r.open_price),
@@ -322,6 +326,8 @@ class KlineService:
                     period=period,
                     limit=limit,
                 )
+                if rows:
+                    rows.reverse()
                 result[period] = rows
             return result
 

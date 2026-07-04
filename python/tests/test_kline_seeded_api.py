@@ -8,7 +8,7 @@ import datetime
 import uuid
 
 
-def test_kline_seeded_data(client, db_session, auth_headers):
+def test_kline_seeded_data(client, db_session, auth_headers, seed_varieties):
     """显式插入 K 线后接口应正确返回"""
     from models import VarietyDB, KlineDataDB
 
