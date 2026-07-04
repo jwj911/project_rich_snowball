@@ -41,6 +41,13 @@ import {
   sendChatMessage,
 } from './chat'
 import {
+  agentChatStream,
+  createAgentTask,
+  deleteAgentTask,
+  getAgentTask,
+  getAgentTasks,
+} from './agents'
+import {
   createPriceAlert,
   deletePriceAlert,
   getPriceAlerts,
@@ -84,6 +91,8 @@ import type {
   OpinionUpdate,
   ChatMessage,
   ChatMessageCreate,
+  AgentChatRequest,
+  AgentTaskResponse,
   PriceAlert,
   PriceAlertCreate,
   PriceAlertUpdate,
@@ -392,6 +401,26 @@ class ApiService extends AuthCore {
 
   clearChatHistory(): Promise<void> {
     return clearChatHistory(this)
+  }
+
+  getAgentTasks(params?: { status?: string; skip?: number; limit?: number }): Promise<AgentTaskResponse[]> {
+    return getAgentTasks(this, params)
+  }
+
+  getAgentTask(taskId: number): Promise<AgentTaskResponse> {
+    return getAgentTask(this, taskId)
+  }
+
+  createAgentTask(data: { agent_type: string; query: string }): Promise<AgentTaskResponse> {
+    return createAgentTask(this, data)
+  }
+
+  deleteAgentTask(taskId: number): Promise<void> {
+    return deleteAgentTask(this, taskId)
+  }
+
+  agentChatStream(data: AgentChatRequest, onEvent: (event: Record<string, unknown>) => void): Promise<void> {
+    return agentChatStream(this, data, onEvent)
   }
 
   getPortfolio(params?: { status?: string; skip?: number; limit?: number }): Promise<TradeRecord[]> {

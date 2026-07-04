@@ -107,4 +107,12 @@ export abstract class RequestCore {
     const response = await this.requestRaw(url, options)
     return response.json()
   }
+
+  public get apiBase(): string {
+    return API_BASE
+  }
+
+  public getAccessToken(): string | null {
+    return this.getToken()
+  }
 }

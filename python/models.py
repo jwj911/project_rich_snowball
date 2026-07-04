@@ -161,6 +161,7 @@ class UserDB(Base):
     chat_messages = relationship("ChatMessageDB", back_populates="user", passive_deletes=True)
     price_levels = relationship("PriceLevelDB", back_populates="user", passive_deletes=True)
     refresh_tokens = relationship("RefreshTokenDB", back_populates="user", passive_deletes=True)
+    agent_tasks = relationship("AgentTaskDB", back_populates="user", passive_deletes=True)
 
 
 class CommentDB(Base):
@@ -775,3 +776,53 @@ class NewsArticleDB(Base):
     __table_args__ = (
         UniqueConstraint("source_id", "url", name="uix_article_source_url"),
     )
+
+class AgentTaskDB(Base):
+    """Agent 任务主表。
+
+    记录用户提交的 Agent 任务状态与结果，支持异步执行和状态追踪。
+    """
+
+    __tablename__ = "agent_tasks"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    agent_type = Column(String(30), nullable=False, index=True)  # data | tech_analysis | orchestrator | factor_mining
+    query = Column(Text, nullable=False)
+    status = Column(String(20), nullable=False, default="pending")  # pending | running | completed | failed
+    result_json = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    user = relationship("UserDB", back_populates="agent_tasks")
+    steps = relationship("AgentTaskStepDB", back_populates="task", passive_deletes=True)
+
+    __table_args__ = (
+        Index("idx_agent_tasks_user_status", "user_id", "status"),
+        Index("idx_agent_tasks_created", "created_at"),
+    )
+
+
+class AgentTaskStepDB(Base):
+    """Agent 任务执行步骤。
+
+    记录 ReAct 链路的每一步（thought/action/observation）。
+    """
+
+    __tablename__ = "agent_task_steps"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(Integer, ForeignKey("agent_tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    step_number = Column(Integer, nullable=False)
+    role = Column(String(20), nullable=False)  # thought | action | observation | system | error
+    content = Column(Text, nullable=False)
+    tool_name = Column(String(50), nullable=True)
+    tool_input_json = Column(Text, nullable=True)
+    tool_output_json = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    task = relationship("AgentTaskDB", back_populates="steps")
+
+    __table_args__ = (
+        UniqueConstraint("task_id", "step_number", name="uix_agent_step_number"),
+        Index("idx_agent_task_steps_task", "task_id", "step_number"),
+    )
+

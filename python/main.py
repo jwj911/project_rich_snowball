@@ -71,6 +71,7 @@ from routers import (  # noqa: E402
     varieties,
     watchlists,
     workspace,
+    agents,
 )
 from errors import ErrorCode, get_default_error_code  # noqa: E402
 from services.domain.exceptions import ServiceError  # noqa: E402
@@ -213,6 +214,7 @@ app.include_router(opinions.router)
 app.include_router(portfolio.router)
 app.include_router(chat.router)
 app.include_router(price_alerts.router)
+app.include_router(agents.router)
 
 
 @app.middleware("http")

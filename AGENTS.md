@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-06-24（基于 master 分支当前代码校验重写）
+> **最后更新**：2026-07-04（纳入 Agent 系统 Phase 0~2）
 
 ---
 
@@ -20,7 +20,7 @@
 
 **期货交流社区**（产品名「倍增计划」）是一个前后端分离的期货行情与私密交流社区应用。当前产品形态为"登录后的行情工作台"：用户登录后查看热门期货、筛选品种、进入单品种 K 线复盘、添加云端支撑/阻力位标注、发表评论、记录交易观点、管理模拟持仓、设置价格预警、与 AI 助手对话，并在个人工作区汇总自己的研究上下文。
 
-**当前阶段**：Phase 5「CI/运维与架构优化」已完成（2026-06-05）。后端架构审计 v7 评级 **B-**（无 P0 阻塞项，6 个 P1、10 个 P2）；前端 Roadmap v8 目标评级 **A-**，已按 Sprint 2/3 完成体验优化与架构清理。
+**当前阶段**：Phase 5「CI/运维与架构优化」已完成（2026-06-05）。后端架构审计 v7 评级 **B-**（无 P0 阻塞项，6 个 P1、10 个 P2）；前端 Roadmap v8 目标评级 **A-**，已按 Sprint 2/3 完成体验优化与架构清理。**Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 4 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理）。
 
 主要功能模块：
 - 登录/注册/JWT 鉴权（支持 access token + refresh token 双令牌），主页面均有登录门禁
@@ -31,12 +31,12 @@
 - 模拟持仓：虚拟交易记录，支持做多/做空、盈亏计算与复盘统计
 - 价格预警：用户为品种设置 above/below 价格预警，实时行情刷新时自动检测触发
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
+- **Agent 系统**：按功能能力拆分的专项 Agent，当前支持 DataAgent（数据查询）、TechAnalysisAgent（技术分析）、RiskManagementAgent（风控方案生成），前端 Chat 页支持模式切换与流式执行过程展示
 - 新闻资讯：RSS 源管理与聚合，支持 AI 新闻解读
 - 我的工作区：评论历史、云端价位标注、自选观察入口
 - 运营指标面板：`/metrics` 展示用户数/评论数/采集健康度
 - 数据采集：Mock / AkShare / Tushare，多源 fallback + 熔断器，定时刷新实时行情和 K 线
 - PostgreSQL 历史回填：`python/tushare_pg_ingest/` 下有独立脚本体系
-
 ---
 
 ## 技术栈
@@ -67,6 +67,8 @@
 | 缓存 | Redis 优先 + 内存 LRU 降级 | `services/cache.py` 线程安全实现；Redis 可接入，内存作为降级 |
 | 可观测性 | Prometheus 风格指标 + structlog 结构化日志 | `services/metrics.py` + `services/logging_config.py` |
 | 限流 | 内存/Redis 滑动窗口 | `middleware/rate_limit.py`，覆盖所有写入端点 |
+| **Agent 技术指标** | **numpy + pandas** | **后端纯 numpy/pandas 指标库（`python/lib/technical_indicators.py`）：SMA/EMA/RSI/MACD/BOLL/KDJ/ATR/CCI/OBV/ADX/WR/量比** |
+| **Agent LLM 调用** | **OpenAI 兼容 API** | **复用 `services/ai_chat.py`，Agent 通过 `services/agent/llm_client.py` 统一调用** |
 
 ---
 
@@ -148,6 +150,9 @@ project_rich_snowball/
 │   │   │   ├── settings.ts         # 设置 API
 │   │   │   ├── metrics.ts          # 运营指标 API
 │   │   │   ├── logging.ts          # 前端日志上报
+│   │   │   ├── agents.ts           # Agent 系统 API（任务创建、流式 SSE、Chat）
+│   │   │   ├── types.ts            # 共享类型定义
+│   │   │   ├── logging.ts          # 前端日志上报
 │   │   │   ├── types.ts            # 共享类型定义
 │   │   │   ├── errors.ts           # API 错误类型
 │   │   │   └── index.ts            # API 模块统一导出
@@ -200,7 +205,8 @@ project_rich_snowball/
 │   ├── alembic/
 │   │   ├── env.py                  # 从 config.py 读取 DATABASE_URL
 │   │   └── versions/               # 46 个迁移脚本
-│   ├── routers/                    # 19 个领域路由
+│   ├── routers/                    # 20 个领域路由
+│   │   ├── agents.py               # Agent 系统：任务创建、流式执行、Chat 对话
 │   │   ├── auth.py
 │   │   ├── chat.py
 │   │   ├── comments.py
@@ -238,6 +244,27 @@ project_rich_snowball/
 │   │   ├── logging_config.py       # structlog 结构化日志配置
 │   │   ├── trading_calendar.py     # 交易日历
 │   │   ├── ai_chat.py              # AI 助手 OpenAI 兼容调用
+│   │   ├── agent/                  # Agent 系统核心模块（Phase 0~2 已完成）
+│   │   │   ├── core.py             # Agent 基类、Tool 注册表
+│   │   │   ├── data_agent.py       # DataAgent：品种/行情/K线/市场状态查询
+│   │   │   ├── data_tools.py       # DataAgent 工具实现
+│   │   │   ├── tech_analysis_agent.py  # TechAnalysisAgent：技术指标与走势分析
+│   │   │   ├── risk_management_agent.py # RiskManagementAgent：仓位/止损/止盈/回撤方案
+│   │   │   ├── executor.py         # Agent 执行引擎（步骤持久化、流式事件）
+│   │   │   ├── llm_client.py       # Agent 专用 LLM 客户端
+│   │   │   ├── tools.py            # Tool 注册与 schema 生成
+│   │   │   ├── prompts.py          # Agent system prompt 模板
+│   │   │   ├── context.py          # Agent 执行上下文
+│   │   │   ├── analysis/           # 技术分析子模块
+│   │   │   │   ├── trend.py        # 趋势分析（均线排列、ADX、DMI）
+│   │   │   │   ├── pattern.py      # 形态识别（双顶/双底、三角形、K 线形态）
+│   │   │   │   ├── divergence.py   # 背离检测（价格 vs MACD/RSI/KDJ）
+│   │   │   │   └── composite.py    # 综合评分（5 维度 0-100）
+│   │   │   └── risk_management/    # 风控子模块
+│   │   │       ├── position.py     # 仓位管理（固定风险比例法）
+│   │   │       ├── stop_loss.py    # 止损策略（5 种方法）
+│   │   │       ├── take_profit.py  # 止盈策略（5 种方法）
+│   │   │       └── drawdown.py     # 回撤控制规则
 │   │   ├── news_fetcher.py         # RSS 新闻抓取与 AI 解读
 │   │   ├── redis_client.py         # Redis 连接
 │   │   ├── realtime_state.py       # 实时行情共享状态
@@ -250,6 +277,8 @@ project_rich_snowball/
 │   │   │   ├── workspace_service.py
 │   │   │   └── exceptions.py       # ServiceError 体系
 │   │   └── ...
+│   ├── lib/
+│   │   └── technical_indicators.py # 纯 numpy/pandas 技术指标库（12 个指标）
 │   ├── middleware/
 │   │   └── rate_limit.py           # 限流中间件
 │   ├── tushare_pg_ingest/          # 独立历史数据回填脚本
@@ -800,6 +829,30 @@ ruff format .
 - **compose backend service**：取消 backend 注释，配置健康检查、环境变量、端口映射
 - **测试**：383 passed, 6 skipped, 0 failed
 
+### Agent 系统 Phase 0~2 — 已完成（2026-07-04）
+
+**Phase 0：基座修复与边界收敛**
+- Alembic revision 冲突修复；`agent_tasks` / `agent_task_steps` 表模型与迁移完成
+- 统一 `AgentEvent` schema（start/thought/action/observation/result/error/done）前后端一致
+- Tool 注册与执行入口收敛：`@register_tool` 装饰器 + `_execute_tool` 服务层调用
+- 复用 `services/ai_chat.py` 作为 LLM client
+
+**Phase 1：DataAgent**
+- 品种别名解析（黄金→AU，螺纹钢→RB，原油→SC）
+- 5 个数据工具：get_variety_info、get_realtime_quote、get_kline_data、list_active_varieties、get_market_status
+- 规则优先解析 + LLM fallback 的意图理解
+
+**Phase 2：TechAnalysisAgent + RiskManagementAgent**
+- 后端纯 numpy/pandas 指标库 `python/lib/technical_indicators.py`（12 个指标）
+- 技术分析子模块：trend、pattern、divergence、composite（5 维度 0-100 综合评分）
+- 风控子模块：position（仓位管理）、stop_loss（5 种止损）、take_profit（5 种止盈）、drawdown（回撤控制）
+- 前端 Chat 页升级为 4 种模式切换：AI 助手 / 数据助手 / 技术分析 / 风控管理
+- 流式 SSE 展示 Agent 执行过程（步骤展开/收起）
+
+**前端**
+- `/chat` 页面重构：模式切换标签 + Agent 执行步骤可视化
+- API 层新增 `lib/api/agents.ts`
+
 ---
 
 ## 待处理 P1 事项（来自后端架构审计 v7）
@@ -827,3 +880,59 @@ ruff format .
 4. ~~**自动备份/恢复演练**：`python/docs/postgres_backup_runbook.md` 已提供手动 runbook，但尚未自动化。~~ **已修复（2026-06-24）**：新增 `python/scripts/backup_postgres.py`（逻辑/物理备份 + 过期清理）与 `python/scripts/restore_postgres.py`（恢复演练 + 核心表行数校验），支持 `DATABASE_URL` / `PG*` 环境变量与 `--dry-run`。
 
 > 注：上述列表随修复迭代更新；已修复项保留 ~~删除线~~ 以便追溯。
+
+---
+
+## Agent 系统
+
+Agent 系统按「功能能力」拆分，每个 Agent 有清晰边界、稳定输入输出、可测试的工具调用链路。当前已完成 Phase 0~2，Phase 3（StrategyCompilerAgent）待启动。
+
+### 架构原则
+
+1. **确定性计算优先**：数据查询、指标计算、形态识别全部走确定性代码（numpy/pandas），LLM 只负责意图理解、工具选择、报告表达。
+2. **单 Agent 稳定后再编排**：DataAgent、TechAnalysisAgent、RiskManagementAgent 已稳定，后续引入轻量 OrchestratorAgent 做复杂任务拆解。
+3. **步骤可观测**：每个 Agent 执行过程拆分为 thought → action → observation → result，持久化到 `agent_task_steps` 表，前端通过 SSE 流式展示。
+4. **风险提示默认包含**：所有 Agent 输出必须附带「不构成投资建议」声明，但不要让声明淹没核心结论。
+
+### 功能 Agent 划分
+
+| Agent | 状态 | 职责 | 关键能力 |
+|-------|------|------|----------|
+| **DataAgent** | ✅ 已完成 | 数据查询与整理 | 品种信息、实时行情、K 线、市场状态、持仓/仓单/结算等扩展数据 |
+| **TechAnalysisAgent** | ✅ 已完成 | 技术面分析 | 趋势（均线/ADX/DMI）、动量（MACD/RSI/KDJ/CCI/WR）、波动（ATR/布林带）、量价（OBV/量比）、形态（双顶/双底/三角形/K 线形态）、背离检测、综合评分 0-100 |
+| **RiskManagementAgent** | ✅ 已完成 | 风控方案生成 | 仓位管理（固定风险比例法，保守/中等/激进）、5 种止损、5 种止盈、回撤控制规则、交易纪律 |
+| **StrategyCompilerAgent** | 🔄 P1 待启动 | 自然语言策略 DSL | 把「突破 20 日高点且放量做多，跌破 10 日线止损」转成结构化 JSON + 可读解释 |
+| **FactorMiningAgent** | 🔄 P1 待启动 | 因子评估与筛选 | IC / Rank IC / 分层回测 / IC 衰减 / 稳定性统计 |
+| **OrchestratorAgent** | 🔄 P2 远期 | 复杂任务编排 | 自动拆解多 Agent 任务、串行/并行执行、子任务状态汇总 |
+
+### 后端核心模块
+
+- `services/agent/core.py`：`BaseAgent` 基类、`ToolRegistry` 工具注册表、`AgentResult` / `AgentEvent` schema
+- `services/agent/executor.py`：执行引擎，负责任务创建、步骤持久化、流式事件发射
+- `services/agent/llm_client.py`：复用 `services/ai_chat.py` 的 OpenAI 兼容调用
+- `services/agent/data_agent.py` / `data_tools.py`：DataAgent 实现与工具
+- `services/agent/tech_analysis_agent.py`：TechAnalysisAgent 实现
+- `services/agent/risk_management_agent.py`：RiskManagementAgent 实现
+- `services/agent/analysis/`：trend、pattern、divergence、composite 四个分析子模块
+- `services/agent/risk_management/`：position、stop_loss、take_profit、drawdown 四个风控子模块
+- `python/lib/technical_indicators.py`：纯 numpy/pandas 指标库，不依赖 LLM
+- `routers/agents.py`：`/api/agents/tasks`（创建任务）、`/api/agents/tasks/{id}`（查询结果）、`/api/agents/chat`（SSE 流式对话）
+
+### 数据库模型
+
+- `agent_tasks`：任务主表（id、user_id、agent_type、query、status、result、created_at、updated_at）
+- `agent_task_steps`：执行步骤表（task_id、step_type、content、metadata、created_at）
+
+### 前端集成
+
+- `frontend/app/chat/page.tsx`：4 种模式切换的 Chat 界面，支持流式展示 Agent 执行步骤
+- `frontend/lib/api/agents.ts`：Agent API 封装（`createTask`、`getTask`、`chatWithAgent`）
+- 新增 Agent 相关类型在 `frontend/lib/api/types.ts` 中维护，必须与后端 schema 同步
+
+### 开发约束
+
+- 新增 Agent 类型必须继承 `BaseAgent`，实现 `run(query, context)` 接口。
+- Tool 注册必须使用 `@register_tool(name, description, params_schema)` 装饰器。
+- Agent 执行步骤必须写入 `agent_task_steps`（step_type ∈ {thought, action, observation, result, error}）。
+- 流式事件类型新增时，前后端 `AgentEvent` 枚举必须同步更新。
+- 涉及 Agent 改动至少运行 `python -m py_compile` 和相关 pytest。

@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import AppShell from '@/components/layout/AppShell'
-import EmptyState from '@/components/ui/EmptyState'
-import { api, type ChatMessage } from '@/lib/api'
-import { formatPrice } from '@/lib/format'
+import { api } from '@/lib/api'
+import type { ChatMessage, AgentTaskStepResponse } from '@/lib/api'
 import {
   Send,
   Trash2,
@@ -13,29 +12,85 @@ import {
   Sparkles,
   Loader2,
   Zap,
+  Wrench,
+  Brain,
+  Database,
+  ChevronDown,
+  ChevronUp,
+  TrendingUp,
+  Shield,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-const quickPrompts = [
-  '分析一下螺纹钢最近的走势',
-  '黄金目前适合做多还是做空？',
-  '帮我总结今天的热门品种',
-  '原油期货有什么新闻？',
-]
+type AgentMode = 'chat' | 'data' | 'tech_analysis' | 'risk_management'
+
+interface AgentMessage {
+  id: number
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  steps?: AgentTaskStepResponse[]
+  isStreaming?: boolean
+  created_at: string
+}
+
+const quickPrompts: Record<AgentMode, string[]> = {
+  chat: [
+    '分析一下螺纹钢最近的走势',
+    '黄金目前适合做多还是做空？',
+    '帮我总结今天的热门品种',
+    '原油期货有什么新闻？',
+  ],
+  data: [
+    '螺纹钢最新价格是多少',
+    '列出所有有色金属品种',
+    '黄金近 20 日 K 线数据',
+    '当前市场状态如何',
+  ],
+  tech_analysis: [
+    '分析螺纹钢日线技术面',
+    '黄金技术面如何？',
+    '铜的走势技术判断',
+    '原油期货技术分析',
+  ],
+  risk_management: [
+    '螺纹钢做多风控方案',
+    '黄金做空仓位怎么控制',
+    '原油 5000 元做空风控',
+    '铜的止损止盈怎么设',
+  ],
+}
+
+const modeLabels: Record<AgentMode, { label: string; icon: typeof Database; desc: string }> = {
+  chat: { label: 'AI 助手', icon: Sparkles, desc: '期货行情分析、投资知识问答' },
+  data: { label: '数据助手', icon: Database, desc: '实时行情、品种信息、K 线数据查询' },
+  tech_analysis: { label: '技术分析', icon: TrendingUp, desc: '基于经典指标的综合技术面分析' },
+  risk_management: { label: '风控管理', icon: Shield, desc: '仓位管理、止损止盈、回撤控制' },
+}
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<AgentMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+  const [agentMode, setAgentMode] = useState<AgentMode>('chat')
+  const [showModeMenu, setShowModeMenu] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const modeMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
     api
       .getChatHistory({ limit: 100 })
       .then((history) => {
-        if (!cancelled) setMessages(history)
+        if (!cancelled) {
+          setMessages(
+            history.map((m) => ({
+              ...m,
+              steps: undefined,
+              isStreaming: false,
+            })),
+          )
+        }
       })
       .catch(() => {
         if (!cancelled) toast.error('加载历史记录失败')
@@ -43,17 +98,30 @@ export default function ChatPage() {
       .finally(() => {
         if (!cancelled) setIsLoadingHistory(false)
       })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (modeMenuRef.current && !modeMenuRef.current.contains(e.target as Node)) {
+        setShowModeMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const handleSend = useCallback(
     async (text: string) => {
       if (!text.trim() || isLoading) return
-      const userMsg: ChatMessage = {
+
+      const userMsg: AgentMessage = {
         id: Date.now(),
         role: 'user',
         content: text.trim(),
@@ -63,17 +131,110 @@ export default function ChatPage() {
       setInput('')
       setIsLoading(true)
 
-      try {
-        const assistantMsg = await api.sendChatMessage({ content: text.trim() })
+      if (agentMode === 'data' || agentMode === 'tech_analysis') {
+        // Agent 流式模式
+        const assistantId = Date.now() + 1
+        const assistantMsg: AgentMessage = {
+          id: assistantId,
+          role: 'assistant',
+          content: '',
+          steps: [],
+          isStreaming: true,
+          created_at: new Date().toISOString(),
+        }
         setMessages((prev) => [...prev, assistantMsg])
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : '发送失败')
-        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id))
-      } finally {
-        setIsLoading(false)
+
+        try {
+          await api.agentChatStream(
+            { content: text.trim(), agent_type: agentMode },
+            (event) => {
+              setMessages((prev) => {
+                const idx = prev.findIndex((m) => m.id === assistantId)
+                if (idx === -1) return prev
+                const updated = [...prev]
+                const msg = { ...updated[idx] }
+
+                if (event.event_type === 'start') {
+                  msg.content = event.content as string
+                } else if (event.event_type === 'thought') {
+                  msg.content = (event.content as string) || msg.content
+                } else if (event.event_type === 'action') {
+                  msg.content = (event.content as string) || msg.content
+                } else if (event.event_type === 'observation') {
+                  msg.content = (event.content as string) || msg.content
+                } else if (event.event_type === 'result') {
+                  msg.content = (event.content as string) || msg.content
+                  msg.isStreaming = false
+                } else if (event.event_type === 'error') {
+                  msg.content = (event.error_message as string) || '出错了'
+                  msg.isStreaming = false
+                } else if (event.event_type === 'done') {
+                  msg.isStreaming = false
+                }
+
+                // 记录步骤
+                if (event.step_number && event.role) {
+                  const steps = msg.steps || []
+                  const existing = steps.find((s) => s.step_number === event.step_number)
+                  if (!existing) {
+                    steps.push({
+                      id: event.step_number as number,
+                      task_id: (event.task_id as number) || 0,
+                      step_number: event.step_number as number,
+                      role: event.role as string,
+                      content: (event.content as string) || '',
+                      tool_name: (event.tool_name as string) || null,
+                      tool_input: (event.tool_input as Record<string, unknown>) || null,
+                      tool_output: (event.tool_output as Record<string, unknown>) || null,
+                      created_at: new Date().toISOString(),
+                    })
+                    steps.sort((a, b) => a.step_number - b.step_number)
+                    msg.steps = steps
+                  }
+                }
+
+                updated[idx] = msg
+                return updated
+              })
+            },
+          )
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : 'Agent 请求失败')
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === assistantId)
+            if (idx === -1) return prev
+            const updated = [...prev]
+            updated[idx] = {
+              ...updated[idx],
+              content: '请求失败，请稍后重试',
+              isStreaming: false,
+            }
+            return updated
+          })
+        } finally {
+          setIsLoading(false)
+        }
+      } else {
+        // 普通聊天模式
+        try {
+          const assistantMsg = await api.sendChatMessage({ content: text.trim() })
+          setMessages((prev) => [
+            ...prev,
+            {
+              ...assistantMsg,
+              steps: undefined,
+              isStreaming: false,
+            },
+          ])
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : '发送失败')
+          setMessages((prev) => prev.filter((m) => m.id !== userMsg.id))
+        } finally {
+          setIsLoading(false)
+        }
       }
     },
-    [isLoading],
+    [isLoading, agentMode],
   )
 
   const handleClear = useCallback(async () => {
@@ -94,14 +255,52 @@ export default function ChatPage() {
     }
   }
 
+  const currentMode = modeLabels[agentMode]
+  const ModeIcon = currentMode.icon
+
   return (
     <AppShell>
       <div className="mx-auto flex h-[calc(100vh-4rem)] max-w-3xl flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Sparkles size={18} className="text-amber-400" />
-            <h1 className="text-base font-semibold text-white">AI 助手</h1>
+          <div className="flex items-center gap-3">
+            <div className="relative" ref={modeMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowModeMenu(!showModeMenu)}
+                className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                <ModeIcon size={18} className="text-amber-400" />
+                {currentMode.label}
+                <ChevronDown size={14} className="text-slate-400" />
+              </button>
+              {showModeMenu && (
+                <div className="absolute left-0 top-full z-10 mt-1 w-56 rounded-lg border border-slate-700 bg-slate-900 py-1 shadow-lg">
+                  {(Object.keys(modeLabels) as AgentMode[]).map((mode) => {
+                    const { label, icon: Icon, desc } = modeLabels[mode]
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => {
+                          setAgentMode(mode)
+                          setShowModeMenu(false)
+                        }}
+                        className={`flex w-full items-start gap-2 px-3 py-2 text-left transition ${
+                          agentMode === mode ? 'bg-slate-800' : 'hover:bg-slate-800'
+                        }`}
+                      >
+                        <Icon size={16} className="mt-0.5 text-amber-400" />
+                        <div>
+                          <div className="text-sm font-medium text-white">{label}</div>
+                          <div className="text-xs text-slate-400">{desc}</div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
           {messages.length > 0 && (
             <button
@@ -124,14 +323,14 @@ export default function ChatPage() {
           ) : messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-6">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10">
-                <Bot size={24} className="text-amber-400" />
+                <ModeIcon size={24} className="text-amber-400" />
               </div>
               <div className="text-center">
-                <h2 className="text-lg font-semibold text-white">期货 AI 助手</h2>
-                <p className="mt-1 text-sm text-slate-400">问我关于期货行情、交易观点或投资策略的问题</p>
+                <h2 className="text-lg font-semibold text-white">{currentMode.label}</h2>
+                <p className="mt-1 text-sm text-slate-400">{currentMode.desc}</p>
               </div>
               <div className="flex flex-wrap justify-center gap-2">
-                {quickPrompts.map((prompt) => (
+                {quickPrompts[agentMode].map((prompt) => (
                   <button
                     key={prompt}
                     type="button"
@@ -148,16 +347,6 @@ export default function ChatPage() {
               {messages.map((msg) => (
                 <MessageBubble key={msg.id} message={msg} />
               ))}
-              {isLoading && (
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/10">
-                    <Zap size={14} className="text-amber-400" />
-                  </div>
-                  <div className="rounded-xl border border-slate-800 bg-surface px-4 py-3">
-                    <Loader2 size={16} className="animate-spin text-slate-400" />
-                  </div>
-                </div>
-              )}
               <div ref={bottomRef} />
             </div>
           )}
@@ -171,7 +360,7 @@ export default function ChatPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={1}
-              placeholder="输入问题，Shift+Enter 换行..."
+              placeholder={`输入问题，Shift+Enter 换行...`}
               className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm text-white placeholder-slate-500 outline-none"
             />
             <button
@@ -185,6 +374,9 @@ export default function ChatPage() {
           </div>
           <p className="mt-1.5 text-center text-[10px] text-slate-600">
             AI 回答仅供参考，不构成投资建议
+            {agentMode === 'data' && ' · 数据助手会调用实时行情和品种数据库'}
+            {agentMode === 'tech_analysis' && ' · 技术分析基于 10+ 经典指标进行综合评分'}
+            {agentMode === 'risk_management' && ' · 风控方案基于账户 10 万模拟资金，支持自定义'}
           </p>
         </div>
       </div>
@@ -192,8 +384,10 @@ export default function ChatPage() {
   )
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message }: { message: AgentMessage }) {
   const isUser = message.role === 'user'
+  const [showSteps, setShowSteps] = useState(false)
+  const hasSteps = (message.steps?.length ?? 0) > 0
 
   return (
     <div className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -215,7 +409,79 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             : 'border border-slate-800 bg-surface text-slate-200'
         }`}
       >
-        <div className="whitespace-pre-wrap">{message.content}</div>
+        <div className="whitespace-pre-wrap">
+          {message.content || (message.isStreaming ? '正在分析...' : '')}
+        </div>
+
+        {message.isStreaming && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <Loader2 size={12} className="animate-spin text-slate-400" />
+            <span className="text-xs text-slate-400">正在处理...</span>
+          </div>
+        )}
+
+        {hasSteps && !message.isStreaming && (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => setShowSteps(!showSteps)}
+              className="inline-flex items-center gap-1 text-xs text-slate-500 transition hover:text-amber-400"
+            >
+              <Wrench size={10} />
+              {showSteps ? '隐藏执行过程' : '查看执行过程'}
+              {showSteps ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+            </button>
+            {showSteps && (
+              <div className="mt-2 space-y-1.5 rounded-lg bg-slate-900/50 px-3 py-2">
+                {message.steps?.map((step) => (
+                  <StepItem key={step.step_number} step={step} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function StepItem({ step }: { step: AgentTaskStepResponse }) {
+  const roleColors: Record<string, string> = {
+    thought: 'text-blue-400',
+    action: 'text-amber-400',
+    observation: 'text-green-400',
+    system: 'text-slate-400',
+    error: 'text-red-400',
+  }
+  const roleIcons: Record<string, typeof Brain> = {
+    thought: Brain,
+    action: Wrench,
+    observation: Zap,
+    system: Bot,
+    error: Zap,
+  }
+
+  const Icon = roleIcons[step.role] || Bot
+  const color = roleColors[step.role] || 'text-slate-400'
+  const label = {
+    thought: '思考',
+    action: '调用工具',
+    observation: '观察结果',
+    system: '系统',
+    error: '错误',
+  }[step.role] || step.role
+
+  return (
+    <div className="flex items-start gap-2">
+      <Icon size={12} className={`mt-0.5 shrink-0 ${color}`} />
+      <div className="min-w-0">
+        <div className={`text-[11px] font-medium ${color}`}>{label}</div>
+        <div className="text-xs text-slate-400">{step.content}</div>
+        {step.tool_name && (
+          <div className="mt-0.5 text-[11px] text-slate-500">
+            工具: {step.tool_name}
+          </div>
+        )}
       </div>
     </div>
   )

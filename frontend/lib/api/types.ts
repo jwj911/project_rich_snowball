@@ -396,3 +396,34 @@ export interface ChatMessage {
 export interface ChatMessageCreate {
   content: string
 }
+
+export interface AgentTaskStepResponse {
+  id: number
+  task_id: number
+  step_number: number
+  role: string
+  content: string
+  tool_name: string | null
+  tool_input: Record<string, unknown> | null
+  tool_output: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface AgentTaskResponse {
+  id: number
+  user_id: number
+  agent_type: string
+  query: string
+  status: string
+  result: Record<string, unknown> | null
+  error_message: string | null
+  started_at: string | null
+  finished_at: string | null
+  created_at: string
+  steps: AgentTaskStepResponse[]
+}
+
+export interface AgentChatRequest {
+  content: string
+  agent_type: string
+}

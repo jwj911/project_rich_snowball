@@ -2,6 +2,7 @@ import html
 from datetime import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
 
@@ -824,5 +825,132 @@ class ChatMessageResponse(BaseModel):
     role: str
     content: str
     created_at: dt
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ========== Agent / AI Assistant schemas ==========
+
+
+class AgentType(StrEnum):
+    """Agent 类型枚举。"""
+
+    DATA = "data"
+    TECH_ANALYSIS = "tech_analysis"
+    RISK_MANAGEMENT = "risk_management"
+    ORCHESTRATOR = "orchestrator"
+    FACTOR_MINING = "factor_mining"
+
+
+class AgentTaskStatus(StrEnum):
+    """Agent 任务状态枚举。"""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class AgentTaskStepRole(StrEnum):
+    """Agent 任务步骤角色枚举。"""
+
+    THOUGHT = "thought"
+    ACTION = "action"
+    OBSERVATION = "observation"
+    SYSTEM = "system"
+    ERROR = "error"
+
+
+class AgentTaskCreate(BaseModel):
+    """创建 Agent 任务请求。"""
+
+    agent_type: str = Field(..., pattern=r"^(data|tech_analysis|risk_management|orchestrator|factor_mining)$")
+    query: str = Field(..., min_length=1, max_length=4000)
+
+
+class AgentTaskStepResponse(BaseModel):
+    """Agent 任务步骤响应。"""
+
+    id: int
+    task_id: int
+    step_number: int
+    role: str
+    content: str
+    tool_name: str | None
+    tool_input: dict[str, Any] | None
+    tool_output: Any = None
+    created_at: dt
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("tool_input", "tool_output", mode="before")
+    @classmethod
+    def _parse_json_field(cls, v):
+        if isinstance(v, str):
+            import json
+
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return v
+
+
+class AgentTaskResponse(BaseModel):
+    """Agent 任务响应。"""
+
+    id: int
+    user_id: int
+    agent_type: str
+    query: str
+    status: str
+    result: dict[str, Any] | None
+    error_message: str | None
+    started_at: dt | None
+    finished_at: dt | None
+    created_at: dt
+    steps: list[AgentTaskStepResponse] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("result", mode="before")
+    @classmethod
+    def _parse_result_json(cls, v):
+        if isinstance(v, str):
+            import json
+
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return v
+
+
+class AgentChatRequest(BaseModel):
+    """Agent 流式对话请求。
+
+    兼容现有 Chat 接口，增加 agent_type 字段支持切换 Agent 模式。
+    """
+
+    content: str = Field(..., min_length=1, max_length=4000)
+    agent_type: str = Field(default="data", pattern=r"^(data|tech_analysis|risk_management|orchestrator|factor_mining)$")
+
+
+class AgentStreamEvent(BaseModel):
+    """Agent SSE 流式事件。
+
+    用于向前端推送 Agent 思考过程和执行步骤。
+    """
+
+    event_type: str = Field(..., pattern=r"^(start|thought|action|observation|result|error|done)$")
+    task_id: int | None = None
+    step_number: int | None = None
+    role: str | None = None
+    content: str | None = None
+    tool_name: str | None = None
+    tool_input: dict[str, Any] | None = None
+    tool_output: Any = None
+    result: dict[str, Any] | None = None
+    error_message: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
