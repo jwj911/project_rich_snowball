@@ -461,10 +461,6 @@ function MessageBubble({ message }: { message: AgentMessage }) {
           <FactorResultCard result={message.result?.data as Record<string, unknown>} steps={message.steps} />
         )}
 
-        {message.agentMode === 'strategy_compiler' && !message.isStreaming && (
-          <StrategyResultCard result={message.result?.data as Record<string, unknown>} />
-        )}
-
         {message.agentMode === 'backtest' && !message.isStreaming && (
           <BacktestResultCard result={message.result?.data as Record<string, unknown>} />
         )}
