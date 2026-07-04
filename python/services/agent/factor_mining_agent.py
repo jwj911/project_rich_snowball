@@ -1,10 +1,7 @@
 """因子挖掘 Agent。
 
-第一期聚焦「已有因子评估」：用户给定因子公式，Agent 自动加载面板数据、
+聚焦「已有因子评估」：用户给定因子公式，Agent 自动加载面板数据、
 安全求值、计算 IC/Rank IC/分层回测/最大回撤等指标，并生成解释报告。
-
-第二期新增「多因子组合评估」：用户指定多个因子后进行 ICIR 加权或等权组合，
-生成组合评分并展示各组因子贡献明细。
 """
 
 from __future__ import annotations
@@ -15,14 +12,7 @@ import re
 from collections.abc import AsyncIterator
 from typing import Any
 
-import pandas as pd
-
 from services.agent.core import Agent, AgentEventType, AgentResult, AgentStatus
-from services.agent.factor_engine.compositor import (
-    CompositeConfig,
-    FactorCompositor,
-    FactorSpec,
-)
 from services.agent.factor_engine.data_loader import extract_factor_universe, load_panel_data
 from services.agent.factor_engine.dsl import evaluate_factor, validate_factor_formula
 from services.agent.factor_engine.evaluator import evaluate_factor as evaluate_factor_performance
@@ -258,27 +248,6 @@ class FactorMiningAgent(Agent):
                 steps=self.get_steps(),
             )
 
-        # 6. 检测是否需要多因子组合评估
-        composite_config = _extract_composite_intent(query, formula, factor_values, panel)
-        composite_result = None
-        if composite_config:
-            self._add_step(
-                "action",
-                f"检测到多因子组合意图：{composite_config['method']} 组合 {composite_config['factor_count']} 个因子",
-                tool_name="_extract_composite_intent",
-                tool_output={"method": composite_config["method"], "factors": composite_config["factor_specs"]},
-            )
-            try:
-                compositor = FactorCompositor()
-                composite_result = compositor.compute(
-                    composite_config["factor_panels"],
-                    panel.close,
-                    composite_config["config"],
-                )
-                self._add_step("system", "多因子组合评分计算完成")
-            except Exception as e:
-                self._add_step("observation", f"多因子组合评估跳过：{e}")
-
         # 7. 生成报告
         report = eval_result.to_dict()
         report["data_preflight"] = {
@@ -286,9 +255,7 @@ class FactorMiningAgent(Agent):
             "required_fields": sorted(required_fields),
             "coverage_checks": coverage_checks,
         }
-        if composite_result is not None:
-            report["composite"] = composite_result.to_dict()
-        summary = self._build_summary(formula, eval_result, composite_result)
+        summary = self._build_summary(formula, eval_result)
         if warning_checks:
             summary += "\n\n### 数据检查\n" + "\n".join(
                 f"- {item['symbol']} 覆盖样本 {item['row_count']} 根，低于建议值，结果稳定性需谨慎。"
@@ -371,7 +338,7 @@ class FactorMiningAgent(Agent):
         }
         return mapping.get(role, AgentEventType.THOUGHT)
 
-    def _build_summary(self, formula: str, result: Any, composite_result: Any = None) -> str:
+    def _build_summary(self, formula: str, result: Any) -> str:
         """生成 Markdown 评估报告。"""
         lines = [
             "## 因子评估报告",
@@ -451,24 +418,6 @@ class FactorMiningAgent(Agent):
             conclusion_parts.append("数据不足，无法给出明确结论。")
 
         lines.append(" ".join(conclusion_parts))
-
-        # 多因子组合部分（如有）
-        if composite_result is not None:
-            lines.extend(
-                [
-                    "",
-                    "### 多因子组合评估",
-                    f"**组合方法**：{composite_result.method}",
-                    "",
-                ]
-            )
-            if composite_result.icir_by_factor:
-                lines.append("| 因子 | ICIR |")
-                lines.append("|------|------|")
-                for field, icir in composite_result.icir_by_factor.items():
-                    lines.append(f"| {field} | {icir:.4f} |")
-                lines.append("")
-
         lines.extend(
             [
                 "",
@@ -477,78 +426,3 @@ class FactorMiningAgent(Agent):
         )
 
         return "\n".join(lines)
-
-
-# ------------------------------------------------------------------
-# 多因子组合意图解析
-# ------------------------------------------------------------------
-
-_COMPOSITE_KEYWORDS = re.compile(
-    r"(组合|合并|加权|合成|多因子|复合因子|ICIR|等权)",
-    re.IGNORECASE,
-)
-
-
-def _extract_composite_intent(
-    query: str,
-    primary_formula: str,
-    factor_values: pd.DataFrame,
-    panel: Any,
-) -> dict[str, Any] | None:
-    """检测用户是否意图做多因子组合评估。
-
-    返回 compositor 所需的配置字典，若无法解析则返回 None。
-    """
-    if not _COMPOSITE_KEYWORDS.search(query):
-        return None
-
-    # 尝试提取多个因子公式
-    formulas = re.findall(r'["""]([^"""]+)["""]', query)
-    if not formulas:
-        formulas = re.findall(r"[''']([^''']+)[''']", query)
-    if not formulas:
-        formulas = re.findall(r'"([^"]+)"', query)
-    if not formulas:
-        formulas = re.findall(r"'([^']+)'", query)
-    if len(formulas) < 2:
-        # 只有单个因子公式也尝试解析通用多因子意图
-        if not re.search(r"(多因子|组合|加权|合成)", query):
-            return None
-        formulas = [primary_formula] if primary_formula else []
-
-    if len(formulas) < 2:
-        return None
-
-    # 对每个因子做安全校验和求值
-    factor_panels: dict[str, pd.DataFrame] = {}
-    factor_specs: list[str] = []
-    for i, f in enumerate(formulas):
-        try:
-            validate_factor_formula(f)
-            values = evaluate_factor(f, panel)
-            name = f"因子{i + 1}"
-            factor_panels[name] = values
-            factor_specs.append(name)
-        except ValueError:
-            continue
-
-    if len(factor_panels) < 2:
-        return None
-
-    # 检测组合方法
-    method = "icir_weighted" if re.search(r"ICIR|加权", query, re.IGNORECASE) else "equal_weight"
-
-    config = CompositeConfig(
-        factors=[FactorSpec(field=name, is_asc=False, group=f"组合{i % 5 + 1}") for i, name in enumerate(factor_specs)],
-        method=method,
-        future_return_periods=5,
-        icir_recall=50,
-    )
-
-    return {
-        "method": method,
-        "factor_count": len(factor_specs),
-        "factor_specs": factor_specs,
-        "factor_panels": factor_panels,
-        "config": config,
-    }
