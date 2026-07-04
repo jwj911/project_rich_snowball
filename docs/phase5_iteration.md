@@ -1,7 +1,7 @@
 # Phase 5 迭代跟踪文档
 
 > 创建时间：2026-07-04
-> 当前状态：Phase 5-1 已完成，Phase 5-2 已完成，进入 Phase 5-3 策略信号可视化
+> 当前状态：Phase 5-1 已完成，Phase 5-2 已完成，Phase 5-3 已完成，进入 Phase 5-4 性能优化
 
 ---
 
@@ -97,16 +97,44 @@
 
 ---
 
-## 四、Phase 5-3：策略信号可视化（进行中）
+## 四、Phase 5-3：策略信号可视化（已完成）
 
-- K 线叠加买卖信号标记（箭头/圆形标记）
-- 在品种详情页展示策略回测的进出场点位
-- 后端：回测结果 `signals` 字段已包含 entry/exit 信号，需暴露为独立 API
-- 前端：在 K 线图上通过 lightweight-charts `markers` 添加信号标记
+### 4.1 目标
+在 K 线图上叠加策略回测的买卖信号标记（entry/exit），使用户直观看到进出场点位。
+
+### 4.2 实现
+
+**后端**：
+- 新增 `GET /api/strategies/{strategy_id}/backtests/{backtest_id}/signals` 端点
+- 返回 `BacktestSignalsResponse`：策略 ID + 回测 ID + 信号列表（time, type, price）+ 交易记录
+- 从 `BacktestRunDB.result_json` 中解析已有的 `signals` 字段
+
+**前端**：
+- `KlineChart` 组件新增 `signals` prop：接收 `Array<{time: string, type: 'entry'|'exit', price: number}>`
+- `useKlineChart` hook 新增 `setMarkers` 方法：通过 lightweight-charts `series.setMarkers()` 添加标记
+- 信号标记：
+  - `entry`（买入/做多）：红色箭头向上（`arrowUp`），位置 `belowBar`
+  - `exit`（卖出/平多）：绿色箭头向下（`arrowDown`），位置 `aboveBar`
+- 时间戳转换：ISO 字符串 → `Date.parse` → 秒级时间戳，与 K 线数据对齐
+
+### 4.3 新增/修改文件
+
+| 文件 | 说明 |
+|------|------|
+| `python/routers/strategies.py` | 新增 `GET /{id}/backtests/{bid}/signals` 端点 |
+| `python/schemas.py` | 新增 `BacktestSignal` + `BacktestSignalsResponse` |
+| `frontend/components/KlineChart.tsx` | 新增 `signals` prop，同步 markers |
+| `frontend/hooks/useKlineChart.ts` | 新增 `setMarkers` 方法（lightweight-charts v5 类型断言） |
+
+### 4.4 提交记录
+
+- `3edb7215` feat(frontend+backend): 策略回测信号 K 线叠加可视化（Phase 5-3）
+
+---
 
 ## 五、Phase 5-4 ~ 5-6 规划（待启动）
 
-### 5-4：性能优化
+### 5-4：性能优化（进行中）
 - 数据库索引：策略表、回测记录表、价格预警表加索引
 - 缓存：回测结果 LRU 缓存，避免重复计算
 - 批量回测：支持异步任务队列
@@ -140,4 +168,5 @@
 |------|----------|--------|
 | 2026-07-04 | 创建文档，完成 5-1 检查 | AI Assistant |
 | 2026-07-04 | 完成 5-2 策略优化引擎（9 测试通过，3 次提交到 master） | AI Assistant |
+| 2026-07-04 | 完成 5-3 策略信号可视化（K 线叠加买卖标记，前后端 5 文件修改） | AI Assistant |
 | | | |
