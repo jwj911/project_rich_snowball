@@ -1,4 +1,5 @@
 import html
+import json
 from datetime import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
@@ -1182,8 +1183,8 @@ class StrategyResponse(BaseModel):
     direction: str
     is_active: bool
     is_builtin: bool
-    created_at: str
-    updated_at: str | None
+    created_at: dt
+    updated_at: dt | None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -1201,8 +1202,19 @@ class BacktestRunResponse(BaseModel):
     max_drawdown_pct: float | None
     status: str
     error_message: str | None
-    created_at: str
-    finished_at: str | None
+    result_json: str | None = None
+    created_at: dt
+    finished_at: dt | None
+
+    @computed_field
+    @property
+    def result(self) -> dict[str, Any] | None:
+        if not self.result_json:
+            return None
+        try:
+            return json.loads(self.result_json)
+        except Exception:
+            return None
 
     model_config = ConfigDict(from_attributes=True)
 

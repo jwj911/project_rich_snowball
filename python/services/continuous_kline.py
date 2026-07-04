@@ -288,7 +288,7 @@ def get_fut_daily_main_kline(
             q = q.filter(FutDailyDataDB.trade_date <= end)
         rows = q.order_by(FutDailyDataDB.trade_date.asc()).limit(limit).all()
         if rows:
-            result = [
+            return [
                 {
                     "time": row.trade_date.isoformat(),
                     "open": float(row.open_price),
@@ -301,43 +301,6 @@ def get_fut_daily_main_kline(
                 }
                 for row in rows
             ]
-
-            # 3.1 从 kline_data 补充最新数据（如果 fut_daily_data 只到 4-30 之后）
-            if len(result) < limit:
-                last_date = datetime.fromisoformat(result[-1]["time"]).date()
-                q = db.query(KlineDataDB).filter(
-                    KlineDataDB.variety_id == variety_id,
-                    KlineDataDB.period.in_(["D", "1d"]),
-                    KlineDataDB.trading_time > last_date,
-                )
-                if start:
-                    start_aware = _ensure_aware(start)
-                    q = q.filter(KlineDataDB.trading_time >= start_aware)
-                if end:
-                    end_aware = _ensure_aware(end)
-                    q = q.filter(KlineDataDB.trading_time <= end_aware)
-                kline_rows = q.order_by(KlineDataDB.trading_time.asc()).limit(limit - len(result)).all()
-
-                seen_dates = {r["time"] for r in result}
-                for row in kline_rows:
-                    time_str = row.trading_time.isoformat()
-                    if time_str not in seen_dates:
-                        result.append({
-                            "time": time_str,
-                            "open": float(row.open_price),
-                            "high": float(row.high_price),
-                            "low": float(row.low_price),
-                            "close": float(row.close_price),
-                            "volume": row.volume,
-                            "contract_code": main_contract.symbol,
-                            "contract_id": row.contract_id or main_contract.id,
-                        })
-                        seen_dates.add(time_str)
-
-                result.sort(key=lambda x: x["time"])
-                result = result[:limit]
-
-            return result
 
     # 4. Fallback: 找 fut_daily_data 中记录数最多的 ts_code（兼容原逻辑）
     main_ts = db.query(

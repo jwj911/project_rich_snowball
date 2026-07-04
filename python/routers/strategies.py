@@ -19,6 +19,7 @@ from errors import ErrorCode
 from models import BacktestRunDB, RealtimeQuoteDB, StrategyDB, UserDB, VarietyDB
 from schemas import (
     BacktestRunResponse,
+    BacktestSignal,
     BacktestSignalsResponse,
     OptimizationRunItem,
     StrategyBacktestRequest,
@@ -142,7 +143,7 @@ def run_strategy_backtest_api(
     strategy = db.query(StrategyDB).filter(StrategyDB.id == strategy_id).first()
     if not strategy:
         raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
-    if strategy.user_id != current_user.id:
+    if strategy.user_id != current_user.id and not strategy.is_builtin:
         raise ForbiddenError("无权访问该策略")
 
     run_record = BacktestRunDB(
@@ -210,7 +211,7 @@ def list_strategy_backtests(
     strategy = db.query(StrategyDB).filter(StrategyDB.id == strategy_id).first()
     if not strategy:
         raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
-    if strategy.user_id != current_user.id:
+    if strategy.user_id != current_user.id and not strategy.is_builtin:
         raise ForbiddenError("无权访问该策略")
 
     rows = (
@@ -237,7 +238,7 @@ def get_backtest_signals(
     strategy = db.query(StrategyDB).filter(StrategyDB.id == strategy_id).first()
     if not strategy:
         raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
-    if strategy.user_id != current_user.id:
+    if strategy.user_id != current_user.id and not strategy.is_builtin:
         raise ForbiddenError("无权访问该策略")
 
     run = db.query(BacktestRunDB).filter(
@@ -280,7 +281,7 @@ def generate_strategy_portfolio_plan(
     strategy = db.query(StrategyDB).filter(StrategyDB.id == strategy_id).first()
     if not strategy:
         raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
-    if strategy.user_id != current_user.id:
+    if strategy.user_id != current_user.id and not strategy.is_builtin:
         raise ForbiddenError("无权访问该策略")
 
     variety = db.query(VarietyDB).filter(VarietyDB.symbol == strategy.symbol).first()
@@ -354,7 +355,7 @@ def optimize_strategy_params_api(
     strategy = db.query(StrategyDB).filter(StrategyDB.id == strategy_id).first()
     if not strategy:
         raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
-    if strategy.user_id != current_user.id:
+    if strategy.user_id != current_user.id and not strategy.is_builtin:
         raise ForbiddenError("无权访问该策略")
 
     dsl = json.loads(strategy.dsl_json)
@@ -420,4 +421,4 @@ def optimize_strategy_params_api(
 
 def _utc_now():
     import datetime
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)

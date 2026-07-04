@@ -153,6 +153,66 @@ class TestDeleteStrategy:
         assert strategy.is_active is False
 
 
+class TestBuiltinStrategyOperations:
+    def test_other_user_can_backtest_builtin_strategy(self, client, auth_headers, seed_varieties, db_session):
+        other_user = UserDB(
+            username="strategy_builtin_backtest_owner",
+            email="builtin_backtest_owner@test.com",
+            password_hash=hash_password("password123"),
+        )
+        db_session.add(other_user)
+        db_session.flush()
+        db_session.refresh(other_user)
+        variety = seed_varieties[0]
+        builtin = _create_strategy(db_session, other_user.id, symbol=variety.symbol, is_builtin=True)
+
+        resp = client.post(
+            f"/api/strategies/{builtin.id}/backtest",
+            json={"initial_cash": 100000, "quantity": 1, "limit": 50},
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["strategy_id"] == builtin.id
+
+    def test_other_user_can_list_builtin_backtests(self, client, auth_headers, db_session):
+        other_user = UserDB(
+            username="strategy_builtin_backtests_owner",
+            email="builtin_backtests_owner@test.com",
+            password_hash=hash_password("password123"),
+        )
+        db_session.add(other_user)
+        db_session.flush()
+        db_session.refresh(other_user)
+        builtin = _create_strategy(db_session, other_user.id, is_builtin=True)
+
+        resp = client.get(f"/api/strategies/{builtin.id}/backtests", headers=auth_headers)
+
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_backtest_response_includes_full_result(self, client, auth_headers, seed_varieties, db_session):
+        user = _get_auth_user(db_session)
+        variety = seed_varieties[0]
+        strategy = _create_strategy(db_session, user.id, symbol=variety.symbol)
+
+        resp = client.post(
+            f"/api/strategies/{strategy.id}/backtest",
+            json={"initial_cash": 100000, "quantity": 1, "limit": 50},
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "result" in data
+        assert data["result"] is not None
+        assert "metrics" in data["result"]
+        assert "trades" in data["result"]
+        assert "signals" in data["result"]
+        assert "equity_curve" in data["result"]
+
+
 class TestStrategyPortfolioPlan:
     def test_generate_plan_success(self, client, auth_headers, seed_varieties, db_session):
         user = _get_auth_user(db_session)

@@ -40,6 +40,7 @@ class BacktestTrade:
     quantity: int
     pnl: float
     return_pct: float
+    fee: float
 
 
 @dataclass(slots=True)
@@ -163,6 +164,7 @@ def run_backtest(
                     quantity=config.quantity,
                     pnl=round(pnl, 4),
                     return_pct=round(pnl / base * 100, 4) if base else 0.0,
+                    fee=round(fee, 4),
                 )
             )
             signals.append({"time": time_value, "type": "exit", "price": execution_price})
@@ -170,6 +172,7 @@ def run_backtest(
             position_entry_time = None
 
         unrealized = 0.0
+        position_ratio = 0.0
         if position_entry_price is not None:
             unrealized = _position_pnl(
                 config.direction,
@@ -178,10 +181,13 @@ def run_backtest(
                 config.quantity,
                 config.multiplier,
             )
+            position_value = position_entry_price * config.quantity * config.multiplier
+            position_ratio = position_value / (cash + unrealized) if (cash + unrealized) > 0 else 0.0
         equity_point: dict[str, Any] = {
             "time": time_value,
             "equity": round(cash + unrealized, 4),
             "close": current_close,
+            "position_ratio": round(position_ratio, 4),
         }
         for col in ("short_ma", "long_ma"):
             if col in data.columns:
@@ -297,8 +303,14 @@ def _calculate_metrics(
     wins = [trade.pnl for trade in trades if trade.pnl > 0]
     losses = [trade.pnl for trade in trades if trade.pnl < 0]
     win_rate = len(wins) / len(trades) * 100 if trades else 0.0
+    loss_rate = len(losses) / len(trades) * 100 if trades else 0.0
     profit_factor = sum(wins) / abs(sum(losses)) if losses else (float(len(wins)) if wins else 0.0)
+    avg_win = np.mean(wins) if wins else 0.0
+    avg_loss = abs(np.mean(losses)) if losses else 0.0
+    profit_loss_ratio = avg_win / avg_loss if avg_loss > 0 else (float(len(wins)) if wins else 0.0)
     sharpe = (returns.mean() / (returns.std(ddof=0) + 1e-12)) * np.sqrt(252) if not returns.empty else 0.0
+    total_fee = sum(trade.fee for trade in trades)
+    avg_fee_per_trade = total_fee / len(trades) if trades else 0.0
     score = _score_strategy(total_return, max_drawdown, win_rate, profit_factor, len(trades))
 
     return {
@@ -306,8 +318,12 @@ def _calculate_metrics(
         "annualized_return_pct": round(float(annualized), 2),
         "max_drawdown_pct": round(max_drawdown, 2),
         "win_rate_pct": round(float(win_rate), 2),
+        "loss_rate_pct": round(float(loss_rate), 2),
         "profit_factor": round(float(profit_factor), 2),
+        "profit_loss_ratio": round(float(profit_loss_ratio), 2),
         "sharpe": round(float(sharpe), 2),
+        "total_fee": round(float(total_fee), 4),
+        "avg_fee_per_trade": round(float(avg_fee_per_trade), 4),
         "trade_count": len(trades),
         "score": score,
     }

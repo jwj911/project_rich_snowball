@@ -435,6 +435,7 @@ export interface StrategyResponse {
   timeframe: string
   direction: string
   is_active: boolean
+  is_builtin: boolean
   created_at: string
   updated_at: string | null
 }
@@ -448,6 +449,31 @@ export interface StrategyCreate {
   direction?: string
 }
 
+export interface BacktestSignal {
+  time: string
+  type: 'entry' | 'exit'
+  price: number
+}
+
+export interface BacktestTrade {
+  entry_time: string
+  exit_time: string
+  direction: string
+  entry_price: number
+  exit_price: number
+  quantity: number
+  pnl: number
+  return_pct: number
+}
+
+export interface BacktestResult {
+  config: Record<string, unknown>
+  metrics: Record<string, number | null>
+  trades: BacktestTrade[]
+  equity_curve: Array<{ time: string; equity: number; close: number }>
+  signals: BacktestSignal[]
+}
+
 export interface BacktestRunResponse {
   id: number
   strategy_id: number | null
@@ -459,6 +485,8 @@ export interface BacktestRunResponse {
   max_drawdown_pct: number | null
   status: string
   error_message: string | null
+  result_json?: string | null
+  result?: BacktestResult | null
   created_at: string
   finished_at: string | null
 }
