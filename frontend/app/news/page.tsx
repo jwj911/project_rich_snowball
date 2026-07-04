@@ -22,6 +22,7 @@ import {
   Trash2,
   Settings,
   Loader2,
+  ShieldAlert,
 } from 'lucide-react'
 import useSWR from 'swr'
 import { toast } from 'sonner'
@@ -261,6 +262,12 @@ function ArticleCard({
               </p>
             )}
             <div className="mt-2.5 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+              {article.alert_event_id && (
+                <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-amber-300">
+                  <ShieldAlert size={12} />
+                  已进入预警中心
+                </span>
+              )}
               {source && (
                 <span className="rounded border border-slate-700 px-1.5 py-0.5">
                   {source.name}

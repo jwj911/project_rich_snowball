@@ -132,13 +132,11 @@ async def _delayed_first_sync():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    # 测试环境由 fixture 自行控制种子数据，避免 lifespan 全局初始化造成测试间污染
-    if os.getenv("PYTEST_RUNNING") != "1":
-        from data_collector.init_varieties import init_varieties
-        init_varieties()
-        if ENV != "production":
-            from data_collector.init_mock_data import init_mock_data
-            init_mock_data()
+    from data_collector.init_varieties import init_varieties
+    init_varieties()
+    if ENV != "production":
+        from data_collector.init_mock_data import init_mock_data
+        init_mock_data()
     if ENABLE_SCHEDULER:
         from data_collector.scheduler import start_scheduler
         start_scheduler()

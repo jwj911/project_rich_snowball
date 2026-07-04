@@ -236,6 +236,8 @@ export interface NewsArticle {
   url: string
   published_at: string | null
   fetched_at: string
+  alert_event_id?: number | null
+  alert_severity?: 'low' | 'medium' | 'high' | 'critical' | null
 }
 
 export interface DailyCount {
@@ -350,6 +352,87 @@ export interface PriceAlertCreate {
 export interface PriceAlertUpdate {
   target_price?: string | null
   is_triggered?: boolean | null
+}
+
+export type AlertCategory = 'news' | 'market' | 'calendar'
+export type AlertSeverity = 'low' | 'medium' | 'high' | 'critical'
+
+export interface AlertEvent {
+  id: number
+  category: AlertCategory
+  severity: AlertSeverity
+  title: string
+  summary: string | null
+  source_type: string
+  source_id: number | null
+  source_url: string | null
+  related_variety_id: number | null
+  related_variety_symbol: string | null
+  related_variety_name: string | null
+  user_id: number | null
+  target_scope: 'personal' | 'broadcast'
+  triggered_at: string
+  created_at: string
+  read_at: string | null
+  dismissed_at: string | null
+}
+
+export interface AlertSummary {
+  unread_count: number
+  news_count: number
+  market_count: number
+}
+
+export interface AlertEventQuery {
+  category?: AlertCategory
+  severity?: AlertSeverity
+  unread_only?: boolean
+  skip?: number
+  limit?: number
+}
+
+export interface StrategyResponse {
+  id: number
+  user_id: number
+  name: string
+  description: string | null
+  symbol: string
+  dsl_json: string
+  timeframe: string
+  direction: string
+  is_active: boolean
+  created_at: string
+  updated_at: string | null
+}
+
+export interface StrategyCreate {
+  name: string
+  description?: string | null
+  symbol: string
+  dsl_json: string
+  timeframe?: string
+  direction?: string
+}
+
+export interface BacktestRunResponse {
+  id: number
+  strategy_id: number | null
+  user_id: number
+  query: string | null
+  metrics_score: number | null
+  trade_count: number | null
+  total_return_pct: number | null
+  max_drawdown_pct: number | null
+  status: string
+  error_message: string | null
+  created_at: string
+  finished_at: string | null
+}
+
+export interface StrategyBacktestRequest {
+  initial_cash?: number
+  quantity?: number
+  limit?: number
 }
 
 

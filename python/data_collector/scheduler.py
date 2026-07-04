@@ -18,6 +18,7 @@ from models import NewsArticleDB, NewsSourceDB, PriceAlertDB, RealtimeQuoteDB, S
 from services.metrics import data_collection_duration_seconds, data_collection_runs_total
 from services.domain.kline_service import KlineService
 from services.domain.market_data_service import MarketDataService
+from services.alert_events import create_market_alert_for_price_alert
 from services.news_fetcher import fetch_all_enabled_sources
 from services.realtime_state import mark_realtime_updated
 from services.trading_calendar import _cn_date, is_trading_day
@@ -191,6 +192,7 @@ def _check_price_alerts(db):
             if triggered:
                 alert.is_triggered = True
                 alert.triggered_at = datetime.now(UTC)
+                create_market_alert_for_price_alert(db, alert, current)
                 triggered_count += 1
 
         if triggered_count > 0:

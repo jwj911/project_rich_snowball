@@ -20,6 +20,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from models import NewsArticleDB, NewsSourceDB, SessionLocal
+from services.alert_events import create_news_alert_for_article
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +160,8 @@ def fetch_source(source: NewsSourceDB, db: Session) -> int:
             published_at=_parse_published(entry),
         )
         db.add(article)
+        db.flush()
+        create_news_alert_for_article(db, article)
         new_count += 1
 
     source.last_fetched_at = datetime.now(UTC)

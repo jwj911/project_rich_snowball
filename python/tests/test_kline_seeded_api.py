@@ -42,7 +42,7 @@ def test_kline_seeded_data(client, db_session, auth_headers, seed_varieties):
             close_price=505.0 + i,
             volume=1000 + i * 100,
         ))
-    db_session.commit()
+    db_session.flush()
 
     # 新版 /api/klines/{symbol} 默认返回当前主力合约 K 线；
     # 为验证显式插入的合约数据，需显式传入 contract_id。
@@ -66,4 +66,4 @@ def test_kline_seeded_data(client, db_session, auth_headers, seed_varieties):
         KlineDataDB.period == "1h",
         KlineDataDB.trading_time.in_(inserted_times),
     ).delete(synchronize_session=False)
-    db_session.commit()
+    db_session.flush()

@@ -50,6 +50,12 @@ import {
   getAgentTasks,
 } from './agents'
 import {
+  dismissAlertEvent,
+  getAlertEvents,
+  getAlertSummary,
+  markAlertEventRead,
+} from './alerts'
+import {
   createPriceAlert,
   deletePriceAlert,
   getPriceAlerts,
@@ -104,6 +110,9 @@ import type {
   AgentPermissionHeartbeat,
   AgentStatusSummary,
   AgentTaskResponse,
+  AlertEvent,
+  AlertEventQuery,
+  AlertSummary,
   PriceAlert,
   PriceAlertCreate,
   PriceAlertUpdate,
@@ -424,6 +433,22 @@ class ApiService extends AuthCore {
 
   getAgentTask(taskId: number): Promise<AgentTaskResponse> {
     return getAgentTask(this, taskId)
+  }
+
+  getAlertEvents(params?: AlertEventQuery): Promise<AlertEvent[]> {
+    return getAlertEvents(this, params)
+  }
+
+  getAlertSummary(): Promise<AlertSummary> {
+    return getAlertSummary(this)
+  }
+
+  markAlertEventRead(id: number): Promise<AlertEvent> {
+    return markAlertEventRead(this, id)
+  }
+
+  dismissAlertEvent(id: number): Promise<AlertEvent> {
+    return dismissAlertEvent(this, id)
   }
 
   getAgentStatus(): Promise<AgentStatusSummary> {

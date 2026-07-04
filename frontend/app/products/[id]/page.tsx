@@ -465,6 +465,9 @@ function ProductOpinionsPanel({
           <PenLine size={15} className="text-red-400" />
           品种观点
         </h3>
+        <Link href="/alerts" className="mr-2 text-xs text-slate-500 transition hover:text-amber-300">
+          预警中心
+        </Link>
         <button
           type="button"
           onClick={onCreate}

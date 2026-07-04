@@ -15,15 +15,6 @@ def seed_contracts_and_klines(db_session, seed_varieties):
     """为 AU 品种创建合约和多根 K 线。"""
     au = next(v for v in seed_varieties if v.symbol == "AU")
 
-    # 清理本测试使用的品种历史 K 线和同 symbol 合约，避免全量测试时受其他用例数据污染
-    db_session.query(KlineDataDB).filter(KlineDataDB.variety_id == au.id).delete(
-        synchronize_session=False
-    )
-    db_session.query(FutContractDB).filter(FutContractDB.symbol == "AU2406").delete(
-        synchronize_session=False
-    )
-    db_session.commit()
-
     contract = FutContractDB(
         ts_code="AU2406.SHF",
         symbol="AU2406",
@@ -61,7 +52,7 @@ def seed_contracts_and_klines(db_session, seed_varieties):
             close_price=605.0 + i,
             volume=2000 + i * 100,
         ))
-    db_session.commit()
+    db_session.flush()
     return {"au": au, "contract": contract}
 
 

@@ -24,6 +24,21 @@ from services.alert_events import NEWS_SOURCE_TYPE
 from services.news_fetcher import fetch_all_enabled_sources_background, fetch_source_background
 
 logger = logging.getLogger(__name__)
+
+
+def _article_to_response(article: NewsArticleDB, alert: AlertEventDB | None = None) -> NewsArticleResponse:
+    return NewsArticleResponse(
+        id=article.id,
+        source_id=article.source_id,
+        title=article.title,
+        summary=article.summary,
+        ai_summary=article.ai_summary,
+        url=article.url,
+        published_at=article.published_at,
+        fetched_at=article.fetched_at,
+        alert_event_id=alert.id if alert else None,
+        alert_severity=alert.severity if alert else None,
+    )
 router = APIRouter(prefix="/api/news", tags=["新闻资讯"])
 
 
@@ -67,7 +82,22 @@ def list_news_articles(
         query = query.filter(NewsArticleDB.source_id == source_id)
     if q:
         query = query.filter(NewsArticleDB.title.ilike(f"%{q}%"))
-    return query.order_by(desc(NewsArticleDB.published_at)).offset(skip).limit(limit).all()
+    articles = query.order_by(desc(NewsArticleDB.published_at)).offset(skip).limit(limit).all()
+    if not articles:
+        return []
+
+    article_ids = [article.id for article in articles]
+    alerts = (
+        db.query(AlertEventDB)
+        .filter(
+            AlertEventDB.source_type == NEWS_SOURCE_TYPE,
+            AlertEventDB.source_id.in_(article_ids),
+            AlertEventDB.target_scope == "broadcast",
+        )
+        .all()
+    )
+    alert_map = {alert.source_id: alert for alert in alerts}
+    return [_article_to_response(article, alert_map.get(article.id)) for article in articles]
 
 
 @router.post("/sources", response_model=NewsSourceResponse, status_code=201)
@@ -124,7 +154,16 @@ def summarize_article(
     article.ai_summary = summary
     db.commit()
     db.refresh(article)
-    return article
+    alert = (
+        db.query(AlertEventDB)
+        .filter(
+            AlertEventDB.source_type == NEWS_SOURCE_TYPE,
+            AlertEventDB.source_id == article.id,
+            AlertEventDB.target_scope == "broadcast",
+        )
+        .first()
+    )
+    return _article_to_response(article, alert)
 
 
 # ---------------------------------------------------------------------------

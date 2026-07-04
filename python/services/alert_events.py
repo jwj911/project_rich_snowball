@@ -87,6 +87,7 @@ def create_news_alert_for_article(db: Session, article: NewsArticleDB) -> AlertE
         triggered_at=article.published_at or datetime.now(UTC),
     )
     db.add(event)
+    db.flush()
     return event
 
 
@@ -127,6 +128,7 @@ def create_market_alert_for_price_alert(
         triggered_at=alert.triggered_at or datetime.now(UTC),
     )
     db.add(event)
+    db.flush()
     return event
 
 
