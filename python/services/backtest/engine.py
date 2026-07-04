@@ -10,6 +10,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from services.agent.factor_engine.filters import FilterCondition, FilterPipeline
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,6 +27,7 @@ class BacktestConfig:
     multiplier: float = 1.0
     fee_rate: float = 0.0001
     direction: str = "long"
+    filter_list: list[FilterCondition] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -60,6 +63,9 @@ class BacktestResult:
                 "multiplier": self.config.multiplier,
                 "fee_rate": self.config.fee_rate,
                 "direction": self.config.direction,
+                "filter_list": [
+                    {"field": f.field, "expression": f.expression, "is_and": f.is_and} for f in self.config.filter_list
+                ],
             },
             "metrics": self.metrics,
             "trades": [asdict(trade) for trade in self.trades],
@@ -84,6 +90,17 @@ def run_backtest(
         raise ValueError(f"K 线数据不足，无法完成回测，至少需要 {required_bars} 根")
 
     data = df.sort_values("time").reset_index(drop=True).copy()
+
+    # 应用过滤条件
+    filter_removed = 0
+    if config.filter_list:
+        pipeline = FilterPipeline()
+        filter_result = pipeline.apply(data, config.filter_list, date_col="time")
+        if len(filter_result.filtered) == 0:
+            raise ValueError("过滤条件过于严格：所有数据均被排除")
+        filter_removed = filter_result.removed_count
+        data = filter_result.filtered
+        logger.info("回测过滤完成：排除 %d 行，保留 %d 行", filter_removed, len(data))
 
     # 计算信号
     if entry_conditions and exit_conditions:
@@ -362,6 +379,8 @@ def _compute_indicator(df: pd.DataFrame, indicator: str) -> pd.Series:
         return _kdj(high, low, close)[1]
     if indicator == "kdj_j":
         return _kdj(high, low, close)[2]
+    if indicator == "cci":
+        return _cci(high, low, close, 20)
 
     # 3. 带周期后缀的变体（如 sma5, ema20, rsi24）
     base = re.sub(r"[_-]?\d+$", "", indicator)
@@ -374,6 +393,14 @@ def _compute_indicator(df: pd.DataFrame, indicator: str) -> pd.Series:
         return close.ewm(span=period).mean()
     if base == "rsi":
         return _rsi(close, period)
+    if base == "cci":
+        return _cci(high, low, close, period)
+    if base == "kdj_k":
+        return _kdj(high, low, close, n=period)[0]
+    if base == "kdj_d":
+        return _kdj(high, low, close, n=period)[1]
+    if base == "kdj_j":
+        return _kdj(high, low, close, n=period)[2]
     if base == "boll":
         return _bollinger(close, period)[1]  # mid
     if base == "high":
@@ -382,6 +409,20 @@ def _compute_indicator(df: pd.DataFrame, indicator: str) -> pd.Series:
         return low.rolling(period, min_periods=period).min()
     if base == "volume":
         return volume.rolling(period, min_periods=period).mean()
+
+    # 布林带上下轨带后缀：boll_upper_20_2 / boll_lower_20_2
+    boll_parts = indicator.split("_")
+    if len(boll_parts) >= 4 and boll_parts[0] == "boll" and boll_parts[2].isdigit() and boll_parts[3].isdigit():
+        band = boll_parts[1]
+        boll_period = int(boll_parts[2])
+        std = int(boll_parts[3])
+        upper, mid, lower = _bollinger(close, boll_period, std)
+        if band == "upper":
+            return upper
+        if band == "lower":
+            return lower
+        if band == "mid":
+            return mid
 
     # 默认返回 close
     logger.warning("未知指标 %s，回退到 close", indicator)
@@ -431,3 +472,11 @@ def _kdj(
     d = k.ewm(alpha=1 / m2, adjust=False).mean()
     j = 3 * k - 2 * d
     return k, d, j
+
+
+def _cci(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20) -> pd.Series:
+    """Commodity Channel Index。"""
+    tp = (high + low + close) / 3
+    ma = tp.rolling(period, min_periods=period).mean()
+    md = (tp - ma).abs().rolling(period, min_periods=period).mean()
+    return (tp - ma) / (0.015 * md + 1e-12)
