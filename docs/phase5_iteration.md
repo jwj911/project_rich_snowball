@@ -1,7 +1,7 @@
 # Phase 5 迭代跟踪文档
 
 > 创建时间：2026-07-04
-> 当前状态：Phase 5-1 已完成，Phase 5-2 已完成，Phase 5-3 已完成，进入 Phase 5-4 性能优化
+> 当前状态：Phase 5-1~5-3 已完成，Phase 5-4 已完成，进入 Phase 5-5 监控告警与日志增强
 
 ---
 
@@ -132,14 +132,42 @@
 
 ---
 
-## 五、Phase 5-4 ~ 5-6 规划（待启动）
+## 五、Phase 5-4：性能优化（已完成）
 
-### 5-4：性能优化（进行中）
-- 数据库索引：策略表、回测记录表、价格预警表加索引
-- 缓存：回测结果 LRU 缓存，避免重复计算
-- 批量回测：支持异步任务队列
+### 5.1 目标
+提升策略回测和网格搜索的性能，减少重复计算。
 
-### 5-5：监控告警与日志增强
+### 5.2 实现
+
+**回测结果缓存**：
+- `services/backtest/service.py` 中 `run_dsl_backtest` 接入 5 分钟 LRU 缓存（`services/cache.py`）
+- 缓存 key 基于 `(symbol, period, direction, entry_conditions_hash, exit_conditions_hash, limit)` 生成
+- 使用 `hashlib.md5` + `json.dumps(sort_keys=True)` 确保参数顺序无关性
+- 缓存穿透防护：同 key 并发 miss 时仅一个线程回源（`cache.py` 内置）
+- 缓存雪崩防护：TTL 附加 0~2 秒随机抖动（`cache.py` 内置）
+
+**数据库索引现状**：
+- 策略表 `strategies` 已有 `(user_id, symbol)` 和 `(created_at)` 复合索引
+- 回测记录表 `backtest_runs` 已有 `(strategy_id, created_at)` 和 `(user_id, status)` 复合索引
+- Agent 任务表已有完善索引
+- **结论**：现有索引已覆盖主要查询路径，Phase 5-4 无需新增迁移
+
+### 5.3 新增/修改文件
+
+| 文件 | 说明 |
+|------|------|
+| `python/services/backtest/service.py` | 新增 `_backtest_cache_key` + `_run_dsl_backtest_inner` + 缓存包装 |
+| `python/tests/test_performance.py` | 缓存 key 确定性测试（3 个测试全部通过） |
+
+### 5.4 提交记录
+
+- `0efe040d` perf(backtest): DSL 回测结果 5 分钟 LRU 缓存 + 性能测试
+
+---
+
+## 六、Phase 5-5 ~ 5-6 规划（待启动）
+
+### 5-5：监控告警与日志增强（进行中）
 - 策略运行监控：心跳检测、异常告警
 - 告警事件系统：策略回测失败、参数异常等
 - 结构化日志：策略优化全流程追踪
