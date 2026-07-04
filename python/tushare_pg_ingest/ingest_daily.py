@@ -298,7 +298,11 @@ def _ingest_via_contracts(
                         continue
 
                     # When filters are active, skip contracts outside the scope.
-                    if has_user_filter and ts_code not in allowed_ts_codes:
+                    # Allow continuous contracts (no digits in symbol) to pass through
+                    # since they are not present in FutContractDB.
+                    base_symbol = ts_code.split(".")[0] if ts_code else ""
+                    is_continuous = not any(ch.isdigit() for ch in base_symbol)
+                    if has_user_filter and ts_code not in allowed_ts_codes and not is_continuous:
                         stats.skipped += 1
                         continue
 

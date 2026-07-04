@@ -607,7 +607,7 @@ class FutDailyDataDB(Base):
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     variety = relationship("VarietyDB", back_populates="daily_data")
     __table_args__ = (
-        UniqueConstraint("variety_id", "period", "trade_date", name="uix_fut_daily"),
+        UniqueConstraint("variety_id", "ts_code", "period", "trade_date", name="uix_fut_daily"),
         Index("idx_fut_daily_lookup", "variety_id", "period", "trade_date"),
     )
 

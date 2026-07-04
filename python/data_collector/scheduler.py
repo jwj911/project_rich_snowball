@@ -280,7 +280,7 @@ def sync_fut_daily():
     db = SessionLocal()
     try:
         end_date = _cn_date().strftime("%Y%m%d")
-        start_date = (_cn_date() - timedelta(days=10)).strftime("%Y%m%d")
+        start_date = (_cn_date() - timedelta(days=30)).strftime("%Y%m%d")
         varieties = _get_active_varieties(db)
         total = 0
         for v in varieties:
