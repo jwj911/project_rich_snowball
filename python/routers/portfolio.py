@@ -11,7 +11,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session, joinedload
 
 from dependencies import get_current_user_dependency, get_db
-from models import RealtimeQuoteDB, TradeRecordDB, UserDB, VarietyDB
+from models import BacktestRunDB, RealtimeQuoteDB, StrategyDB, TradeRecordDB, UserDB, VarietyDB
 from schemas import TradeRecordClose, TradeRecordCreate, TradeRecordResponse
 
 router = APIRouter(prefix="/api/portfolio", tags=["模拟持仓"])
@@ -55,6 +55,8 @@ def _to_response(record: TradeRecordDB, current_price: Decimal | None = None) ->
         variety_symbol=variety.symbol if variety else "",
         variety_name=variety.name if variety else "",
         opinion_id=record.opinion_id,
+        strategy_id=record.strategy_id,
+        backtest_run_id=record.backtest_run_id,
         direction=record.direction,
         entry_price=record.entry_price,
         exit_price=record.exit_price,
@@ -64,6 +66,13 @@ def _to_response(record: TradeRecordDB, current_price: Decimal | None = None) ->
         pnl_percent=pnl_percent,
         unrealized_pnl=unrealized_pnl,
         unrealized_pnl_percent=unrealized_pnl_percent,
+        account_balance=record.account_balance,
+        stop_loss_price=record.stop_loss_price,
+        take_profit_price=record.take_profit_price,
+        margin_required=record.margin_required,
+        risk_amount=record.risk_amount,
+        risk_reward_ratio=record.risk_reward_ratio,
+        source=record.source,
         closed_at=record.closed_at,
         created_at=record.created_at,
     )
@@ -111,13 +120,36 @@ def create_trade(
     if not variety:
         raise HTTPException(status_code=404, detail="variety_not_found")
 
+    if data.strategy_id is not None:
+        strategy = db.get(StrategyDB, data.strategy_id)
+        if not strategy:
+            raise HTTPException(status_code=404, detail="strategy_not_found")
+        if strategy.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="not_owner")
+
+    if data.backtest_run_id is not None:
+        backtest_run = db.get(BacktestRunDB, data.backtest_run_id)
+        if not backtest_run:
+            raise HTTPException(status_code=404, detail="backtest_run_not_found")
+        if backtest_run.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="not_owner")
+
     record = TradeRecordDB(
         user_id=current_user.id,
         variety_id=data.variety_id,
         opinion_id=data.opinion_id,
+        strategy_id=data.strategy_id,
+        backtest_run_id=data.backtest_run_id,
         direction=data.direction,
         entry_price=data.entry_price,
         quantity=data.quantity,
+        account_balance=data.account_balance,
+        stop_loss_price=data.stop_loss_price,
+        take_profit_price=data.take_profit_price,
+        margin_required=data.margin_required,
+        risk_amount=data.risk_amount,
+        risk_reward_ratio=data.risk_reward_ratio,
+        source=data.source,
         status="open",
     )
     db.add(record)

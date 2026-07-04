@@ -15,10 +15,10 @@ from data_collector.collector_registry import (
 )
 from data_collector.job_registry import build_job_configs, register_jobs
 from models import NewsArticleDB, NewsSourceDB, PriceAlertDB, RealtimeQuoteDB, SessionLocal, VarietyDB
-from services.metrics import data_collection_duration_seconds, data_collection_runs_total
+from services.alert_events import create_market_alert_for_price_alert
 from services.domain.kline_service import KlineService
 from services.domain.market_data_service import MarketDataService
-from services.alert_events import create_market_alert_for_price_alert
+from services.metrics import data_collection_duration_seconds, data_collection_runs_total
 from services.news_fetcher import fetch_all_enabled_sources
 from services.realtime_state import mark_realtime_updated
 from services.trading_calendar import _cn_date, is_trading_day
@@ -183,11 +183,10 @@ def _check_price_alerts(db):
             if current is None:
                 continue
 
-            triggered = False
-            if alert.alert_type == "above" and current >= alert.target_price:
-                triggered = True
-            elif alert.alert_type == "below" and current <= alert.target_price:
-                triggered = True
+            triggered = (
+                (alert.alert_type == "above" and current >= alert.target_price)
+                or (alert.alert_type == "below" and current <= alert.target_price)
+            )
 
             if triggered:
                 alert.is_triggered = True

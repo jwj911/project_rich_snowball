@@ -853,9 +853,18 @@ class TradeRecordCreate(BaseModel):
 
     variety_id: int = Field(..., ge=1)
     opinion_id: int | None = Field(default=None, ge=1)
+    strategy_id: int | None = Field(default=None, ge=1)
+    backtest_run_id: int | None = Field(default=None, ge=1)
     direction: str = Field(..., max_length=10)  # long | short
     entry_price: Decimal = Field(..., ge=0, decimal_places=4)
     quantity: int = Field(default=1, ge=1)
+    account_balance: Decimal | None = Field(default=None, ge=0, decimal_places=4)
+    stop_loss_price: Decimal | None = Field(default=None, ge=0, decimal_places=4)
+    take_profit_price: Decimal | None = Field(default=None, ge=0, decimal_places=4)
+    margin_required: Decimal | None = Field(default=None, ge=0, decimal_places=4)
+    risk_amount: Decimal | None = Field(default=None, ge=0, decimal_places=4)
+    risk_reward_ratio: Decimal | None = Field(default=None, ge=0, decimal_places=4)
+    source: str = Field(default="manual", max_length=20)
 
     @field_validator("direction", mode="before")
     @classmethod
@@ -883,6 +892,8 @@ class TradeRecordResponse(BaseModel):
     variety_symbol: str
     variety_name: str
     opinion_id: int | None
+    strategy_id: int | None
+    backtest_run_id: int | None
     direction: str
     entry_price: Decimal
     exit_price: Decimal | None
@@ -892,6 +903,13 @@ class TradeRecordResponse(BaseModel):
     pnl_percent: Decimal | None
     unrealized_pnl: Decimal | None
     unrealized_pnl_percent: Decimal | None
+    account_balance: Decimal | None
+    stop_loss_price: Decimal | None
+    take_profit_price: Decimal | None
+    margin_required: Decimal | None
+    risk_amount: Decimal | None
+    risk_reward_ratio: Decimal | None
+    source: str
     closed_at: dt | None
     created_at: dt
 
@@ -1144,3 +1162,75 @@ class StrategyBacktestRequest(BaseModel):
     initial_cash: float = Field(default=100_000.0, ge=1000)
     quantity: int = Field(default=1, ge=1)
     limit: int = Field(default=500, ge=30, le=5000)
+
+
+class StrategyPortfolioPlanRequest(BaseModel):
+    """Generate a rule-based simulated position plan for a saved strategy."""
+
+    account_balance: Decimal = Field(default=Decimal("100000"), ge=1000, decimal_places=4)
+    risk_level: str = Field(default="medium", pattern=r"^(low|medium|high)$")
+    entry_price: Decimal | None = Field(default=None, gt=0, decimal_places=4)
+
+
+class StrategyPortfolioPlanResponse(BaseModel):
+    """Rule-based plan that can be converted into a simulated position."""
+
+    strategy_id: int
+    variety_id: int
+    symbol: str
+    variety_name: str
+    direction: str
+    account_balance: Decimal
+    risk_level: str
+    entry_price: Decimal
+    suggested_lots: float
+    suggested_quantity: int
+    can_create: bool
+    stop_loss_price: Decimal
+    take_profit_price: Decimal
+    margin_required: Decimal
+    risk_amount: Decimal
+    risk_reward_ratio: Decimal
+    notes: list[str] = Field(default_factory=list)
+
+
+class StrategyOptimizationRequest(BaseModel):
+    """策略参数优化请求。
+
+    对已有策略的 DSL conditions 中的可变参数进行网格搜索，
+    自动运行多组回测并返回最优参数组合。
+    """
+
+    param_space: dict[str, list[float]] = Field(..., description='参数搜索空间，如 {"short": [5,10,15], "long": [20,30,40]}')
+    initial_cash: float = Field(default=100_000.0, ge=1000)
+    quantity: int = Field(default=1, ge=1)
+    limit: int = Field(default=500, ge=30, le=5000)
+    top_n: int = Field(default=5, ge=1, le=20)
+    metric_weights: dict[str, float] = Field(
+        default={"sharpe": 0.4, "total_return_pct": 0.3, "max_drawdown_pct": -0.2, "win_rate_pct": 0.1},
+        description="综合评分权重，key 支持 sharpe/total_return_pct/max_drawdown_pct/win_rate_pct/profit_factor",
+    )
+
+
+class OptimizationRunItem(BaseModel):
+    """单组参数优化结果条目。"""
+
+    params: dict[str, float]
+    metrics: dict[str, Any] | None
+    score: float
+    trades_count: int
+
+
+class StrategyOptimizationResponse(BaseModel):
+    """策略参数优化响应。"""
+
+    strategy_id: int
+    best_params: dict[str, float]
+    best_score: float
+    best_metrics: dict[str, Any] | None
+    top_results: list[OptimizationRunItem]
+    param_space: dict[str, list[float]]
+    total_combinations: int
+    tested_combinations: int
+    runtime_seconds: float
+    sensitivity_matrix: dict[str, dict[str, float]]

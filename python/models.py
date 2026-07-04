@@ -436,6 +436,8 @@ class TradeRecordDB(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="CASCADE"), nullable=False)
     opinion_id = Column(Integer, ForeignKey("opinions.id", ondelete="SET NULL"), nullable=True)
+    strategy_id = Column(Integer, ForeignKey("strategies.id", ondelete="SET NULL"), nullable=True, index=True)
+    backtest_run_id = Column(Integer, ForeignKey("backtest_runs.id", ondelete="SET NULL"), nullable=True, index=True)
     direction = Column(String(10), nullable=False)  # long | short
     entry_price = Column(Numeric(15, 4), nullable=False)
     exit_price = Column(Numeric(15, 4), nullable=True)
@@ -443,11 +445,20 @@ class TradeRecordDB(Base):
     status = Column(String(10), nullable=False, default="open")  # open | closed
     pnl = Column(Numeric(15, 4), nullable=True)
     pnl_percent = Column(Numeric(15, 4), nullable=True)
+    account_balance = Column(Numeric(15, 4), nullable=True)
+    stop_loss_price = Column(Numeric(15, 4), nullable=True)
+    take_profit_price = Column(Numeric(15, 4), nullable=True)
+    margin_required = Column(Numeric(15, 4), nullable=True)
+    risk_amount = Column(Numeric(15, 4), nullable=True)
+    risk_reward_ratio = Column(Numeric(10, 4), nullable=True)
+    source = Column(String(20), nullable=False, default="manual")
     closed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     user = relationship("UserDB", back_populates="trade_records")
     variety = relationship("VarietyDB", back_populates="trade_records")
     opinion = relationship("OpinionDB", back_populates="trade_records")
+    strategy = relationship("StrategyDB", back_populates="trade_records")
+    backtest_run = relationship("BacktestRunDB", back_populates="trade_records")
 
 
 class ChatMessageDB(Base):
@@ -925,6 +936,7 @@ class StrategyDB(Base):
     updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
     user = relationship("UserDB", back_populates="strategies")
     backtest_runs = relationship("BacktestRunDB", back_populates="strategy", passive_deletes=True)
+    trade_records = relationship("TradeRecordDB", back_populates="strategy", passive_deletes=True)
 
     __table_args__ = (
         Index("idx_strategies_user_symbol", "user_id", "symbol"),
@@ -954,6 +966,7 @@ class BacktestRunDB(Base):
     finished_at = Column(DateTime(timezone=True), nullable=True)
     strategy = relationship("StrategyDB", back_populates="backtest_runs")
     user = relationship("UserDB", back_populates="backtest_runs")
+    trade_records = relationship("TradeRecordDB", back_populates="backtest_run", passive_deletes=True)
 
     __table_args__ = (
         Index("idx_backtest_runs_strategy", "strategy_id", "created_at"),

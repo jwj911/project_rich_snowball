@@ -18,9 +18,8 @@ from threading import Lock
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from errors import ErrorCode
-
 from config import ALGORITHM, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS, SECRET_KEY
+from errors import ErrorCode
 from services.redis_client import get_redis_client, is_redis_available
 
 # 配置
@@ -252,20 +251,21 @@ async def rate_limit_middleware(request: Request, call_next):
     path = request.url.path
     method = request.method
 
-    # 白名单排除（含常规 GET/HEAD/OPTIONS）
-    if _is_excluded(request):
-        # 但高成本 GET 端点仍需限流
-        if method not in _EXCLUDED_METHODS or path not in _GET_COSTLY_ENDPOINTS:
-            return await call_next(request)
+    # 白名单排除（含常规 GET/HEAD/OPTIONS），但高成本 GET 端点仍需限流
+    if _is_excluded(request) and (
+        method not in _EXCLUDED_METHODS or path not in _GET_COSTLY_ENDPOINTS
+    ):
+        return await call_next(request)
 
     # 高成本 GET/SSE 端点使用 IP+user 维度；普通写入端点使用 IP 维度
     costly_endpoint = next((p for p in _GET_COSTLY_ENDPOINTS if path.startswith(p)), None)
     is_costly_get = method in ("GET", "HEAD") and costly_endpoint is not None
     is_sse = method == "GET" and path == "/api/realtime/stream"
-    if is_costly_get or is_sse:
-        client_id = _get_client_id(request)
-    else:
-        client_id = _get_client_ip(request)
+    client_id = (
+        _get_client_id(request)
+        if is_costly_get or is_sse
+        else _get_client_ip(request)
+    )
 
     # 高成本 GET 端点使用独立限流参数
     if method in ("GET", "HEAD") and costly_endpoint:

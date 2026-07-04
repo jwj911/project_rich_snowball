@@ -7,17 +7,26 @@ from __future__ import annotations
 
 import json
 import logging
+import math
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from dependencies import get_current_user_dependency, get_db
 from errors import ErrorCode
-from models import BacktestRunDB, StrategyDB, UserDB
-from schemas import BacktestRunResponse, StrategyBacktestRequest, StrategyCreate, StrategyResponse
-from services.agent.strategy_compiler_agent import StrategyParser, StrategyValidator
+from models import BacktestRunDB, RealtimeQuoteDB, StrategyDB, UserDB, VarietyDB
+from schemas import (
+    BacktestRunResponse,
+    StrategyBacktestRequest,
+    StrategyCreate,
+    StrategyPortfolioPlanRequest,
+    StrategyPortfolioPlanResponse,
+    StrategyResponse,
+)
+from services.agent.risk_management.drawdown_control import generate_risk_management_plan
 from services.backtest.service import run_dsl_backtest
-from services.domain.exceptions import NotFoundError, ServiceError
+from services.domain.exceptions import ForbiddenError, NotFoundError, ServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -54,11 +63,11 @@ def create_strategy(
     try:
         dsl_dict = json.loads(data.dsl_json)
     except json.JSONDecodeError as exc:
-        raise ServiceError(f"DSL JSON 格式无效：{exc}", code=ErrorCode.INVALID_INPUT) from exc
+        raise ServiceError(f"DSL JSON 格式无效：{exc}", code=ErrorCode.VALIDATION_ERROR) from exc
 
     # 基础校验
     if not dsl_dict.get("entry") or not dsl_dict.get("exit"):
-        raise ServiceError("DSL 缺少 entry 或 exit 条件", code=ErrorCode.INVALID_INPUT)
+        raise ServiceError("DSL 缺少 entry 或 exit 条件", code=ErrorCode.VALIDATION_ERROR)
 
     strategy = StrategyDB(
         user_id=current_user.id,
@@ -87,7 +96,7 @@ def get_strategy(
     if not row:
         raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
     if row.user_id != current_user.id:
-        raise ServiceError("无权访问该策略", code=ErrorCode.FORBIDDEN)
+        raise ForbiddenError("无权访问该策略")
     return row
 
 
@@ -102,7 +111,7 @@ def delete_strategy(
     if not row:
         raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
     if row.user_id != current_user.id:
-        raise ServiceError("无权删除该策略", code=ErrorCode.FORBIDDEN)
+        raise ForbiddenError("无权删除该策略")
     row.is_active = False
     db.commit()
     return {"message": "策略已删除"}
@@ -124,7 +133,7 @@ def run_strategy_backtest_api(
     if not strategy:
         raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
     if strategy.user_id != current_user.id:
-        raise ServiceError("无权访问该策略", code=ErrorCode.FORBIDDEN)
+        raise ForbiddenError("无权访问该策略")
 
     run_record = BacktestRunDB(
         strategy_id=strategy.id,
@@ -179,7 +188,7 @@ def list_strategy_backtests(
     if not strategy:
         raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
     if strategy.user_id != current_user.id:
-        raise ServiceError("无权访问该策略", code=ErrorCode.FORBIDDEN)
+        raise ForbiddenError("无权访问该策略")
 
     rows = (
         db.query(BacktestRunDB)
@@ -193,6 +202,75 @@ def list_strategy_backtests(
 # ------------------------------------------------------------------
 # 辅助
 # ------------------------------------------------------------------
+
+@router.post("/{strategy_id}/portfolio-plan", response_model=StrategyPortfolioPlanResponse)
+def generate_strategy_portfolio_plan(
+    strategy_id: int,
+    params: StrategyPortfolioPlanRequest,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user_dependency),
+):
+    """Generate a rule-based simulated position plan for a saved strategy."""
+    strategy = db.query(StrategyDB).filter(StrategyDB.id == strategy_id).first()
+    if not strategy:
+        raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
+    if strategy.user_id != current_user.id:
+        raise ForbiddenError("无权访问该策略")
+
+    variety = db.query(VarietyDB).filter(VarietyDB.symbol == strategy.symbol).first()
+    if not variety:
+        raise NotFoundError("策略品种不存在", code=ErrorCode.NOT_FOUND)
+
+    quote = db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).first()
+    entry_price = params.entry_price or (quote.current_price if quote else None)
+    if entry_price is None:
+        raise ServiceError("无法获取实时价格，请手动输入入场价", code=ErrorCode.VALIDATION_ERROR)
+
+    entry_float = float(entry_price)
+    margin_rate = float(variety.margin_rate) if variety.margin_rate is not None else None
+    multiplier = float(variety.multiplier) if variety.multiplier is not None else 10.0
+    tick_size = float(variety.tick_size) if variety.tick_size is not None else 1.0
+
+    plan = generate_risk_management_plan(
+        account_balance=float(params.account_balance),
+        entry_price=entry_float,
+        direction=strategy.direction,  # type: ignore[arg-type]
+        risk_level=params.risk_level,  # type: ignore[arg-type]
+        margin_rate=margin_rate,
+        contract_multiplier=multiplier,
+        tick_size=tick_size,
+    )
+
+    position = plan.position_sizing
+    stop_loss = plan.stop_loss
+    take_profit = plan.take_profit
+    suggested_lots = float(position.get("suggested_lots", 0) or 0)
+    suggested_quantity = math.floor(suggested_lots)
+
+    notes = list(plan.notes)
+    if suggested_quantity < 1:
+        notes.append("建议手数小于 1 手，当前资金或止损距离不适合直接创建模拟持仓。")
+
+    return StrategyPortfolioPlanResponse(
+        strategy_id=strategy.id,
+        variety_id=variety.id,
+        symbol=variety.symbol,
+        variety_name=variety.name,
+        direction=strategy.direction,
+        account_balance=params.account_balance,
+        risk_level=params.risk_level,
+        entry_price=Decimal(str(entry_float)),
+        suggested_lots=suggested_lots,
+        suggested_quantity=suggested_quantity,
+        can_create=suggested_quantity >= 1,
+        stop_loss_price=Decimal(str(stop_loss["stop_loss_price"])),
+        take_profit_price=Decimal(str(take_profit["take_profit_price"])),
+        margin_required=Decimal(str(position.get("margin_required", 0) or 0)),
+        risk_amount=Decimal(str(position.get("risk_amount", 0) or 0)),
+        risk_reward_ratio=Decimal(str(take_profit.get("risk_reward_ratio", 0) or 0)),
+        notes=notes,
+    )
+
 
 def _utc_now():
     import datetime
