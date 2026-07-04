@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from typing import Any
 
 import pandas as pd
@@ -19,6 +20,8 @@ from services.agent.data_tools import _get_kline_data, _get_variety_info
 from services.backtest.engine import BacktestConfig, run_backtest
 from services.backtest.parser import StrategyIntent
 from services.cache import get_cached
+
+logger = logging.getLogger(__name__)
 
 
 def _backtest_cache_key(
