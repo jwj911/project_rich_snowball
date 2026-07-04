@@ -21,6 +21,9 @@ from services.agent.factor_engine.dsl import PanelData
 
 logger = logging.getLogger(__name__)
 
+if stats is None:
+    logger.warning("scipy not available, IC computation will be skipped")
+
 
 @dataclass
 class FactorEvaluationResult:
@@ -92,6 +95,10 @@ def _compute_ic(factor: pd.DataFrame, forward_returns: pd.DataFrame, method: str
     if stats is None:
         logger.warning("scipy not available, skipping IC computation")
         return pd.Series(dtype=float)
+
+    # scipy is available
+    from scipy import stats as _scipy_stats
+
     ic_values: list[float] = []
     dates: list[Any] = []
     for date in factor.index:
@@ -101,9 +108,9 @@ def _compute_ic(factor: pd.DataFrame, forward_returns: pd.DataFrame, method: str
         if valid.sum() < 3:
             continue
         if method == "pearson":
-            corr, _ = stats.pearsonr(f[valid], r[valid])
+            corr, _ = _scipy_stats.pearsonr(f[valid], r[valid])
         else:
-            corr, _ = stats.spearmanr(f[valid], r[valid])
+            corr, _ = _scipy_stats.spearmanr(f[valid], r[valid])
         if not np.isnan(corr):
             ic_values.append(corr)
             dates.append(date)

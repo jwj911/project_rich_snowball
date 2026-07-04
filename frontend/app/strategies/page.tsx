@@ -5,7 +5,7 @@ import type { ElementType, ReactNode } from 'react'
 import useSWR from 'swr'
 import AppShell from '@/components/layout/AppShell'
 import { api } from '@/lib/api'
-import type { AgentTaskResponse, BacktestRunResponse, StrategyPortfolioPlanResponse, StrategyResponse, TradeRecord } from '@/lib/api'
+import type { AgentTaskResponse, BacktestResult, BacktestRunResponse, StrategyPortfolioPlanResponse, StrategyResponse, TradeRecord } from '@/lib/api'
 import { formatPrice } from '@/lib/format'
 import {
   BarChart3,
@@ -729,26 +729,158 @@ function StrategyCard({
             {showBacktests ? '隐藏回测历史' : '查看回测历史'}
           </button>
           {showBacktests && (
-            <div className="mt-2 space-y-1">
+            <div className="mt-2 space-y-2">
               {backtests.length === 0 ? (
                 <p className="text-xs text-slate-500">暂无回测记录</p>
               ) : (
-                backtests.map((run) => (
-                  <div key={run.id} className="flex items-center justify-between rounded border border-slate-800 px-2 py-1 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className={run.status === 'completed' ? 'text-red-400' : run.status === 'failed' ? 'text-green-400' : 'text-amber-400'}>
-                        {run.status}
-                      </span>
-                      {run.metrics_score !== null && <span className="text-slate-300">评分 {run.metrics_score}/100</span>}
-                    </div>
-                    <div className="text-slate-500">{run.created_at?.slice(0, 10)}</div>
-                  </div>
-                ))
+                backtests.map((run) => <BacktestRunCard key={run.id} run={run} />)
               )}
             </div>
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function BacktestRunCard({ run }: { run: BacktestRunResponse }) {
+  const [expanded, setExpanded] = useState(false)
+  const result = run.result
+  const metrics = result?.metrics
+
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950/40 p-2 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className={run.status === 'completed' ? 'text-green-400' : run.status === 'failed' ? 'text-red-400' : 'text-amber-400'}>
+            {run.status}
+          </span>
+          {run.metrics_score !== null && <span className="text-slate-300">评分 {run.metrics_score}/100</span>}
+          {metrics && (
+            <span className="text-slate-500">
+              收益 {Number(metrics.total_return_pct ?? 0).toFixed(2)}% / 回撤 {Number(metrics.max_drawdown_pct ?? 0).toFixed(2)}% / 交易 {run.trade_count ?? 0}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-slate-600">{run.created_at?.slice(0, 10)}</span>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="text-slate-400 transition hover:text-amber-400"
+          >
+            {expanded ? '收起' : '详情'}
+          </button>
+        </div>
+      </div>
+
+      {expanded && result && (
+        <div className="mt-3 space-y-3">
+          <BacktestMetricsPanel metrics={metrics} />
+          {result.equity_curve && result.equity_curve.length > 0 && (
+            <EquityCurveChart data={result.equity_curve} />
+          )}
+          {result.signals && result.signals.length > 0 && (
+            <BacktestSignalsList signals={result.signals} />
+          )}
+          {result.trades && result.trades.length > 0 && (
+            <BacktestTradesList trades={result.trades} />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BacktestMetricsPanel({ metrics }: { metrics: BacktestResult['metrics'] | undefined }) {
+  if (!metrics) return null
+  const items = [
+    { label: '总收益率', value: `${Number(metrics.total_return_pct ?? 0).toFixed(2)}%`, color: Number(metrics.total_return_pct ?? 0) >= 0 ? 'text-green-400' : 'text-red-400' },
+    { label: '年化收益率', value: `${Number(metrics.annualized_return_pct ?? 0).toFixed(2)}%` },
+    { label: '最大回撤', value: `${Number(metrics.max_drawdown_pct ?? 0).toFixed(2)}%`, color: 'text-red-400' },
+    { label: '胜率', value: `${Number(metrics.win_rate_pct ?? 0).toFixed(2)}%` },
+    { label: '败率', value: `${Number(metrics.loss_rate_pct ?? 0).toFixed(2)}%` },
+    { label: '盈亏比', value: Number(metrics.profit_loss_ratio ?? 0).toFixed(2) },
+    { label: '夏普比率', value: Number(metrics.sharpe ?? 0).toFixed(2) },
+    { label: '交易次数', value: Number(metrics.trade_count ?? 0) },
+    { label: '总手续费', value: Number(metrics.total_fee ?? 0).toFixed(2) },
+    { label: '均笔手续费', value: Number(metrics.avg_fee_per_trade ?? 0).toFixed(2) },
+    { label: '评分', value: `${Number(metrics.score ?? 0)}/100` },
+  ]
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+      {items.map((item) => (
+        <div key={item.label} className="rounded bg-slate-900/60 p-2">
+          <div className="text-[10px] text-slate-500">{item.label}</div>
+          <div className={`text-sm font-medium ${item.color ?? 'text-slate-200'}`}>{item.value}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function EquityCurveChart({ data }: { data: BacktestResult['equity_curve'] }) {
+  const values = data.map((d) => d.equity)
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const width = 100
+  const height = 40
+  const points = data
+    .map((d, i) => {
+      const x = (i / (data.length - 1 || 1)) * width
+      const y = height - ((d.equity - min) / range) * height
+      return `${x},${y}`
+    })
+    .join(' ')
+  const initial = data[0]?.equity ?? 0
+  return (
+    <div>
+      <div className="mb-1 text-[10px] text-slate-500">资金曲线</div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full rounded bg-slate-900/60" preserveAspectRatio="none">
+        <polyline fill="none" stroke="#f59e0b" strokeWidth="0.5" points={points} />
+      </svg>
+      <div className="mt-1 flex justify-between text-[10px] text-slate-500">
+        <span>初始 {formatPrice(initial)}</span>
+        <span>最终 {formatPrice(max)}</span>
+      </div>
+    </div>
+  )
+}
+
+function BacktestSignalsList({ signals }: { signals: BacktestResult['signals'] }) {
+  return (
+    <div>
+      <div className="mb-1 text-[10px] text-slate-500">买卖点 ({signals.length})</div>
+      <div className="max-h-32 overflow-auto space-y-1">
+        {signals.map((s, idx) => (
+          <div key={idx} className="flex items-center justify-between rounded bg-slate-900/60 px-2 py-1">
+            <span className={s.type === 'entry' ? 'text-green-400' : 'text-red-400'}>
+              {s.type === 'entry' ? '买入' : '卖出'}
+            </span>
+            <span className="text-slate-400">{s.time?.slice(0, 10)}</span>
+            <span className="text-slate-300">{formatPrice(Number(s.price))}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function BacktestTradesList({ trades }: { trades: BacktestResult['trades'] }) {
+  return (
+    <div>
+      <div className="mb-1 text-[10px] text-slate-500">交易记录 ({trades.length})</div>
+      <div className="max-h-40 overflow-auto space-y-1">
+        {trades.map((t, idx) => (
+          <div key={idx} className="flex items-center justify-between rounded bg-slate-900/60 px-2 py-1">
+            <span className={t.pnl >= 0 ? 'text-green-400' : 'text-red-400'}>{t.pnl >= 0 ? '盈' : '亏'}</span>
+            <span className="text-slate-500">{t.entry_time?.slice(0, 10)} → {t.exit_time?.slice(0, 10)}</span>
+            <span className="text-slate-400">{t.entry_price} → {t.exit_price}</span>
+            <span className={t.pnl >= 0 ? 'text-green-400' : 'text-red-400'}>{t.pnl.toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

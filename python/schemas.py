@@ -1018,7 +1018,7 @@ class AgentTaskCreate(BaseModel):
 
     agent_type: str = Field(
         ...,
-        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|factor_mining|strategy_compiler|parameter_optimizer|auto)$",
+        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|factor_mining|strategy_compiler|parameter_optimizer|strategy_evolution|auto)$",
     )
     query: str = Field(..., min_length=1, max_length=4000)
 
@@ -1132,7 +1132,7 @@ class AgentChatRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=4000)
     agent_type: str = Field(
         default="data",
-        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|factor_mining|strategy_compiler|parameter_optimizer|auto)$",
+        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|factor_mining|strategy_compiler|parameter_optimizer|strategy_evolution|auto)$",
     )
 
 

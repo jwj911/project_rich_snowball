@@ -95,20 +95,29 @@ def _inject_factor_columns(
     symbol: str,
     entry_conditions: list[dict[str, Any]],
     exit_conditions: list[dict[str, Any]],
+    custom_columns: dict[str, pd.Series] | None = None,
 ) -> pd.DataFrame:
     """预计算策略 DSL 中引用的自定义因子列并注入 DataFrame。
 
     indicator / indicator2 以 factor:<factor_id> 形式出现时，
     从 factor_definitions 读取 source_expression 并在单品种面板上求值。
+
+    indicator / indicator2 以 factor_custom:<hash> 形式出现时，
+    从 custom_columns 中直接取值注入。
     """
+    # 收集需要注入的列
+    custom_keys: set[str] = set()
     factor_ids: set[str] = set()
     for cond in entry_conditions + exit_conditions:
         for key in ("indicator", "indicator2"):
             val = cond.get(key)
-            if isinstance(val, str) and val.startswith("factor:"):
-                factor_ids.add(val[len("factor:") :].strip())
+            if isinstance(val, str):
+                if val.startswith("factor_custom:"):
+                    custom_keys.add(val)
+                elif val.startswith("factor:"):
+                    factor_ids.add(val[len("factor:") :].strip())
 
-    if not factor_ids:
+    if not factor_ids and not custom_keys:
         return df
 
     if "time" not in df.columns:
@@ -117,6 +126,14 @@ def _inject_factor_columns(
     df["time"] = pd.to_datetime(df["time"], format="mixed")
     df_indexed = df.set_index("time").copy()
 
+    # 注入 custom_columns
+    for ck in custom_keys:
+        if custom_columns and ck in custom_columns:
+            series = custom_columns[ck]
+            if isinstance(series, pd.Series):
+                df_indexed[ck] = series.reindex(df_indexed.index)
+
+    # 注入 factor_definitions 因子
     for fid in factor_ids:
         factor = (
             db.query(FactorDefinitionDB)
@@ -155,6 +172,7 @@ def _run_dsl_backtest_inner(
     initial_cash: float,
     quantity: int,
     limit: int,
+    custom_columns: dict[str, pd.Series] | None = None,
 ) -> dict[str, Any]:
     """无缓存版本的 DSL 回测执行（供 get_cached 调用）。"""
     variety_info = _get_variety_info(db, symbol)
@@ -170,7 +188,7 @@ def _run_dsl_backtest_inner(
         raise ValueError(f"{symbol} 可用 K 线不足，至少需要 30 根")
 
     df = pd.DataFrame(klines)
-    df = _inject_factor_columns(db, df, symbol, entry_conditions, exit_conditions)
+    df = _inject_factor_columns(db, df, symbol, entry_conditions, exit_conditions, custom_columns=custom_columns)
     df["time"] = pd.to_datetime(df["time"], format="mixed")
 
     short_window = 5
@@ -225,6 +243,7 @@ def run_dsl_backtest(
     initial_cash: float = 100_000.0,
     quantity: int = 1,
     limit: int = 500,
+    custom_columns: dict[str, pd.Series] | None = None,
 ) -> dict[str, Any]:
     """根据 DSL 条件执行回测（带 5 分钟 LRU 缓存）。"""
     cache_key = _backtest_cache_key(symbol, period, direction, entry_conditions, exit_conditions, limit)
@@ -240,6 +259,7 @@ def run_dsl_backtest(
             initial_cash,
             quantity,
             limit,
+            custom_columns=custom_columns,
         ),
         ttl=300,  # 5 分钟缓存
     )
