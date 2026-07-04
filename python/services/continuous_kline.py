@@ -246,14 +246,70 @@ def get_fut_daily_main_kline(
     end: datetime | None = None,
     limit: int = 5000,
 ) -> list[dict]:
-    """从 fut_daily_data 查询品种主连日线数据（period='D'）。
+    """从 fut_daily_data 查询品种主力合约日线数据（period='D'）。
 
-    选择该品种记录数最多的 ts_code（主连/品种级别数据），
-    通过 JOIN fut_contracts 获取 contract_id，返回标准 K 线 dict。
+    优先通过 fut_contracts 中 contract_type 识别主力合约，
+    获取其 ts_code 后直接查询 fut_daily_data（不再 JOIN，避免 ts_code 格式不匹配）。
     """
     from sqlalchemy import func
+    from models import VarietyDB
 
-    # 找到记录数最多的 ts_code（主连品种）
+    variety = db.query(VarietyDB).filter(VarietyDB.id == variety_id).first()
+    if not variety:
+        return []
+
+    # 1. 优先：通过 VarietyDB.contract_code 获取当前主力合约，再查 fut_contracts 获取 ts_code
+    main_ts_code = None
+    main_contract_id = None
+
+    if variety.contract_code:
+        contract = db.query(FutContractDB).filter(
+            FutContractDB.symbol == variety.contract_code,
+        ).first()
+        if contract:
+            main_ts_code = contract.ts_code
+            main_contract_id = contract.id
+
+    # 2. 其次：通过 contract_type 识别主力/连续合约（支持多种数据源格式）
+    if not main_ts_code:
+        contract = db.query(FutContractDB).filter(
+            FutContractDB.fut_code == variety.symbol,
+            FutContractDB.contract_type.in_(['MAIN', '1', '2', '3']),
+        ).first()
+        if contract:
+            main_ts_code = contract.ts_code
+            main_contract_id = contract.id
+
+    # 3. 如果找到了主力合约的 ts_code，直接查询 fut_daily_data（不 JOIN）
+    if main_ts_code:
+        q = db.query(FutDailyDataDB).filter(
+            FutDailyDataDB.variety_id == variety_id,
+            FutDailyDataDB.ts_code == main_ts_code,
+            FutDailyDataDB.period == "D",
+        )
+        if start:
+            start = _ensure_aware(start)
+            q = q.filter(FutDailyDataDB.trade_date >= start)
+        if end:
+            end = _ensure_aware(end)
+            q = q.filter(FutDailyDataDB.trade_date <= end)
+        rows = q.order_by(FutDailyDataDB.trade_date.asc()).limit(limit).all()
+        if rows:
+            return [
+                {
+                    "time": row.trade_date.isoformat(),
+                    "open": float(row.open_price),
+                    "high": float(row.high_price),
+                    "low": float(row.low_price),
+                    "close": float(row.close_price),
+                    "volume": row.volume,
+                    "contract_code": row.ts_code,
+                    "contract_id": main_contract_id,
+                }
+                for row in rows
+            ]
+
+    # 4. Fallback: 找 fut_daily_data 中记录数最多的 ts_code（兼容原逻辑）
     main_ts = db.query(
         FutDailyDataDB.ts_code, func.count(FutDailyDataDB.id)
     ).filter(
@@ -264,71 +320,70 @@ def get_fut_daily_main_kline(
         func.count(FutDailyDataDB.id).desc()
     ).first()
 
-    if not main_ts:
-        # Fallback: 当 Tushare 日线数据未回填时，回退到 kline_data（实时行情聚合的 K 线）
-        from models import KlineDataDB
+    if main_ts:
+        ts_code = main_ts[0]
+        q = db.query(FutDailyDataDB).filter(
+            FutDailyDataDB.variety_id == variety_id,
+            FutDailyDataDB.ts_code == ts_code,
+            FutDailyDataDB.period == "D",
+        )
+        if start:
+            start = _ensure_aware(start)
+            q = q.filter(FutDailyDataDB.trade_date >= start)
+        if end:
+            end = _ensure_aware(end)
+            q = q.filter(FutDailyDataDB.trade_date <= end)
+        rows = q.order_by(FutDailyDataDB.trade_date.asc()).limit(limit).all()
+        if rows:
+            # 单独获取 contract_id（不 JOIN）
+            contract = db.query(FutContractDB).filter(
+                FutContractDB.ts_code == ts_code,
+            ).first()
+            contract_id = contract.id if contract else None
+            return [
+                {
+                    "time": row.trade_date.isoformat(),
+                    "open": float(row.open_price),
+                    "high": float(row.high_price),
+                    "low": float(row.low_price),
+                    "close": float(row.close_price),
+                    "volume": row.volume,
+                    "contract_code": row.ts_code,
+                    "contract_id": contract_id,
+                }
+                for row in rows
+            ]
 
-        base_filters = [KlineDataDB.variety_id == variety_id]
-        for candidate in ("D", "1d"):
-            q = db.query(KlineDataDB).filter(*base_filters)
-            q = q.filter(KlineDataDB.period == candidate)
-            if start:
-                start_aware = _ensure_aware(start)
-                q = q.filter(KlineDataDB.trading_time >= start_aware)
-            if end:
-                end_aware = _ensure_aware(end)
-                q = q.filter(KlineDataDB.trading_time <= end_aware)
-            rows = q.order_by(KlineDataDB.trading_time.asc()).limit(limit).all()
-            if rows:
-                return [
-                    {
-                        "time": row.trading_time.isoformat(),
-                        "open": float(row.open_price),
-                        "high": float(row.high_price),
-                        "low": float(row.low_price),
-                        "close": float(row.close_price),
-                        "volume": row.volume,
-                        "contract_code": row.contract_code,
-                        "contract_id": row.contract_id,
-                    }
-                    for row in rows
-                ]
-        return []
+    # 5. 最终 fallback: 回退到 kline_data（实时行情聚合的 K 线）
+    from models import KlineDataDB
 
-    ts_code = main_ts[0]
+    base_filters = [KlineDataDB.variety_id == variety_id]
+    for candidate in ("D", "1d"):
+        q = db.query(KlineDataDB).filter(*base_filters)
+        q = q.filter(KlineDataDB.period == candidate)
+        if start:
+            start_aware = _ensure_aware(start)
+            q = q.filter(KlineDataDB.trading_time >= start_aware)
+        if end:
+            end_aware = _ensure_aware(end)
+            q = q.filter(KlineDataDB.trading_time <= end_aware)
+        rows = q.order_by(KlineDataDB.trading_time.asc()).limit(limit).all()
+        if rows:
+            return [
+                {
+                    "time": row.trading_time.isoformat(),
+                    "open": float(row.open_price),
+                    "high": float(row.high_price),
+                    "low": float(row.low_price),
+                    "close": float(row.close_price),
+                    "volume": row.volume,
+                    "contract_code": row.contract_code,
+                    "contract_id": row.contract_id,
+                }
+                for row in rows
+            ]
+    return []
 
-    q = db.query(
-        FutDailyDataDB, FutContractDB.id.label("contract_id")
-    ).join(
-        FutContractDB, FutDailyDataDB.ts_code == FutContractDB.ts_code
-    ).filter(
-        FutDailyDataDB.variety_id == variety_id,
-        FutDailyDataDB.ts_code == ts_code,
-        FutDailyDataDB.period == "D",
-    )
-
-    if start:
-        start = _ensure_aware(start)
-        q = q.filter(FutDailyDataDB.trade_date >= start)
-    if end:
-        end = _ensure_aware(end)
-        q = q.filter(FutDailyDataDB.trade_date <= end)
-
-    rows = q.order_by(FutDailyDataDB.trade_date.asc()).limit(limit).all()
-
-    return [
-        {
-            "time": row.trade_date.isoformat(),
-            "open": float(row.open_price),
-            "high": float(row.high_price),
-            "low": float(row.low_price),
-            "close": float(row.close_price),
-            "volume": row.volume,
-            "contract_code": row.ts_code,
-            "contract_id": contract_id,
-        }
-        for row, contract_id in rows
-    ]
 
 
 def get_fut_daily_contract_kline(
