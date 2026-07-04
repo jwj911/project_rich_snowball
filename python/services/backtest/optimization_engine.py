@@ -83,6 +83,16 @@ def optimize_strategy_params(
         raise ValueError(f"参数组合过多 ({total_combinations})，请缩小搜索空间")
 
     start_time = time.time()
+    logger.info(
+        "strategy_optimization_start",
+        extra={
+            "symbol": symbol,
+            "period": period,
+            "direction": direction,
+            "total_combinations": total_combinations,
+            "param_space": param_space,
+        },
+    )
     results = []
 
     for combo in itertools.product(*param_values):
@@ -130,6 +140,18 @@ def optimize_strategy_params(
 
     # 构建敏感性矩阵
     sensitivity = _build_sensitivity_matrix(valid_results, param_names)
+
+    logger.info(
+        "strategy_optimization_complete",
+        extra={
+            "symbol": symbol,
+            "total_combinations": total_combinations,
+            "tested_combinations": len(valid_results),
+            "runtime_seconds": round(runtime, 3),
+            "best_score": round(best["score"], 4) if best else None,
+            "best_params": best["params"] if best else None,
+        },
+    )
 
     return {
         "best_params": best["params"] if best else {},

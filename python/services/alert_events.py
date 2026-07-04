@@ -163,3 +163,57 @@ def get_or_create_user_state(db: Session, event_id: int, user_id: int) -> AlertE
         db.add(state)
         db.flush()
     return state
+
+
+STRATEGY_BACKTEST_SOURCE_TYPE = "strategy_backtest"
+STRATEGY_OPTIMIZATION_SOURCE_TYPE = "strategy_optimization"
+
+
+def create_strategy_alert_for_backtest(
+    db: Session,
+    strategy_id: int,
+    user_id: int,
+    symbol: str,
+    error_message: str | None = None,
+) -> AlertEventDB:
+    """当策略回测失败时创建个人告警事件。"""
+    event = AlertEventDB(
+        category="strategy",
+        severity="medium",
+        title=f"策略 {symbol} 回测失败",
+        summary=error_message or "回测执行过程中发生异常，请检查策略参数或 DSL 条件。",
+        source_type=STRATEGY_BACKTEST_SOURCE_TYPE,
+        source_id=strategy_id,
+        source_url=f"/strategies/{strategy_id}",
+        user_id=user_id,
+        target_scope="personal",
+        triggered_at=datetime.now(UTC),
+    )
+    db.add(event)
+    db.flush()
+    return event
+
+
+def create_strategy_alert_for_optimization(
+    db: Session,
+    strategy_id: int,
+    user_id: int,
+    symbol: str,
+    error_message: str | None = None,
+) -> AlertEventDB:
+    """当策略参数优化失败时创建个人告警事件。"""
+    event = AlertEventDB(
+        category="strategy",
+        severity="medium",
+        title=f"策略 {symbol} 参数优化失败",
+        summary=error_message or "参数优化执行过程中发生异常，请缩小搜索空间或检查策略条件。",
+        source_type=STRATEGY_OPTIMIZATION_SOURCE_TYPE,
+        source_id=strategy_id,
+        source_url=f"/strategies/{strategy_id}",
+        user_id=user_id,
+        target_scope="personal",
+        triggered_at=datetime.now(UTC),
+    )
+    db.add(event)
+    db.flush()
+    return event

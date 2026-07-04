@@ -173,6 +173,19 @@ def run_strategy_backtest_api(
         logger.exception("Backtest failed for strategy %s", strategy_id)
         run_record.status = "failed"
         run_record.error_message = str(exc)
+        # 创建告警事件
+        try:
+            from services.alert_events import create_strategy_alert_for_backtest
+            create_strategy_alert_for_backtest(
+                db,
+                strategy_id=strategy.id,
+                user_id=current_user.id,
+                symbol=strategy.symbol,
+                error_message=str(exc),
+            )
+            db.commit()
+        except Exception as alert_exc:
+            logger.warning("Failed to create backtest alert: %s", alert_exc)
     finally:
         run_record.finished_at = _utc_now()
         db.commit()
@@ -344,20 +357,36 @@ def optimize_strategy_params_api(
 
     from services.backtest.optimization_engine import optimize_strategy_params
 
-    result = optimize_strategy_params(
-        db,
-        symbol=strategy.symbol,
-        period=strategy.timeframe,
-        direction=strategy.direction,
-        entry_conditions=entry_conditions,
-        exit_conditions=exit_conditions,
-        param_space=params.param_space,
-        initial_cash=params.initial_cash,
-        quantity=params.quantity,
-        limit=params.limit,
-        top_n=params.top_n,
-        metric_weights=params.metric_weights,
-    )
+    try:
+        result = optimize_strategy_params(
+            db,
+            symbol=strategy.symbol,
+            period=strategy.timeframe,
+            direction=strategy.direction,
+            entry_conditions=entry_conditions,
+            exit_conditions=exit_conditions,
+            param_space=params.param_space,
+            initial_cash=params.initial_cash,
+            quantity=params.quantity,
+            limit=params.limit,
+            top_n=params.top_n,
+            metric_weights=params.metric_weights,
+        )
+    except Exception as exc:
+        logger.exception("Optimization failed for strategy %s", strategy_id)
+        try:
+            from services.alert_events import create_strategy_alert_for_optimization
+            create_strategy_alert_for_optimization(
+                db,
+                strategy_id=strategy.id,
+                user_id=current_user.id,
+                symbol=strategy.symbol,
+                error_message=str(exc),
+            )
+            db.commit()
+        except Exception as alert_exc:
+            logger.warning("Failed to create optimization alert: %s", alert_exc)
+        raise ServiceError("参数优化失败: " + str(exc), code=ErrorCode.INVALID_INPUT)
 
     top_results = [
         OptimizationRunItem(

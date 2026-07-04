@@ -158,10 +158,23 @@ def run_dsl_backtest(
 ) -> dict[str, Any]:
     """根据 DSL 条件执行回测（带 5 分钟 LRU 缓存）。"""
     cache_key = _backtest_cache_key(symbol, period, direction, entry_conditions, exit_conditions, limit)
-    return get_cached(
+    result = get_cached(
         cache_key,
         lambda: _run_dsl_backtest_inner(
             db, symbol, period, direction, entry_conditions, exit_conditions, initial_cash, quantity, limit
         ),
         ttl=300,  # 5 分钟缓存
     )
+    logger.info(
+        "dsl_backtest_complete",
+        extra={
+            "symbol": symbol,
+            "period": period,
+            "direction": direction,
+            "cache_key": cache_key,
+            "bars": result.get("data_window", {}).get("bars"),
+            "trade_count": result.get("metrics", {}).get("trade_count"),
+            "score": result.get("metrics", {}).get("score"),
+        },
+    )
+    return result
