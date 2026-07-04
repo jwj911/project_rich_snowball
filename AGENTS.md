@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-07-04（基于当前 master 实际代码结构重写）
+> **最后更新**：2026-07-04（新增因子CRUD API与测试，routers/factors.py 已上线）
 
 ---
 
@@ -169,6 +169,7 @@ project_rich_snowball/
 │   │   │   ├── logging.ts          # 前端日志上报
 │   │   │   ├── agents.ts           # Agent 系统 API
 │   │   │   ├── alerts.ts           # 预警事件 API
+│   │   │   ├── factors.ts          # 因子 CRUD API
 │   │   │   ├── strategies.ts       # 策略/回测 API
 │   │   │   ├── types.ts            # 共享类型定义
 │   │   │   ├── errors.ts           # API 错误类型
@@ -222,13 +223,14 @@ project_rich_snowball/
 │   ├── alembic/
 │   │   ├── env.py                  # 从 config.py 读取 DATABASE_URL
 │   │   └── versions/               # 51 个迁移脚本
-│   ├── routers/                    # 23 个领域路由（含 __init__）
+│   ├── routers/                    # 24 个领域路由（含 __init__）
 │   │   ├── agents.py               # Agent 系统：任务创建、流式执行、Chat 对话
 │   │   ├── alerts.py               # 预警中心
 │   │   ├── auth.py
 │   │   ├── chat.py
 │   │   ├── comments.py
 │   │   ├── contracts.py
+│   │   ├── factors.py              # 因子 CRUD：系统内置 + 用户自定义因子管理
 │   │   ├── frontend_logs.py
 │   │   ├── health.py
 │   │   ├── kline.py
@@ -597,6 +599,7 @@ ruff format .
 - `test_strategy_compiler.py`
 - `test_strategies.py`
 - `test_technical_indicators.py`
+- `test_factors_router.py`
 - `test_wanfactor_indicators.py`
 - `test_market_data_service.py`
 - `test_backup_scripts.py`

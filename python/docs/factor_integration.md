@@ -98,6 +98,65 @@ from lib.technical_indicators import calculate_all_indicators, calculate_all_fac
 combined = calculate_all_factors(calculate_all_indicators(df))
 ```
 
+## 因子CRUD API
+
+> 新增于 2026-07-04，提供系统内置因子（万因子等）和用户自定义因子的统一管理接口。
+
+### 路由清单
+
+| 方法 | 路径 | 功能 | 查询/Body参数 | 权限 |
+|------|------|------|---------------|------|
+| GET | `/api/factors` | 因子列表 | `skip`/`limit`/`q`/`category`/`source`/`is_builtin` | 登录用户 |
+| POST | `/api/factors` | 创建自定义因子 | `FactorCreate` JSON | 登录用户 |
+| GET | `/api/factors/{id}` | 因子详情 | — | 登录用户 |
+| PATCH | `/api/factors/{id}` | 更新因子 | `FactorUpdate` JSON (Patch语义) | owner / 管理员 |
+| DELETE | `/api/factors/{id}` | 软删除因子 | — | owner / 管理员 |
+
+### 用户自定义因子流程
+
+```text
+用户输入（name + category + source_expression）
+        ↓
+后端 Pydantic 字段校验（长度/非空）
+        ↓
+DSL 公式安全校验（validate_factor_formula）
+        ↓
+自动生成 package_id="user_{user_id}", factor_id=snake_case+哈希, conversion_status="pending"
+        ↓
+写入 factor_definitions 表（is_builtin=False, is_active=True）
+        ↓
+返回 FactorResponse
+```
+
+### 系统因子 vs 用户因子
+
+| 维度 | 系统内置因子 | 用户自定义因子 |
+|------|-------------|-------------|
+| `is_builtin` | `True` | `False` |
+| `user_id` | `NULL` | 当前用户 ID |
+| `package_id` | `"manual"` 或 `"wanfactor"` | `"user_{user_id}"` |
+| 删除 | ❌ 不可删除 | ✅ owner/管理员可软删除 |
+| 修改 | ❌ 不可修改 | ✅ owner/管理员可更新 |
+| 来源 | `source='wanfactor'` 等 | `source='user'` |
+
+### 公式安全校验
+
+后端通过 `services.agent.factor_engine.dsl.validate_factor_formula()` 对 `source_expression` 进行 AST 白名单校验：
+- 仅允许 `open` / `high` / `low` / `close` / `volume` 面板字段
+- 禁止导入、属性访问、lambda 等危险语法
+- 校验失败返回 `400` + `code: VALIDATION_ERROR`
+
+### 响应模型关键字段
+
+| 字段 | 说明 |
+|------|------|
+| `source_expression` | 用户输入的原始公式（如 `close / open`） |
+| `converted_formula` | 后端转换后的可执行公式（待实现） |
+| `conversion_status` | `pending` / `converted` / `failed` |
+| `fields_json` | 公式依赖字段列表 JSON，如 `["open","close"]` |
+| `metadata_json` | 自定义元数据 JSON，如 `{"description":"...","params":{}}` |
+| `q_score` / `test_rankicir` / `monotonicity` / `ls_sharpe` | 质量指标（系统因子有值，用户因子默认 NULL） |
+
 ## 已知限制
 
 1. **NaN 处理**：部分因子（如含 `np.sign` 的）在输入含 NaN 时可能返回全 NaN，建议预处理缺失值。
@@ -118,4 +177,4 @@ combined = calculate_all_factors(calculate_all_indicators(df))
 
 - 集成负责人：AI 助手（Orchestrator）
 - 代码审核：贾智翔
-- 最后更新：2026-07-04
+- 最后更新：2026-07-04（新增因子CRUD API文档）

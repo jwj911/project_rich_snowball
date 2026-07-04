@@ -63,6 +63,7 @@ from routers import (  # noqa: E402
     frontend_logs,
     health,
     kline,
+    llm_config,
     market,
     metrics_dashboard,
     news,
@@ -198,6 +199,7 @@ app.include_router(auth.router)
 app.include_router(comments.router)
 app.include_router(varieties.router)
 app.include_router(kline.router)
+app.include_router(llm_config.router)
 app.include_router(realtime.router)
 app.include_router(watchlists.router)
 app.include_router(price_levels.router)

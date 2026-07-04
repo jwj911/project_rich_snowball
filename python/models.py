@@ -166,6 +166,7 @@ class UserDB(Base):
     alert_event_states = relationship("AlertEventUserStateDB", back_populates="user", passive_deletes=True)
     strategies = relationship("StrategyDB", back_populates="user", passive_deletes=True)
     backtest_runs = relationship("BacktestRunDB", back_populates="user", passive_deletes=True)
+    llm_configs = relationship("UserLLMConfigDB", back_populates="user", passive_deletes=True)
 
 
 class CommentDB(Base):
@@ -803,6 +804,22 @@ class UserPreferenceDB(Base):
     user = relationship("UserDB", backref="preference", uselist=False, passive_deletes=True)
 
 
+class UserLLMConfigDB(Base):
+    """用户级 OpenAI 兼容 LLM 配置。"""
+
+    __tablename__ = "user_llm_configs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    provider = Column(String(50), nullable=False, default="openai-compatible")
+    base_url = Column(String(500), nullable=False)
+    model = Column(String(120), nullable=False)
+    api_key_encrypted = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
+    user = relationship("UserDB", back_populates="llm_configs")
+
+
 class NewsSourceDB(Base):
     """RSS 新闻源。
 
@@ -921,6 +938,10 @@ class FactorDefinitionDB(Base):
 
     __tablename__ = "factor_definitions"
     id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    """NULL 表示系统内置因子（如万因子），非NULL表示用户自建因子。"""
+    is_builtin = Column(Boolean, nullable=False, default=True, index=True)
+    """True = 系统内置（不可删除），False = 用户自建。"""
     package_id = Column(String(80), nullable=False, default="manual", index=True)
     factor_id = Column(String(80), nullable=False, index=True)
     name = Column(String(240), nullable=False, index=True)

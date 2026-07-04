@@ -101,6 +101,35 @@ class UserPreferenceUpdate(BaseModel):
     language: str | None = Field(None, max_length=10, description="语言代码，如 zh-CN")
 
 
+class LLMConfigResponse(BaseModel):
+    """用户级 LLM 配置响应，不包含明文 API key。"""
+
+    provider: str
+    base_url: str
+    model: str
+    has_api_key: bool
+    api_key_masked: str | None = None
+    uses_system_default: bool
+    updated_at: dt | None = None
+
+
+class LLMConfigUpdate(BaseModel):
+    """创建或更新用户级 LLM 配置。"""
+
+    provider: str = Field(default="openai-compatible", max_length=50)
+    base_url: str = Field(..., min_length=8, max_length=500)
+    model: str = Field(..., min_length=1, max_length=120)
+    api_key: str | None = Field(default=None, min_length=8, max_length=500)
+
+
+class LLMConfigTestResponse(BaseModel):
+    """LLM 连接测试结果。"""
+
+    ok: bool
+    model: str
+    message: str
+
+
 class CommentCreate(BaseModel):
     variety_id: int = Field(..., ge=1)
     content: str = Field(..., min_length=1, max_length=2000)

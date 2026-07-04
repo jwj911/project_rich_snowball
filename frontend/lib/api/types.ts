@@ -214,6 +214,29 @@ export interface UserPreferenceUpdate {
   language?: string | null
 }
 
+export interface LLMConfigResponse {
+  provider: string
+  base_url: string
+  model: string
+  has_api_key: boolean
+  api_key_masked: string | null
+  uses_system_default: boolean
+  updated_at: string | null
+}
+
+export interface LLMConfigUpdate {
+  provider: string
+  base_url: string
+  model: string
+  api_key?: string | null
+}
+
+export interface LLMConfigTestResponse {
+  ok: boolean
+  model: string
+  message: string
+}
+
 export interface NewsSource {
   id: number
   name: string
@@ -459,6 +482,66 @@ export interface StrategyPortfolioPlanResponse {
   risk_amount: string
   risk_reward_ratio: string
   notes: string[]
+}
+
+// ========== Factor (因子) ==========
+
+export interface FactorResponse {
+  id: number
+  package_id: string
+  factor_id: string
+  name: string
+  source: string | null
+  category: string | null
+  q_score: number | null
+  test_rankicir: number | null
+  monotonicity: number | null
+  ls_sharpe: number | null
+  source_expression: string
+  converted_formula: string | null
+  conversion_status: string
+  fields_json: string | null
+  metadata_json: string | null
+  is_builtin: boolean
+  is_active: boolean
+  user_id: number | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface FactorCreate {
+  name: string
+  category: string
+  source_expression: string
+  fields_json?: string
+  metadata_json?: string
+}
+
+export interface FactorUpdate {
+  name?: string
+  category?: string
+  source_expression?: string
+  fields_json?: string
+  metadata_json?: string
+  is_active?: boolean
+}
+
+export interface FactorListParams {
+  skip?: number
+  limit?: number
+  q?: string
+  category?: string
+  source?: string
+  is_builtin?: boolean
+}
+
+export interface FactorListResponse {
+  items: FactorResponse[]
+  total: number
+}
+
+export interface FactorDeleteResponse {
+  message: string
 }
 
 export interface TradeRecord {

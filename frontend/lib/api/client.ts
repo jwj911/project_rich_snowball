@@ -77,6 +77,8 @@ import {
   getStrategyBacktests,
   runStrategyBacktest,
 } from './strategies'
+import { listFactors, getFactor, createFactor, updateFactor, deleteFactor } from './factors'
+import { deleteLLMApiKey, getLLMConfig, testLLMConfig, updateLLMConfig } from './llm_config'
 import { getUserSettings, updateUserSettings } from './settings'
 import {
   createPriceLevel,
@@ -99,6 +101,9 @@ import type {
   DashboardOverview,
   FutContract,
   KlineData,
+  LLMConfigResponse,
+  LLMConfigTestResponse,
+  LLMConfigUpdate,
   MarketStatusResponse,
   NewsArticle,
   NewsSource,
@@ -140,6 +145,11 @@ import type {
   StrategyBacktestRequest,
   StrategyPortfolioPlanRequest,
   StrategyPortfolioPlanResponse,
+  FactorResponse,
+  FactorCreate,
+  FactorUpdate,
+  FactorListParams,
+  FactorDeleteResponse,
 } from './types'
 
 class ApiService extends AuthCore {
@@ -335,6 +345,22 @@ class ApiService extends AuthCore {
     return updateUserSettings(this, data)
   }
 
+  getLLMConfig(): Promise<LLMConfigResponse> {
+    return getLLMConfig(this)
+  }
+
+  updateLLMConfig(data: LLMConfigUpdate): Promise<LLMConfigResponse> {
+    return updateLLMConfig(this, data)
+  }
+
+  testLLMConfig(data?: LLMConfigUpdate): Promise<LLMConfigTestResponse> {
+    return testLLMConfig(this, data)
+  }
+
+  deleteLLMApiKey(): Promise<void> {
+    return deleteLLMApiKey(this)
+  }
+
   getNewsSources(): Promise<NewsSource[]> {
     return getNewsSources(this)
   }
@@ -517,6 +543,28 @@ class ApiService extends AuthCore {
     data: StrategyPortfolioPlanRequest,
   ): Promise<StrategyPortfolioPlanResponse> {
     return generateStrategyPortfolioPlan(this, strategyId, data)
+  }
+
+  // ========== Factors ==========
+
+  listFactors(params?: FactorListParams): Promise<FactorResponse[]> {
+    return listFactors(this, params)
+  }
+
+  getFactor(id: number): Promise<FactorResponse> {
+    return getFactor(this, id)
+  }
+
+  createFactor(data: FactorCreate): Promise<FactorResponse> {
+    return createFactor(this, data)
+  }
+
+  updateFactor(id: number, data: FactorUpdate): Promise<FactorResponse> {
+    return updateFactor(this, id, data)
+  }
+
+  deleteFactor(id: number): Promise<FactorDeleteResponse> {
+    return deleteFactor(this, id)
   }
 }
 
