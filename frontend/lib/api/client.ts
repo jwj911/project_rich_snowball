@@ -44,6 +44,8 @@ import {
   agentChatStream,
   createAgentTask,
   deleteAgentTask,
+  getAgentPermissionHeartbeat,
+  getAgentStatus,
   getAgentTask,
   getAgentTasks,
 } from './agents'
@@ -92,6 +94,8 @@ import type {
   ChatMessage,
   ChatMessageCreate,
   AgentChatRequest,
+  AgentPermissionHeartbeat,
+  AgentStatusSummary,
   AgentTaskResponse,
   PriceAlert,
   PriceAlertCreate,
@@ -409,6 +413,14 @@ class ApiService extends AuthCore {
 
   getAgentTask(taskId: number): Promise<AgentTaskResponse> {
     return getAgentTask(this, taskId)
+  }
+
+  getAgentStatus(): Promise<AgentStatusSummary> {
+    return getAgentStatus(this)
+  }
+
+  getAgentPermissionHeartbeat(): Promise<AgentPermissionHeartbeat> {
+    return getAgentPermissionHeartbeat(this)
   }
 
   createAgentTask(data: { agent_type: string; query: string }): Promise<AgentTaskResponse> {

@@ -8,7 +8,7 @@
 - DataAgent / TechAnalysisAgent / RiskManagementAgent / AnalysisPipelineAgent
 """
 
-from services.agent.analysis_pipeline_agent import AnalysisPipelineAgent
+from services.agent.factor_mining_agent import FactorMiningAgent
 from services.agent.core import Agent, AgentResult, AgentStatus, AgentStep
 from services.agent.context import AgentContext
 from services.agent.data_agent import DataAgent
@@ -25,6 +25,7 @@ __all__ = [
     "AgentExecutor",
     "AnalysisPipelineAgent",
     "DataAgent",
+    "FactorMiningAgent",
     "TechAnalysisAgent",
     "RiskManagementAgent",
 ]

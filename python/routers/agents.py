@@ -6,27 +6,60 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+import config
 from dependencies import get_current_user_dependency, get_db
 from errors import ErrorCode
 from models import AgentTaskDB, UserDB
-from schemas import AgentChatRequest, AgentTaskCreate, AgentTaskResponse
+from schemas import AgentChatRequest, AgentPermissionHeartbeat, AgentStatusSummary, AgentTaskCreate, AgentTaskResponse
 from services.agent.analysis_pipeline_agent import AnalysisPipelineAgent
 from services.agent.backtest_agent import BacktestAgent
 from services.agent.context import AgentContext
 from services.agent.core import Agent
 from services.agent.data_agent import DataAgent
 from services.agent.executor import AgentExecutor
+from services.agent.factor_mining_agent import FactorMiningAgent
 from services.agent.risk_management_agent import RiskManagementAgent
+from services.agent.strategy_compiler_agent import StrategyCompilerAgent
 from services.agent.tech_analysis_agent import TechAnalysisAgent
 from services.domain.exceptions import NotFoundError, ServiceError
 
 router = APIRouter(prefix="/api/agents", tags=["AI Agent"])
+
+_AGENT_CAPABILITIES: dict[str, dict[str, Any]] = {
+    "data": {"label": "数据助手", "requires_llm": True},
+    "tech_analysis": {"label": "技术分析", "requires_llm": False},
+    "risk_management": {"label": "风控管理", "requires_llm": False},
+    "analysis_pipeline": {"label": "完整分析", "requires_llm": False},
+    "backtest": {"label": "策略回测", "requires_llm": False},
+    "factor_mining": {"label": "因子评估", "requires_llm": False},
+    "strategy_compiler": {"label": "策略编译", "requires_llm": False},
+    "orchestrator": {"label": "编排器", "requires_llm": True},
+}
+
+
+def _capability_status() -> list[dict[str, Any]]:
+    """返回各 Agent 模式的可用性。"""
+    llm_configured = bool(config.OPENAI_API_KEY)
+    capabilities = []
+    for agent_type, meta in _AGENT_CAPABILITIES.items():
+        requires_llm = bool(meta.get("requires_llm"))
+        enabled = not requires_llm or llm_configured
+        capabilities.append({
+            "agent_type": agent_type,
+            "label": meta["label"],
+            "enabled": enabled,
+            "requires_llm": requires_llm,
+            "reason": None if enabled else "OPENAI_API_KEY 未配置",
+        })
+    return capabilities
 
 
 def _task_to_response(task: AgentTaskDB) -> dict[str, Any]:
@@ -90,6 +123,10 @@ def _build_agent(agent_type: str, context: AgentContext) -> Agent:
         return RiskManagementAgent(context)
     if agent_type == "analysis_pipeline":
         return AnalysisPipelineAgent(context)
+    if agent_type == "strategy_compiler":
+        return StrategyCompilerAgent(context)
+    if agent_type == "factor_mining":
+        return FactorMiningAgent(context)
     if agent_type == "backtest":
         return BacktestAgent(context)
     raise ServiceError(
@@ -118,6 +155,60 @@ def list_agent_tasks(
         .all()
     )
     return [_task_to_response(t) for t in tasks]
+
+
+@router.get("/status", response_model=AgentStatusSummary)
+def get_agent_status(
+    current_user: UserDB = Depends(get_current_user_dependency),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
+):
+    """获取当前用户 Agent 任务状态与系统能力状态。"""
+    rows = (
+        db.query(AgentTaskDB.status, func.count(AgentTaskDB.id))
+        .filter(AgentTaskDB.user_id == current_user.id)
+        .group_by(AgentTaskDB.status)
+        .all()
+    )
+    counts = {status: count for status, count in rows}
+    recent_failed = (
+        db.query(AgentTaskDB)
+        .filter(AgentTaskDB.user_id == current_user.id, AgentTaskDB.status == "failed")
+        .order_by(AgentTaskDB.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    return {
+        "server_time": datetime.now(UTC),
+        "llm_configured": bool(config.OPENAI_API_KEY),
+        "total_tasks": sum(counts.values()),
+        "running_tasks": counts.get("running", 0),
+        "completed_tasks": counts.get("completed", 0),
+        "failed_tasks": counts.get("failed", 0),
+        "recent_failed_tasks": [_task_to_response(t) for t in recent_failed],
+        "capabilities": _capability_status(),
+    }
+
+
+@router.get("/permission-heartbeat", response_model=AgentPermissionHeartbeat)
+def get_agent_permission_heartbeat(
+    current_user: UserDB = Depends(get_current_user_dependency),  # noqa: B008
+):
+    """返回当前用户对 Agent 系统的权限心跳。"""
+    allowed_agent_types = [item["agent_type"] for item in _capability_status() if item["enabled"]]
+    return {
+        "server_time": datetime.now(UTC),
+        "authenticated": True,
+        "user_id": current_user.id,
+        "username": current_user.username,
+        "role": current_user.role,
+        "can_create_tasks": True,
+        "can_stream_chat": True,
+        "can_view_own_tasks": True,
+        "can_delete_own_tasks": True,
+        "allowed_agent_types": allowed_agent_types,
+        "csrf_policy": "POST/PUT/PATCH/DELETE 必须使用 Authorization: Bearer；GET/HEAD 可回退 cookie。",
+        "token_transport": "Authorization Bearer 优先；GET/HEAD 支持 access_token cookie。",
+    }
 
 
 @router.get("/tasks/{task_id}", response_model=AgentTaskResponse)

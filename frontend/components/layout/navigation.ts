@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bell,
   Briefcase,
+  Bot,
   Database,
   Home,
   LineChart,
@@ -37,8 +38,9 @@ export const secondaryNavGroups: NavGroup[] = [
   {
     title: 'AGENT',
     items: [
-      { label: 'Agent 状态', icon: Activity },
-      { label: '权限心跳', icon: ShieldCheck },
+      { label: 'Agent 工作台', icon: Bot, href: '/agents' },
+      { label: 'Agent 状态', icon: Activity, href: '/agents/status' },
+      { label: '权限心跳', icon: ShieldCheck, href: '/agents/permission-heartbeat' },
     ],
   },
   {

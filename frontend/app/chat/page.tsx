@@ -21,15 +21,20 @@ import {
   Shield,
   BarChart3,
   Workflow,
+  Search,
 } from 'lucide-react'
+import FactorResultCard from '@/components/agent/FactorResultCard'
+import TechAnalysisReportCard from '@/components/agent/TechAnalysisReportCard'
 import { toast } from 'sonner'
 
-type AgentMode = 'chat' | 'data' | 'tech_analysis' | 'risk_management' | 'analysis_pipeline' | 'backtest'
+type AgentMode = 'chat' | 'data' | 'tech_analysis' | 'risk_management' | 'analysis_pipeline' | 'factor_mining' | 'backtest'
 
 interface AgentMessage {
   id: number
   role: 'user' | 'assistant' | 'system'
   content: string
+  agentMode?: AgentMode
+  result?: Record<string, unknown>
   steps?: AgentTaskStepResponse[]
   isStreaming?: boolean
   created_at: string
@@ -60,6 +65,18 @@ const quickPrompts: Record<AgentMode, string[]> = {
     '原油 5000 元做空风控',
     '铜的止损止盈怎么设',
   ],
+  analysis_pipeline: [
+    '帮我完整分析螺纹钢',
+    '给出黄金的完整分析与风控方案',
+    '分析原油并提供风控建议',
+    '铜的多头完整分析',
+  ],
+  factor_mining: [
+    '评估 "close / ts_delay(close, 5) - 1" 在黑色系的表现',
+    '评估 "ts_rank(close, 20) / ts_rank(volume, 20)" 在有色的表现',
+    '评估螺纹钢动量因子',
+    '评估 "ts_corr(close, volume, 10)" 在能源化工的表现',
+  ],
   backtest: [
     '螺纹钢 5 日上穿 20 日均线回测',
     '黄金 10 和 30 日均线策略回测',
@@ -73,6 +90,8 @@ const modeLabels: Record<AgentMode, { label: string; icon: typeof Database; desc
   data: { label: '数据助手', icon: Database, desc: '实时行情、品种信息、K 线数据查询' },
   tech_analysis: { label: '技术分析', icon: TrendingUp, desc: '基于经典指标的综合技术面分析' },
   risk_management: { label: '风控管理', icon: Shield, desc: '仓位管理、止损止盈、回撤控制' },
+  analysis_pipeline: { label: '完整分析', icon: Workflow, desc: '数据 + 技术分析 + 风控方案自动串联' },
+  factor_mining: { label: '因子评估', icon: Search, desc: '评估用户给定因子的 IC、分层回测与回撤' },
   backtest: { label: '策略回测', icon: BarChart3, desc: '口头策略解析、历史回测与策略评分' },
 }
 
@@ -140,13 +159,14 @@ export default function ChatPage() {
       setInput('')
       setIsLoading(true)
 
-      if (agentMode === 'data' || agentMode === 'tech_analysis' || agentMode === 'risk_management' || agentMode === 'backtest') {
+      if (agentMode === 'data' || agentMode === 'tech_analysis' || agentMode === 'risk_management' || agentMode === 'analysis_pipeline' || agentMode === 'factor_mining' || agentMode === 'backtest') {
         // Agent 流式模式
         const assistantId = Date.now() + 1
         const assistantMsg: AgentMessage = {
           id: assistantId,
           role: 'assistant',
           content: '',
+          agentMode,
           steps: [],
           isStreaming: true,
           created_at: new Date().toISOString(),
@@ -173,6 +193,7 @@ export default function ChatPage() {
                   msg.content = (event.content as string) || msg.content
                 } else if (event.event_type === 'result') {
                   msg.content = (event.content as string) || msg.content
+                  msg.result = (event.result as Record<string, unknown>) || undefined
                   msg.isStreaming = false
                 } else if (event.event_type === 'error') {
                   msg.content = (event.error_message as string) || '出错了'
@@ -386,6 +407,8 @@ export default function ChatPage() {
             {agentMode === 'data' && ' · 数据助手会调用实时行情和品种数据库'}
             {agentMode === 'tech_analysis' && ' · 技术分析基于 10+ 经典指标进行综合评分'}
             {agentMode === 'risk_management' && ' · 风控方案基于账户 10 万模拟资金，支持自定义'}
+            {agentMode === 'analysis_pipeline' && ' · 完整分析会串联数据、技术分析与风控三个 Agent'}
+            {agentMode === 'factor_mining' && ' · 因子评估基于历史数据计算 IC、分层收益与最大回撤'}
             {agentMode === 'backtest' && ' · 策略回测会解析口头策略并计算收益、回撤、胜率和评分'}
           </p>
         </div>
@@ -398,6 +421,7 @@ function MessageBubble({ message }: { message: AgentMessage }) {
   const isUser = message.role === 'user'
   const [showSteps, setShowSteps] = useState(false)
   const hasSteps = (message.steps?.length ?? 0) > 0
+  const isFactorMining = message.agentMode === 'factor_mining'
 
   return (
     <div className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -422,6 +446,14 @@ function MessageBubble({ message }: { message: AgentMessage }) {
         <div className="whitespace-pre-wrap">
           {message.content || (message.isStreaming ? '正在分析...' : '')}
         </div>
+
+        {isFactorMining && !message.isStreaming && (
+          <FactorResultCard result={message.result} steps={message.steps} />
+        )}
+
+        {message.agentMode === 'tech_analysis' && !message.isStreaming && (
+          <TechAnalysisReportCard result={message.result} />
+        )}
 
         {message.isStreaming && (
           <div className="mt-2 flex items-center gap-1.5">

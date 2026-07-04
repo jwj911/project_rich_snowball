@@ -125,43 +125,60 @@ def test_tool_registry_executes_registered_tool(db_session):
 
 def _create_test_variety(db_session, symbol="RB", name="螺纹钢", exchange="SHFE", margin_rate=8.0):
     """创建测试品种及关联数据。"""
-    variety = VarietyDB(
-        symbol=symbol,
-        contract_code=symbol + "2501",
-        name=name,
-        exchange=exchange,
-        category="黑色系",
-        margin_rate=margin_rate,
-        is_active=True,
-    )
-    db_session.add(variety)
+    variety = db_session.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
+    if variety is None:
+        variety = VarietyDB(
+            symbol=symbol,
+            contract_code=symbol + "2501",
+            name=name,
+            exchange=exchange,
+            category="黑色系",
+            margin_rate=margin_rate,
+            is_active=True,
+        )
+        db_session.add(variety)
+    else:
+        variety.name = name
+        variety.exchange = exchange
+        variety.category = "黑色系"
+        variety.margin_rate = margin_rate
+        variety.is_active = True
     db_session.commit()
     db_session.refresh(variety)
 
     # 创建关联合约
-    contract = FutContractDB(
-        ts_code=symbol + "2501.SHF",
-        symbol=symbol,
-        name=name,
-        exchange="SHFE",
-        fut_code=symbol,
-        is_active=True,
-    )
-    db_session.add(contract)
+    ts_code = symbol + "2501.SHF"
+    contract = db_session.query(FutContractDB).filter(FutContractDB.ts_code == ts_code).first()
+    if contract is None:
+        contract = FutContractDB(
+            ts_code=ts_code,
+            symbol=symbol,
+            name=name,
+            exchange="SHFE",
+            fut_code=symbol,
+            is_active=True,
+        )
+        db_session.add(contract)
+    else:
+        contract.symbol = symbol
+        contract.name = name
+        contract.exchange = "SHFE"
+        contract.fut_code = symbol
+        contract.is_active = True
     db_session.commit()
     db_session.refresh(contract)
 
     # 创建实时行情
-    quote = RealtimeQuoteDB(
-        variety_id=variety.id,
-        current_price=3500.0,
-        change_percent=1.5,
-        open_price=3450.0,
-        high=3550.0,
-        low=3440.0,
-        volume=150000,
-    )
-    db_session.add(quote)
+    quote = db_session.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).first()
+    if quote is None:
+        quote = RealtimeQuoteDB(variety_id=variety.id)
+        db_session.add(quote)
+    quote.current_price = 3500.0
+    quote.change_percent = 1.5
+    quote.open_price = 3450.0
+    quote.high = 3550.0
+    quote.low = 3440.0
+    quote.volume = 150000
     db_session.commit()
 
     # 创建 K 线数据（50 根，上升趋势）

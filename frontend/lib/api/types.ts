@@ -412,6 +412,7 @@ export interface AgentTaskStepResponse {
 export interface AgentTaskResponse {
   id: number
   user_id: number
+  parent_task_id: number | null
   agent_type: string
   query: string
   status: string
@@ -421,9 +422,44 @@ export interface AgentTaskResponse {
   finished_at: string | null
   created_at: string
   steps: AgentTaskStepResponse[]
+  sub_tasks: AgentTaskResponse[]
 }
 
 export interface AgentChatRequest {
   content: string
   agent_type: string
+}
+
+export interface AgentCapabilityStatus {
+  agent_type: string
+  label: string
+  enabled: boolean
+  requires_llm: boolean
+  reason: string | null
+}
+
+export interface AgentStatusSummary {
+  server_time: string
+  llm_configured: boolean
+  total_tasks: number
+  running_tasks: number
+  completed_tasks: number
+  failed_tasks: number
+  recent_failed_tasks: AgentTaskResponse[]
+  capabilities: AgentCapabilityStatus[]
+}
+
+export interface AgentPermissionHeartbeat {
+  server_time: string
+  authenticated: boolean
+  user_id: number
+  username: string
+  role: string
+  can_create_tasks: boolean
+  can_stream_chat: boolean
+  can_view_own_tasks: boolean
+  can_delete_own_tasks: boolean
+  allowed_agent_types: string[]
+  csrf_policy: string
+  token_transport: string
 }

@@ -46,12 +46,12 @@ def test_backtest_engine_returns_metrics_and_trades():
 
 
 def test_backtest_agent_task_runs_from_natural_language(client, auth_headers, db_session):
-    variety = db_session.query(VarietyDB).filter(VarietyDB.symbol == "RB").first()
+    variety = db_session.query(VarietyDB).filter(VarietyDB.symbol == "BT").first()
     if variety is None:
         variety = VarietyDB(
-            symbol="RB",
-            contract_code="RB2601",
-            name="螺纹钢",
+            symbol="BT",
+            contract_code="BT2601",
+            name="回测测试品种",
             exchange="SHFE",
             category="黑色系",
             multiplier=Decimal("10"),
@@ -65,10 +65,10 @@ def test_backtest_agent_task_runs_from_natural_language(client, auth_headers, db
         variety.commission = Decimal("0.0001")
         variety.is_active = True
     contract = FutContractDB(
-        ts_code="RB2601.SHFE",
-        symbol="RB2601",
-        name="螺纹钢2601",
-        fut_code="RB",
+        ts_code="BT2601.SHFE",
+        symbol="BT2601",
+        name="回测测试品种2601",
+        fut_code="BT",
         exchange="SHFE",
         is_active=True,
     )
@@ -95,7 +95,7 @@ def test_backtest_agent_task_runs_from_natural_language(client, auth_headers, db
 
     resp = client.post(
         "/api/agents/tasks",
-        json={"agent_type": "backtest", "query": "RB 5/20 均线回测"},
+        json={"agent_type": "backtest", "query": "BT 5/20 ma backtest"},
         headers=auth_headers,
     )
 

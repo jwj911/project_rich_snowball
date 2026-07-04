@@ -55,16 +55,10 @@ def parse_strategy_intent(db: Session, query: str) -> StrategyIntent | None:
     quantity = _parse_quantity(text)
     direction = "short" if any(token in text for token in ("做空", "空头", "卖空")) else "long"
 
-    strategy_type = "ma_cross"
-    if "macd" in text.lower():
-        strategy_type = "macd_cross"
-    elif "rsi" in text.lower():
-        strategy_type = "rsi_reversion"
-
     return StrategyIntent(
         symbol=symbol,
         period=period,
-        strategy_type=strategy_type,
+        strategy_type="ma_cross",
         short_window=short_window,
         long_window=long_window,
         initial_cash=initial_cash,
@@ -109,4 +103,3 @@ def _parse_quantity(text: str) -> int:
     if not match:
         return 1
     return max(int(match.group(1)), 1)
-

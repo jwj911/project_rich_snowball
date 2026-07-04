@@ -841,6 +841,7 @@ class AgentType(StrEnum):
     ANALYSIS_PIPELINE = "analysis_pipeline"
     BACKTEST = "backtest"
     ORCHESTRATOR = "orchestrator"
+    STRATEGY_COMPILER = "strategy_compiler"
     FACTOR_MINING = "factor_mining"
 
 
@@ -866,7 +867,7 @@ class AgentTaskStepRole(StrEnum):
 class AgentTaskCreate(BaseModel):
     """创建 Agent 任务请求。"""
 
-    agent_type: str = Field(..., pattern=r"^(data|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining)$")
+    agent_type: str = Field(..., pattern=r"^(data|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining|strategy_compiler)$")
     query: str = Field(..., min_length=1, max_length=4000)
 
 
@@ -930,6 +931,46 @@ class AgentTaskResponse(BaseModel):
         return v
 
 
+class AgentCapabilityStatus(BaseModel):
+    """单个 Agent 能力状态。"""
+
+    agent_type: str
+    label: str
+    enabled: bool
+    requires_llm: bool = False
+    reason: str | None = None
+
+
+class AgentStatusSummary(BaseModel):
+    """Agent 状态汇总。"""
+
+    server_time: dt
+    llm_configured: bool
+    total_tasks: int
+    running_tasks: int
+    completed_tasks: int
+    failed_tasks: int
+    recent_failed_tasks: list[AgentTaskResponse] = Field(default_factory=list)
+    capabilities: list[AgentCapabilityStatus] = Field(default_factory=list)
+
+
+class AgentPermissionHeartbeat(BaseModel):
+    """Agent 权限心跳响应。"""
+
+    server_time: dt
+    authenticated: bool
+    user_id: int
+    username: str
+    role: str
+    can_create_tasks: bool
+    can_stream_chat: bool
+    can_view_own_tasks: bool
+    can_delete_own_tasks: bool
+    allowed_agent_types: list[str] = Field(default_factory=list)
+    csrf_policy: str
+    token_transport: str
+
+
 class AgentChatRequest(BaseModel):
     """Agent 流式对话请求。
 
@@ -937,7 +978,7 @@ class AgentChatRequest(BaseModel):
     """
 
     content: str = Field(..., min_length=1, max_length=4000)
-    agent_type: str = Field(default="data", pattern=r"^(data|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining)$")
+    agent_type: str = Field(default="data", pattern=r"^(data|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining|strategy_compiler)$")
 
 
 class AgentStreamEvent(BaseModel):

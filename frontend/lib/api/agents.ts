@@ -1,6 +1,6 @@
 import { API_BASE } from './request'
 import type { RequestCore } from './request'
-import type { AgentTaskResponse, AgentChatRequest } from './types'
+import type { AgentTaskResponse, AgentChatRequest, AgentPermissionHeartbeat, AgentStatusSummary } from './types'
 
 export async function getAgentTasks(
   core: RequestCore,
@@ -16,6 +16,14 @@ export async function getAgentTasks(
 
 export async function getAgentTask(core: RequestCore, taskId: number): Promise<AgentTaskResponse> {
   return core.request<AgentTaskResponse>(`/api/agents/tasks/${taskId}`)
+}
+
+export async function getAgentStatus(core: RequestCore): Promise<AgentStatusSummary> {
+  return core.request<AgentStatusSummary>('/api/agents/status')
+}
+
+export async function getAgentPermissionHeartbeat(core: RequestCore): Promise<AgentPermissionHeartbeat> {
+  return core.request<AgentPermissionHeartbeat>('/api/agents/permission-heartbeat')
 }
 
 export async function createAgentTask(
