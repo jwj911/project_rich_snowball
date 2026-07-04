@@ -158,6 +158,16 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const displayClosePrice = product?.close_price
   const displayOiChg = product?.oi_chg
   const displayTradeDate = product?.trade_date
+    ? new Date(product.trade_date).toLocaleString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+    : null
   const marginCost = product?.margin != null && displaySettle != null
     ? displaySettle * product.margin / 100
     : null

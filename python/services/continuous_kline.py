@@ -265,6 +265,34 @@ def get_fut_daily_main_kline(
     ).first()
 
     if not main_ts:
+        # Fallback: 当 Tushare 日线数据未回填时，回退到 kline_data（实时行情聚合的 K 线）
+        from models import KlineDataDB
+
+        base_filters = [KlineDataDB.variety_id == variety_id]
+        for candidate in ("D", "1d"):
+            q = db.query(KlineDataDB).filter(*base_filters)
+            q = q.filter(KlineDataDB.period == candidate)
+            if start:
+                start_aware = _ensure_aware(start)
+                q = q.filter(KlineDataDB.trading_time >= start_aware)
+            if end:
+                end_aware = _ensure_aware(end)
+                q = q.filter(KlineDataDB.trading_time <= end_aware)
+            rows = q.order_by(KlineDataDB.trading_time.asc()).limit(limit).all()
+            if rows:
+                return [
+                    {
+                        "time": row.trading_time.isoformat(),
+                        "open": float(row.open_price),
+                        "high": float(row.high_price),
+                        "low": float(row.low_price),
+                        "close": float(row.close_price),
+                        "volume": row.volume,
+                        "contract_code": row.contract_code,
+                        "contract_id": row.contract_id,
+                    }
+                    for row in rows
+                ]
         return []
 
     ts_code = main_ts[0]
