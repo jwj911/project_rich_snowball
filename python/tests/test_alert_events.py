@@ -114,13 +114,17 @@ def test_news_alert_rule_creates_broadcast_once(db_session):
     assert first.target_scope == "broadcast"
 
 
-def test_price_alert_trigger_creates_market_event_once(db_session, seed_varieties):
+def test_price_alert_trigger_creates_market_event_once(db_session):
     from data_collector.scheduler import _check_price_alerts
-    from models import AlertEventDB, PriceAlertDB, RealtimeQuoteDB, UserDB
+    from models import AlertEventDB, PriceAlertDB, RealtimeQuoteDB, UserDB, VarietyDB
     from utils import hash_password
 
+    # 使用独立品种，避免与 seed_varieties 或其他测试遗留的实时行情数据冲突
+    variety = VarietyDB(symbol="ALERT", contract_code="ALERT2406", name="告警测试", exchange="SHFE", category="测试")
+    db_session.add(variety)
+    db_session.flush()
+
     user = UserDB(username="price_alert_user", email="price-alert@test.com", password_hash=hash_password("password123"))
-    variety = seed_varieties[0]
     alert = PriceAlertDB(
         user=user,
         variety=variety,

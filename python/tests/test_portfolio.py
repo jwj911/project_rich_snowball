@@ -3,7 +3,31 @@
 覆盖：鉴权、CRUD、盈亏计算、权限隔离。
 """
 
-import pytest
+from models import StrategyDB, UserDB
+from utils import hash_password
+
+
+def _create_strategy(db_session, user_id: int, symbol: str) -> StrategyDB:
+    strategy = StrategyDB(
+        user_id=user_id,
+        name=f"{symbol} portfolio strategy",
+        description="test",
+        symbol=symbol,
+        dsl_json='{"entry":{"conditions":[{"left":"close","operator":">","right":"ma20"}]},"exit":{"conditions":[{"left":"close","operator":"<","right":"ma20"}]}}',
+        timeframe="1d",
+        direction="long",
+        is_active=True,
+    )
+    db_session.add(strategy)
+    db_session.commit()
+    db_session.refresh(strategy)
+    return strategy
+
+
+def _auth_user_id(db_session) -> int:
+    user = db_session.query(UserDB).filter(UserDB.username == "integration_tester").first()
+    assert user is not None
+    return user.id
 
 
 class TestPortfolioAuth:
@@ -40,6 +64,65 @@ class TestPortfolioCRUD:
         assert data["quantity"] == 2
         assert data["status"] == "open"
         assert data["pnl"] is None
+        assert data["source"] == "manual"
+
+    def test_create_strategy_trade_success(self, client, auth_headers, seed_varieties, db_session):
+        variety = seed_varieties[0]
+        strategy = _create_strategy(db_session, _auth_user_id(db_session), variety.symbol)
+        resp = client.post(
+            "/api/portfolio",
+            json={
+                "variety_id": variety.id,
+                "strategy_id": strategy.id,
+                "direction": "long",
+                "entry_price": "5000",
+                "quantity": 2,
+                "account_balance": "100000",
+                "stop_loss_price": "4850",
+                "take_profit_price": "5300",
+                "margin_required": "10000",
+                "risk_amount": "3000",
+                "risk_reward_ratio": "2",
+                "source": "strategy",
+            },
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["strategy_id"] == strategy.id
+        assert data["source"] == "strategy"
+        assert data["account_balance"] == "100000.0000"
+        assert data["stop_loss_price"] == "4850.0000"
+        assert data["take_profit_price"] == "5300.0000"
+        assert data["risk_reward_ratio"] == "2.0000"
+
+    def test_create_strategy_trade_rejects_non_owner(self, client, auth_headers, seed_varieties, db_session):
+        variety = seed_varieties[0]
+        other_user = UserDB(
+            username="portfolio_strategy_other",
+            email="portfolio_strategy_other@test.com",
+            password_hash=hash_password("password123"),
+        )
+        db_session.add(other_user)
+        db_session.commit()
+        db_session.refresh(other_user)
+        strategy = _create_strategy(db_session, other_user.id, variety.symbol)
+
+        resp = client.post(
+            "/api/portfolio",
+            json={
+                "variety_id": variety.id,
+                "strategy_id": strategy.id,
+                "direction": "long",
+                "entry_price": "5000",
+                "quantity": 1,
+                "source": "strategy",
+            },
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 403
 
     def test_create_trade_invalid_direction(self, client, auth_headers, seed_varieties):
         variety = seed_varieties[0]

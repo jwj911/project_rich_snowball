@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-07-04（纳入 Agent 系统 Phase 0~2）
+> **最后更新**：2026-07-04（基于当前 master 实际代码结构重写）
 
 ---
 
@@ -18,25 +18,29 @@
 
 ## 项目概览
 
-**期货交流社区**（产品名「倍增计划」）是一个前后端分离的期货行情与私密交流社区应用。当前产品形态为"登录后的行情工作台"：用户登录后查看热门期货、筛选品种、进入单品种 K 线复盘、添加云端支撑/阻力位标注、发表评论、记录交易观点、管理模拟持仓、设置价格预警、与 AI 助手对话，并在个人工作区汇总自己的研究上下文。
+**期货交流社区**（产品名「倍增计划」）是一个前后端分离的期货行情与私密交流社区应用。当前产品形态为“登录后的行情工作台”：用户登录后查看热门期货、筛选品种、进入单品种 K 线复盘、添加云端支撑/阻力位标注、发表评论、记录交易观点、管理模拟持仓与策略、设置价格预警、与 AI 助手及专项 Agent 对话，并在个人工作区汇总自己的研究上下文。
 
-**当前阶段**：Phase 5「CI/运维与架构优化」已完成（2026-06-05）。后端架构审计 v7 评级 **B-**（无 P0 阻塞项，6 个 P1、10 个 P2）；前端 Roadmap v8 目标评级 **A-**，已按 Sprint 2/3 完成体验优化与架构清理。**Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 4 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理）。
+**当前阶段**：
+- Phase 5「CI/运维与架构优化」已完成（2026-06-05）。后端架构审计 v7 评级 **B-**（无 P0 阻塞项，6 个 P1、10 个 P2）；前端 Roadmap v8 目标评级 **A-**，已完成体验优化与架构清理。
+- **Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 4 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理），执行过程通过 SSE 流式展示。
+- 近期新增：策略工作台（`/strategies`）、预警中心（`/alerts`）、Agent 工作台（`/agents`）、回测与策略 DSL 相关表结构。
 
 主要功能模块：
-- 登录/注册/JWT 鉴权（支持 access token + refresh token 双令牌），主页面均有登录门禁
-- 首页行情工作台：热门品种、领涨观察、30 秒轮询和刷新状态
-- 行情中心：搜索、分类、涨跌筛选，按价格/涨跌幅/成交量排序
-- 品种详情：实时行情、`lightweight-charts` K 线、技术分析、评论、支撑/阻力标注、合约切换（主力/连续/具体合约）
-- 交易观点：用户针对品种发表多空观点，记录目标价、止损价和理由，支持事后复盘标记状态
-- 模拟持仓：虚拟交易记录，支持做多/做空、盈亏计算与复盘统计
-- 价格预警：用户为品种设置 above/below 价格预警，实时行情刷新时自动检测触发
-- AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
-- **Agent 系统**：按功能能力拆分的专项 Agent，当前支持 DataAgent（数据查询）、TechAnalysisAgent（技术分析）、RiskManagementAgent（风控方案生成），前端 Chat 页支持模式切换与流式执行过程展示
-- 新闻资讯：RSS 源管理与聚合，支持 AI 新闻解读
-- 我的工作区：评论历史、云端价位标注、自选观察入口
-- 运营指标面板：`/metrics` 展示用户数/评论数/采集健康度
-- 数据采集：Mock / AkShare / Tushare，多源 fallback + 熔断器，定时刷新实时行情和 K 线
-- PostgreSQL 历史回填：`python/tushare_pg_ingest/` 下有独立脚本体系
+- 登录/注册/JWT 鉴权（支持 access token + refresh token 双令牌），主页面均有登录门禁。
+- 首页行情工作台：热门品种、领涨观察、30 秒轮询和刷新状态。
+- 行情中心：搜索、分类、涨跌筛选，按价格/涨跌幅/成交量排序。
+- 品种详情：实时行情、`lightweight-charts` K 线、技术分析、评论、支撑/阻力标注、合约切换（主力/连续/具体合约）。
+- 交易观点：用户针对品种发表多空观点，记录目标价、止损价和理由，支持事后复盘标记状态。
+- 模拟持仓 / 策略工作台：虚拟交易记录，支持做多/做空、盈亏计算、策略生成与回测跟踪。
+- 价格预警 / 预警中心：用户为品种设置 above/below 价格预警，实时行情刷新时自动检测触发。
+- AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文。
+- **Agent 系统**：按功能能力拆分的专项 Agent（Data / TechAnalysis / RiskManagement），前端 Chat 页支持模式切换与流式执行过程展示。
+- 新闻资讯：RSS 源管理与聚合，支持 AI 新闻解读。
+- 我的工作区：评论历史、云端价位标注、自选观察入口。
+- 运营指标面板：`/metrics` 展示用户数/评论数/采集健康度。
+- 数据采集：Mock / AkShare / Tushare，多源 fallback + 熔断器，定时刷新实时行情和 K 线。
+- PostgreSQL 历史回填：`python/tushare_pg_ingest/` 下有独立脚本体系。
+
 ---
 
 ## 技术栈
@@ -46,20 +50,20 @@
 | 前端框架 | Next.js App Router | 14.2.35，`output: 'standalone'` |
 | 前端 UI | React | 18.2.0，TypeScript 5.3.3 |
 | 前端样式 | Tailwind CSS | 3.4.1，自定义暗色界面，上涨红色/下跌绿色 |
-| 图标 | lucide-react | ^0.312.0 |
+| 字体/图标 | geist / lucide-react | ^1.7.2 / ^0.312.0 |
 | K 线图 | lightweight-charts | ^5.2.0 |
 | 数据获取 | SWR | ^2.4.1 |
 | 表单 | react-hook-form | ^7.76.0 |
 | 消息提示 | sonner | ^2.0.7 |
 | 性能采集 | web-vitals | ^5.2.0 |
-| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，33 个测试文件 |
+| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，约 35 个测试/辅助文件 |
 | E2E 测试 | Playwright | ^1.60.0，7 个文件（auth.setup.ts + 6 个 spec） |
 | 性能基线 | Lighthouse | ^13.3.0，`npm run lighthouse` |
 | 后端框架 | Python + FastAPI | Python >=3.11，FastAPI 0.136.3 |
 | 后端服务器 | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.25 |
 | 数据库 | SQLite / PostgreSQL | SQLite 开发零配置；PG 16 通过 compose 提供，映射端口 15432 |
-| 迁移 | Alembic | 1.13.1，当前 46 个迁移文件 |
+| 迁移 | Alembic | 1.13.1，当前 51 个迁移文件 |
 | 认证 | JWT + OAuth2 密码流 | PyJWT 2.13.0，passlib bcrypt，access token 默认 15 分钟，refresh token 默认 7 天 |
 | 数据校验 | Pydantic v2 | 2.9.0 |
 | 数据采集 | Mock / AkShare / Tushare | `DATA_SOURCE` 控制，非生产可降级 Mock |
@@ -88,7 +92,7 @@
 ```text
 project_rich_snowball/
 ├── frontend/
-│   ├── app/                        # 11 个页面路由
+│   ├── app/                        # 15 个页面路由
 │   │   ├── layout.tsx              # 根布局，包裹 AuthProvider + ErrorBoundary + WebVitalsReporter + Toaster
 │   │   ├── page.tsx                # 行情工作台，需登录
 │   │   ├── products/page.tsx       # 行情中心，搜索/筛选/排序
@@ -98,25 +102,30 @@ project_rich_snowball/
 │   │   ├── metrics/page.tsx        # 运营指标面板
 │   │   ├── news/page.tsx           # 新闻资讯
 │   │   ├── settings/page.tsx       # 个人设置
-│   │   ├── chat/page.tsx           # AI 助手对话
-│   │   ├── portfolio/page.tsx      # 模拟持仓
+│   │   ├── chat/page.tsx           # AI 助手对话（4 种模式切换）
+│   │   ├── portfolio/page.tsx      # 模拟持仓（视图保留，部分能力并入策略工作台）
 │   │   ├── opinions/page.tsx       # 交易观点
+│   │   ├── strategies/page.tsx     # 策略工作台
+│   │   ├── alerts/page.tsx         # 预警中心
+│   │   ├── agents/page.tsx         # Agent 工作台
+│   │   ├── agents/detail/page.tsx  # Agent 任务详情
 │   │   ├── error.tsx / global-error.tsx / not-found.tsx
 │   │   └── globals.css
-│   ├── components/                 # 50+ 个组件文件
+│   ├── components/                 # 约 58 个组件文件，分 11 个子目录
 │   │   ├── auth/                   # AuthProvider、LoginModal、RegisterModal、LoginRequired
 │   │   ├── layout/AppShell.tsx     # 全局应用壳，左侧导航偏移
 │   │   ├── market/                 # QuoteCard/Table、PriceChange、PriceFlash、TechnicalAnalysisPanel
 │   │   ├── product/                # ProductHeader、ContractSelector、KlineSection、LevelEditor 等
 │   │   ├── kline/                  # KlineChart、KlineChartHeader、CrosshairTooltip、LevelChips、AnnotationContextMenu
-│   │   ├── activity/               # RefreshStatus、RealtimeStatusBar、MarketClosedBanner、MarketSessionBadge
+│   │   ├── activity/               # RefreshStatus、RealtimeStatusBar
 │   │   ├── ui/                     # Button/Input/EmptyState/ErrorState/Dialog/Toast/MetricCard
 │   │   ├── workspace/              # 工作区摘要、标注、评论时间线、自选面板
 │   │   ├── opinion/                # 观点卡片、创建/编辑表单
 │   │   ├── metrics/                # 运营指标图表
-│   │   ├── Navbar.tsx / ErrorBoundary.tsx / WebVitalsReporter.tsx / DynamicToaster.tsx
+│   │   ├── agent/                  # 策略/回测/Agent 结果卡片
+│   │   ├── Navbar.tsx / ErrorBoundary.tsx / WebVitalsReporter.tsx / DynamicToaster.tsx / KlineChart.tsx
 │   │   └── ...
-│   ├── hooks/                      # 15+ 个自定义 hook
+│   ├── hooks/                      # 15 个自定义 hook
 │   │   ├── useMarketPolling.ts     # 轮询和 heartbeat 状态
 │   │   ├── usePriceLevels.ts       # 价位标注后端同步与 localStorage 降级
 │   │   ├── useRealtimeQuotes.ts    # 实时行情 hook（SSE 优先，HTTP 轮询降级）
@@ -134,12 +143,12 @@ project_rich_snowball/
 │   │   ├── usePreferences.ts       # 用户偏好设置
 │   │   └── ...
 │   ├── lib/
-│   │   ├── api/                    # 模块化 API 客户端
+│   │   ├── api/                    # 21 个模块化 API 客户端
 │   │   │   ├── client.ts           # ApiService 统一入口
 │   │   │   ├── transport.ts        # RequestCore 底层 fetch + token 管理
 │   │   │   ├── request.ts          # 请求封装与拦截
 │   │   │   ├── auth.ts             # AuthCore 登录/注册/token 刷新
-│   │   │   ├── market.ts           # 行情/K线/合约 API
+│   │   │   ├── market.ts           # 行情/K线/合约/品种 API
 │   │   │   ├── workspace.ts        # 工作区/标注/自选 API
 │   │   │   ├── products.ts         # 品种/评论 API
 │   │   │   ├── portfolio.ts        # 模拟持仓 API
@@ -150,14 +159,14 @@ project_rich_snowball/
 │   │   │   ├── settings.ts         # 设置 API
 │   │   │   ├── metrics.ts          # 运营指标 API
 │   │   │   ├── logging.ts          # 前端日志上报
-│   │   │   ├── agents.ts           # Agent 系统 API（任务创建、流式 SSE、Chat）
-│   │   │   ├── types.ts            # 共享类型定义
-│   │   │   ├── logging.ts          # 前端日志上报
+│   │   │   ├── agents.ts           # Agent 系统 API
+│   │   │   ├── alerts.ts           # 预警事件 API
+│   │   │   ├── strategies.ts       # 策略/回测 API
 │   │   │   ├── types.ts            # 共享类型定义
 │   │   │   ├── errors.ts           # API 错误类型
 │   │   │   └── index.ts            # API 模块统一导出
 │   │   ├── format.ts               # 价格/日期格式化（含 formatPricePayload）
-│   │   ├── indicators.ts           # 技术指标计算
+│   │   ├── indicators.ts           # 前端技术指标计算
 │   │   ├── kline.ts / klineChart.ts / klineData.ts
 │   │   ├── vitals.ts               # Web Vitals 上报
 │   │   ├── sentry-lite.ts          # 轻量异常捕获，同时上报后端
@@ -165,13 +174,13 @@ project_rich_snowball/
 │   │   ├── realtimeStore.ts        # SSE 实时行情状态管理
 │   │   ├── trading-calendar.ts / trading-hours.ts
 │   │   └── constants.ts
-│   ├── tests/                      # Vitest 单元测试（33 个测试文件）
+│   ├── tests/                      # Vitest 单元测试（约 35 个文件，含 setup/fixtures）
 │   │   ├── setup.ts
 │   │   ├── app/                    # 页面测试
 │   │   ├── components/             # 组件测试
 │   │   ├── hooks/                  # Hook 测试
 │   │   └── lib/                    # 工具函数测试
-│   ├── e2e/                        # Playwright E2E 测试
+│   ├── e2e/                        # Playwright E2E 测试（7 个文件）
 │   │   ├── auth.setup.ts           # 登录态复用
 │   │   ├── auth.spec.ts            # 认证流程
 │   │   ├── market.spec.ts          # 行情页面
@@ -189,12 +198,12 @@ project_rich_snowball/
 │   └── package.json
 │
 ├── python/
-│   ├── errors.py                   # ErrorCode(StrEnum) 统一业务错误码
+│   ├── errors.py                   # ErrorCode(StrEnum) 统一业务错误码（38 个）
 │   ├── main.py                     # FastAPI 入口、lifespan、CORS、异常处理、Prometheus 中间件
 │   ├── config.py                   # .env 加载、SECRET_KEY/生产环境校验、所有环境变量默认值
 │   ├── dependencies.py             # get_db、JWT 用户解析（含 CSRF 防护）
-│   ├── models.py                   # SQLAlchemy 模型，28 张表
-│   ├── schemas.py                  # Pydantic v2，请求/响应模型和 XSS 过滤
+│   ├── models.py                   # SQLAlchemy 模型，33 张表
+│   ├── schemas.py                  # Pydantic v2，79 个请求/响应模型
 │   ├── utils.py                    # bcrypt、JWT encode/decode
 │   ├── worker.py                   # 独立 scheduler 入口，不启动 FastAPI
 │   ├── pyproject.toml              # Ruff + mypy 配置
@@ -204,9 +213,10 @@ project_rich_snowball/
 │   ├── alembic.ini                 # Alembic 配置
 │   ├── alembic/
 │   │   ├── env.py                  # 从 config.py 读取 DATABASE_URL
-│   │   └── versions/               # 46 个迁移脚本
-│   ├── routers/                    # 20 个领域路由
+│   │   └── versions/               # 51 个迁移脚本
+│   ├── routers/                    # 23 个领域路由（含 __init__）
 │   │   ├── agents.py               # Agent 系统：任务创建、流式执行、Chat 对话
+│   │   ├── alerts.py               # 预警中心
 │   │   ├── auth.py
 │   │   ├── chat.py
 │   │   ├── comments.py
@@ -223,6 +233,7 @@ project_rich_snowball/
 │   │   ├── price_levels.py
 │   │   ├── realtime.py
 │   │   ├── settings.py
+│   │   ├── strategies.py           # 策略/回测
 │   │   ├── varieties.py
 │   │   ├── watchlists.py
 │   │   └── workspace.py
@@ -244,46 +255,60 @@ project_rich_snowball/
 │   │   ├── logging_config.py       # structlog 结构化日志配置
 │   │   ├── trading_calendar.py     # 交易日历
 │   │   ├── ai_chat.py              # AI 助手 OpenAI 兼容调用
-│   │   ├── agent/                  # Agent 系统核心模块（Phase 0~2 已完成）
+│   │   ├── agent/                  # Agent 系统核心模块
 │   │   │   ├── core.py             # Agent 基类、Tool 注册表
-│   │   │   ├── data_agent.py       # DataAgent：品种/行情/K线/市场状态查询
+│   │   │   ├── data_agent.py       # DataAgent
 │   │   │   ├── data_tools.py       # DataAgent 工具实现
-│   │   │   ├── tech_analysis_agent.py  # TechAnalysisAgent：技术指标与走势分析
-│   │   │   ├── risk_management_agent.py # RiskManagementAgent：仓位/止损/止盈/回撤方案
-│   │   │   ├── executor.py         # Agent 执行引擎（步骤持久化、流式事件）
-│   │   │   ├── llm_client.py       # Agent 专用 LLM 客户端
+│   │   │   ├── tech_analysis_agent.py  # TechAnalysisAgent
+│   │   │   ├── risk_management_agent.py # RiskManagementAgent
+│   │   │   ├── analysis_pipeline_agent.py
+│   │   │   ├── backtest_agent.py
+│   │   │   ├── factor_mining_agent.py
+│   │   │   ├── strategy_compiler_agent.py
+│   │   │   ├── executor.py         # Agent 执行引擎
+│   │   │   ├── llm_client.py       # Agent LLM 客户端
 │   │   │   ├── tools.py            # Tool 注册与 schema 生成
 │   │   │   ├── prompts.py          # Agent system prompt 模板
 │   │   │   ├── context.py          # Agent 执行上下文
 │   │   │   ├── analysis/           # 技术分析子模块
-│   │   │   │   ├── trend.py        # 趋势分析（均线排列、ADX、DMI）
-│   │   │   │   ├── pattern.py      # 形态识别（双顶/双底、三角形、K 线形态）
-│   │   │   │   ├── divergence.py   # 背离检测（价格 vs MACD/RSI/KDJ）
-│   │   │   │   └── composite.py    # 综合评分（5 维度 0-100）
-│   │   │   └── risk_management/    # 风控子模块
-│   │   │       ├── position.py     # 仓位管理（固定风险比例法）
-│   │   │       ├── stop_loss.py    # 止损策略（5 种方法）
-│   │   │       ├── take_profit.py  # 止盈策略（5 种方法）
-│   │   │       └── drawdown.py     # 回撤控制规则
+│   │   │   │   ├── trend.py        # 趋势分析
+│   │   │   │   ├── pattern.py      # 形态识别
+│   │   │   │   ├── divergence.py   # 背离检测
+│   │   │   │   └── composite.py    # 综合评分
+│   │   │   ├── risk_management/    # 风控子模块
+│   │   │   │   ├── position.py
+│   │   │   │   ├── stop_loss.py
+│   │   │   │   ├── take_profit.py
+│   │   │   │   └── drawdown.py
+│   │   │   └── factor_engine/      # 因子引擎子模块
 │   │   ├── news_fetcher.py         # RSS 新闻抓取与 AI 解读
 │   │   ├── redis_client.py         # Redis 连接
 │   │   ├── realtime_state.py       # 实时行情共享状态
+│   │   ├── backtest/               # 回测引擎
+│   │   │   ├── engine.py
+│   │   │   ├── parser.py
+│   │   │   ├── dsl_adapter.py
+│   │   │   └── service.py
+│   │   ├── alert_events.py         # 预警事件服务
 │   │   ├── domain/                 # 领域服务层
 │   │   │   ├── repositories/       # 数据访问层
 │   │   │   ├── comment_service.py
-│   │   │   ├── opinion_service.py  # 交易观点领域服务（试点）
+│   │   │   ├── opinion_service.py
 │   │   │   ├── price_level_service.py
 │   │   │   ├── watchlist_service.py
 │   │   │   ├── workspace_service.py
+│   │   │   ├── kline_service.py
+│   │   │   ├── market_data_service.py
 │   │   │   └── exceptions.py       # ServiceError 体系
 │   │   └── ...
 │   ├── lib/
 │   │   └── technical_indicators.py # 纯 numpy/pandas 技术指标库（12 个指标）
 │   ├── middleware/
-│   │   └── rate_limit.py           # 限流中间件
+│   │   ├── rate_limit.py           # 限流中间件
+│   │   └── api_version.py          # API 版本透明映射
 │   ├── tushare_pg_ingest/          # 独立历史数据回填脚本
-│   ├── scripts/                    # 一次性采集/验证/回填脚本
-│   ├── tests/                      # pytest 测试（40 个测试文件）
+│   ├── scripts/                    # 一次性采集/验证/回填/备份脚本
+│   ├── tests/                      # pytest 测试（50 个文件，含 conftest.py）
 │   ├── data/                       # 静态 CSV/手续费/交易日历
 │   └── docs/                       # 架构决策、运维手册、API 契约
 │
@@ -294,7 +319,7 @@ project_rich_snowball/
 │   ├── frontend-ci.yml
 │   └── update-calendar.yml
 ├── README.md                       # 面向人类的快速开始
-└── ...                             # 审计/评审文档
+└── ...                             # 审计/评审/迭代计划文档
 ```
 
 ---
@@ -341,13 +366,14 @@ project_rich_snowball/
 - 全局限流中间件覆盖所有写入端点（POST/PUT/PATCH/DELETE），默认 60 秒窗口内 100 请求；高成本 GET（`/api/realtime/batch`、`/api/realtime/stream`）有独立限流窗口。
 - 每个请求都有 `X-Request-ID`，通过 `request_id_middleware` 注入，structlog 上下文自动绑定。
 - Prometheus 指标通过 `prometheus_middleware` 自动收集，排除 `/metrics`、`/docs`、`/redoc`、`/openapi.json`。
-- **错误码契约**（2026-06-04）：`python/errors.py` 定义 `ErrorCode(StrEnum)`，30+ 稳定业务错误码；`ServiceError` 及其子类（`NotFoundError`、`ForbiddenError` 等）携带 `code` 参数；全局 exception handler 统一返回 `{code, message, errors, timestamp}`。新增 router 业务错误优先使用 `ServiceError` 而非裸 `HTTPException`。
+- **错误码契约**（2026-06-04）：`python/errors.py` 定义 `ErrorCode(StrEnum)`，38 个稳定业务错误码；`ServiceError` 及其子类（`NotFoundError`、`ForbiddenError` 等）携带 `code` 参数；全局 exception handler 统一返回 `{code, message, errors, timestamp}`。新增 router 业务错误优先使用 `ServiceError` 而非裸 `HTTPException`。
+- **API 版本映射**（2026-06-24）：`ApiVersionMiddleware` 将 `/api/v1/*` 透明映射到 `/api/*`，`/api/` 继续兼容；新代码优先使用 `/api/v1/*`。
 
 ### 后端关键配置
 
 - `pyproject.toml`：项目名 `futures-community-api`，版本 `2.0.0`，`requires-python = ">=3.11"`。
 - Ruff：`target-version = "py311"`，`line-length = 120`，启用 `E,W,F,I,N,UP,B,C4,SIM`，忽略 `E501`。
-- mypy：`python_version = "3.11"`，排除了 `data_collector/`（除 `pipeline_tasks`）、`routers/`、`models.py`、`tests/`、`alembic/` 等目录，用于规避 SQLAlchemy 1.x 类型误报。
+- mypy：`python_version = "3.11"`，排除了 `data_collector/`（除 `pipeline_tasks` 外）、`routers/`、`models.py`、`tests/`、`alembic/` 等目录，用于规避 SQLAlchemy 1.x 类型误报。
 - `requirements.txt` 记录直接依赖，`requirements.lock` 为 CI 安装源（全锁定）。
 
 ---
@@ -432,17 +458,17 @@ alembic upgrade head
 ```powershell
 cd python
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.lock
-$env:SECRET_KEY="change-this-to-a-real-secret"
-.\.venv\Scripts\python.exe main.py
+.venv/Scripts/python.exe -m pip install --upgrade pip
+.venv/Scripts/python.exe -m pip install -r requirements.lock
+$env:SECRET_KEY='change-this-to-a-real-secret'
+.venv/Scripts/python.exe main.py
 ```
 
 独立 worker（不启动 FastAPI，只跑 scheduler）：
 
 ```powershell
 cd python
-.\.venv\Scripts\python.exe worker.py
+.venv/Scripts/python.exe worker.py
 ```
 
 前端：
@@ -485,16 +511,17 @@ npm run lighthouse
 ```powershell
 cd python
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.lock
-$env:SECRET_KEY="test-secret-key"
-$env:ENABLE_SCHEDULER="0"
-.\.venv\Scripts\python.exe -m pytest tests -v
+.venv/Scripts/python.exe -m pip install --upgrade pip
+.venv/Scripts/python.exe -m pip install -r requirements.lock
+$env:SECRET_KEY='test-secret-key'
+$env:ENABLE_SCHEDULER='0'
+.venv/Scripts/python.exe -m pytest tests -v
 ```
 
 环境校验：
+
 ```powershell
-.\.venv\Scripts\python.exe -c "import sqlalchemy; print(sqlalchemy.__version__)"
+.venv/Scripts/python.exe -c 'import sqlalchemy; print(sqlalchemy.__version__)'
 # 应输出 >= 2.0.25
 ```
 
@@ -510,11 +537,13 @@ ruff format .
 
 ## 测试现状
 
-后端已有 pytest（40 个测试文件，约 389 个测试函数）：
+后端已有 pytest（50 个文件，含 `conftest.py`；约 49 个测试文件）：
 - `test_p0_fixes.py`
 - `test_phase1_3_integration.py`
+- `test_api_version.py`
 - `test_cors_variable.py`
 - `test_kline_seeded_api.py`
+- `test_kline_service.py`
 - `test_comment_validation_and_pagination.py`
 - `test_cache_orm_detached.py`
 - `test_postgres_upsert_integration.py`
@@ -551,9 +580,17 @@ ruff format .
 - `test_portfolio.py`
 - `test_price_alerts.py`
 - `test_password_strength.py`
+- `test_alert_events.py`
+- `test_agents_core.py`
+- `test_backtest_agent.py`
+- `test_strategy_compiler.py`
+- `test_strategies.py`
+- `test_technical_indicators.py`
+- `test_market_data_service.py`
+- `test_backup_scripts.py`
 
 前端测试：
-- Vitest 单元测试：`frontend/tests/` 下 33 个测试文件
+- Vitest 单元测试：`frontend/tests/` 下约 35 个文件（含 setup/fixtures）
 - Playwright E2E：`frontend/e2e/` 下 7 个文件（auth.setup.ts + 6 个 spec）
 - Lighthouse 性能基线：`npm run lighthouse` 测量首页未登录态 Web Vitals（FCP/LCP/TBT/CLS/SI），报告输出到 `.lighthouse/latest.json`
 - 注意：`npm run test` 在 Windows 上可能因 Vitest 路径解析问题偶发失败（已知问题，见 `FRONTEND_QUALITY_AUDIT_V3_20260525.md`）
@@ -588,6 +625,8 @@ ruff format .
 | `OPENAI_BASE_URL` | AI 可选 | `https://api.openai.com/v1` | OpenAI 兼容 Base URL |
 | `OPENAI_MODEL` | AI 可选 | `gpt-4o-mini` | 对话模型 |
 | `CHAT_MAX_HISTORY` | AI 可选 | `20` | 最大对话历史条数 |
+| `BCRYPT_ROUNDS` | 否 | `12` | bcrypt 密码哈希轮数 |
+| `CORS_MAX_AGE_SECONDS` | 否 | `600` | CORS preflight 缓存时间 |
 
 ---
 
@@ -618,15 +657,16 @@ ruff format .
 - **docker-compose backend**：backend 服务已在 compose 中启用（2026-06-05），启动 `docker-compose up -d` 会同时拉起 postgres、redis 和 backend。
 - **SSE 不原生水平扩展**：`_sse_connections` 为进程内内存，多实例部署需 sticky session 或 Redis pub/sub，详见 `python/docs/sse_scaling_strategy.md`。
 - **生产环境 scheduler**：`ENABLE_SCHEDULER=1` 仅作本地便利；生产应运行独立 `python/worker.py`，避免 API 进程混入定时任务。
+- **API 版本路径**：新接口优先在 `/api/v1/*` 下实现；`ApiVersionMiddleware` 会自动把 `/api/v1/*` 映射到 `/api/*`，未版本化路径仍兼容但将逐步废弃。
 
 ---
 
 ## CI/CD 与容器化
 
 - **GitHub Actions**：
-  - `.github/workflows/backend-ci.yml`：pytest + ruff + pip-audit + Alembic 迁移一致性检查 + pytest-cov（阈值 30%），使用 `requirements.lock`，Python 3.12，CI 内嵌 PostgreSQL service
-  - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test` → Lighthouse 基线
-  - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发
+  - `.github/workflows/backend-ci.yml`：pytest + ruff + pip-audit + Alembic 迁移一致性检查 + pytest-cov（阈值 30%），使用 `requirements.lock`，Python 3.12，CI 内嵌 PostgreSQL service。
+  - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test` → Lighthouse 基线。
+  - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发。
 
 - **Dockerfile**：`python/Dockerfile`
   - 基于 `python:3.11-slim`
@@ -701,7 +741,7 @@ ruff format .
 ### CSRF 防护 — 已完成（2026-05-29）
 
 - 后端 `dependencies.py` 方法感知鉴权
-- `test_csrf_protection.py` 10 个测试覆盖写接口拒绝/读接口兼容
+- `test_csrf_protection.py` 覆盖写接口拒绝/读接口兼容
 
 ### SSE 鉴权统一 — 已完成（2026-05-29）
 
@@ -803,13 +843,13 @@ ruff format .
 - **Token 安全评估**（P2-2）：选择方案 C（保守），新建 `frontend/docs/SECURITY_RISKS.md` 记录 RISK-001（access token 存 localStorage）及后续行动项
 - **实时行情 Store 语义清晰化**（P2-3）：`realtimeStore.ts` 的 `notifyAll` 同时提供 `snapshot`（全量）和 `delta`（增量），`useRealtimeQuotes.ts` 明确区分增量合并与全量替换场景
 - **Lighthouse 端口基线修复**（P2-4）：`.lighthouse/latest.json` url 修正为 `http://127.0.0.1:3200`，与 `npm run dev` 实际端口一致
-- **验证**：`npx tsc --noEmit` 通过，`npm run lint` 通过，`useDebouncedValue.test.ts` 5 个测试通过
+- **验证**：`npx tsc --noEmit` 通过，`npm run lint` 通过，`useDebouncedValue.test.ts` 通过
 
 ### 前端 Sprint 3：架构清理 — 已完成（2026-06-05）
 
-- **导航组件去重**（P3-1）：删除死代码 `SideNav.tsx` 和 `MobileNav.tsx`（无任何页面引用）；`Navbar.tsx` 从 `navigation.ts` 导入 `isActivePath`，消除内联重复定义。遵循"如无必要勿增实体"，不强行拆分 Navbar
-- **测试覆盖补齐**（P3-2）：新建 `e2e/metrics.spec.ts`（3 个测试：未登录门禁 + 已登录直达不跳转 + 指标卡片显示）、`e2e/news.spec.ts`（5 个测试：未登录门禁 + 已登录加载 + 搜索框防抖）
-- **验证**：`npx tsc --noEmit` 通过，`npm run lint` 通过，32 个测试文件 / 189 个单元测试通过
+- **导航组件去重**（P3-1）：删除死代码 `SideNav.tsx` 和 `MobileNav.tsx`（无任何页面引用）；`Navbar.tsx` 从 `navigation.ts` 导入 `isActivePath`，消除内联重复定义。遵循“如无必要勿增实体”，不强行拆分 Navbar
+- **测试覆盖补齐**（P3-2）：新建 `e2e/metrics.spec.ts`（未登录门禁 + 已登录直达不跳转 + 指标卡片显示）、`e2e/news.spec.ts`（未登录门禁 + 已登录加载 + 搜索框防抖）
+- **验证**：`npx tsc --noEmit` 通过，`npm run lint` 通过，单元测试通过
 
 ### 后端 Roadmap V3 阶段四：扩展性与限流 — 已完成（2026-06-05）
 
@@ -818,7 +858,6 @@ ruff format .
 - **登录/注册限流 Redis 化**：与全局限流 middleware 统一，使用 `check_rate_limit`（Redis 优先+内存降级）；action key 独立（`auth:register`/`auth:login`）
 - **Redis 空值标记修复**：用常量字符串 `__CACHE_EMPTY__` 替代 dict 对象，穿透防护在 Redis 路径稳定
 - **SSE query token 移除**：标记 `deprecated=True`；鉴权改为 cookie 优先，token 仅降级兼容
-- **测试**：新增 `test_rate_limit_redis.py`（7 个测试），383 passed, 6 skipped, 0 failed
 
 ### 后端 Roadmap V3 阶段五：CI/运维与架构优化 — 已完成（2026-06-05）
 
@@ -827,7 +866,6 @@ ruff format .
 - **交易日历预测告警**：`services/trading_calendar.py` 使用预测年份时输出 warning 日志
 - **Service 层试点**：`routers/opinions.py` 提取 `OpinionService`，router 仅负责 HTTP 契约转换
 - **compose backend service**：取消 backend 注释，配置健康检查、环境变量、端口映射
-- **测试**：383 passed, 6 skipped, 0 failed
 
 ### Agent 系统 Phase 0~2 — 已完成（2026-07-04）
 
@@ -853,6 +891,13 @@ ruff format .
 - `/chat` 页面重构：模式切换标签 + Agent 执行步骤可视化
 - API 层新增 `lib/api/agents.ts`
 
+### 策略/回测/预警新模块 — 持续迭代中
+
+- `strategies` / `backtest_runs` / `alert_events` / `alert_event_user_states` 等表已加入模型
+- 后端 routers：`strategies.py`、`alerts.py`
+- 前端页面：`/strategies`、`/alerts`、`/agents`、`/agents/detail`
+- 相关 pytest 已覆盖核心链路：`test_strategies.py`、`test_backtest_agent.py`、`test_alert_events.py`、`test_strategy_compiler.py`
+
 ---
 
 ## 待处理 P1 事项（来自后端架构审计 v7）
@@ -876,7 +921,7 @@ ruff format .
 
 1. ~~**API 版本治理**：当前所有接口统一在 `/api/` 前缀下，无 `/api/v1` 版本隔离。~~ **已修复（2026-06-24）**：新增 `ApiVersionMiddleware`，`/api/v1/*` 透明映射到 `/api/*`，`/api/` 继续兼容；前端可逐步迁移，详见 `BACKEND_API_VERSIONING_GUIDE.md`。
 2. **`kline_data` 表分区/归档**：K 线数据目前单表存储，PostgreSQL 大数据量场景下需按 `trading_time` + `period` 做 range partition 并冷数据归档。方案已记录在 `python/docs/kline_partitioning.md`。
-3. **RSS fetch 后台化**：~~`/api/news/sources/{id}/fetch` 在 API 请求内同步执行，慢源可能导致请求超时。~~ **已修复（2026-06-24）**：手动触发接口改为 `BackgroundTasks` 异步执行。
+3. ~~**RSS fetch 后台化**：`/api/news/sources/{id}/fetch` 在 API 请求内同步执行，慢源可能导致请求超时。~~ **已修复（2026-06-24）**：手动触发接口改为 `BackgroundTasks` 异步执行。
 4. ~~**自动备份/恢复演练**：`python/docs/postgres_backup_runbook.md` 已提供手动 runbook，但尚未自动化。~~ **已修复（2026-06-24）**：新增 `python/scripts/backup_postgres.py`（逻辑/物理备份 + 过期清理）与 `python/scripts/restore_postgres.py`（恢复演练 + 核心表行数校验），支持 `DATABASE_URL` / `PG*` 环境变量与 `--dry-run`。
 
 > 注：上述列表随修复迭代更新；已修复项保留 ~~删除线~~ 以便追溯。

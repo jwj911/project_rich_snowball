@@ -59,6 +59,23 @@ def db_session() -> Generator:
 
 
 @pytest.fixture(scope="function")
+def seed_user(db_session):
+    """创建一个普通测试用户并返回。"""
+    from models import UserDB
+    from utils import hash_password
+
+    user = UserDB(
+        username="seed_user",
+        email="seed_user@test.com",
+        password_hash=hash_password("password123"),
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture(scope="function")
 def client(db_session):
     """返回覆盖 get_db 依赖的 TestClient。"""
     from fastapi.testclient import TestClient
