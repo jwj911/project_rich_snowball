@@ -44,7 +44,7 @@ def db_session() -> Generator:
     transaction = connection.begin()
     session = TestingSessionLocal(bind=connection)
 
-    # 创建所有表
+    # 创建所有表（测试隔离：与 init_db() 共用 Base.metadata，schema 一致性由 Alembic 保障）
     Base.metadata.create_all(bind=connection)
 
     # 清理进程内缓存，避免测试间数据污染（每次测试有独立 DB 事务）

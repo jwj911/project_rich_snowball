@@ -138,10 +138,24 @@ def _after_cursor_execute(conn, cursor, statement, parameters, context, executem
 
 
 def init_db():
-    # 生产环境不自动建表，依赖 alembic upgrade head 管理 schema
+    """初始化数据库 schema。
+
+    生产环境依赖 alembic upgrade head 管理 schema 变更。
+    非生产环境（开发/测试）使用 Base.metadata.create_all() 快速建表，
+    避免 Alembic 历史迁移中 PostgreSQL 特有语法在 SQLite 上失败。
+
+    注意: 在非生产环境新增表或列时，仍需要创建 Alembic 迁移脚本，
+    并在 CI 中通过 PostgreSQL 执行所有迁移来验证兼容性。
+    """
     if ENV == "production":
-        return
-    Base.metadata.create_all(bind=engine)
+        from alembic.config import Config as AlembicConfig
+        from alembic import command
+
+        alembic_cfg = AlembicConfig(os.path.join(os.path.dirname(__file__), "alembic.ini"))
+        command.upgrade(alembic_cfg, "head")
+    else:
+        Base.metadata.create_all(bind=engine)
+
     if _IS_SQLITE:
         with engine.connect() as conn:
             conn.execute(text("PRAGMA journal_mode=WAL;"))
