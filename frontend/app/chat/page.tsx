@@ -22,12 +22,15 @@ import {
   BarChart3,
   Workflow,
   Search,
+  Code,
 } from 'lucide-react'
 import FactorResultCard from '@/components/agent/FactorResultCard'
 import TechAnalysisReportCard from '@/components/agent/TechAnalysisReportCard'
+import StrategyResultCard from '@/components/agent/StrategyResultCard'
+import BacktestResultCard from '@/components/agent/BacktestResultCard'
 import { toast } from 'sonner'
 
-type AgentMode = 'chat' | 'data' | 'tech_analysis' | 'risk_management' | 'analysis_pipeline' | 'factor_mining' | 'backtest'
+type AgentMode = 'chat' | 'data' | 'tech_analysis' | 'risk_management' | 'analysis_pipeline' | 'factor_mining' | 'strategy_compiler' | 'backtest'
 
 interface AgentMessage {
   id: number
@@ -77,6 +80,12 @@ const quickPrompts: Record<AgentMode, string[]> = {
     '评估螺纹钢动量因子',
     '评估 "ts_corr(close, volume, 10)" 在能源化工的表现',
   ],
+  strategy_compiler: [
+    '螺纹钢5日上穿20日均线做多策略',
+    '黄金MACD金叉做多策略',
+    '铜RSI超卖30做多策略',
+    '原油布林带下轨做多策略',
+  ],
   backtest: [
     '螺纹钢 5 日上穿 20 日均线回测',
     '黄金 10 和 30 日均线策略回测',
@@ -92,6 +101,7 @@ const modeLabels: Record<AgentMode, { label: string; icon: typeof Database; desc
   risk_management: { label: '风控管理', icon: Shield, desc: '仓位管理、止损止盈、回撤控制' },
   analysis_pipeline: { label: '完整分析', icon: Workflow, desc: '数据 + 技术分析 + 风控方案自动串联' },
   factor_mining: { label: '因子评估', icon: Search, desc: '评估用户给定因子的 IC、分层回测与回撤' },
+  strategy_compiler: { label: '策略编译', icon: Code, desc: '将口头策略编译为结构化 DSL 规则' },
   backtest: { label: '策略回测', icon: BarChart3, desc: '口头策略解析、历史回测与策略评分' },
 }
 
@@ -159,7 +169,7 @@ export default function ChatPage() {
       setInput('')
       setIsLoading(true)
 
-      if (agentMode === 'data' || agentMode === 'tech_analysis' || agentMode === 'risk_management' || agentMode === 'analysis_pipeline' || agentMode === 'factor_mining' || agentMode === 'backtest') {
+      if (agentMode === 'data' || agentMode === 'tech_analysis' || agentMode === 'risk_management' || agentMode === 'analysis_pipeline' || agentMode === 'factor_mining' || agentMode === 'strategy_compiler' || agentMode === 'backtest') {
         // Agent 流式模式
         const assistantId = Date.now() + 1
         const assistantMsg: AgentMessage = {
@@ -409,6 +419,7 @@ export default function ChatPage() {
             {agentMode === 'risk_management' && ' · 风控方案基于账户 10 万模拟资金，支持自定义'}
             {agentMode === 'analysis_pipeline' && ' · 完整分析会串联数据、技术分析与风控三个 Agent'}
             {agentMode === 'factor_mining' && ' · 因子评估基于历史数据计算 IC、分层收益与最大回撤'}
+            {agentMode === 'strategy_compiler' && ' · 策略编译器将自然语言描述转换为结构化 DSL 规则'}
             {agentMode === 'backtest' && ' · 策略回测会解析口头策略并计算收益、回撤、胜率和评分'}
           </p>
         </div>
@@ -449,6 +460,14 @@ function MessageBubble({ message }: { message: AgentMessage }) {
 
         {isFactorMining && !message.isStreaming && (
           <FactorResultCard result={message.result} steps={message.steps} />
+        )}
+
+        {message.agentMode === 'strategy_compiler' && !message.isStreaming && (
+          <StrategyResultCard result={message.result} />
+        )}
+
+        {message.agentMode === 'backtest' && !message.isStreaming && (
+          <BacktestResultCard result={message.result} />
         )}
 
         {message.agentMode === 'tech_analysis' && !message.isStreaming && (
