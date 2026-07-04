@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Any
 
 from services.agent.llm_client import AgentLLMClient
 
@@ -21,9 +20,9 @@ class IntentRouter:
     # 规则映射：正则模式 → agent_type（优先级从高到低）
     _RULE_MAP = [
         (r"参数优化|优化参数|网格搜索|最优参数|参数调优|调参", "parameter_optimizer"),
-        (r"回测|策略回测|历史回测", "backtest"),
+        (r"回测|策略回测|历史回测|排除|过滤", "backtest"),
         (r"策略编译|策略DSL|策略规则|编译策略", "strategy_compiler"),
-        (r"因子评估|因子挖掘|IC|rank IC|分层回测", "factor_mining"),
+        (r"因子评估|因子挖掘|多因子|复合因子|组合因子|ICIR加权|因子组合|IC|rank IC|分层回测", "factor_mining"),
         (r"完整分析|综合分析|全面分析|分析流水线|完整研判", "analysis_pipeline"),
         (r"风控|仓位管理|止损|止盈|回撤|风险控制", "risk_management"),
         (r"技术分析|技术指标|MACD|RSI|KDJ|布林带|均线|技术研判", "tech_analysis"),
@@ -31,17 +30,19 @@ class IntentRouter:
         (r"K线|行情|价格|品种|实时|数据查询|数据获取", "data"),
     ]
 
-    _VALID_AGENTS = frozenset({
-        "data",
-        "data_quality",
-        "tech_analysis",
-        "risk_management",
-        "analysis_pipeline",
-        "backtest",
-        "factor_mining",
-        "strategy_compiler",
-        "parameter_optimizer",
-    })
+    _VALID_AGENTS = frozenset(
+        {
+            "data",
+            "data_quality",
+            "tech_analysis",
+            "risk_management",
+            "analysis_pipeline",
+            "backtest",
+            "factor_mining",
+            "strategy_compiler",
+            "parameter_optimizer",
+        }
+    )
 
     def __init__(self, db, user_id: int) -> None:
         self.db = db
@@ -81,7 +82,7 @@ class IntentRouter:
             "- factor_mining: 因子评估（IC、rank IC、分层回测）\n"
             "- strategy_compiler: 策略编译（将自然语言转为策略DSL）\n"
             "- parameter_optimizer: 参数优化（网格搜索、参数调优）\n"
-            "请直接返回 JSON，格式：{\"agent_type\": \"xxx\"}"
+            '请直接返回 JSON，格式：{"agent_type": "xxx"}'
         )
 
         messages = [

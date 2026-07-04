@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from models import FactorDefinitionDB, VarietyDB
 from services.agent.data_tools import _get_kline_data, _get_variety_info
 from services.agent.factor_engine.dsl import PanelData, evaluate_factor
+from services.agent.factor_engine.filters import FilterCondition
 from services.backtest.engine import BacktestConfig, run_backtest
 from services.backtest.parser import StrategyIntent
 from services.cache import get_cached
@@ -56,7 +57,9 @@ def _prepare_dataframe(db: Session, intent: StrategyIntent) -> tuple[pd.DataFram
     return df, variety_info, variety
 
 
-def run_strategy_backtest(db: Session, intent: StrategyIntent) -> dict[str, Any]:
+def run_strategy_backtest(
+    db: Session, intent: StrategyIntent, filter_list: list[FilterCondition] | None = None
+) -> dict[str, Any]:
     """Load market data and run a parsed strategy backtest."""
     df, variety_info, variety = _prepare_dataframe(db, intent)
 
@@ -74,6 +77,7 @@ def run_strategy_backtest(db: Session, intent: StrategyIntent) -> dict[str, Any]
         multiplier=multiplier,
         fee_rate=commission if commission < 0.05 else 0.0001,
         direction=intent.direction,
+        filter_list=filter_list or [],
     )
     result = run_backtest(df, config).to_dict()
     result["variety"] = variety_info
@@ -106,7 +110,7 @@ def _inject_factor_columns(
         for key in ("indicator", "indicator2"):
             val = cond.get(key)
             if isinstance(val, str) and val.startswith("factor:"):
-                factor_ids.add(val[len("factor:"):].strip())
+                factor_ids.add(val[len("factor:") :].strip())
 
     if not factor_ids:
         return df
@@ -155,6 +159,7 @@ def _run_dsl_backtest_inner(
     initial_cash: float,
     quantity: int,
     limit: int,
+    filter_list: list[FilterCondition] | None = None,
 ) -> dict[str, Any]:
     """无缓存版本的 DSL 回测执行（供 get_cached 调用）。"""
     variety_info = _get_variety_info(db, symbol)
@@ -200,6 +205,7 @@ def _run_dsl_backtest_inner(
         multiplier=multiplier,
         fee_rate=commission if commission < 0.05 else 0.0001,
         direction=direction,
+        filter_list=filter_list or [],
     )
     result = run_backtest(df, config, entry_conditions=entry_conditions, exit_conditions=exit_conditions).to_dict()
     result["variety"] = variety_info
@@ -225,13 +231,23 @@ def run_dsl_backtest(
     initial_cash: float = 100_000.0,
     quantity: int = 1,
     limit: int = 500,
+    filter_list: list[FilterCondition] | None = None,
 ) -> dict[str, Any]:
     """根据 DSL 条件执行回测（带 5 分钟 LRU 缓存）。"""
     cache_key = _backtest_cache_key(symbol, period, direction, entry_conditions, exit_conditions, limit)
     result = get_cached(
         cache_key,
         lambda: _run_dsl_backtest_inner(
-            db, symbol, period, direction, entry_conditions, exit_conditions, initial_cash, quantity, limit
+            db,
+            symbol,
+            period,
+            direction,
+            entry_conditions,
+            exit_conditions,
+            initial_cash,
+            quantity,
+            limit,
+            filter_list=filter_list,
         ),
         ttl=300,  # 5 分钟缓存
     )

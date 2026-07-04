@@ -4,6 +4,9 @@
 1. 传统均线交叉（兼容 Phase 2）
 2. DSL 编译策略（Phase 3 -> Phase 4 链路）
 3. 多策略对比：同一品种针对不同策略模板的横向对比
+
+支持声明式过滤条件（filter_list），用户可在查询中指定排除规则，
+例如"排除停牌股"、"价格<50"、"排除银行行业"等。
 """
 
 from __future__ import annotations
@@ -13,11 +16,11 @@ from collections.abc import AsyncIterator
 from dataclasses import asdict
 from typing import Any
 
-from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
+from services.agent.core import Agent, AgentEventType, AgentResult, AgentStatus
+from services.agent.factor_engine.filters import FilterCondition
 from services.agent.strategy_compiler_agent import StrategyParser
 from services.agent.utils import resolve_symbol
 from services.backtest.parser import parse_strategy_intent
-from services.backtest.service import run_dsl_backtest, run_strategy_backtest
 from services.data_catalog import DataCatalogService
 
 
@@ -30,9 +33,25 @@ class BacktestAgent(Agent):
     async def run(self, query: str) -> AgentResult:
         self._add_step("thought", f"解析回测需求：{query}")
 
-        # 检测多策略对比模式："比较/对比/哪个"
+        # 延迟导入，避免 services.agent 与 services.backtest 的循环引用
+        from services.backtest.service import run_dsl_backtest, run_strategy_backtest
+
+        # 提取过滤条件
+        filters = _extract_filters(query)
+        if filters:
+            self._add_step(
+                "action",
+                f"提取过滤条件：{len(filters)} 个",
+                tool_name="_extract_filters",
+                tool_input={"query": query},
+                tool_output={
+                    "filters": [{"field": f.field, "expression": f.expression, "is_and": f.is_and} for f in filters]
+                },
+            )
+
+        # 检测多策略对比模式
         if _is_comparison_query(query):
-            return await self._run_strategy_comparison(query)
+            return await self._run_strategy_comparison(query, filters=filters)
 
         # 优先尝试 DSL 编译（支持 MACD/RSI/布林带等多种策略）
         parser = StrategyParser(self.context.db)
@@ -49,7 +68,7 @@ class BacktestAgent(Agent):
             # Multi-symbol backtest
             symbols = dsl.universe
             if len(symbols) > 1:
-                return await self._run_multi_symbol(dsl, symbols)
+                return await self._run_multi_symbol(dsl, symbols, filters=filters)
 
             preflight = self._check_backtest_data(symbols[0], dsl.timeframe)
             if preflight["status"] == "bad":
@@ -63,6 +82,7 @@ class BacktestAgent(Agent):
                     direction=dsl.direction,
                     entry_conditions=dsl.entry["conditions"],
                     exit_conditions=dsl.exit["conditions"],
+                    filter_list=filters,
                 )
             except ValueError as exc:
                 return AgentResult(
@@ -95,7 +115,7 @@ class BacktestAgent(Agent):
             return self._blocked_by_data_quality(preflight)
 
         try:
-            result = run_strategy_backtest(self.context.db, intent)
+            result = run_strategy_backtest(self.context.db, intent, filter_list=filters)
         except ValueError as exc:
             return AgentResult(
                 status=AgentStatus.FAILED,
@@ -106,11 +126,13 @@ class BacktestAgent(Agent):
         result["data_preflight"] = preflight
         return self._format_result(result)
 
-    async def _run_strategy_comparison(self, query: str) -> AgentResult:
+    async def _run_strategy_comparison(self, query: str, filters: list[FilterCondition] | None = None) -> AgentResult:
         """Run multiple strategies on one symbol and produce a comparison report.
 
         Detects phrases like "比较均线交叉和MACD", "哪个夏普更高", "回测对比".
         """
+        from services.backtest.service import run_dsl_backtest
+
         symbol = resolve_symbol(self.context.db, query)
         if not symbol:
             return AgentResult(
@@ -149,6 +171,7 @@ class BacktestAgent(Agent):
                         direction=dsl.direction,
                         entry_conditions=dsl.entry["conditions"],
                         exit_conditions=dsl.exit["conditions"],
+                        filter_list=filters or [],
                     )
                     result["_strategy_label"] = kw
                     result["data_preflight"] = preflight
@@ -184,8 +207,12 @@ class BacktestAgent(Agent):
             steps=self.get_steps(),
         )
 
-    async def _run_multi_symbol(self, dsl, symbols: list[str]) -> AgentResult:
+    async def _run_multi_symbol(
+        self, dsl, symbols: list[str], filters: list[FilterCondition] | None = None
+    ) -> AgentResult:
         """Run backtest across multiple symbols and produce a comparison report."""
+        from services.backtest.service import run_dsl_backtest
+
         results: list[dict[str, Any]] = []
         errors: list[str] = []
 
@@ -558,3 +585,53 @@ def _preflight_issue_summary(preflight: dict[str, Any]) -> str:
     if not issues:
         return ""
     return "；".join(str(issue.get("message") or issue.get("code")) for issue in issues[:3])
+
+
+# ------------------------------------------------------------------
+# 过滤条件解析
+# ------------------------------------------------------------------
+
+# 价格/市值过滤模式（用于期货品种的价格过滤）
+_PRICE_FILTER_PATTERN = re.compile(r"(?:价格|现价|收盘价)\s*(?:小于|低于|小于等于|<|≤)\s*(\d+(?:\.\d+)?)")
+
+_VOLUME_FILTER_PATTERN = re.compile(r"(?:成交量|成交额)\s*(?:大于|高于|放量)\s*(\d+(?:\.\d+)?)\s*(?:倍|万|亿)?")
+
+# 排除类关键词 → 字段名（仅限回测数据中已有列）
+_EXCLUSION_KEYWORDS: list[tuple[str, str]] = [
+    (r"排除\s*(?:涨停|一字板)", "is_limit_up"),
+    (r"排除\s*(?:跌停)", "is_limit_down"),
+    (r"排除\s*(?:停牌)", "is_suspended"),
+]
+
+
+def _extract_filters(query: str) -> list[FilterCondition]:
+    """从用户查询中解析过滤条件。
+
+    支持的表达：
+    - "排除涨停/跌停/停牌"
+    - "价格<50" / "现价低于100"
+    - "成交量放大1.5倍"  → 暂不处理（缺少对应列，保留语法框架）
+
+    Returns:
+        FilterCondition 列表，若无法解析则返回空列表。
+    """
+    filters: list[FilterCondition] = []
+
+    # 1. 排除类：停牌/涨停/跌停
+    for pattern, field in _EXCLUSION_KEYWORDS:
+        if re.search(pattern, query):
+            filters.append(FilterCondition(field=field, expression="val:==0", is_and=True))
+
+    # 2. 价格过滤
+    price_match = _PRICE_FILTER_PATTERN.search(query)
+    if price_match:
+        limit = float(price_match.group(1))
+        filters.append(FilterCondition(field="close", expression=f"val:<{limit}", is_and=True))
+
+    # 3. 成交量过滤（占位 — 当前回测 K 线数据中一般无成交量均值的预计算列，
+    #    未来可通过 factor: 机制注入表达式后再启用）
+    vol_match = _VOLUME_FILTER_PATTERN.search(query)
+    if vol_match:
+        filters.append(FilterCondition(field="volume", expression=f"val:>{vol_match.group(1)}", is_and=True))
+
+    return filters
