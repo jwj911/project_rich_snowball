@@ -1,6 +1,7 @@
 """因子引擎包。
 
-提供因子 DSL 安全求值、面板数据加载、因子评估、多因子组合、声明式过滤能力。
+提供因子 DSL 安全求值、面板数据加载、因子评估、多因子组合、
+声明式过滤、因子注册表、因子中性化能力。
 """
 
 from services.agent.factor_engine.compositor import (
@@ -17,12 +18,15 @@ from services.agent.factor_engine.evaluator import (
 from services.agent.factor_engine.evaluator import (
     evaluate_factor as evaluate_factor_performance,
 )
+from services.agent.factor_engine.factor_meta import FactorMeta
 from services.agent.factor_engine.filters import (
     FilterCondition,
     FilterPipeline,
     FilterResult,
     build_conditions_from_tuples,
 )
+from services.agent.factor_engine.neutralization import neutralize_factor
+from services.agent.factor_engine.registry import FactorRegistry
 
 __all__ = [
     # DSL
@@ -44,4 +48,9 @@ __all__ = [
     "FilterPipeline",
     "FilterResult",
     "build_conditions_from_tuples",
+    # 注册表
+    "FactorRegistry",
+    "FactorMeta",
+    # 中性化
+    "neutralize_factor",
 ]
