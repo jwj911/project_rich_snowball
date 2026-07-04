@@ -15,17 +15,13 @@ import {
   Wrench,
   Brain,
   Database,
-  BadgeCheck,
   ChevronDown,
   ChevronUp,
   TrendingUp,
   Shield,
   BarChart3,
-  Workflow,
   Search,
-  Code,
   Square,
-  SlidersHorizontal,
 } from 'lucide-react'
 import FactorResultCard from '@/components/agent/FactorResultCard'
 import TechAnalysisReportCard from '@/components/agent/TechAnalysisReportCard'
@@ -33,25 +29,31 @@ import StrategyResultCard from '@/components/agent/StrategyResultCard'
 import BacktestResultCard from '@/components/agent/BacktestResultCard'
 import { toast } from 'sonner'
 
-type AgentMode = 'chat' | 'data' | 'data_quality' | 'tech_analysis' | 'risk_management' | 'analysis_pipeline' | 'factor_mining' | 'strategy_compiler' | 'backtest' | 'parameter_optimizer' | 'auto'
+type AgentModeKey = 'auto' | 'data' | 'backtest' | 'tech_analysis' | 'factor_mining' | 'risk_management'
 
-interface AgentMessage {
+interface AgentModeMeta {
+  label: string
+  icon: typeof Database
+  desc: string
+}
+
+type AgentMessage = {
   id: number
   role: 'user' | 'assistant' | 'system'
   content: string
-  agentMode?: AgentMode
+  agentMode?: AgentModeKey
   result?: Record<string, unknown>
   steps?: AgentTaskStepResponse[]
   isStreaming?: boolean
   created_at: string
 }
 
-const quickPrompts: Record<AgentMode, string[]> = {
-  chat: [
-    '分析一下螺纹钢最近的走势',
-    '黄金目前适合做多还是做空？',
-    '帮我总结今天的热门品种',
-    '原油期货有什么新闻？',
+const quickPrompts: Record<AgentModeKey, string[]> = {
+  auto: [
+    '帮我分析一下螺纹钢',
+    '黄金目前适合做多还是做空',
+    '螺纹钢5日上穿20日均线策略回测一下',
+    '评估一下动量因子',
   ],
   data: [
     '螺纹钢最新价格是多少',
@@ -59,11 +61,11 @@ const quickPrompts: Record<AgentMode, string[]> = {
     '黄金近 20 日 K 线数据',
     '当前市场状态如何',
   ],
-  data_quality: [
-    '检查 RB 日 K 数据质量',
-    '现在库里有哪些可用数据',
-    '螺纹钢日线数据完整吗',
-    '检查实时行情数据质量',
+  backtest: [
+    '螺纹钢 5 日上穿 20 日均线回测',
+    '黄金 10 和 30 日均线策略回测',
+    '铜 20 万资金 2 手均线回测',
+    '原油做空 5/20 均线回测',
   ],
   tech_analysis: [
     '分析螺纹钢日线技术面',
@@ -71,65 +73,27 @@ const quickPrompts: Record<AgentMode, string[]> = {
     '铜的走势技术判断',
     '原油期货技术分析',
   ],
+  factor_mining: [
+    '评估 "close / ts_delay(close, 5) - 1" 在黑色系的表现',
+    '评估 "ts_rank(close, 20)" 在有色的表现',
+    '评估螺纹钢动量因子',
+    '评估 "ts_corr(close, volume, 10)" 在能源化工的表现',
+  ],
   risk_management: [
     '螺纹钢做多风控方案',
     '黄金做空仓位怎么控制',
     '原油 5000 元做空风控',
     '铜的止损止盈怎么设',
   ],
-  analysis_pipeline: [
-    '帮我完整分析螺纹钢',
-    '给出黄金的完整分析与风控方案',
-    '分析原油并提供风控建议',
-    '铜的多头完整分析',
-  ],
-  factor_mining: [
-    '评估 "close / ts_delay(close, 5) - 1" 在黑色系的表现',
-    '评估 "ts_rank(close, 20) / ts_rank(volume, 20)" 在有色的表现',
-    '评估螺纹钢动量因子',
-    '评估 "ts_corr(close, volume, 10)" 在能源化工的表现',
-  ],
-  strategy_compiler: [
-    '螺纹钢 ATR 20 通道 2 倍突破做多策略',
-    '原油布林带下轨均线过滤做多策略',
-    '铜 RSI 超卖 30 且价格在 20 日均线上方做多策略',
-    '黄金 MACD 金叉放量 1.5 倍做多策略',
-    '螺纹钢5日上穿20日均线做多策略',
-    '黄金MACD金叉做多策略',
-    '铜RSI超卖30做多策略',
-    '原油布林带下轨做多策略',
-  ],
-  backtest: [
-    '螺纹钢 5 日上穿 20 日均线回测',
-    '黄金 10 和 30 日均线策略回测',
-    '铜 20 万资金 2 手均线回测',
-    '原油做空 5/20 均线回测',
-  ],
-  parameter_optimizer: [
-    '螺纹钢5日上穿20日均线参数优化',
-    '优化黄金MACD金叉策略参数',
-    '原油布林带策略参数网格搜索',
-  ],
-  auto: [
-    '帮我分析一下螺纹钢',
-    '黄金目前适合做多还是做空',
-    '螺纹钢5日上穿20日均线策略回测一下',
-    '优化一下刚才的策略参数',
-  ],
 }
 
-const modeLabels: Record<AgentMode, { label: string; icon: typeof Database; desc: string }> = {
-  chat: { label: 'AI 助手', icon: Sparkles, desc: '期货行情分析、投资知识问答' },
-  data: { label: '数据助手', icon: Database, desc: '实时行情、品种信息、K 线数据查询' },
-  data_quality: { label: '数据质检', icon: BadgeCheck, desc: '检查数据覆盖、异常和回测可用性' },
-  tech_analysis: { label: '技术分析', icon: TrendingUp, desc: '基于经典指标的综合技术面分析' },
-  risk_management: { label: '风控管理', icon: Shield, desc: '仓位管理、止损止盈、回撤控制' },
-  analysis_pipeline: { label: '完整分析', icon: Workflow, desc: '数据 + 技术分析 + 风控方案自动串联' },
-  factor_mining: { label: '因子评估', icon: Search, desc: '评估用户给定因子的 IC、分层回测与回撤' },
-  strategy_compiler: { label: '策略编译', icon: Code, desc: '将口头策略编译为结构化 DSL 规则' },
-  backtest: { label: '策略回测', icon: BarChart3, desc: '口头策略解析、历史回测与策略评分' },
-  parameter_optimizer: { label: '参数优化', icon: SlidersHorizontal, desc: '对策略进行参数网格搜索优化' },
-  auto: { label: '智能模式', icon: Sparkles, desc: '自动识别意图并选择最佳 Agent' },
+const agentModes: Record<AgentModeKey, AgentModeMeta> = {
+  auto: { label: '智能', icon: Sparkles, desc: '自动识别意图并路由到最佳 Agent' },
+  data: { label: '数据', icon: Database, desc: '实时行情、品种信息、K 线查询' },
+  backtest: { label: '回测', icon: BarChart3, desc: '口头策略解析、历史回测与评分' },
+  tech_analysis: { label: '技术', icon: TrendingUp, desc: '经典指标综合技术面分析' },
+  factor_mining: { label: '因子', icon: Search, desc: '因子 IC、分层回测、多空收益' },
+  risk_management: { label: '风控', icon: Shield, desc: '仓位管理、止损止盈、回撤控制' },
 }
 
 export default function ChatPage() {
@@ -137,10 +101,8 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
-  const [agentMode, setAgentMode] = useState<AgentMode>('chat')
-  const [showModeMenu, setShowModeMenu] = useState(false)
+  const [agentMode, setAgentMode] = useState<AgentModeKey>('auto')
   const bottomRef = useRef<HTMLDivElement>(null)
-  const modeMenuRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -173,23 +135,6 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (modeMenuRef.current && !modeMenuRef.current.contains(e.target as Node)) {
-        setShowModeMenu(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      // 组件卸载时取消正在进行的流式请求
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-        abortControllerRef.current = null
-      }
-    }
-  }, [])
-
   const handleStop = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -201,6 +146,8 @@ export default function ChatPage() {
   const handleSend = useCallback(
     async (text: string) => {
       if (!text.trim() || isLoading) return
+
+      const mode = agentMode
 
       // 取消上一条未完成的流式请求
       if (abortControllerRef.current) {
@@ -219,132 +166,116 @@ export default function ChatPage() {
       setInput('')
       setIsLoading(true)
 
-      if (agentMode !== 'chat') {
-        // Agent 流式模式
-        const assistantId = Date.now() + 1
-        const assistantMsg: AgentMessage = {
-          id: assistantId,
-          role: 'assistant',
-          content: '',
-          agentMode,
-          steps: [],
-          isStreaming: true,
-          created_at: new Date().toISOString(),
-        }
-        setMessages((prev) => [...prev, assistantMsg])
+      // auto 模式：后端自动路由；用 agent_type=auto 走 SSE
+      // 其余模式：直接走 Agent SSE
+      const effectiveAgentType = mode
 
-        try {
-          await api.agentChatStream(
-            { content: text.trim(), agent_type: agentMode },
-            (event) => {
-              setMessages((prev) => {
-                const idx = prev.findIndex((m) => m.id === assistantId)
-                if (idx === -1) return prev
-                const updated = [...prev]
-                const msg = { ...updated[idx] }
+      // Agent 流式模式
+      const assistantId = Date.now() + 1
+      const assistantMsg: AgentMessage = {
+        id: assistantId,
+        role: 'assistant',
+        content: '',
+        agentMode: mode,
+        steps: [],
+        isStreaming: true,
+        created_at: new Date().toISOString(),
+      }
+      setMessages((prev) => [...prev, assistantMsg])
 
-                if (event.event_type === 'start' || event.event_type === 'progress') {
-                  msg.content = (event.content as string) || msg.content || '正在处理...'
-                } else if (event.event_type === 'thought') {
-                  msg.content = (event.content as string) || msg.content
-                } else if (event.event_type === 'action') {
-                  msg.content = (event.content as string) || msg.content
-                } else if (event.event_type === 'observation') {
-                  msg.content = (event.content as string) || msg.content
-                } else if (event.event_type === 'result') {
-                  msg.content = (event.content as string) || msg.content
-                  msg.result = (event.result as Record<string, unknown>) || undefined
-                  msg.isStreaming = false
-                } else if (event.event_type === 'error') {
-                  msg.content = (event.error_message as string) || '出错了'
-                  msg.isStreaming = false
-                } else if (event.event_type === 'done') {
-                  msg.isStreaming = false
-                }
-
-                // 记录步骤
-                if (event.step_number && event.role) {
-                  const steps = msg.steps || []
-                  const existing = steps.find((s) => s.step_number === event.step_number)
-                  if (!existing) {
-                    steps.push({
-                      id: event.step_number as number,
-                      task_id: (event.task_id as number) || 0,
-                      step_number: event.step_number as number,
-                      role: event.role as string,
-                      content: (event.content as string) || '',
-                      tool_name: (event.tool_name as string) || null,
-                      tool_input: (event.tool_input as Record<string, unknown>) || null,
-                      tool_output: (event.tool_output as Record<string, unknown>) || null,
-                      created_at: new Date().toISOString(),
-                    })
-                    steps.sort((a, b) => a.step_number - b.step_number)
-                    msg.steps = steps
-                  }
-                }
-
-                updated[idx] = msg
-                return updated
-              })
-            },
-            {
-              signal: abortController.signal,
-              onMalformed: (raw) => {
-                // eslint-disable-next-line no-console
-                console.warn('Malformed SSE line:', raw)
-              },
-            },
-          )
-        } catch (e) {
-          if (e instanceof Error && e.name === 'AbortError') {
+      try {
+        await api.agentChatStream(
+          { content: text.trim(), agent_type: effectiveAgentType },
+          (event) => {
             setMessages((prev) => {
               const idx = prev.findIndex((m) => m.id === assistantId)
               if (idx === -1) return prev
               const updated = [...prev]
-              updated[idx] = {
-                ...updated[idx],
-                content: (updated[idx].content || '') + '\n\n[已取消]',
-                isStreaming: false,
+              const msg = { ...updated[idx] }
+
+              if (event.event_type === 'start' || event.event_type === 'progress') {
+                msg.content = (event.content as string) || msg.content || '正在处理...'
+              } else if (event.event_type === 'thought') {
+                msg.content = (event.content as string) || msg.content
+              } else if (event.event_type === 'action') {
+                msg.content = (event.content as string) || msg.content
+              } else if (event.event_type === 'observation') {
+                msg.content = (event.content as string) || msg.content
+              } else if (event.event_type === 'result') {
+                msg.content = (event.content as string) || msg.content
+                msg.result = (event.result as Record<string, unknown>) || undefined
+                msg.isStreaming = false
+              } else if (event.event_type === 'error') {
+                msg.content = (event.error_message as string) || '出错了'
+                msg.isStreaming = false
+              } else if (event.event_type === 'done') {
+                msg.isStreaming = false
               }
+
+              // 记录步骤
+              if (event.step_number && event.role) {
+                const steps = msg.steps || []
+                const existing = steps.find((s) => s.step_number === event.step_number)
+                if (!existing) {
+                  steps.push({
+                    id: event.step_number as number,
+                    task_id: (event.task_id as number) || 0,
+                    step_number: event.step_number as number,
+                    role: event.role as string,
+                    content: (event.content as string) || '',
+                    tool_name: (event.tool_name as string) || null,
+                    tool_input: (event.tool_input as Record<string, unknown>) || null,
+                    tool_output: (event.tool_output as Record<string, unknown>) || null,
+                    created_at: new Date().toISOString(),
+                  })
+                  steps.sort((a, b) => a.step_number - b.step_number)
+                  msg.steps = steps
+                }
+              }
+
+              updated[idx] = msg
               return updated
             })
-          } else {
-            toast.error(e instanceof Error ? e.message : 'Agent 请求失败')
-            setMessages((prev) => {
-              const idx = prev.findIndex((m) => m.id === assistantId)
-              if (idx === -1) return prev
-              const updated = [...prev]
-              updated[idx] = {
-                ...updated[idx],
-                content: '请求失败，请稍后重试',
-                isStreaming: false,
-              }
-              return updated
-            })
-          }
-        } finally {
-          setIsLoading(false)
-          if (abortControllerRef.current === abortController) {
-            abortControllerRef.current = null
-          }
-        }
-      } else {
-        // 普通聊天模式
-        try {
-          const assistantMsg = await api.sendChatMessage({ content: text.trim() })
-          setMessages((prev) => [
-            ...prev,
-            {
-              ...assistantMsg,
-              steps: undefined,
+          },
+          {
+            signal: abortController.signal,
+            onMalformed: (raw) => {
+              // eslint-disable-next-line no-console
+              console.warn('Malformed SSE line:', raw)
+            },
+          },
+        )
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') {
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === assistantId)
+            if (idx === -1) return prev
+            const updated = [...prev]
+            updated[idx] = {
+              ...updated[idx],
+              content: (updated[idx].content || '') + '\n\n[已取消]',
               isStreaming: false,
-            },
-          ])
-        } catch (e) {
-          toast.error(e instanceof Error ? e.message : '发送失败')
-          setMessages((prev) => prev.filter((m) => m.id !== userMsg.id))
-        } finally {
-          setIsLoading(false)
+            }
+            return updated
+          })
+        } else {
+          toast.error(e instanceof Error ? e.message : 'Agent 请求失败')
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === assistantId)
+            if (idx === -1) return prev
+            const updated = [...prev]
+            updated[idx] = {
+              ...updated[idx],
+              content: '请求失败，请稍后重试',
+              isStreaming: false,
+            }
+            return updated
+          })
+        }
+      } finally {
+        setIsLoading(false)
+        if (abortControllerRef.current === abortController) {
+          abortControllerRef.current = null
         }
       }
     },
@@ -369,64 +300,46 @@ export default function ChatPage() {
     }
   }
 
-  const currentMode = modeLabels[agentMode]
-  const ModeIcon = currentMode.icon
+  const currentMode = agentModes[agentMode]
 
   return (
     <AppShell>
       <div className="mx-auto flex h-[calc(100vh-4rem)] max-w-3xl flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="relative" ref={modeMenuRef}>
+        {/* Header — horizontal mode bar */}
+        <div className="flex items-center gap-2 border-b border-slate-800 px-4 py-2.5 overflow-x-auto">
+          {(Object.keys(agentModes) as AgentModeKey[]).map((mode) => {
+            const meta = agentModes[mode]
+            const Icon = meta.icon
+            const active = agentMode === mode
+            return (
               <button
+                key={mode}
                 type="button"
-                onClick={() => setShowModeMenu(!showModeMenu)}
-                className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-white transition hover:bg-slate-800"
+                onClick={() => {
+                  if (abortControllerRef.current) {
+                    abortControllerRef.current.abort()
+                    abortControllerRef.current = null
+                    setIsLoading(false)
+                  }
+                  setAgentMode(mode)
+                }}
+                title={meta.desc}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  active
+                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                    : 'border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                }`}
               >
-                <ModeIcon size={18} className="text-amber-400" />
-                {currentMode.label}
-                <ChevronDown size={14} className="text-slate-400" />
+                <Icon size={13} />
+                {meta.label}
               </button>
-              {showModeMenu && (
-                <div className="absolute left-0 top-full z-10 mt-1 w-56 rounded-lg border border-slate-700 bg-slate-900 py-1 shadow-lg">
-                  {(Object.keys(modeLabels) as AgentMode[]).map((mode) => {
-                    const { label, icon: Icon, desc } = modeLabels[mode]
-                    return (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => {
-                          // 切换模式时取消当前流式请求
-                          if (abortControllerRef.current) {
-                            abortControllerRef.current.abort()
-                            abortControllerRef.current = null
-                            setIsLoading(false)
-                          }
-                          setAgentMode(mode)
-                          setShowModeMenu(false)
-                        }}
-                        className={`flex w-full items-start gap-2 px-3 py-2 text-left transition ${
-                          agentMode === mode ? 'bg-slate-800' : 'hover:bg-slate-800'
-                        }`}
-                      >
-                        <Icon size={16} className="mt-0.5 text-amber-400" />
-                        <div>
-                          <div className="text-sm font-medium text-white">{label}</div>
-                          <div className="text-xs text-slate-400">{desc}</div>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+            )
+          })}
           {messages.length > 0 && (
             <button
               type="button"
               onClick={handleClear}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-400 transition hover:bg-slate-800 hover:text-red-400"
+              className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-400 transition hover:text-red-400"
             >
               <Trash2 size={12} />
               清空
@@ -443,10 +356,10 @@ export default function ChatPage() {
           ) : messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-6">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10">
-                <ModeIcon size={24} className="text-amber-400" />
+                <Sparkles size={24} className="text-amber-400" />
               </div>
               <div className="text-center">
-                <h2 className="text-lg font-semibold text-white">{currentMode.label}</h2>
+                <h2 className="text-lg font-semibold text-white">{currentMode.label} · Agent</h2>
                 <p className="mt-1 text-sm text-slate-400">{currentMode.desc}</p>
               </div>
               <div className="flex flex-wrap justify-center gap-2">
@@ -505,16 +418,8 @@ export default function ChatPage() {
           </div>
           <p className="mt-1.5 text-center text-[10px] text-slate-600">
             AI 回答仅供参考，不构成投资建议
-            {agentMode === 'data' && ' · 数据助手会调用实时行情和品种数据库'}
-            {agentMode === 'data_quality' && ' · 数据质检基于确定性规则检查覆盖、OHLC 与缺口'}
-            {agentMode === 'tech_analysis' && ' · 技术分析基于 10+ 经典指标进行综合评分'}
-            {agentMode === 'risk_management' && ' · 风控方案基于账户 10 万模拟资金，支持自定义'}
-            {agentMode === 'analysis_pipeline' && ' · 完整分析会串联数据、技术分析与风控三个 Agent'}
-            {agentMode === 'factor_mining' && ' · 因子评估基于历史数据计算 IC、分层收益与最大回撤'}
-            {agentMode === 'strategy_compiler' && ' · 策略编译器将自然语言描述转换为结构化 DSL 规则'}
-            {agentMode === 'backtest' && ' · 策略回测会解析口头策略并计算收益、回撤、胜率和评分'}
-            {agentMode === 'parameter_optimizer' && ' · 参数优化基于网格搜索，存在过拟合风险，建议结合样本外验证'}
-            {agentMode === 'auto' && ' · 智能模式会自动识别意图并路由到最佳 Agent'}
+            {agentMode === 'data' && ' · 数据查询会调用实时行情、品种数据库和K线数据'}
+            {agentMode === 'backtest' && ' · 策略回测基于历史K线数据计算收益与评分，不构成投资建议'}
           </p>
         </div>
       </div>
