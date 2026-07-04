@@ -40,6 +40,23 @@ FIELD_MAP = {
 }
 
 
+# Pack 编号映射：长名称 -> 从1开始的连续编号
+PACK_MAP = {
+    "factor_pack_021": "1",
+    "factor_pack_022": "2",
+    "factor_pack_023": "3",
+    "factor_pack_024": "4",
+    "factor_pack_025": "5",
+    "factor_pack_026": "6",
+    "factor_pack_027": "7",
+    "factor_pack_028": "8",
+    "factor_pack_029": "9",
+    "factor_pack_030": "10",
+    "factor_pack_031": "11",
+    "factor_pack_032": "12",
+}
+
+
 def _extract_formula_from_docstring(source_code: str) -> str | None:
     """从 docstring 中提取公式注释行。"""
     m = re.search(r'来源:\s*mining/mining\s*\|\s*公式:\s*([^\n]+)', source_code)
@@ -103,6 +120,7 @@ def main() -> None:
     try:
         for row in rows:
             pack = row["pack"]
+            pkg_id = PACK_MAP.get(pack, pack)
             name = row["name"]
             category = row["category"]
             q_score = row["Q"]
@@ -126,7 +144,7 @@ def main() -> None:
             }
 
             existing = db.query(FactorDefinitionDB).filter(
-                FactorDefinitionDB.package_id == pack,
+                FactorDefinitionDB.package_id == pkg_id,
                 FactorDefinitionDB.factor_id == name,
             ).first()
 
@@ -147,7 +165,7 @@ def main() -> None:
                 updated += 1
             else:
                 factor = FactorDefinitionDB(
-                    package_id=pack,
+                    package_id=pkg_id,
                     factor_id=name,
                     name=name,
                     source="wanfactor",
