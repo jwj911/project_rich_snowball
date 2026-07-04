@@ -5,7 +5,7 @@ import type { ElementType, ReactNode } from 'react'
 import useSWR from 'swr'
 import AppShell from '@/components/layout/AppShell'
 import { api } from '@/lib/api'
-import type { BacktestRunResponse, StrategyPortfolioPlanResponse, StrategyResponse, TradeRecord } from '@/lib/api'
+import type { AgentTaskResponse, BacktestRunResponse, StrategyPortfolioPlanResponse, StrategyResponse, TradeRecord } from '@/lib/api'
 import { formatPrice } from '@/lib/format'
 import {
   BarChart3,
@@ -127,6 +127,20 @@ function StrategyLibrary({
   const [backtestingId, setBacktestingId] = useState<number | null>(null)
   const [backtests, setBacktests] = useState<Record<number, BacktestRunResponse[]>>({})
 
+  const pollAgentTask = useCallback(async (taskId: number, maxAttempts = 30): Promise<AgentTaskResponse> => {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const task = await api.getAgentTask(taskId)
+      if (task.status === 'completed') {
+        return task
+      }
+      if (task.status === 'failed') {
+        throw new Error(task.error_message || '任务执行失败')
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 1000))
+    }
+    throw new Error('策略编译超时，请稍后刷新查看')
+  }, [])
+
   const handleCreate = useCallback(async () => {
     if (!name.trim() || !symbol.trim() || !query.trim()) {
       toast.error('请填写完整策略信息')
@@ -135,8 +149,8 @@ function StrategyLibrary({
     setCreateLoading(true)
     try {
       const compileRes = await api.createAgentTask({ agent_type: 'strategy_compiler', query: `${symbol} ${query}` })
-      const task = await api.getAgentTask(compileRes.id)
-      if (task.status !== 'completed' || !task.result?.dsl) {
+      const task = await pollAgentTask(compileRes.id)
+      if (!task.result?.dsl) {
         toast.error('策略编译失败')
         return
       }
@@ -159,7 +173,7 @@ function StrategyLibrary({
     } finally {
       setCreateLoading(false)
     }
-  }, [name, symbol, query, onChanged])
+  }, [name, symbol, query, onChanged, pollAgentTask])
 
   const handleDelete = useCallback(
     async (id: number) => {

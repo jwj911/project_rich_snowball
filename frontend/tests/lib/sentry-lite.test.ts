@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { captureException, captureMessage, initSentry } from '@/lib/sentry-lite'
 
+vi.mock('@/lib/api/logging', () => ({
+  sendFrontendLog: vi.fn(),
+}))
+
 let fetchCalls: Array<{ url: string; body: unknown }> = []
 
 describe('sentry-lite', () => {
@@ -70,7 +74,7 @@ describe('sentry-lite', () => {
 
   it('captureMessage respects sampleRate=0.5 via Math.random', async () => {
     initSentry({ enabled: true, sampleRate: 0.5 })
-    vi.stubGlobal('Math', { ...Math, random: vi.fn(() => 0.6) })
+    vi.spyOn(Math, 'random').mockReturnValue(0.6)
 
     captureMessage('dropped by sample', 'warning')
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -80,7 +84,7 @@ describe('sentry-lite', () => {
 
   it('captureMessage passes sample when Math.random < rate', async () => {
     initSentry({ enabled: true, sampleRate: 0.5 })
-    vi.stubGlobal('Math', { ...Math, random: vi.fn(() => 0.3) })
+    vi.spyOn(Math, 'random').mockReturnValue(0.3)
 
     captureMessage('sampled in', 'error')
     await new Promise((resolve) => setTimeout(resolve, 0))

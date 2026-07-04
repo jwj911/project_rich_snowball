@@ -7,15 +7,19 @@ export interface Product {
   open_price: number | null
   high: number | null
   low: number | null
+  close_price: number | null
+  settle: number | null
   volume: number | null
   pre_settlement: number | null
   open_interest: number | null
+  oi_chg: number | null
   bid1: number | null
   ask1: number | null
   category: string | null
   margin: number | null
   commission: number | null
   updated_at: string
+  trade_date: string | null
   limit_up: number | null
   limit_down: number | null
   price_precision: number

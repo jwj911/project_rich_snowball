@@ -53,4 +53,15 @@ describe('klineChart helpers', () => {
       expect.objectContaining({ value: 80, color: 'rgba(74, 222, 128, 0.38)' }),
     ])
   })
+
+  it('aligns ISO timestamp from UTC 16:00 to the correct China trading day', () => {
+    // 后端 fut_daily_data 把 2026-07-03 00:00 +08:00 存为 2026-07-02 16:00 +00:00
+    const points = normalizeKlineData([
+      { time: '2026-07-02T16:00:00+00:00', open: 1, high: 2, low: 1, close: 2, volume: 10 },
+    ])
+
+    expect(points).toHaveLength(1)
+    // 期望时间戳对应 UTC 2026-07-03 00:00:00
+    expect(Number(points[0].time)).toBe(Date.UTC(2026, 6, 3) / 1000)
+  })
 })

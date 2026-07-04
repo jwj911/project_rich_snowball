@@ -198,7 +198,7 @@ export default function ProductsPage() {
                 <span>
                   共 {total} 个品种 · 当前显示 {(page - 1) * PAGE_SIZE + 1} – {Math.min(page * PAGE_SIZE, total)}
                 </span>
-                <span>每 30 秒自动刷新</span>
+                <span>行情数据</span>
               </div>
               <QuoteTable
                 products={products}

@@ -36,6 +36,7 @@ vi.mock('lightweight-charts', () => ({
   ColorType: { Solid: 'solid' },
   CrosshairMode: { Normal: 0 },
   LineStyle: { Dashed: 2 },
+  createSeriesMarkers: vi.fn(() => ({ setMarkers: vi.fn() })),
 }))
 
 // mock ResizeObserver 为构造函数

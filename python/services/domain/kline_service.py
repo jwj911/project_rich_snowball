@@ -17,7 +17,7 @@ from errors import ErrorCode
 from lib.technical_indicators import calculate_all_indicators
 from models import FutContractDB, VarietyDB
 from services.cache import get_cached, invalidate_cache_pattern
-from services.continuous_kline import get_continuous_kline, get_main_contract_kline
+from services.continuous_kline import get_fut_daily_main_kline, get_fut_daily_contract_kline, get_continuous_kline, get_main_contract_kline
 from services.domain.exceptions import NotFoundError, ValidationError
 from services.domain.repositories.kline_repository import KlineRepository
 from services.kline_period import period_candidates
@@ -81,6 +81,9 @@ class KlineService:
         """
         variety = self._get_variety(symbol)
         period = self._normalize_period(period)
+
+        if period == "D":
+            return get_fut_daily_main_kline(self._db, variety.id, limit=limit)
 
         if contract_id is None:
             cache_key = _kline_cache_key("variety", symbol, period, limit=limit)
@@ -220,13 +223,16 @@ class KlineService:
         )
 
         def _fetch():
-            rows = self._repo.list_klines_with_contract(
-                contract_id=contract_id,
-                period=period,
-                start=start,
-                end=end,
-                limit=limit,
-            )
+            if period == "D":
+                rows = get_fut_daily_contract_kline(self._db, contract_id, start, end, limit)
+            else:
+                rows = self._repo.list_klines_with_contract(
+                    contract_id=contract_id,
+                    period=period,
+                    start=start,
+                    end=end,
+                    limit=limit,
+                )
             return rows or None
 
         return get_cached(cache_key, _fetch, ttl=_KLINE_TTL_SECONDS) or []
@@ -255,14 +261,18 @@ class KlineService:
         )
 
         def _fetch():
-            rows = self._repo.list_klines(
-                variety_id=variety.id,
-                period=period,
-                limit=limit,
-            )
+            if period == "D":
+                rows = get_fut_daily_main_kline(self._db, variety.id, limit=limit)
+            else:
+                rows = self._repo.list_klines(
+                    variety_id=variety.id,
+                    period=period,
+                    limit=limit,
+                )
+                if rows:
+                    rows.reverse()
             if not rows:
                 return None
-            rows.reverse()
 
             df = pd.DataFrame(
                 [
@@ -326,13 +336,16 @@ class KlineService:
         def _fetch():
             result: dict[str, list[dict[str, Any]]] = {}
             for period in normalized_periods:
-                rows = self._repo.list_klines_with_contract(
-                    variety_id=variety.id,
-                    period=period,
-                    limit=limit,
-                )
-                if rows:
-                    rows.reverse()
+                if period == "D":
+                    rows = get_fut_daily_main_kline(self._db, variety.id, limit=limit)
+                else:
+                    rows = self._repo.list_klines_with_contract(
+                        variety_id=variety.id,
+                        period=period,
+                        limit=limit,
+                    )
+                    if rows:
+                        rows.reverse()
                 result[period] = rows
             return result
 

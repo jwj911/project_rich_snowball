@@ -58,7 +58,7 @@ export default function HomePage() {
                   <div className="flex items-center gap-3 text-label-14 text-gray-800">
                     <span className="flex items-center gap-2">
                       <BarChart3 size={16} />
-                      30 秒自动刷新
+                      行情数据
                     </span>
                     <MarketSessionBadge />
                   </div>

@@ -8,9 +8,11 @@ import {
   HistogramSeries,
   IChartApi,
   ISeriesApi,
+  ISeriesMarkersPluginApi,
   LineStyle,
   Time,
   createChart,
+  createSeriesMarkers,
 } from 'lightweight-charts'
 import { CHART } from '@/lib/constants'
 
@@ -22,6 +24,7 @@ export interface KlineChartInstance {
   chart: IChartApi
   candleSeries: ISeriesApi<'Candlestick'>
   volumeSeries: ISeriesApi<'Histogram'>
+  markersPlugin: ISeriesMarkersPluginApi<Time>
 }
 
 interface UseKlineChartOptions {
@@ -115,7 +118,9 @@ export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCro
       scaleMargins: { top: 0.78, bottom: 0 },
     })
 
-    instanceRef.current = { chart, candleSeries, volumeSeries }
+    const markersPlugin = createSeriesMarkers(candleSeries)
+
+    instanceRef.current = { chart, candleSeries, volumeSeries, markersPlugin }
 
     // 如果有 pending 数据，chart 创建完成后立即灌入
     if (pendingDataRef.current) {
@@ -196,8 +201,8 @@ export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCro
   }>) => {
     const instance = instanceRef.current
     if (!instance) return
-    // lightweight-charts v5 setMarkers 在 CandlestickSeries 上可用，但类型定义未暴露
-    (instance.candleSeries as unknown as { setMarkers: (m: typeof markers) => void }).setMarkers(markers)
+    // lightweight-charts v5: markers 需要通过 createSeriesMarkers 插件 API 设置
+    instance.markersPlugin.setMarkers(markers)
   }
 
   const fitContent = useCallback(() => {

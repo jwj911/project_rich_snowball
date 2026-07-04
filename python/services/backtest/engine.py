@@ -196,6 +196,13 @@ def _eval_conditions(data: pd.DataFrame, conditions: list[dict[str, Any]], logic
 
         if indicator2:
             col2 = _compute_indicator(data, indicator2)
+            # 支持对 indicator2 进行变换，例如 volume > volume_sma * 1.5
+            transform = cond.get("transform")
+            if transform == "multiply_value" and value is not None:
+                col2 = col2 * float(value)
+            elif transform == "multiply_indicator2":
+                # 语义同 multiply_value：col1 > col2 * value
+                col2 = col2 * (float(value) if value is not None else 1.0)
             prev_col2 = col2.shift(1)
         elif value is not None:
             col2 = pd.Series(float(value), index=data.index)

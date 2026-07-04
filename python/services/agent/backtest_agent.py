@@ -18,6 +18,7 @@ from services.agent.strategy_compiler_agent import StrategyParser
 from services.agent.utils import resolve_symbol
 from services.backtest.parser import parse_strategy_intent
 from services.backtest.service import run_dsl_backtest, run_strategy_backtest
+from services.data_catalog import DataCatalogService
 
 
 class BacktestAgent(Agent):
@@ -50,6 +51,10 @@ class BacktestAgent(Agent):
             if len(symbols) > 1:
                 return await self._run_multi_symbol(dsl, symbols)
 
+            preflight = self._check_backtest_data(symbols[0], dsl.timeframe)
+            if preflight["status"] == "bad":
+                return self._blocked_by_data_quality(preflight)
+
             try:
                 result = run_dsl_backtest(
                     self.context.db,
@@ -65,6 +70,7 @@ class BacktestAgent(Agent):
                     error_message=str(exc),
                     steps=self.get_steps(),
                 )
+            result["data_preflight"] = preflight
             return self._format_result(result, dsl=dsl.to_dict())
 
         # 回退到传统均线交叉解析
@@ -84,6 +90,10 @@ class BacktestAgent(Agent):
             tool_output=asdict(intent),
         )
 
+        preflight = self._check_backtest_data(intent.symbol, intent.period)
+        if preflight["status"] == "bad":
+            return self._blocked_by_data_quality(preflight)
+
         try:
             result = run_strategy_backtest(self.context.db, intent)
         except ValueError as exc:
@@ -93,6 +103,7 @@ class BacktestAgent(Agent):
                 steps=self.get_steps(),
             )
 
+        result["data_preflight"] = preflight
         return self._format_result(result)
 
     async def _run_strategy_comparison(self, query: str) -> AgentResult:
@@ -117,6 +128,10 @@ class BacktestAgent(Agent):
                 steps=self.get_steps(),
             )
 
+        preflight = self._check_backtest_data(symbol, "1d")
+        if preflight["status"] == "bad":
+            return self._blocked_by_data_quality(preflight)
+
         results: list[dict[str, Any]] = []
         errors: list[str] = []
         parser = StrategyParser(self.context.db)
@@ -136,6 +151,7 @@ class BacktestAgent(Agent):
                         exit_conditions=dsl.exit["conditions"],
                     )
                     result["_strategy_label"] = kw
+                    result["data_preflight"] = preflight
                     results.append(result)
                 else:
                     errors.append(f"{kw}: 无法编译为 DSL")
@@ -163,6 +179,7 @@ class BacktestAgent(Agent):
                 "strategy_count": len(results),
                 "results": results,
                 "errors": errors,
+                "data_preflight": preflight,
             },
             steps=self.get_steps(),
         )
@@ -173,6 +190,10 @@ class BacktestAgent(Agent):
         errors: list[str] = []
 
         for sym in symbols:
+            preflight = self._check_backtest_data(sym, dsl.timeframe)
+            if preflight["status"] == "bad":
+                errors.append(f"{sym}: 数据质量为 bad，已跳过；{_preflight_issue_summary(preflight)}")
+                continue
             try:
                 result = run_dsl_backtest(
                     self.context.db,
@@ -182,6 +203,7 @@ class BacktestAgent(Agent):
                     entry_conditions=dsl.entry["conditions"],
                     exit_conditions=dsl.exit["conditions"],
                 )
+                result["data_preflight"] = preflight
                 results.append(result)
             except ValueError as exc:
                 errors.append(f"{sym}: {exc}")
@@ -202,7 +224,43 @@ class BacktestAgent(Agent):
                 "symbols": symbols,
                 "results": results,
                 "errors": errors,
+                "data_preflight": [item.get("data_preflight") for item in results],
             },
+            steps=self.get_steps(),
+        )
+
+    def _check_backtest_data(self, symbol: str, period: str) -> dict[str, Any]:
+        """Run deterministic data availability checks before entering the backtest engine."""
+        catalog = DataCatalogService(self.context.db)
+        coverage = catalog.get_symbol_data_coverage(symbol, period=period)
+        quality = catalog.get_data_quality_summary(symbol=symbol, dataset_name="kline_data", period=period)
+        preflight = {
+            "dataset_name": "kline_data",
+            "symbol": coverage["symbol"],
+            "period": coverage["period"],
+            "coverage": coverage["datasets"]["kline_data"],
+            "quality": quality,
+            "status": quality["status"],
+        }
+        self._add_step(
+            "action",
+            f"回测前数据检查：{preflight['symbol']} {period} K 线质量 {preflight['status']}",
+            tool_name="DataCatalogService",
+            tool_input={"symbol": symbol, "period": period, "dataset_name": "kline_data"},
+            tool_output=preflight,
+        )
+        return preflight
+
+    def _blocked_by_data_quality(self, preflight: dict[str, Any]) -> AgentResult:
+        message = (
+            f"{preflight['symbol']} {preflight['period']} K 线数据质量为 bad，已停止回测。"
+            f"{_preflight_issue_summary(preflight)}"
+        )
+        self._add_step("error", message)
+        return AgentResult(
+            status=AgentStatus.FAILED,
+            error_message=message,
+            data={"data_preflight": preflight},
             steps=self.get_steps(),
         )
 
@@ -223,35 +281,11 @@ class BacktestAgent(Agent):
     async def run_stream(self, query: str) -> AsyncIterator[dict[str, Any]]:
         """流式执行策略回测任务。
 
-        按「解析策略 → 获取数据 → 运行回测 → 计算指标 → 返回结果」各阶段
-        yield 事件，前端可实时展示执行过程。
+        通过后台任务执行 run()，将 _add_step 记录的步骤实时推送到进度队列并 yield，
+        前端可实时展示「解析策略 → 获取数据 → 运行回测 → 计算指标 → 返回结果」各阶段。
         """
-        result = await self.run(query)
-
-        for step in result.steps:
-            yield AgentEvent(
-                event_type=self._map_role_to_event_type(step.role),
-                step_number=step.step_number,
-                role=step.role,
-                content=step.content,
-                tool_name=step.tool_name,
-                tool_input=step.tool_input,
-                tool_output=step.tool_output,
-            ).to_dict()
-
-        if result.success:
-            yield AgentEvent(
-                event_type=AgentEventType.RESULT,
-                content=result.answer,
-                result=result.to_dict(),
-            ).to_dict()
-        else:
-            yield AgentEvent(
-                event_type=AgentEventType.ERROR,
-                content=result.error_message or "策略回测失败",
-                error_message=result.error_message,
-                result=result.to_dict(),
-            ).to_dict()
+        async for event in self._stream_run(query):
+            yield event
 
     @staticmethod
     def _map_role_to_event_type(role: str) -> AgentEventType:
@@ -307,6 +341,7 @@ def _format_backtest_report(result: dict, dsl: dict | None = None) -> str:
     variety = result["variety"]
     window = result["data_window"]
     trades = result["trades"][:5]
+    preflight = result.get("data_preflight") or {}
 
     trade_lines = [
         f"- {t['entry_time']} -> {t['exit_time']}：{t['direction']} {t['entry_price']} -> {t['exit_price']}，PnL {t['pnl']}"
@@ -322,13 +357,31 @@ def _format_backtest_report(result: dict, dsl: dict | None = None) -> str:
             f"{config['short_window']} 周期均线上穿/下穿 {config['long_window']} 周期均线，方向 {config['direction']}"
         )
 
-    return "\n".join(
+    lines = [
+        f"## {variety['name']} ({config['symbol']}) 策略回测",
+        "",
+        f"策略：{strategy_desc}",
+        f"周期：{config['period']}，区间：{window['start']} 至 {window['end']}，样本：{window['bars']} 根",
+        "",
+    ]
+    if preflight:
+        coverage = preflight.get("coverage") or {}
+        quality = preflight.get("quality") or {}
+        lines.extend(
+            [
+                "### 数据检查",
+                f"- 数据集：{preflight.get('dataset_name', 'kline_data')}，质量：{preflight.get('status')}",
+                f"- 覆盖：{coverage.get('first_date') or '—'} 至 {coverage.get('last_date') or '—'}，行数 {coverage.get('row_count', 0)}",
+            ]
+        )
+        if preflight.get("status") == "warning":
+            lines.append(f"- 提示：{_preflight_issue_summary(preflight) or '存在 warning 级别数据问题'}")
+        if quality.get("score") is not None:
+            lines.append(f"- 质量评分：{quality['score']}/100")
+        lines.append("")
+
+    lines.extend(
         [
-            f"## {variety['name']} ({config['symbol']}) 策略回测",
-            "",
-            f"策略：{strategy_desc}",
-            f"周期：{config['period']}，区间：{window['start']} 至 {window['end']}，样本：{window['bars']} 根",
-            "",
             "### 核心指标",
             f"- 策略评分：{metrics['score']}/100",
             f"- 总收益率：{metrics['total_return_pct']}%",
@@ -345,6 +398,7 @@ def _format_backtest_report(result: dict, dsl: dict | None = None) -> str:
             "> 回测基于历史数据和固定规则，不构成投资建议；后续应加入滑点、合约换月和样本外验证。",
         ]
     )
+    return "\n".join(lines)
 
 
 def _format_comparison_report(results: list[dict], dsl: dict, errors: list[str] | None = None) -> str:
@@ -363,6 +417,12 @@ def _format_comparison_report(results: list[dict], dsl: dict, errors: list[str] 
         "| 品种 | 评分 | 总收益 | 年化收益 | 最大回撤 | 胜率 | 盈亏比 | 夏普 | 交易次数 |",
         "|------|------|--------|----------|----------|------|--------|------|----------|",
     ]
+    preflights = [r.get("data_preflight") for r in results if r.get("data_preflight")]
+    warnings = [p for p in preflights if p.get("status") == "warning"]
+    if warnings:
+        lines.extend(["", "### 数据检查", ""])
+        for item in warnings:
+            lines.append(f"- {item['symbol']} {item['period']} 数据质量 warning：{_preflight_issue_summary(item)}")
 
     best_idx = 0
     best_score = -1
@@ -426,6 +486,18 @@ def _format_strategy_comparison_report(symbol: str, results: list[dict], errors:
         "| 策略 | 评分 | 总收益 | 年化收益 | 最大回撤 | 胜率 | 盈亏比 | 夏普 | 交易次数 |",
         "|------|------|--------|----------|----------|------|--------|------|----------|",
     ]
+    preflight = next((r.get("data_preflight") for r in results if r.get("data_preflight")), None)
+    if preflight:
+        coverage = preflight.get("coverage") or {}
+        lines.extend(
+            [
+                "",
+                "### 数据检查",
+                f"- 数据集：kline_data，质量：{preflight.get('status')}，覆盖 {coverage.get('first_date') or '—'} 至 {coverage.get('last_date') or '—'}",
+            ]
+        )
+        if preflight.get("status") == "warning":
+            lines.append(f"- 提示：{_preflight_issue_summary(preflight)}")
 
     best_idx = 0
     best_score = -1
@@ -478,3 +550,11 @@ def _format_strategy_comparison_report(symbol: str, results: list[dict], errors:
     )
 
     return "\n".join(lines)
+
+
+def _preflight_issue_summary(preflight: dict[str, Any]) -> str:
+    """Return a compact readable summary for data preflight issues."""
+    issues = (preflight.get("quality") or {}).get("issues") or []
+    if not issues:
+        return ""
+    return "；".join(str(issue.get("message") or issue.get("code")) for issue in issues[:3])

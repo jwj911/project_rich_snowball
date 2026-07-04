@@ -932,7 +932,7 @@ class AgentTaskDB(Base):
     )
     agent_type = Column(
         String(30), nullable=False, index=True
-    )  # data | tech_analysis | risk_management | backtest | orchestrator | factor_mining
+    )  # data | data_quality | tech_analysis | risk_management | analysis_pipeline | backtest | factor_mining | strategy_compiler
     query = Column(Text, nullable=False)
     status = Column(String(20), nullable=False, default="pending")  # pending | running | completed | failed
     result_json = Column(Text, nullable=True)

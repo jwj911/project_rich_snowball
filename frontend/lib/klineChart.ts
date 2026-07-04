@@ -102,5 +102,11 @@ function parseTimestamp(value: string): number | null {
   const parsed = Date.parse(trimmed)
   if (!Number.isFinite(parsed)) return null
 
-  return Math.floor(parsed / 1000)
+  // 后端 trade_date 按东八区零点存储，序列化后变成 UTC 前一日 16:00。
+  // 这里把 UTC 时刻转回东八区日期，再对齐到 UTC 零点，避免 K 线日期少一天。
+  const CN_OFFSET_MS = 8 * 60 * 60 * 1000
+  const cnDate = new Date(parsed + CN_OFFSET_MS)
+  return Math.floor(
+    Date.UTC(cnDate.getUTCFullYear(), cnDate.getUTCMonth(), cnDate.getUTCDate()) / 1000,
+  )
 }

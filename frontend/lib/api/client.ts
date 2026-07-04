@@ -48,6 +48,7 @@ import {
   getAgentStatus,
   getAgentTask,
   getAgentTasks,
+  type AgentChatStreamOptions,
 } from './agents'
 import {
   dismissAlertEvent,
@@ -496,8 +497,12 @@ class ApiService extends AuthCore {
     return deleteAgentTask(this, taskId)
   }
 
-  agentChatStream(data: AgentChatRequest, onEvent: (event: Record<string, unknown>) => void): Promise<void> {
-    return agentChatStream(this, data, onEvent)
+  agentChatStream(
+    data: AgentChatRequest,
+    onEvent: (event: Record<string, unknown>) => void,
+    options?: AgentChatStreamOptions,
+  ): Promise<void> {
+    return agentChatStream(this, data, onEvent, options)
   }
 
   getPortfolio(params?: { status?: string; skip?: number; limit?: number }): Promise<TradeRecord[]> {

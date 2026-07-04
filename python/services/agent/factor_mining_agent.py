@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import ast
 import logging
 import re
 from collections.abc import AsyncIterator
@@ -15,6 +16,7 @@ from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, 
 from services.agent.factor_engine.data_loader import extract_factor_universe, load_panel_data
 from services.agent.factor_engine.dsl import evaluate_factor, validate_factor_formula
 from services.agent.factor_engine.evaluator import evaluate_factor as evaluate_factor_performance
+from services.data_catalog import DataCatalogService
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,9 @@ _FACTOR_EXPLANATION_TEMPLATES: dict[str, str] = {
     "volume_price": "该因子衡量价量关系，异常放量可能预示方向变化。",
     "volatility": "该因子衡量波动率，高波动通常伴随高风险。",
 }
+
+_SUPPORTED_PANEL_FIELDS = {"open", "high", "low", "close", "volume"}
+_KNOWN_DATA_FIELDS = _SUPPORTED_PANEL_FIELDS | {"amount", "open_interest", "turnover_rate"}
 
 
 def _extract_formula(query: str) -> str | None:
@@ -77,6 +82,19 @@ def _factor_category_hint(formula: str) -> str:
     return "该因子综合了价格和/或成交量信息，请结合评估指标判断其有效性。"
 
 
+def _extract_required_data_fields(formula: str) -> set[str]:
+    """提取因子公式直接引用的数据字段。"""
+    try:
+        tree = ast.parse(formula.strip(), mode="eval")
+    except SyntaxError:
+        return set()
+    fields: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id in _KNOWN_DATA_FIELDS:
+            fields.add(node.id)
+    return fields
+
+
 class FactorMiningAgent(Agent):
     """因子挖掘 Agent（已有因子评估版）。"""
 
@@ -99,6 +117,39 @@ class FactorMiningAgent(Agent):
             )
         self._add_step("action", f"提取因子公式：{formula}")
 
+        catalog = DataCatalogService(self.context.db)
+        datasets = catalog.list_available_datasets()
+        required_fields = _extract_required_data_fields(formula)
+        missing_fields = sorted(required_fields - _SUPPORTED_PANEL_FIELDS)
+        self._add_step(
+            "action",
+            "因子评估前读取 Data Catalog 并检查字段",
+            tool_name="DataCatalogService.list_available_datasets",
+            tool_output={
+                "dataset_count": len(datasets),
+                "required_fields": sorted(required_fields),
+                "supported_panel_fields": sorted(_SUPPORTED_PANEL_FIELDS),
+            },
+        )
+        if missing_fields:
+            error_message = (
+                "因子公式需要当前因子面板尚未提供的字段："
+                f"{', '.join(missing_fields)}。请先接入数据宽表或改用 open/high/low/close/volume。"
+            )
+            self._add_step("error", error_message)
+            return AgentResult(
+                status=AgentStatus.FAILED,
+                error_message=error_message,
+                data={
+                    "data_preflight": {
+                        "datasets": [item["dataset_name"] for item in datasets],
+                        "required_fields": sorted(required_fields),
+                        "missing_fields": missing_fields,
+                    }
+                },
+                steps=self.get_steps(),
+            )
+
         # 2. 校验公式安全
         try:
             validate_factor_formula(formula)
@@ -119,6 +170,28 @@ class FactorMiningAgent(Agent):
             "action",
             f"确定评估范围：symbols={symbols}，category={category}",
         )
+
+        coverage_checks = self._check_factor_data_coverage(catalog, symbols=symbols, category=category, period="1d")
+        blocking_checks = [item for item in coverage_checks if item["status"] == "bad"]
+        if blocking_checks:
+            error_message = "因子评估前数据检查失败：" + "；".join(
+                f"{item['symbol']} 缺少可用 K 线数据" for item in blocking_checks[:3]
+            )
+            self._add_step("error", error_message)
+            return AgentResult(
+                status=AgentStatus.FAILED,
+                error_message=error_message,
+                data={"data_preflight": {"coverage_checks": coverage_checks}},
+                steps=self.get_steps(),
+            )
+        warning_checks = [item for item in coverage_checks if item["status"] == "warning"]
+        if warning_checks:
+            self._add_step(
+                "observation",
+                f"因子评估数据覆盖存在 warning：{len(warning_checks)} 个品种样本偏少，继续评估并保留风险提示",
+                tool_name="DataCatalogService.get_symbol_data_coverage",
+                tool_output={"warnings": warning_checks},
+            )
 
         # 4. 加载面板数据
         try:
@@ -177,7 +250,17 @@ class FactorMiningAgent(Agent):
 
         # 7. 生成报告
         report = eval_result.to_dict()
+        report["data_preflight"] = {
+            "datasets": [item["dataset_name"] for item in datasets],
+            "required_fields": sorted(required_fields),
+            "coverage_checks": coverage_checks,
+        }
         summary = self._build_summary(formula, eval_result)
+        if warning_checks:
+            summary += "\n\n### 数据检查\n" + "\n".join(
+                f"- {item['symbol']} 覆盖样本 {item['row_count']} 根，低于建议值，结果稳定性需谨慎。"
+                for item in warning_checks[:5]
+            )
 
         return AgentResult(
             status=AgentStatus.COMPLETED,
@@ -186,34 +269,63 @@ class FactorMiningAgent(Agent):
             steps=self.get_steps(),
         )
 
+    def _check_factor_data_coverage(
+        self,
+        catalog: DataCatalogService,
+        symbols: list[str] | None,
+        category: str | None,
+        period: str,
+    ) -> list[dict[str, Any]]:
+        """在加载因子面板前检查 K 线覆盖。"""
+        checks: list[dict[str, Any]] = []
+        if not symbols:
+            if category:
+                profile = catalog.get_dataset_profile("kline_data", include_columns=False)
+                self._add_step(
+                    "observation",
+                    f"因子品种池为 {category}，使用 kline_data 目录摘要作为覆盖预检",
+                    tool_name="DataCatalogService.get_dataset_profile",
+                    tool_output=profile,
+                )
+            return checks
+
+        for symbol in symbols:
+            coverage = catalog.get_symbol_data_coverage(symbol, period=period)
+            kline = coverage["datasets"]["kline_data"]
+            row_count = int(kline.get("row_count") or 0)
+            if row_count <= 0:
+                status = "bad"
+            elif row_count < 30:
+                status = "warning"
+            else:
+                status = "good"
+            checks.append(
+                {
+                    "symbol": coverage["symbol"],
+                    "period": coverage["period"],
+                    "status": status,
+                    "row_count": row_count,
+                    "first_date": kline.get("first_date"),
+                    "last_date": kline.get("last_date"),
+                }
+            )
+
+        self._add_step(
+            "action",
+            "因子评估前检查品种 K 线覆盖",
+            tool_name="DataCatalogService.get_symbol_data_coverage",
+            tool_input={"symbols": symbols, "period": period},
+            tool_output={"coverage_checks": checks},
+        )
+        return checks
+
     async def run_stream(self, query: str) -> AsyncIterator[dict[str, Any]]:
-        """流式执行因子评估。"""
-        result = await self.run(query)
+        """流式执行因子评估。
 
-        for step in result.steps:
-            yield AgentEvent(
-                event_type=self._map_role_to_event_type(step.role),
-                step_number=step.step_number,
-                role=step.role,
-                content=step.content,
-                tool_name=step.tool_name,
-                tool_input=step.tool_input,
-                tool_output=step.tool_output,
-            ).to_dict()
-
-        if result.success:
-            yield AgentEvent(
-                event_type=AgentEventType.RESULT,
-                content=result.answer,
-                result=result.to_dict(),
-            ).to_dict()
-        else:
-            yield AgentEvent(
-                event_type=AgentEventType.ERROR,
-                content=result.error_message or "因子评估失败",
-                error_message=result.error_message,
-                result=result.to_dict(),
-            ).to_dict()
+        通过后台任务执行 run()，将 _add_step 记录的步骤实时推送到进度队列并 yield。
+        """
+        async for event in self._stream_run(query):
+            yield event
 
     @staticmethod
     def _map_role_to_event_type(role: str) -> AgentEventType:

@@ -85,24 +85,7 @@ def _fetch_realtime_batch(symbols: list[str], db: Session) -> tuple[list[dict], 
             not_found.append(symbol)
             continue
 
-        quotes.append({
-            "symbol": variety.symbol,
-            "current_price": q.current_price,
-            "change_percent": q.change_percent or 0,
-            "open_price": q.open_price,
-            "high": q.high,
-            "low": q.low,
-            "volume": q.volume,
-            "pre_settlement": q.pre_settlement,
-            "open_interest": q.open_interest,
-            "bid1": q.bid1,
-            "ask1": q.ask1,
-            "updated_at": q.updated_at,
-            "delayed": q.data_source == "akshare",
-            "data_source": q.data_source,
-            "limit_up": q.limit_up,
-            "limit_down": q.limit_down,
-        })
+        quotes.append(MarketDataService._quote_to_dict(variety, q))
 
     return quotes, not_found
 

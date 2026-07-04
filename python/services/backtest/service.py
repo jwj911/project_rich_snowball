@@ -15,8 +15,9 @@ from typing import Any
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from models import VarietyDB
+from models import FactorDefinitionDB, VarietyDB
 from services.agent.data_tools import _get_kline_data, _get_variety_info
+from services.agent.factor_engine.dsl import PanelData, evaluate_factor
 from services.backtest.engine import BacktestConfig, run_backtest
 from services.backtest.parser import StrategyIntent
 from services.cache import get_cached
@@ -88,6 +89,62 @@ def run_strategy_backtest(db: Session, intent: StrategyIntent) -> dict[str, Any]
     return result
 
 
+def _inject_factor_columns(
+    db: Session,
+    df: pd.DataFrame,
+    symbol: str,
+    entry_conditions: list[dict[str, Any]],
+    exit_conditions: list[dict[str, Any]],
+) -> pd.DataFrame:
+    """预计算策略 DSL 中引用的自定义因子列并注入 DataFrame。
+
+    indicator / indicator2 以 factor:<factor_id> 形式出现时，
+    从 factor_definitions 读取 source_expression 并在单品种面板上求值。
+    """
+    factor_ids: set[str] = set()
+    for cond in entry_conditions + exit_conditions:
+        for key in ("indicator", "indicator2"):
+            val = cond.get(key)
+            if isinstance(val, str) and val.startswith("factor:"):
+                factor_ids.add(val[len("factor:"):].strip())
+
+    if not factor_ids:
+        return df
+
+    if "time" not in df.columns:
+        return df
+
+    df["time"] = pd.to_datetime(df["time"], format="mixed")
+    df_indexed = df.set_index("time").copy()
+
+    for fid in factor_ids:
+        factor = (
+            db.query(FactorDefinitionDB)
+            .filter(FactorDefinitionDB.factor_id == fid, FactorDefinitionDB.is_active.is_(True))
+            .first()
+        )
+        if not factor:
+            logger.warning("回测引用的因子不存在或已禁用：%s", fid)
+            continue
+
+        try:
+            panel = PanelData(
+                open=pd.DataFrame({symbol: df_indexed["open"]}),
+                high=pd.DataFrame({symbol: df_indexed["high"]}),
+                low=pd.DataFrame({symbol: df_indexed["low"]}),
+                close=pd.DataFrame({symbol: df_indexed["close"]}),
+                volume=pd.DataFrame({symbol: df_indexed["volume"]}),
+            )
+            result = evaluate_factor(factor.source_expression, panel)
+            series = result[symbol]
+            col_name = f"factor:{fid}"
+            df_indexed[col_name] = series
+        except Exception as exc:
+            logger.warning("因子 %s 求值失败：%s", fid, exc)
+
+    return df_indexed.reset_index()
+
+
 def _run_dsl_backtest_inner(
     db: Session,
     symbol: str,
@@ -113,6 +170,7 @@ def _run_dsl_backtest_inner(
         raise ValueError(f"{symbol} 可用 K 线不足，至少需要 30 根")
 
     df = pd.DataFrame(klines)
+    df = _inject_factor_columns(db, df, symbol, entry_conditions, exit_conditions)
     df["time"] = pd.to_datetime(df["time"], format="mixed")
 
     short_window = 5

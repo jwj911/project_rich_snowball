@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { renderHook, waitFor, act } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useProductDetail } from '@/hooks/useProductDetail'
 import { api } from '@/lib/api'
@@ -53,6 +53,10 @@ describe('useProductDetail', () => {
 
     const { result } = renderHook(() => useProductDetail('RB', true))
 
+    await act(async () => {
+      await result.current.loadData()
+    })
+
     await waitFor(() => {
       expect(result.current.product?.symbol).toBe('RB')
     })
@@ -73,10 +77,11 @@ describe('useProductDetail', () => {
   it('reports invalid product symbol without requesting backend', async () => {
     const { result } = renderHook(() => useProductDetail('', true))
 
-    await waitFor(() => {
-      expect(result.current.error).toBe('无效的品种代码')
+    await act(async () => {
+      await result.current.loadData()
     })
 
+    expect(result.current.error).toBe('无效的品种代码')
     expect(api.getProductBySymbol).not.toHaveBeenCalled()
     expect(result.current.isLoading).toBe(false)
   })

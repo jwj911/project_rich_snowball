@@ -154,8 +154,12 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
   const displayPrice = realtime?.current_price ?? product?.current_price
   const displayChange = realtime?.change_percent ?? product?.change_percent
-  const marginCost = product?.margin != null && displayPrice != null
-    ? displayPrice * product.margin / 100
+  const displaySettle = product?.settle
+  const displayClosePrice = product?.close_price
+  const displayOiChg = product?.oi_chg
+  const displayTradeDate = product?.trade_date
+  const marginCost = product?.margin != null && displaySettle != null
+    ? displaySettle * product.margin / 100
     : null
 
   const sortedSupportLevels = useMemo(() => [...supportLevels].sort((a, b) => a - b), [supportLevels])
@@ -250,16 +254,19 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
         )
       ) : (
         <div className="space-y-5">
-          <div className="flex flex-col gap-4 rounded border border-gray-alpha-400 bg-background p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-5 rounded border border-gray-alpha-400 bg-background p-5 lg:flex-row lg:items-start lg:justify-between">
+            {/* 左侧：品种信息 */}
             <div className="min-w-0">
               <Link href="/products" className="inline-flex items-center gap-2 text-label-14 text-gray-700 transition hover:text-foreground">
                 <ArrowLeft size={15} />
                 返回行情中心
               </Link>
-              <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-2">
-                <h1 className="text-heading-24 text-foreground">{product.name}</h1>
-                <span className="font-mono text-label-14 text-gray-700">{product.symbol}</span>
-                {product.category && <span className="rounded border border-gray-alpha-400 px-2 py-0.5 text-label-12 text-gray-800">{product.category}</span>}
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <h1 className="text-heading-28 text-foreground">{product.name}</h1>
+                <span className="font-mono text-label-16 text-gray-700">{product.symbol}</span>
+                {product.category && (
+                  <span className="rounded border border-gray-alpha-400 bg-gray-100 px-2.5 py-1 text-label-13 text-gray-800">{product.category}</span>
+                )}
                 {varietyId && (
                   <WatchlistButton
                     varietyId={varietyId}
@@ -274,15 +281,73 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8 lg:min-w-[800px]">
-              <QuoteMetric label="最新价" value={formatPrice(displayPrice, product?.price_precision)} tone={getChangeTone(displayChange)} />
-              <QuoteMetric label="涨跌幅" value={<PriceChange value={displayChange} />} />
-              <QuoteMetric label="开盘价" value={formatPrice(realtime?.open_price ?? product?.open_price, product?.price_precision)} />
-              <QuoteMetric label="最高" value={formatPrice(realtime?.high ?? product?.high, product?.price_precision)} />
-              <QuoteMetric label="最低" value={formatPrice(realtime?.low ?? product?.low, product?.price_precision)} />
-              <QuoteMetric label="成交量" value={formatInteger(realtime?.volume ?? product?.volume)} />
-              <QuoteMetric label="持仓量" value={formatInteger(realtime?.open_interest ?? product?.open_interest)} />
-              <QuoteMetric label="昨结" value={formatPrice(realtime?.pre_settlement ?? product?.pre_settlement, product?.price_precision)} />
+            {/* 右侧：行情数据 */}
+            <div className="flex flex-col gap-4 lg:items-end">
+              {/* 第一行：收盘价 + 涨跌幅 + 结算价 */}
+              <div className="flex items-baseline gap-5">
+                <div>
+                  <div className="text-label-12 text-gray-700">收盘价</div>
+                  <div className={`mt-1 font-mono text-heading-32 font-bold ${getChangeTone(displayChange) === 'up' ? 'text-up' : getChangeTone(displayChange) === 'down' ? 'text-down' : 'text-foreground'}`}>
+                    {formatPrice(displayClosePrice, product?.price_precision)}
+                  </div>
+                </div>
+                <div className="h-10 w-px bg-gray-alpha-400" />
+                <div>
+                  <div className="text-label-12 text-gray-700">涨跌幅</div>
+                  <div className="mt-1">
+                    <PriceChange value={displayChange} />
+                  </div>
+                </div>
+                <div className="h-10 w-px bg-gray-alpha-400" />
+                <div>
+                  <div className="text-label-12 text-gray-700">结算价</div>
+                  <div className="mt-1 font-mono text-heading-24 font-bold text-foreground">
+                    {formatPrice(displaySettle, product?.price_precision)}
+                  </div>
+                </div>
+              </div>
+
+              {/* 第二行：关键指标 */}
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                <div className="text-center">
+                  <div className="text-label-12 text-gray-700">开盘价</div>
+                  <div className="mt-1 font-mono text-label-16 font-semibold text-foreground">{formatPrice(realtime?.open_price ?? product?.open_price, product?.price_precision)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-label-12 text-gray-700">最高</div>
+                  <div className="mt-1 font-mono text-label-16 font-semibold text-up">{formatPrice(realtime?.high ?? product?.high, product?.price_precision)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-label-12 text-gray-700">最低</div>
+                  <div className="mt-1 font-mono text-label-16 font-semibold text-down">{formatPrice(realtime?.low ?? product?.low, product?.price_precision)}</div>
+                </div>
+                <div className="h-6 w-px bg-gray-alpha-400" />
+                <div className="text-center">
+                  <div className="text-label-12 text-gray-700">成交量</div>
+                  <div className="mt-1 font-mono text-label-16 font-semibold text-foreground">{formatInteger(realtime?.volume ?? product?.volume)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-label-12 text-gray-700">持仓量</div>
+                  <div className="mt-1 font-mono text-label-16 font-semibold text-foreground">{formatInteger(realtime?.open_interest ?? product?.open_interest)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-label-12 text-gray-700">持仓变化</div>
+                  <div className={`mt-1 font-mono text-label-16 font-semibold ${displayOiChg != null && displayOiChg > 0 ? 'text-up' : displayOiChg != null && displayOiChg < 0 ? 'text-down' : 'text-foreground'}`}>
+                    {displayOiChg != null ? (displayOiChg > 0 ? `+${formatInteger(displayOiChg)}` : formatInteger(displayOiChg)) : '--'}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-label-12 text-gray-700">昨结</div>
+                  <div className="mt-1 font-mono text-label-16 font-semibold text-foreground">{formatPrice(realtime?.pre_settlement ?? product?.pre_settlement, product?.price_precision)}</div>
+                </div>
+              </div>
+
+              {/* 交易日期 */}
+              {displayTradeDate && (
+                <div className="text-label-12 text-gray-700">
+                  数据日期: {displayTradeDate}
+                </div>
+              )}
             </div>
           </div>
 
@@ -514,24 +579,6 @@ function StatePanel({ children }: { children: string }) {
   return (
     <div className="rounded border border-gray-alpha-400 bg-background p-8 text-center text-label-14 text-gray-800">
       {children}
-    </div>
-  )
-}
-
-function QuoteMetric({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: React.ReactNode
-  tone?: 'up' | 'down' | 'neutral'
-}) {
-  const toneClass = tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : 'text-foreground'
-  return (
-    <div className="rounded border border-gray-alpha-400 bg-gray-100 p-3">
-      <div className="text-label-12 text-gray-700">{label}</div>
-      <div className={`mt-2 min-h-6 font-mono text-base font-semibold ${toneClass}`}>{value}</div>
     </div>
   )
 }

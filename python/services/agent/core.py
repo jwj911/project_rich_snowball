@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -24,6 +25,7 @@ class AgentEventType(StrEnum):
     """Agent 流式事件类型。"""
 
     START = "start"
+    PROGRESS = "progress"
     THOUGHT = "thought"
     ACTION = "action"
     OBSERVATION = "observation"
@@ -133,6 +135,7 @@ class Agent:
         self.context: AgentContext = context
         self._steps: list[AgentStep] = []
         self._step_counter: int = 0
+        self._progress_queue: asyncio.Queue[dict[str, Any]] | None = None
 
     def _add_step(
         self,
@@ -153,7 +156,85 @@ class Agent:
             tool_output=tool_output,
         )
         self._steps.append(step)
+        self._emit_step_event(step)
         return step
+
+    def _emit_step_event(self, step: AgentStep) -> None:
+        """将步骤转换为流式事件并推入进度队列（如正在流式执行）。"""
+        if self._progress_queue is None:
+            return
+        mapping = {
+            "thought": AgentEventType.THOUGHT,
+            "action": AgentEventType.ACTION,
+            "observation": AgentEventType.OBSERVATION,
+            "system": AgentEventType.THOUGHT,
+            "error": AgentEventType.ERROR,
+        }
+        event = AgentEvent(
+            event_type=mapping.get(step.role, AgentEventType.THOUGHT),
+            step_number=step.step_number,
+            role=step.role,
+            content=step.content,
+            tool_name=step.tool_name,
+            tool_input=step.tool_input,
+            tool_output=step.tool_output,
+        )
+        self._progress_queue.put_nowait(event.to_dict())
+
+    def _emit_progress(self, content: str) -> None:
+        """推送一个无 step_number 的进度提示事件（如正在流式执行）。"""
+        if self._progress_queue is None:
+            return
+        self._progress_queue.put_nowait(
+            AgentEvent(
+                event_type=AgentEventType.PROGRESS,
+                content=content,
+            ).to_dict()
+        )
+
+    async def _consume_progress_stream(
+        self,
+        task: asyncio.Task[AgentResult],
+    ) -> AsyncIterator[dict[str, Any]]:
+        """消费进度队列中的事件，直到后台任务结束且队列为空。"""
+        while not task.done() or (self._progress_queue is not None and not self._progress_queue.empty()):
+            if self._progress_queue is not None:
+                try:
+                    event = await asyncio.wait_for(self._progress_queue.get(), timeout=0.1)
+                    yield event
+                except asyncio.TimeoutError:
+                    if task.done():
+                        break
+            else:
+                await asyncio.sleep(0.05)
+
+    async def _stream_run(self, query: str) -> AsyncIterator[dict[str, Any]]:
+        """通用流式执行辅助：后台运行 self.run(query) 并实时 yield 步骤/进度事件。
+
+        适用于本地确定性计算的 Agent。子类可在 run() 中调用 _emit_progress() 增加进度提示。
+        """
+        self._progress_queue = asyncio.Queue()
+        task = asyncio.create_task(self.run(query))
+
+        async for event in self._consume_progress_stream(task):
+            yield event
+
+        result = task.result()
+        if result.success:
+            yield AgentEvent(
+                event_type=AgentEventType.RESULT,
+                task_id=result.task_id,
+                content=result.answer,
+                result=result.to_dict(),
+            ).to_dict()
+        else:
+            yield AgentEvent(
+                event_type=AgentEventType.ERROR,
+                task_id=result.task_id,
+                content=result.error_message or "执行失败",
+                error_message=result.error_message,
+                result=result.to_dict(),
+            ).to_dict()
 
     async def run(self, query: str) -> AgentResult:
         """执行 Agent 任务。

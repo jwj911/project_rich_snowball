@@ -24,8 +24,6 @@ export function useProductPolling(productSymbol: string, enabled: boolean): Prod
   } = useProductDetail(productSymbol, enabled)
 
   const symbol = productDetail?.product?.symbol
-  const realtimeSymbols = useMemo(() => (symbol ? [symbol] : []), [symbol])
-  const { quotes: realtimeQuotes } = useRealtimeQuotes(realtimeSymbols)
 
   const { data: variety } = useVariety(symbol)
 
@@ -39,15 +37,16 @@ export function useProductPolling(productSymbol: string, enabled: boolean): Prod
     }
   }, [error])
 
-  const realtime = useMemo(() => {
-    if (!symbol) return null
-    return realtimeQuotes.get(symbol) ?? null
-  }, [symbol, realtimeQuotes])
+  // 项目未上线，暂不启用实时推送（SSE/轮询）。
+  // 实时接口已预留，恢复时取消下方注释即可：
+  // const realtimeSymbols = useMemo(() => (symbol ? [symbol] : []), [symbol])
+  // const { quotes: realtimeQuotes } = useRealtimeQuotes(realtimeSymbols)
+  // const realtime = useMemo(() => { ... }, [])
 
   return {
     productDetail: productDetail ?? null,
     product: productDetail?.product ?? null,
-    realtime,
+    realtime: null,
     varietyId: variety?.id ?? null,
     loading: isLoading,
     error,

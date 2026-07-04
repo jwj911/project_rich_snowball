@@ -4,7 +4,7 @@ from sqlalchemy import asc, case, desc, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from dependencies import get_current_user_dependency, get_db
-from models import ContractRolloverDB, FutContractDB, FutTradeFeeDB, RealtimeQuoteDB, UserDB, VarietyDB
+from models import ContractRolloverDB, FutContractDB, FutDailyDataDB, FutTradeFeeDB, RealtimeQuoteDB, UserDB, VarietyDB
 from schemas import (
     CommentResponse,
     ContractResponse,
@@ -164,7 +164,7 @@ def get_variety_detail(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
-    """品种详情（含实时行情 + 评论列表），用于替代 /api/products/{id}。"""
+    """品种详情（含日线行情 + 评论列表），数据来自 fut_daily_data。"""
     from models import CommentDB
 
     v = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
@@ -193,7 +193,18 @@ def get_variety_detail(
             return len(s.split(".")[1])
         return 0
 
-    r = v.realtime
+    # 取最新日线数据（period='D'）
+    d = (
+        db.query(FutDailyDataDB)
+        .filter(FutDailyDataDB.variety_id == v.id, FutDailyDataDB.period == "D")
+        .order_by(desc(FutDailyDataDB.trade_date))
+        .first()
+    )
+
+    change_percent = None
+    if d and d.pre_settle is not None and float(d.pre_settle) != 0 and d.settle is not None:
+        change_percent = (float(d.settle) - float(d.pre_settle)) / float(d.pre_settle) * 100
+
     return VarietyDetailResponse(
         id=v.id,
         symbol=v.symbol,
@@ -204,20 +215,24 @@ def get_variety_detail(
         margin_rate=_to_float(v.margin_rate),
         commission=_to_float(v.commission),
         tick_size=_to_float(v.tick_size),
-        current_price=_to_float(r.current_price) if r else None,
-        change_percent=_to_float(r.change_percent) if r else None,
-        open_price=_to_float(r.open_price) if r else None,
-        high=_to_float(r.high) if r else None,
-        low=_to_float(r.low) if r else None,
-        volume=r.volume if r else None,
-        pre_settlement=_to_float(r.pre_settlement) if r else None,
-        open_interest=r.open_interest if r else None,
-        bid1=_to_float(r.bid1) if r else None,
-        ask1=_to_float(r.ask1) if r else None,
-        limit_up=_to_float(r.limit_up) if r else None,
-        limit_down=_to_float(r.limit_down) if r else None,
+        current_price=_to_float(d.close_price) if d else None,
+        change_percent=change_percent,
+        open_price=_to_float(d.open_price) if d else None,
+        high=_to_float(d.high_price) if d else None,
+        low=_to_float(d.low_price) if d else None,
+        close_price=_to_float(d.close_price) if d else None,
+        settle=_to_float(d.settle) if d else None,
+        volume=d.volume if d else None,
+        pre_settlement=_to_float(d.pre_settle) if d else None,
+        open_interest=d.open_interest if d else None,
+        oi_chg=d.oi_chg if d else None,
+        bid1=None,
+        ask1=None,
+        limit_up=None,
+        limit_down=None,
         price_precision=_price_precision(v.tick_size),
-        updated_at=r.updated_at if r else None,
+        updated_at=d.trade_date if d else None,
+        trade_date=d.trade_date if d else None,
         comments=[
             CommentResponse(
                 id=c.id,

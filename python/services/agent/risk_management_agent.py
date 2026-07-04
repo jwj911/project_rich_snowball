@@ -89,7 +89,7 @@ def _load_position_context(db, user_id: int, symbol: str | None) -> dict[str, An
             if filtered:
                 positions = filtered
 
-        # 获取最新行情计算浮动盈亏
+        # 获取最新行情计算浮动盈亏（使用品种真实合约乘数）
         total_pnl = 0.0
         for pos in positions:
             sym = pos.get("symbol", "")
@@ -98,7 +98,7 @@ def _load_position_context(db, user_id: int, symbol: str | None) -> dict[str, An
             quote_row = (
                 db.execute(
                     text(
-                        "SELECT r.current_price FROM realtime_quotes r "
+                        "SELECT r.current_price, v.multiplier FROM realtime_quotes r "
                         "JOIN varieties v ON r.variety_id = v.id "
                         "WHERE v.symbol = :sym AND v.is_active IS TRUE"
                     ),
@@ -109,14 +109,15 @@ def _load_position_context(db, user_id: int, symbol: str | None) -> dict[str, An
             )
 
             current_price = float(quote_row["current_price"]) if quote_row else float(pos.get("entry_price", 0))
+            multiplier = float(quote_row["multiplier"]) if quote_row and quote_row.get("multiplier") else 10.0
             entry_price = float(pos.get("entry_price", 0))
             quantity = int(pos.get("quantity", 1))
             direction = pos.get("direction", "long")
 
             if direction == "long":
-                pnl = (current_price - entry_price) * quantity * 10  # multiplier=10
+                pnl = (current_price - entry_price) * quantity * multiplier
             else:
-                pnl = (entry_price - current_price) * quantity * 10
+                pnl = (entry_price - current_price) * quantity * multiplier
             pos["_current_price"] = current_price
             pos["_floating_pnl"] = round(pnl, 2)
             total_pnl += pnl
@@ -143,7 +144,7 @@ def _load_position_context(db, user_id: int, symbol: str | None) -> dict[str, An
         drawdown_pct = max(0.0, (initial_balance - account_balance) / initial_balance * 100) if total_pnl < 0 else 0.0
 
         return {
-            "account_balance": round(max(account_balance, initial_balance * 0.5), 2),
+            "account_balance": round(account_balance, 2),
             "initial_balance": initial_balance,
             "open_positions": positions,
             "total_floating_pnl": round(total_pnl, 2),
@@ -186,6 +187,7 @@ class RiskManagementAgent(Agent):
         self._add_step("action", f"解析参数：品种={symbol}，方向={direction}")
 
         # 2. 获取品种信息
+        self._emit_progress("正在获取品种信息...")
         variety_info = _get_variety_info(db, symbol)
         if not variety_info:
             return AgentResult(
@@ -208,6 +210,7 @@ class RiskManagementAgent(Agent):
         self._add_step("observation", f"入场价格：{entry_price}")
 
         # 4. 获取 K 线数据用于计算 ATR/支撑阻力
+        self._emit_progress("正在加载 K 线数据并计算波动率...")
         kline_data = _get_kline_data(db, symbol, period="1d", limit=60)
         df = None
         support_levels = []
@@ -240,6 +243,7 @@ class RiskManagementAgent(Agent):
             )
 
         # 6. 生成风控方案
+        self._emit_progress("正在生成仓位、止损止盈与回撤控制方案...")
         risk_level = "medium"  # 默认中等风险
         if any(w in query for w in ["保守", "低", "谨慎", "conservative"]):
             risk_level = "low"
@@ -250,14 +254,17 @@ class RiskManagementAgent(Agent):
         if margin_rate:
             margin_rate = float(margin_rate)
 
+        contract_multiplier = variety_info.get("multiplier") or 10.0
+        tick_size = variety_info.get("tick_size") or 1.0
+
         plan = generate_risk_management_plan(
             account_balance=account_balance,
             entry_price=entry_price,
             direction=direction,  # type: ignore[arg-type]
             risk_level=risk_level,  # type: ignore[arg-type]
             margin_rate=margin_rate,
-            contract_multiplier=10.0,
-            tick_size=1.0,
+            contract_multiplier=float(contract_multiplier),
+            tick_size=float(tick_size),
             df=df,
             support_levels=support_levels,
             resistance_levels=resistance_levels,
@@ -381,34 +388,10 @@ class RiskManagementAgent(Agent):
     async def run_stream(self, query: str) -> AsyncIterator[dict[str, Any]]:
         """流式执行风控方案生成任务。
 
-        风控计算为本地确定性计算，先执行完整分析，再按步骤 yield 事件。
+        通过后台任务执行 run()，将 _add_step 记录的步骤实时推送到进度队列并 yield。
         """
-        result = await self.run(query)
-
-        for step in result.steps:
-            yield AgentEvent(
-                event_type=self._map_role_to_event_type(step.role),
-                step_number=step.step_number,
-                role=step.role,
-                content=step.content,
-                tool_name=step.tool_name,
-                tool_input=step.tool_input,
-                tool_output=step.tool_output,
-            ).to_dict()
-
-        if result.success:
-            yield AgentEvent(
-                event_type=AgentEventType.RESULT,
-                content=result.answer,
-                result=result.to_dict(),
-            ).to_dict()
-        else:
-            yield AgentEvent(
-                event_type=AgentEventType.ERROR,
-                content=result.error_message or "风控方案生成失败",
-                error_message=result.error_message,
-                result=result.to_dict(),
-            ).to_dict()
+        async for event in self._stream_run(query):
+            yield event
 
     @staticmethod
     def _map_role_to_event_type(role: str) -> AgentEventType:

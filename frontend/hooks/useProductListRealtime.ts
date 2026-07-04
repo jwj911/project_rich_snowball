@@ -44,70 +44,35 @@ export function useProductListRealtime(
 
   const resolvedResponse = response ?? EMPTY_RESPONSE
 
-  const symbols = useMemo(() => resolvedResponse.items.map((p) => p.symbol), [resolvedResponse.items])
-  const { quotes: realtimeQuotes, source: sseSource, error: sseError } = useRealtimeQuotes(symbols)
+  // 项目未上线，暂不启用实时推送（SSE/轮询）。
+  // 实时接口已预留，恢复时取消下方注释即可：
+  // const symbols = useMemo(() => resolvedResponse.items.map((p) => p.symbol), [resolvedResponse.items])
+  // const { quotes: realtimeQuotes, source: sseSource, error: sseError } = useRealtimeQuotes(symbols)
+  // const mergedProducts = useMemo(() => { ... }, [])
+  // const source = ...
+  // const error = swrError ? ... : sseError
+  // const heartbeat = ...
+  // return { products: mergedProducts, ... }
 
-  const mergedProducts = useMemo(() => {
-    if (realtimeQuotes.size === 0) return resolvedResponse.items
-    return resolvedResponse.items.map((product) => {
-      const quote = realtimeQuotes.get(product.symbol)
-      if (!quote) return product
-      return {
-        ...product,
-        current_price: quote.current_price ?? product.current_price,
-        change_percent: quote.change_percent ?? product.change_percent,
-        open_price: quote.open_price ?? product.open_price,
-        high: quote.high ?? product.high,
-        low: quote.low ?? product.low,
-        volume: quote.volume ?? product.volume,
-        updated_at: quote.updated_at ?? product.updated_at,
-        limit_up: quote.limit_up ?? product.limit_up,
-        limit_down: quote.limit_down ?? product.limit_down,
-      }
-    })
-  }, [resolvedResponse.items, realtimeQuotes])
-
-  const source: ProductListSource = useMemo(() => {
-    if (isLoading) return 'initial'
-    if (sseSource === 'sse') return 'sse'
-    if (sseSource === 'polling') return 'polling'
-    return 'initial'
-  }, [isLoading, sseSource])
-
-  const error = swrError ? (swrError instanceof Error ? swrError.message : '产品列表加载失败') : sseError
+  const error = swrError
+    ? (swrError instanceof Error ? swrError.message : '产品列表加载失败')
+    : null
 
   const heartbeat: MarketHeartbeat = useMemo(() => {
     if (isLoading) return { status: 'refreshing', failureCount: 0 }
     if (error) return { status: 'error', failureCount: 1, message: error }
-    if (source === 'sse') {
-      return {
-        status: 'healthy',
-        lastUpdatedAt: new Date().toISOString(),
-        nextRefreshAt: undefined,
-        failureCount: 0,
-      }
-    }
-    if (source === 'polling') {
-      return {
-        status: 'healthy',
-        lastUpdatedAt: new Date().toISOString(),
-        nextRefreshAt: undefined,
-        failureCount: 0,
-        message: 'SSE 不可用，已降级到轮询',
-      }
-    }
     return { status: 'idle', failureCount: 0 }
-  }, [isLoading, error, source])
+  }, [isLoading, error])
 
   return {
-    products: mergedProducts,
+    products: resolvedResponse.items,
     total: resolvedResponse.total,
     totalVolume: resolvedResponse.totalVolume,
     upCount: resolvedResponse.upCount,
     downCount: resolvedResponse.downCount,
     categories: resolvedResponse.categories,
     loading: isLoading,
-    source,
+    source: 'initial',
     error,
     heartbeat,
     refresh: async () => { await mutate() },

@@ -19,7 +19,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from models import ContractRolloverDB, FutContractDB, KlineDataDB, VarietyDB
+from models import ContractRolloverDB, FutContractDB, FutDailyDataDB, KlineDataDB, VarietyDB
 from services.kline_period import period_candidates
 
 logger = logging.getLogger(__name__)
@@ -239,6 +239,119 @@ def apply_backward_adjustment(all_rows: list[dict], segments: list[dict]) -> Non
             )
 
 
+def get_fut_daily_main_kline(
+    db: Session,
+    variety_id: int,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    limit: int = 5000,
+) -> list[dict]:
+    """从 fut_daily_data 查询品种主连日线数据（period='D'）。
+
+    选择该品种记录数最多的 ts_code（主连/品种级别数据），
+    通过 JOIN fut_contracts 获取 contract_id，返回标准 K 线 dict。
+    """
+    from sqlalchemy import func
+
+    # 找到记录数最多的 ts_code（主连品种）
+    main_ts = db.query(
+        FutDailyDataDB.ts_code, func.count(FutDailyDataDB.id)
+    ).filter(
+        FutDailyDataDB.variety_id == variety_id
+    ).group_by(
+        FutDailyDataDB.ts_code
+    ).order_by(
+        func.count(FutDailyDataDB.id).desc()
+    ).first()
+
+    if not main_ts:
+        return []
+
+    ts_code = main_ts[0]
+
+    q = db.query(
+        FutDailyDataDB, FutContractDB.id.label("contract_id")
+    ).join(
+        FutContractDB, FutDailyDataDB.ts_code == FutContractDB.ts_code
+    ).filter(
+        FutDailyDataDB.variety_id == variety_id,
+        FutDailyDataDB.ts_code == ts_code,
+        FutDailyDataDB.period == "D",
+    )
+
+    if start:
+        start = _ensure_aware(start)
+        q = q.filter(FutDailyDataDB.trade_date >= start)
+    if end:
+        end = _ensure_aware(end)
+        q = q.filter(FutDailyDataDB.trade_date <= end)
+
+    rows = q.order_by(FutDailyDataDB.trade_date.asc()).limit(limit).all()
+
+    return [
+        {
+            "time": row.trade_date.isoformat(),
+            "open": float(row.open_price),
+            "high": float(row.high_price),
+            "low": float(row.low_price),
+            "close": float(row.close_price),
+            "volume": row.volume,
+            "contract_code": row.ts_code,
+            "contract_id": contract_id,
+        }
+        for row, contract_id in rows
+    ]
+
+
+def get_fut_daily_contract_kline(
+    db: Session,
+    contract_id: int,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    limit: int = 5000,
+) -> list[dict]:
+    """从 fut_daily_data 查询单个合约的日线数据（period='D'）。
+
+    根据 contract_id 找到对应的 ts_code，再从 fut_daily_data 查询，
+    返回标准 K 线 dict（含 contract_id）。
+    """
+    contract = db.query(FutContractDB).filter(FutContractDB.id == contract_id).first()
+    if not contract:
+        return []
+
+    q = db.query(
+        FutDailyDataDB, FutContractDB.id.label("contract_id")
+    ).join(
+        FutContractDB, FutDailyDataDB.ts_code == FutContractDB.ts_code
+    ).filter(
+        FutDailyDataDB.ts_code == contract.ts_code,
+        FutDailyDataDB.period == "D",
+    )
+
+    if start:
+        start = _ensure_aware(start)
+        q = q.filter(FutDailyDataDB.trade_date >= start)
+    if end:
+        end = _ensure_aware(end)
+        q = q.filter(FutDailyDataDB.trade_date <= end)
+
+    rows = q.order_by(FutDailyDataDB.trade_date.asc()).limit(limit).all()
+
+    return [
+        {
+            "time": row.trade_date.isoformat(),
+            "open": float(row.open_price),
+            "high": float(row.high_price),
+            "low": float(row.low_price),
+            "close": float(row.close_price),
+            "volume": row.volume,
+            "contract_code": row.ts_code,
+            "contract_id": cid,
+        }
+        for row, cid in rows
+    ]
+
+
 def get_continuous_kline(
     db: Session,
     variety_id: int,
@@ -265,6 +378,9 @@ def get_continuous_kline(
     """
     start = _ensure_aware(start)
     end = _ensure_aware(end)
+
+    if period == "D":
+        return get_fut_daily_main_kline(db, variety_id, start, end, limit)
 
     segments = build_rollover_segments(db, variety_id, start, end)
     if not segments:
@@ -350,6 +466,9 @@ def get_main_contract_kline(
     variety = db.query(VarietyDB).filter(VarietyDB.id == variety_id).first()
     if not variety or not variety.contract_code:
         return []
+
+    if period == "D":
+        return get_fut_daily_main_kline(db, variety_id, start, end, limit)
 
     contract = db.query(FutContractDB).filter(FutContractDB.symbol == variety.contract_code).first()
 

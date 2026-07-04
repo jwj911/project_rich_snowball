@@ -35,7 +35,7 @@ describe('useProductKline', () => {
       signal: expect.any(AbortSignal),
     }))
 
-    expect(api.getContinuousKline).toHaveBeenCalledWith('RB', '1d', undefined, undefined, 90, expect.objectContaining({
+    expect(api.getContinuousKline).toHaveBeenCalledWith('RB', '1d', '2025-01-01', '2026-07-02', 90, expect.objectContaining({
       signal: expect.any(AbortSignal),
     }))
     expect(result.current.displayedKlineSource).toBe('continuous')
@@ -63,27 +63,5 @@ describe('useProductKline', () => {
     expect(capturedSignal?.aborted).toBe(false)
     unmount()
     expect(capturedSignal?.aborted).toBe(true)
-  })
-
-  it('loads a selected contract kline', async () => {
-    vi.mocked(api.getContracts).mockResolvedValue([
-      makeFutContract(),
-    ])
-    vi.mocked(api.getContinuousKline).mockResolvedValue(rows)
-    vi.mocked(api.getContractKline).mockResolvedValue(rows)
-
-    const { result } = renderHook(() => useProductKline('RB', true, 1))
-
-    await waitFor(() => {
-      expect(result.current.selectedContractId).toBe(12)
-    })
-
-    result.current.setSelectedKlineSource('single')
-
-    await waitFor(() => {
-      expect(api.getContractKline).toHaveBeenCalledWith(12, 'D', undefined, undefined, 90, expect.objectContaining({
-        signal: expect.any(AbortSignal),
-      }))
-    })
   })
 })

@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from models import (
-    VarietyDB, FutContractDB, KlineDataDB,
+    VarietyDB, FutContractDB, KlineDataDB, FutDailyDataDB,
     ContractRolloverDB, UserDB,
 )
 from utils import hash_password
@@ -100,11 +100,11 @@ def test_get_contract_kline(client, db_session):
     _, c1, _ = _setup_variety_and_contracts(db_session)
     _create_test_user(db_session)
 
-    k1 = KlineDataDB(
+    k1 = FutDailyDataDB(
         variety_id=db_session.query(VarietyDB).filter(VarietyDB.symbol == "TEST").first().id,
-        contract_id=c1.id,
+        ts_code=c1.ts_code,
         period="D",
-        trading_time=datetime(2025, 1, 15),
+        trade_date=datetime(2025, 1, 15),
         open_price=100.0,
         high_price=110.0,
         low_price=95.0,
@@ -180,7 +180,7 @@ def test_variety_rollovers(client, db_session):
 
 
 def test_continuous_kline(client, db_session):
-    """连续 K 线默认启用反向调整，消除换月跳空。"""
+    """连续 K 线默认启用反向调整，消除换月跳空（非 D 周期）。"""
     variety, c1, c2 = _setup_variety_and_contracts(db_session)
     _create_test_user(db_session)
 
@@ -188,8 +188,8 @@ def test_continuous_kline(client, db_session):
     k1 = KlineDataDB(
         variety_id=variety.id,
         contract_id=c1.id,
-        period="D",
-        trading_time=datetime(2025, 1, 10),
+        period="1h",
+        trading_time=datetime(2025, 1, 10, 10, 0),
         open_price=100.0,
         high_price=110.0,
         low_price=95.0,
@@ -200,8 +200,8 @@ def test_continuous_kline(client, db_session):
     k2 = KlineDataDB(
         variety_id=variety.id,
         contract_id=c2.id,
-        period="D",
-        trading_time=datetime(2025, 2, 5),
+        period="1h",
+        trading_time=datetime(2025, 2, 5, 10, 0),
         open_price=108.0,
         high_price=118.0,
         low_price=103.0,
@@ -222,7 +222,7 @@ def test_continuous_kline(client, db_session):
 
     token = _login(client)
     r = client.get(
-        "/api/klines/TEST/continuous?period=D",
+        "/api/klines/TEST/continuous?period=1h",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert r.status_code == 200
@@ -249,8 +249,8 @@ def test_main_contract_kline(client, db_session):
     k = KlineDataDB(
         variety_id=variety.id,
         contract_id=c2.id,
-        period="D",
-        trading_time=datetime(2025, 2, 5),
+        period="1h",
+        trading_time=datetime(2025, 2, 5, 10, 0),
         open_price=200.0,
         high_price=210.0,
         low_price=195.0,
@@ -262,7 +262,7 @@ def test_main_contract_kline(client, db_session):
 
     token = _login(client)
     r = client.get(
-        "/api/klines/TEST/main?period=D",
+        "/api/klines/TEST/main?period=1h",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert r.status_code == 200
@@ -279,8 +279,8 @@ def test_continuous_and_main_kline_accept_period_aliases(client, db_session):
     db_session.add(KlineDataDB(
         variety_id=variety.id,
         contract_id=c1.id,
-        period="1d",
-        trading_time=datetime(2025, 1, 10),
+        period="1h",
+        trading_time=datetime(2025, 1, 10, 10, 0),
         open_price=100.0,
         high_price=110.0,
         low_price=95.0,
@@ -292,21 +292,21 @@ def test_continuous_and_main_kline_accept_period_aliases(client, db_session):
     token = _login(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    continuous = client.get("/api/klines/TEST/continuous?period=D", headers=headers)
+    continuous = client.get("/api/klines/TEST/continuous?period=1h", headers=headers)
     assert continuous.status_code == 200
     assert len(continuous.json()) == 1
 
-    main = client.get("/api/klines/TEST/main?period=D", headers=headers)
+    main = client.get("/api/klines/TEST/main?period=1h", headers=headers)
     assert main.status_code == 200
     assert len(main.json()) == 1
 
-    contract = client.get(f"/api/contracts/{c1.id}/kline?period=1d", headers=headers)
+    contract = client.get(f"/api/contracts/{c1.id}/kline?period=1h", headers=headers)
     assert contract.status_code == 200
     assert len(contract.json()) == 1
 
 
 def test_continuous_kline_skips_missing_contract(client, db_session):
-    """连续 K 线某 segment 的 contract_id 无数据时，应跳过该 segment，不混入其他合约。"""
+    """连续 K 线某 segment 的 contract_id 无数据时，应跳过该 segment，不混入其他合约（非 D 周期）。"""
     variety, c1, c2 = _setup_variety_and_contracts(db_session)
     _create_test_user(db_session)
 
@@ -314,8 +314,8 @@ def test_continuous_kline_skips_missing_contract(client, db_session):
     k1 = KlineDataDB(
         variety_id=variety.id,
         contract_id=c1.id,
-        period="D",
-        trading_time=datetime(2025, 1, 10),
+        period="1h",
+        trading_time=datetime(2025, 1, 10, 10, 0),
         open_price=100.0,
         high_price=110.0,
         low_price=95.0,
@@ -336,7 +336,7 @@ def test_continuous_kline_skips_missing_contract(client, db_session):
 
     token = _login(client)
     r = client.get(
-        "/api/klines/TEST/continuous?period=D",
+        "/api/klines/TEST/continuous?period=1h",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert r.status_code == 200
@@ -348,7 +348,7 @@ def test_continuous_kline_skips_missing_contract(client, db_session):
 
 
 def test_main_contract_kline_fallback_labels_actual_contract(client, db_session):
-    """主力合约无数据 fallback 到 variety 查询时，应标注每条数据的实际合约来源。"""
+    """主力合约无数据 fallback 到 variety 查询时，应标注每条数据的实际合约来源（非 D 周期）。"""
     variety, c1, c2 = _setup_variety_and_contracts(db_session)
     _create_test_user(db_session)
     # 主力设为 c2，但只给 c1 灌数据
@@ -358,8 +358,8 @@ def test_main_contract_kline_fallback_labels_actual_contract(client, db_session)
     k1 = KlineDataDB(
         variety_id=variety.id,
         contract_id=c1.id,
-        period="D",
-        trading_time=datetime(2025, 1, 10),
+        period="1h",
+        trading_time=datetime(2025, 1, 10, 10, 0),
         open_price=100.0,
         high_price=110.0,
         low_price=95.0,
@@ -371,7 +371,7 @@ def test_main_contract_kline_fallback_labels_actual_contract(client, db_session)
 
     token = _login(client)
     r = client.get(
-        "/api/klines/TEST/main?period=D",
+        "/api/klines/TEST/main?period=1h",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert r.status_code == 200

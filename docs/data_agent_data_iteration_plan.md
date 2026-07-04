@@ -22,6 +22,10 @@
 
 已完成：
 
+0. **已合入本地 `master`**
+   - DataQualityAgent、Data Catalog、用户级 LLM 配置三项最小闭环已在本地 `master` 分支代码中落地。
+   - 本轮继续在本地 `master` 上推进 Milestone C+，未切换到历史 `codex/new_fronted` 等风险分支。
+
 1. **Milestone A：DataQualityAgent 最小闭环**
    - 已新增 `agent_type=data_quality`，标签为“数据质检”，`requires_llm=false`。
    - 已新增 `python/services/data_quality/` 服务包，包含 `checks.py`、`coverage.py`、`scoring.py`、`service.py`、`types.py`。
@@ -46,12 +50,26 @@
    - DataAgent 和普通 AI Chat 已使用用户级配置解析结果。
    - 已增加 LLM 配置 API、脱敏、能力启用、AgentLLMClient 解析测试。
 
+4. **Milestone C+：Agent 数据前置检查**
+   - BacktestAgent 已在进入回测引擎前调用 Data Catalog / Data Quality 检查 `kline_data` 覆盖和质量。
+   - K 线质量为 `bad` 时，BacktestAgent 默认拒绝回测；`warning` 时继续执行并在结果报告写入数据质量提示。
+   - FactorMiningAgent 已在加载面板和计算因子前读取 Data Catalog，校验公式所需字段；缺少 `amount/open_interest/turnover_rate` 等字段时返回明确错误。
+   - AnalysisPipelineAgent 已在 DataAgent / TechAnalysisAgent / RiskManagementAgent 前增加数据可用性检查；`bad` 时停止流水线，`warning` 时继续并在最终报告保留风险提示。
+   - 已增加 `tests/test_agent_data_preflight.py` 覆盖回测 bad 拒绝、因子缺字段失败、流水线 bad 停止，并修复 `test_factor_mining_agent.py` 测试夹具的数据复用问题。
+
+5. **Milestone D：数据宽表审计**
+   - 已新增 `docs/data_wide_table_audit.md`。
+   - 审计结论：当前具备构建宽表的数据来源，但尚未实现独立物理宽表；第一版应先落地 `raw_contract` 日级宽表，再接主力连续与复权口径。
+
 最近一次后端 targeted 验证：
 
 ```powershell
 cd python
 .venv/Scripts/python.exe -m pytest tests/test_data_catalog.py tests/test_data_quality_agent.py tests/test_llm_config.py tests/test_agents_core.py -q
 # 24 passed
+
+.venv/Scripts/python.exe -m pytest tests/test_agent_data_preflight.py tests/test_data_catalog.py tests/test_data_quality_agent.py tests/test_factor_mining_agent.py tests/services/agent/test_analysis_pipeline.py -q
+# 30 passed
 ```
 
 ---
@@ -63,8 +81,8 @@ cd python
 | P0 | DataQualityAgent | **已完成最小闭环** | 数据质量可查询、可解释、可被其它 Agent 调用 | 当前线程/Agent |
 | P0 | Data Catalog | **已完成最小闭环** | Agent 知道可用表、覆盖范围、更新时间、质量状态 | 当前线程/Agent |
 | P0 | LLM 配置 API | **已完成最小闭环** | 用户可配置自己的 OpenAI 兼容 API，系统默认可兜底 | 当前线程/Agent |
-| P1 | Agent 数据前置检查 | **下一步优先** | 回测/因子/技术分析前自动检查数据可用性 | 当前线程/Agent |
-| P1 | 数据宽表审计 | 待开始 | 审计另一个 Agent 做的数据宽表，确保可用于因子/策略 | 当前线程审计 |
+| P1 | Agent 数据前置检查 | **已完成最小闭环** | 回测/因子/技术分析前自动检查数据可用性 | 当前线程/Agent |
+| P1 | 数据宽表审计 | **审计已完成，实现待做** | 审计另一个 Agent 做的数据宽表，确保可用于因子/策略 | 当前线程审计 |
 | P1 | 主力连续数据管道 | 待开始 | 生成可复权、可重跑、可审计的连续合约数据 | 分配给数据管道 Agent |
 
 ---
@@ -532,39 +550,40 @@ DataQualityAgent → DataAgent → TechAnalysisAgent → RiskManagementAgent
 - 已支持用户配置 key 后 DataAgent 使用用户配置。
 - 已验证 API 不回显明文 key。
 
-### Milestone C+：Agent 数据前置检查（下一步优先）
+### Milestone C+：Agent 数据前置检查（已完成最小闭环）
 
 交付：
 
-- BacktestAgent 回测前调用 `get_symbol_data_coverage(symbol, period)`。
-- BacktestAgent 回测前调用 `get_data_quality_summary(symbol, dataset_name="kline_data")`。
-- 当 K 线质量为 `bad` 时，默认拒绝回测或返回明确失败原因。
-- 当 K 线质量为 `warning` 时，允许继续但在结果中写入质量提示。
-- FactorMiningAgent 因子评估前调用 `list_available_datasets()` 与 `get_symbol_data_coverage(symbols)`。
-- FactorMiningAgent 对因子所需字段做前置校验，例如 `amount`、`open_interest`、`turnover_rate`。
-- AnalysisPipelineAgent 第一阶段加入数据可用性检查，再进入 DataAgent / TechAnalysisAgent / RiskManagementAgent。
-- 增加后端测试覆盖 pass / warning / bad 三类前置检查。
+- 已交付 BacktestAgent 回测前调用 `get_symbol_data_coverage(symbol, period)`。
+- 已交付 BacktestAgent 回测前调用 `get_data_quality_summary(symbol, dataset_name="kline_data")`。
+- 已交付 K 线质量为 `bad` 时默认拒绝回测并返回明确失败原因。
+- 已交付 K 线质量为 `warning` 时允许继续，并在回测结果中写入质量提示。
+- 已交付 FactorMiningAgent 因子评估前调用 `list_available_datasets()` 与 `get_symbol_data_coverage(symbols)`。
+- 已交付 FactorMiningAgent 对因子所需字段做前置校验，例如 `amount`、`open_interest`、`turnover_rate`。
+- 已交付 AnalysisPipelineAgent 第一阶段加入数据可用性检查，再进入 DataAgent / TechAnalysisAgent / RiskManagementAgent。
+- 已交付后端测试覆盖 bad 阻断、缺字段失败和流水线停止；warning 继续路径已在实现中保留。
 
 验收：
 
-- 回测请求在缺少 K 线数据时不会直接进入回测引擎。
-- 回测结果能说明使用的数据集、周期、覆盖范围和数据质量状态。
-- 因子评估缺字段时返回明确错误，而不是在计算阶段隐式失败。
-- 完整分析流水线第一步能展示数据检查结果。
+- 已验证回测请求在缺少 K 线数据时不会直接进入回测引擎。
+- 已验证回测结果能说明使用的数据集、周期、覆盖范围和数据质量状态。
+- 已验证因子评估缺字段时返回明确错误，而不是在计算阶段隐式失败。
+- 已验证完整分析流水线第一步能展示数据检查结果。
 
-### Milestone D：数据宽表审计
+### Milestone D：数据宽表审计（审计已完成，实现待做）
 
 交付：
 
-- 宽表字段审计报告
-- 数据血缘审计报告
-- 刷新机制审计
-- 索引和性能建议
-- 质量门禁建议
+- 已交付宽表字段审计报告：`docs/data_wide_table_audit.md`
+- 已交付数据血缘审计报告
+- 已交付刷新机制审计
+- 已交付索引和性能建议
+- 已交付质量门禁建议
 
 验收：
 
-- 宽表可被 FactorMiningAgent 和 BacktestAgent 安全使用。
+- 当前结论为“数据来源具备，独立宽表尚未实现”，因此暂不满足“宽表可被 FactorMiningAgent 和 BacktestAgent 安全使用”。
+- C+ 已在宽表缺失阶段提供保护：因子缺字段会明确失败，回测/流水线会先检查 K 线质量。
 
 ### Milestone E：主力连续数据接入
 
@@ -596,26 +615,15 @@ DataQualityAgent → DataAgent → TechAnalysisAgent → RiskManagementAgent
 
 ## 11. 建议下一步
 
-下一次实现建议从 **Milestone C+：Agent 数据前置检查** 开始，优先顺序如下：
+下一次实现建议进入 **宽表最小实现 / Milestone E**：
 
-1. **BacktestAgent 前置数据检查**
-   - 在解析出 `symbol/timeframe/limit` 后，调用 `DataCatalogService.get_symbol_data_coverage()`。
-   - 调用 `DataCatalogService.get_data_quality_summary(symbol, dataset_name="kline_data", period=timeframe)`。
-   - `bad`：返回失败，不进入回测引擎。
-   - `warning`：继续回测，但把质量问题写入 `AgentResult.data` 和自然语言回答。
-   - 增加测试：缺 K 线拒绝回测、异常 OHLC 拒绝或 warning、正常数据通过。
+1. **宽表最小实现**
+   - 先实现 `raw_contract` 日级宽表。
+   - 覆盖基础 OHLCV、`amount/open_interest`、常用派生字段和 `source_flags`。
+   - 接入 Data Catalog 与 DataQualityAgent。
 
-2. **FactorMiningAgent 前置数据检查**
-   - 因子评估前读取 Data Catalog。
-   - 校验所需字段是否存在于目标数据集或宽表。
-   - 对缺 `amount/open_interest/turnover_rate` 等字段返回明确错误。
-   - 增加测试：缺字段失败、覆盖不足 warning、正常数据通过。
-
-3. **AnalysisPipelineAgent 串联数据检查**
-   - 流水线第一步加入 DataQualityAgent 或 DataCatalogService 检查结果。
-   - 数据质量为 `bad` 时停止后续技术分析和风控。
-   - warning 时继续，但在最终报告中保留数据质量风险。
-
-4. **后续再做 Milestone D / E**
-   - Milestone D：数据宽表审计。
-   - Milestone E：主力连续数据接入与连续合约断点检查。
+2. **Milestone E：主力连续数据接入**
+   - 实现可重跑的连续合约数据管道。
+   - 标记换月日、跳空和复权口径。
+   - 将 `raw_contract/main_continuous/main_back_adjusted/main_forward_adjusted` 数据口径接入回测和因子流程。
+   - 扩展 DataQualityAgent 检查连续合约断点。

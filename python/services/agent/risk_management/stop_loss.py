@@ -119,6 +119,10 @@ def calculate_stop_loss(
             notes.append("波动率数据不足，回退到固定百分比")
             used_method = "fixed_pct"
 
+    # 按最小变动价位取整
+    if tick_size and tick_size > 0:
+        stop_loss = round(stop_loss / tick_size) * tick_size
+
     # 统一止损距离计算
     risk_distance = abs(entry_price - stop_loss)
     risk_distance_pct = (risk_distance / entry_price) * 100 if entry_price > 0 else 0

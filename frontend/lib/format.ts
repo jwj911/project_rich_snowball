@@ -1,4 +1,12 @@
 export function formatNumber(value: number | null | undefined, digits = 2) {
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return '--'
+    return new Intl.NumberFormat('zh-CN', {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(parsed)
+  }
   if (!Number.isFinite(value)) return '--'
   return new Intl.NumberFormat('zh-CN', {
     minimumFractionDigits: digits,
@@ -11,15 +19,26 @@ export function formatPrice(value: number | null | undefined, precision?: number
 }
 
 export function formatInteger(value: number | null | undefined) {
-  if (!Number.isFinite(value)) return '--'
+  let numericValue: number
+  if (typeof value === 'string') {
+    numericValue = Number(value)
+  } else {
+    numericValue = value as number
+  }
+  if (!Number.isFinite(numericValue)) return '--'
   return new Intl.NumberFormat('zh-CN', {
     maximumFractionDigits: 0,
-  }).format(value as number)
+  }).format(numericValue)
 }
 
 export function formatPercent(value: number | null | undefined) {
-  if (!Number.isFinite(value)) return '--'
-  const numericValue = value as number
+  let numericValue: number
+  if (typeof value === 'string') {
+    numericValue = Number(value)
+  } else {
+    numericValue = value as number
+  }
+  if (!Number.isFinite(numericValue)) return '--'
   const sign = numericValue >= 0 ? '+' : ''
   return `${sign}${numericValue.toFixed(2)}%`
 }

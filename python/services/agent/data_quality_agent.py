@@ -33,22 +33,12 @@ class DataQualityAgent(Agent):
         )
 
     async def run_stream(self, query: str) -> AsyncIterator[dict[str, Any]]:
-        result = await self.run(query)
-        for step in result.steps:
-            yield AgentEvent(
-                event_type=_map_role_to_event_type(step.role),
-                step_number=step.step_number,
-                role=step.role,
-                content=step.content,
-                tool_name=step.tool_name,
-                tool_input=step.tool_input,
-                tool_output=step.tool_output,
-            ).to_dict()
-        yield AgentEvent(
-            event_type=AgentEventType.RESULT,
-            content=result.answer,
-            result=result.to_dict(),
-        ).to_dict()
+        """流式执行数据质量检查。
+
+        通过后台任务执行 run()，将 _add_step 记录的步骤实时推送到进度队列并 yield。
+        """
+        async for event in self._stream_run(query):
+            yield event
 
 
 def _map_role_to_event_type(role: str) -> AgentEventType:

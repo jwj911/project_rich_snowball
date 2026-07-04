@@ -94,10 +94,12 @@ class TechAnalysisAgent(Agent):
         df = df.sort_values("time").reset_index(drop=True)
 
         # 计算所有指标
+        self._emit_progress("正在计算技术指标...")
         df = calculate_all_indicators(df)
         self._add_step("system", "计算完成：SMA/EMA/RSI/MACD/BOLL/KDJ/ATR/CCI/OBV/ADX/WR")
 
         # 运行各分析模块
+        self._emit_progress("正在运行趋势、形态、背离分析...")
         trend = analyze_trend(df)
         self._add_step("system", f"趋势分析：{trend['direction']}，强度{trend['strength']}")
 
@@ -108,6 +110,7 @@ class TechAnalysisAgent(Agent):
         self._add_step("system", f"背离分析：{divergence['divergence']}")
 
         # 综合评分
+        self._emit_progress("正在计算综合评分...")
         composite = composite_score(df)
         self._add_step("system", f"综合评分：{composite['score']}/100，评级：{composite['rating']}")
 
@@ -253,22 +256,18 @@ class TechAnalysisAgent(Agent):
     async def run_stream(self, query: str) -> AsyncIterator[dict[str, Any]]:
         """流式执行技术分析任务。
 
-        由于技术分析为本地确定性计算，先执行完整分析，
-        再按步骤 yield 事件，供前端展示执行过程。
+        通过后台任务执行 run()，将 _add_step 记录的步骤实时推送到进度队列并 yield，
+        前端可看到逐步出现的分析过程。
         """
-        result = await self.run(query)
+        import asyncio
 
-        for step in result.steps:
-            yield AgentEvent(
-                event_type=self._map_role_to_event_type(step.role),
-                step_number=step.step_number,
-                role=step.role,
-                content=step.content,
-                tool_name=step.tool_name,
-                tool_input=step.tool_input,
-                tool_output=step.tool_output,
-            ).to_dict()
+        self._progress_queue = asyncio.Queue()
+        task = asyncio.create_task(self.run(query))
 
+        async for event in self._consume_progress_stream(task):
+            yield event
+
+        result = task.result()
         if result.success:
             yield AgentEvent(
                 event_type=AgentEventType.RESULT,

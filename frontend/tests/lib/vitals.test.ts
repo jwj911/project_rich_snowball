@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { reportWebVitals } from '@/lib/vitals'
 
+vi.mock('@/lib/api/logging', () => ({
+  sendFrontendLog: vi.fn(),
+}))
+
 let fetchCalls: Array<{ url: string; body: unknown }> = []
 const metricCallbacks: Record<string, Array<(metric: { name: string; value: number; id: string }) => void>> = {}
 

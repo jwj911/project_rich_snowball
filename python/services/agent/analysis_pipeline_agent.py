@@ -20,6 +20,7 @@ from services.agent.executor import AgentExecutor
 from services.agent.risk_management_agent import RiskManagementAgent
 from services.agent.tech_analysis_agent import TechAnalysisAgent
 from services.agent.utils import extract_direction, resolve_symbol
+from services.data_catalog import DataCatalogService
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,17 @@ class AnalysisPipelineAgent(Agent):
         direction = extract_direction(query) or "long"
         self._add_step("action", f"识别品种：{symbol}，方向：{direction}")
 
-        # 2. 创建子任务执行器
+        # 2. 数据可用性前置检查。bad 时降级执行，warning 时继续并保留风险提示。
+        data_preflight = self._check_pipeline_data(symbol, "1d")
+        preflight_bad = data_preflight["status"] == "bad"
+        if preflight_bad:
+            self._add_step(
+                "thought",
+                f"{symbol} 日线数据质量为 bad，将尝试降级为「数据现状报告 + 可用的技术分析」。"
+                f"{_preflight_issue_summary(data_preflight)}",
+            )
+
+        # 3. 创建子任务执行器
         executor = AgentExecutor(db, user_id)
         sub_results: list[tuple[str, AgentResult]] = []
 
@@ -91,6 +102,21 @@ class AnalysisPipelineAgent(Agent):
             return AgentResult(
                 status=AgentStatus.FAILED,
                 error_message=error_message,
+                steps=self.get_steps(),
+            )
+
+        if preflight_bad and not ta_result.success:
+            # 数据质量 bad 且技术分析无法完成：返回数据现状报告
+            self._add_step("system", "数据质量不足，生成数据现状报告")
+            report = self._build_report(symbol, direction, data_result, ta_result, AgentResult(
+                status=AgentStatus.FAILED,
+                error_message="因 K 线数据不足，未生成风控方案",
+            ), data_preflight)
+            summary = self._build_degraded_summary(report, reason="data_bad")
+            return AgentResult(
+                status=AgentStatus.COMPLETED,
+                answer=summary,
+                data=report,
                 steps=self.get_steps(),
             )
 
@@ -136,7 +162,7 @@ class AnalysisPipelineAgent(Agent):
 
         # 4. 汇总报告
         self._add_step("system", "汇总各子 Agent 结果，生成完整分析报告")
-        report = self._build_report(symbol, direction, data_result, ta_result, risk_result)
+        report = self._build_report(symbol, direction, data_result, ta_result, risk_result, data_preflight)
         summary = self._build_summary(report)
 
         return AgentResult(
@@ -149,34 +175,33 @@ class AnalysisPipelineAgent(Agent):
     async def run_stream(self, query: str) -> AsyncIterator[dict[str, Any]]:
         """流式执行分析流水线。
 
-        流水线中的子 Agent 同步执行，每完成一个子 Agent 后 yield 中间事件。
+        通过后台任务执行 run()，将 _add_step 记录的步骤实时推送到进度队列并 yield，
+        包括子 Agent 的完成情况。
         """
-        result = await self.run(query)
+        async for event in self._stream_run(query):
+            yield event
 
-        for step in result.steps:
-            yield AgentEvent(
-                event_type=self._map_role_to_event_type(step.role),
-                step_number=step.step_number,
-                role=step.role,
-                content=step.content,
-                tool_name=step.tool_name,
-                tool_input=step.tool_input,
-                tool_output=step.tool_output,
-            ).to_dict()
-
-        if result.success:
-            yield AgentEvent(
-                event_type=AgentEventType.RESULT,
-                content=result.answer,
-                result=result.to_dict(),
-            ).to_dict()
-        else:
-            yield AgentEvent(
-                event_type=AgentEventType.ERROR,
-                content=result.error_message or "分析流水线执行失败",
-                error_message=result.error_message,
-                result=result.to_dict(),
-            ).to_dict()
+    def _check_pipeline_data(self, symbol: str, period: str) -> dict[str, Any]:
+        """检查完整分析流水线所需的基础 K 线数据。"""
+        catalog = DataCatalogService(self.context.db)
+        coverage = catalog.get_symbol_data_coverage(symbol, period=period)
+        quality = catalog.get_data_quality_summary(symbol=symbol, dataset_name="kline_data", period=period)
+        preflight = {
+            "dataset_name": "kline_data",
+            "symbol": coverage["symbol"],
+            "period": coverage["period"],
+            "coverage": coverage["datasets"]["kline_data"],
+            "quality": quality,
+            "status": quality["status"],
+        }
+        self._add_step(
+            "action",
+            f"流水线数据前置检查：{symbol} {period} K 线质量 {preflight['status']}",
+            tool_name="DataCatalogService",
+            tool_input={"symbol": symbol, "period": period, "dataset_name": "kline_data"},
+            tool_output=preflight,
+        )
+        return preflight
 
     @staticmethod
     def _map_role_to_event_type(role: str) -> AgentEventType:
@@ -196,6 +221,7 @@ class AnalysisPipelineAgent(Agent):
         data_result: AgentResult,
         ta_result: AgentResult,
         risk_result: AgentResult,
+        data_preflight: dict[str, Any],
     ) -> dict[str, Any]:
         """构建结构化汇总报告。"""
         data = data_result.data or {}
@@ -233,6 +259,7 @@ class AnalysisPipelineAgent(Agent):
                 "take_profit": risk.get("take_profit"),
                 "drawdown_control": risk.get("drawdown_control"),
             },
+            "data_quality": data_preflight,
             "sub_task_results": {
                 "data": data_result.to_dict(),
                 "tech_analysis": ta_result.to_dict(),
@@ -257,8 +284,24 @@ class AnalysisPipelineAgent(Agent):
             f"- 最新价：{data.get('current_price')}",
             f"- 涨跌幅：{data.get('change_percent')}%",
             "",
-            "### 2. 技术分析",
+            "### 数据检查",
+            f"- K 线质量：{(report.get('data_quality') or {}).get('status')}",
         ]
+        data_quality = report.get("data_quality") or {}
+        coverage = data_quality.get("coverage") or {}
+        if coverage:
+            lines.append(
+                f"- 覆盖：{coverage.get('first_date') or '—'} 至 {coverage.get('last_date') or '—'}，样本 {coverage.get('row_count', 0)} 根"
+            )
+        if data_quality.get("status") in ("warning", "bad"):
+            lines.append(f"- 风险提示：{_preflight_issue_summary(data_quality)}")
+
+        lines.extend(
+            [
+                "",
+                "### 2. 技术分析",
+            ]
+        )
 
         if tech.get("score") is not None:
             lines.append(f"- 综合评分：{tech['score']}/100（{tech.get('rating', '—')}）")
@@ -304,3 +347,48 @@ class AnalysisPipelineAgent(Agent):
         )
 
         return "\n".join(str(line) for line in lines)
+
+    def _build_degraded_summary(self, report: dict[str, Any], reason: str) -> str:
+        """生成数据质量不足时的降级报告。"""
+        data = report["data"]
+        data_quality = report.get("data_quality") or {}
+        coverage = data_quality.get("coverage") or {}
+
+        lines = [
+            f"## {data.get('name') or report['symbol']} ({report['symbol']}) 数据现状报告",
+            "",
+            f"**状态**：K 线数据质量为 **{data_quality.get('status', 'unknown')}**，完整分析已降级。",
+            "",
+            "### 数据检查",
+            f"- K 线质量：{data_quality.get('status')}",
+        ]
+        if coverage:
+            lines.append(
+                f"- 覆盖：{coverage.get('first_date') or '—'} 至 {coverage.get('last_date') or '—'}，"
+                f"样本 {coverage.get('row_count', 0)} 根"
+            )
+        lines.append(f"- 问题说明：{_preflight_issue_summary(data_quality) or '—'}")
+
+        lines.extend(
+            [
+                "",
+                "### 品种概况",
+                f"- 交易所：{data.get('exchange') or '—'}",
+                f"- 最新价：{data.get('current_price') or '—'}",
+                f"- 涨跌幅：{data.get('change_percent') or '—'}%",
+                "",
+                "### 建议",
+                "- 数据不足可能导致技术指标失真，建议等待数据回填后再进行完整分析",
+                "- 可检查该品种是否已加入采集列表，或联系管理员补充历史数据",
+                "",
+                "> ⚠️ 以上报告由数据 Agent 自动生成，仅供参考，不构成投资建议。",
+            ]
+        )
+        return "\n".join(str(line) for line in lines)
+
+
+def _preflight_issue_summary(preflight: dict[str, Any]) -> str:
+    issues = (preflight.get("quality") or {}).get("issues") or []
+    if not issues:
+        return ""
+    return "；".join(str(issue.get("message") or issue.get("code")) for issue in issues[:3])

@@ -1,7 +1,7 @@
 """策略编译 Agent。
 
 将用户自然语言策略描述转换为结构化的策略 DSL（JSON）。
-支持均线交叉、MACD、RSI、布林带等多种策略模板。
+支持均线交叉、MACD、RSI、布林带、ATR 突破等多种策略模板。
 
 核心原则：
 1. 确定性解析优先：规则匹配 + 正则提取
@@ -17,7 +17,7 @@ import re
 from collections.abc import AsyncIterator
 from typing import Any
 
-from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
+from services.agent.core import Agent, AgentEventType, AgentResult, AgentStatus
 from services.agent.utils import resolve_symbols
 
 logger = logging.getLogger(__name__)
@@ -43,6 +43,8 @@ _VALID_INDICATORS = frozenset(
         "kdj_d",
         "kdj_j",
         "atr",
+        "atr_upper",
+        "atr_lower",
         "cci",
         "obv",
         "adx",
@@ -50,6 +52,7 @@ _VALID_INDICATORS = frozenset(
         "dmi_minus",
         "wr",
         "volume",
+        "volume_sma",
         "close",
         "open",
         "high",
@@ -147,14 +150,22 @@ class StrategyParser:
     """基于规则的自然语言策略解析器。"""
 
     # 策略模板：关键词 -> 解析函数
-    # 注意：顺序重要 —— 更具体/更通用的关键词在前，避免「RSI」吃掉带「且」的均线+RSI复合查询
+    # 注意：顺序重要 —— 更具体的关键词在前，避免通用模板吃掉复合查询
     _TEMPLATES = [
         ("均线交叉", "_parse_ma_cross"),
-        ("均线", "_parse_ma_cross"),
+        ("RSI均线", "_parse_rsi_with_ma_filter"),
+        ("RSI MA", "_parse_rsi_with_ma_filter"),
+        ("RSI过滤", "_parse_rsi_with_ma_filter"),
+        ("RSI趋势", "_parse_rsi_with_ma_filter"),
+        ("MACD放量", "_parse_macd_with_volume"),
+        ("MACD成交量", "_parse_macd_with_volume"),
+        ("MACD量能", "_parse_macd_with_volume"),
         ("MACD", "_parse_macd"),
         ("布林带", "_parse_bollinger"),
+        ("ATR", "_parse_atr_breakout"),
         ("突破", "_parse_breakout"),
-        ("RSI", "_parse_rsi"),
+        ("均线", "_parse_ma_cross"),  # 兜底：宽泛关键词
+        ("RSI", "_parse_rsi"),        # 兜底：最宽泛的放最后
     ]
 
     def __init__(self, db) -> None:
@@ -176,9 +187,17 @@ class StrategyParser:
         # 4. 检测逻辑连接词（AND / OR）
         logic = _detect_logic(query)
 
-        # 5. 匹配策略模板
+            # 5. 匹配策略模板（支持简单正则，更容忍空格/大小写/中间修饰词）
         for keyword, method_name in self._TEMPLATES:
-            if keyword in query:
+            pattern = (
+                keyword
+                .replace("MACD放量", r"MACD.*放量")
+                .replace("MACD成交量", r"MACD.*成交量")
+                .replace("MACD量能", r"MACD.*量能")
+                .replace("MACD", r"MACD\s*")
+                .replace("RSI", r"RSI\s*")
+            )
+            if re.search(pattern, query, re.IGNORECASE):
                 method = getattr(self, method_name)
                 return method(query, symbols, timeframe, direction, logic)
 
@@ -257,6 +276,49 @@ class StrategyParser:
             risk=_default_risk(query),
         )
 
+    def _parse_macd_with_volume(
+        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
+    ) -> StrategyDSL:
+        """解析 MACD + 成交量确认策略。"""
+        entry_conditions = []
+        exit_conditions = []
+
+        # MACD 金叉/死叉
+        if direction == "long":
+            entry_conditions.append({"indicator": "macd_dif", "operator": "cross_above", "indicator2": "macd_dea"})
+            exit_conditions.append({"indicator": "macd_dif", "operator": "cross_below", "indicator2": "macd_dea"})
+        else:
+            entry_conditions.append({"indicator": "macd_dif", "operator": "cross_below", "indicator2": "macd_dea"})
+            exit_conditions.append({"indicator": "macd_dif", "operator": "cross_above", "indicator2": "macd_dea"})
+
+        # 成交量确认：volume > volume_sma * mult
+        vol_mult_match = re.search(r"(\d+(?:\.\d+)?)\s*倍", query)
+        vol_mult = float(vol_mult_match.group(1)) if vol_mult_match else 1.5
+        vol_period_match = re.search(r"volume_sma\s*(\d+)", query, re.IGNORECASE)
+        vol_period = int(vol_period_match.group(1)) if vol_period_match else 20
+        entry_conditions.append(
+            {
+                "indicator": "volume",
+                "operator": "greater_than",
+                "indicator2": f"volume_sma{vol_period}",
+                "value": vol_mult,
+                "transform": "multiply_value",
+            }
+        )
+
+        extra_entry = _parse_extra_conditions(query)
+
+        return StrategyDSL(
+            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} MACD+成交量确认策略",
+            description=f"MACD {'金叉' if direction == 'long' else '死叉'} + 成交量大于均量{vol_period}的{vol_mult}倍",
+            universe=symbols,
+            timeframe=timeframe,
+            direction=direction,
+            entry={"conditions": entry_conditions + extra_entry, "logic": logic},
+            exit={"conditions": exit_conditions, "logic": "and"},
+            risk=_default_risk(query),
+        )
+
     def _parse_rsi(self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str) -> StrategyDSL:
         """解析 RSI 策略。"""
         # 提取 RSI 阈值
@@ -283,10 +345,53 @@ class StrategyParser:
             risk=_default_risk(query),
         )
 
+    def _parse_rsi_with_ma_filter(
+        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
+    ) -> StrategyDSL:
+        """解析 RSI + MA 均线过滤策略。"""
+        # RSI 阈值
+        threshold_match = re.search(r"RSI\s*(?:低于|小于|below|<)?\s*(\d+)", query, re.IGNORECASE)
+        if direction == "long":
+            threshold = int(threshold_match.group(1)) if threshold_match else 30
+            entry_conditions = [
+                {"indicator": "rsi24", "operator": "less_than", "value": threshold},
+            ]
+            exit_conditions = [{"indicator": "rsi24", "operator": "greater_than", "value": 70}]
+        else:
+            threshold = int(threshold_match.group(1)) if threshold_match else 70
+            entry_conditions = [
+                {"indicator": "rsi24", "operator": "greater_than", "value": threshold},
+            ]
+            exit_conditions = [{"indicator": "rsi24", "operator": "less_than", "value": 30}]
+
+        # MA 过滤：做多时价格在均线上方，做空时在下方
+        ma_period_match = re.search(r"(\d+)\s*(?:日|天|周期|根)?(?:均线|ma|MA)", query)
+        ma_period = int(ma_period_match.group(1)) if ma_period_match else 20
+        if direction == "long":
+            entry_conditions.append({"indicator": "close", "operator": "above", "indicator2": f"sma{ma_period}"})
+        else:
+            entry_conditions.append({"indicator": "close", "operator": "below", "indicator2": f"sma{ma_period}"})
+
+        extra_entry = _parse_extra_conditions(query)
+
+        return StrategyDSL(
+            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} RSI+MA{ma_period}过滤策略",
+            description=f"RSI 超{'卖' if direction == 'long' else '买'}（阈值 {threshold}）+ 价格{'在均线上方' if direction == 'long' else '在均线下方'}",
+            universe=symbols,
+            timeframe=timeframe,
+            direction=direction,
+            entry={"conditions": entry_conditions + extra_entry, "logic": logic},
+            exit={"conditions": exit_conditions, "logic": "and"},
+            risk=_default_risk(query),
+        )
+
     def _parse_bollinger(
         self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
     ) -> StrategyDSL:
-        """解析布林带策略。"""
+        """解析布林带策略（支持均线/RSI 过滤增强版）。"""
+        has_ma_filter = any(w in query for w in ("均线过滤", "MA过滤", "趋势过滤"))
+        has_rsi_filter = "RSI过滤" in query or "rsi过滤" in query
+
         if direction == "long":
             entry_conditions = [{"indicator": "close", "operator": "cross_above", "indicator2": "boll_lower"}]
             exit_conditions = [{"indicator": "close", "operator": "cross_below", "indicator2": "boll_mid"}]
@@ -294,11 +399,37 @@ class StrategyParser:
             entry_conditions = [{"indicator": "close", "operator": "cross_below", "indicator2": "boll_upper"}]
             exit_conditions = [{"indicator": "close", "operator": "cross_above", "indicator2": "boll_mid"}]
 
+        # 均线过滤：做多时价格需在均线上方，做空时在下方
+        if has_ma_filter:
+            ma_period_match = re.search(r"(\d+)\s*(?:日|天|周期|根)?(?:均线|ma|MA)", query)
+            ma_period = int(ma_period_match.group(1)) if ma_period_match else 20
+            if direction == "long":
+                entry_conditions.append({"indicator": "close", "operator": "above", "indicator2": f"sma{ma_period}"})
+            else:
+                entry_conditions.append({"indicator": "close", "operator": "below", "indicator2": f"sma{ma_period}"})
+
+        # RSI 过滤：做多时 RSI 不能太低（排除极弱趋势），做空时 RSI 不能太高
+        if has_rsi_filter:
+            rsi_threshold_match = re.search(r"RSI\s*(?:高于|大于|above|>|低于|小于|below|<)?\s*(\d+)", query, re.IGNORECASE)
+            if direction == "long":
+                rsi_threshold = int(rsi_threshold_match.group(1)) if rsi_threshold_match else 40
+                entry_conditions.append({"indicator": "rsi24", "operator": "greater_than", "value": rsi_threshold})
+            else:
+                rsi_threshold = int(rsi_threshold_match.group(1)) if rsi_threshold_match else 60
+                entry_conditions.append({"indicator": "rsi24", "operator": "less_than", "value": rsi_threshold})
+
         extra_entry = _parse_extra_conditions(query)
 
+        filters = []
+        if has_ma_filter:
+            filters.append("均线过滤")
+        if has_rsi_filter:
+            filters.append("RSI过滤")
+        filter_suffix = f"（{'+'.join(filters)}）" if filters else ""
+
         return StrategyDSL(
-            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} 布林带策略",
-            description="基于布林带上下轨的均值回归策略",
+            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} 布林带均值回归策略{filter_suffix}",
+            description=f"基于布林带上下轨的均值回归策略{filter_suffix}",
             universe=symbols,
             timeframe=timeframe,
             direction=direction,
@@ -330,6 +461,43 @@ class StrategyParser:
             direction=direction,
             entry={"conditions": entry_conditions + extra_entry, "logic": logic},
             exit={"conditions": [], "logic": "and"},  # 需结合止损
+            risk=_default_risk(query),
+        )
+
+    def _parse_atr_breakout(
+        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
+    ) -> StrategyDSL:
+        """解析 ATR 通道突破策略。"""
+        # 提取 ATR 周期
+        period_match = re.search(r"ATR\s*(\d+)", query, re.IGNORECASE)
+        period = int(period_match.group(1)) if period_match else 20
+
+        # 提取倍数（如 2 倍 ATR）
+        mult_match = re.search(r"(\d+(?:\.\d+)?)\s*倍\s*ATR", query, re.IGNORECASE)
+        if not mult_match:
+            mult_match = re.search(r"ATR\s*通道\s*(\d+(?:\.\d+)?)", query, re.IGNORECASE)
+        mult = int(float(mult_match.group(1))) if mult_match else 2
+
+        upper_indicator = f"atr_upper_{period}_{mult}"
+        lower_indicator = f"atr_lower_{period}_{mult}"
+
+        if direction == "long":
+            entry_conditions = [{"indicator": "close", "operator": "cross_above", "indicator2": upper_indicator}]
+            exit_conditions = [{"indicator": "close", "operator": "cross_below", "indicator2": lower_indicator}]
+        else:
+            entry_conditions = [{"indicator": "close", "operator": "cross_below", "indicator2": lower_indicator}]
+            exit_conditions = [{"indicator": "close", "operator": "cross_above", "indicator2": upper_indicator}]
+
+        extra_entry = _parse_extra_conditions(query)
+
+        return StrategyDSL(
+            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} ATR{period}x{mult} 通道突破策略",
+            description=f"基于 ATR 通道突破：{'上轨突破做多' if direction == 'long' else '下轨突破做空'}",
+            universe=symbols,
+            timeframe=timeframe,
+            direction=direction,
+            entry={"conditions": entry_conditions + extra_entry, "logic": logic},
+            exit={"conditions": exit_conditions, "logic": "and"},
             risk=_default_risk(query),
         )
 
@@ -421,9 +589,24 @@ class StrategyValidator:
 
 
 def _is_valid_indicator(name: str) -> bool:
-    """校验指标名是否合法，支持基础名及带周期/窗口后缀的变体（如 sma5、rsi24、high_20）。"""
+    """校验指标名是否合法，支持基础名及带周期/窗口后缀的变体（如 sma5、rsi24、high_20、atr_upper_20_2）。
+
+    同时支持引用 factor_definitions 中的自定义因子：factor:<factor_id>。
+    """
     if name in _VALID_INDICATORS:
         return True
+    # 支持 factor:<factor_id> 引用用户自定义因子
+    if name.startswith("factor:"):
+        return bool(name[len("factor:"):].strip())
+    # 支持 volume_sma20
+    if name.startswith("volume_sma") and name[len("volume_sma"):].strip("_").isdigit():
+        return True
+    # 支持 atr_upper_20_2 / atr_lower_20_2
+    if name.startswith("atr_upper_") or name.startswith("atr_lower_"):
+        parts = name.split("_")
+        # atr_upper_20_2 -> ['atr', 'upper', '20', '2']
+        if len(parts) >= 4 and parts[2].isdigit() and parts[3].isdigit():
+            return True
     # 提取基础名：去掉末尾 _?数字 后缀（sma5 -> sma, high_20 -> high）
     base = re.sub(r"[_-]?\d+$", "", name)
     return base in _VALID_INDICATORS
@@ -584,6 +767,56 @@ def _parse_extra_conditions(query: str) -> list[dict[str, Any]]:
         else:
             conditions.append({"indicator": "close", "operator": "cross_above", "indicator2": f"high_{window}"})
 
+    # 自定义因子条件（factor:<id> 或 "xxx 因子"）
+    conditions.extend(_parse_factor_conditions(query))
+
+    return conditions
+
+
+def _parse_factor_conditions(query: str) -> list[dict[str, Any]]:
+    """解析用户引用的自定义因子条件。
+
+    支持以下写法：
+    - factor:price_vol_20 大于 0.5
+    - price_vol_20 因子上穿 0
+    - 当 price_vol 因子小于 -0.5 时入场
+    """
+    conditions: list[dict[str, Any]] = []
+
+    # 显式 factor:<id> 写法：factor:xxx 大于/小于/上穿/下穿 value
+    explicit = re.finditer(
+        r"(factor:[\w_]+)\s*(?:大于|高于|above|>)\s*([-\d.]+)",
+        query,
+        re.IGNORECASE,
+    )
+    for m in explicit:
+        conditions.append({"indicator": m.group(1), "operator": "greater_than", "value": float(m.group(2))})
+
+    explicit_below = re.finditer(
+        r"(factor:[\w_]+)\s*(?:小于|低于|below|<)\s*([-\d.]+)",
+        query,
+        re.IGNORECASE,
+    )
+    for m in explicit_below:
+        conditions.append({"indicator": m.group(1), "operator": "less_than", "value": float(m.group(2))})
+
+    # "xxx 因子" 写法：price_vol_20 因子 大于 0.5
+    named = re.finditer(
+        r"([\w_]+)\s*因子\s*(?:大于|高于|above|>)\s*([-\d.]+)",
+        query,
+        re.IGNORECASE,
+    )
+    for m in named:
+        conditions.append({"indicator": f"factor:{m.group(1)}", "operator": "greater_than", "value": float(m.group(2))})
+
+    named_below = re.finditer(
+        r"([\w_]+)\s*因子\s*(?:小于|低于|below|<)\s*([-\d.]+)",
+        query,
+        re.IGNORECASE,
+    )
+    for m in named_below:
+        conditions.append({"indicator": f"factor:{m.group(1)}", "operator": "less_than", "value": float(m.group(2))})
+
     return conditions
 
 
@@ -604,6 +837,9 @@ def _parse_extra_exit_conditions(query: str) -> list[dict[str, Any]]:
         period = int(ma_exit.group(1))
         conditions.append({"indicator": "close", "operator": "cross_below", "indicator2": f"sma{period}"})
 
+    # 自定义因子出场条件
+    conditions.extend(_parse_factor_conditions(query))
+
     return conditions
 
 
@@ -616,7 +852,7 @@ class StrategyCompilerAgent(Agent):
     """策略编译 Agent。
 
     将用户自然语言策略描述转换为结构化的策略 DSL（JSON），
-    支持均线交叉、MACD、RSI、布林带、突破等策略模板。
+    支持均线交叉、MACD、RSI、布林带、ATR 突破等策略模板。
     """
 
     name = "strategy_compiler"
@@ -678,35 +914,11 @@ class StrategyCompilerAgent(Agent):
     async def run_stream(self, query: str) -> AsyncIterator[dict[str, Any]]:
         """流式执行策略编译任务。
 
-        按「解析意图 → 提取策略要素 → 生成 DSL → 校验 → 返回」各阶段
-        yield 事件，前端可实时展示执行过程。
+        通过后台任务执行 run()，将 _add_step 记录的步骤实时推送到进度队列并 yield，
+        前端可实时展示「解析意图 → 提取策略要素 → 生成 DSL → 校验 → 返回」各阶段。
         """
-        result = await self.run(query)
-
-        for step in result.steps:
-            yield AgentEvent(
-                event_type=self._map_role_to_event_type(step.role),
-                step_number=step.step_number,
-                role=step.role,
-                content=step.content,
-                tool_name=step.tool_name,
-                tool_input=step.tool_input,
-                tool_output=step.tool_output,
-            ).to_dict()
-
-        if result.success:
-            yield AgentEvent(
-                event_type=AgentEventType.RESULT,
-                content=result.answer,
-                result=result.to_dict(),
-            ).to_dict()
-        else:
-            yield AgentEvent(
-                event_type=AgentEventType.ERROR,
-                content=result.error_message or "策略编译失败",
-                error_message=result.error_message,
-                result=result.to_dict(),
-            ).to_dict()
+        async for event in self._stream_run(query):
+            yield event
 
     @staticmethod
     def _map_role_to_event_type(role: str) -> AgentEventType:
@@ -742,7 +954,7 @@ def _format_explanation(dsl: StrategyDSL) -> str:
         logic_label = "AND（同时满足）" if entry_logic == "and" else "OR（满足任一）"
         lines.append(f"**组合逻辑**：{logic_label}")
     for cond in entry_conditions:
-        op_desc = _operator_desc(cond.get("operator"), cond.get("indicator"), cond.get("indicator2"), cond.get("value"))
+        op_desc = _operator_desc(cond)
         lines.append(f"- {op_desc}")
     if not entry_conditions:
         lines.append("- 无明确入场条件（需手动设置）")
@@ -754,7 +966,7 @@ def _format_explanation(dsl: StrategyDSL) -> str:
         logic_label = "AND（同时满足）" if exit_logic == "and" else "OR（满足任一）"
         lines.append(f"**组合逻辑**：{logic_label}")
     for cond in exit_conditions:
-        op_desc = _operator_desc(cond.get("operator"), cond.get("indicator"), cond.get("indicator2"), cond.get("value"))
+        op_desc = _operator_desc(cond)
         lines.append(f"- {op_desc}")
     if not exit_conditions:
         lines.append("- 无明确出场条件（建议结合止损/止盈）")
@@ -773,8 +985,17 @@ def _format_explanation(dsl: StrategyDSL) -> str:
     return "\n".join(lines)
 
 
-def _operator_desc(operator: str, indicator: str, indicator2: str | None, value: Any) -> str:
+def _operator_desc(cond: dict[str, Any]) -> str:
     """将操作符转换为可读描述。"""
+    operator = cond.get("operator", "")
+    indicator = cond.get("indicator", "")
+    indicator2 = cond.get("indicator2")
+    value = cond.get("value")
+    transform = cond.get("transform")
+
+    if transform == "multiply_value" and indicator2 is not None and value is not None:
+        return f"{indicator} > {indicator2} × {value}"
+
     op_map = {
         "cross_above": f"{indicator} 上穿 {indicator2}",
         "cross_below": f"{indicator} 下穿 {indicator2}",

@@ -66,34 +66,13 @@ export function useProductDetail(productSymbol: string, enabled: boolean): UsePr
     }
   }, [productSymbol])
 
-  // SSE 实时价格订阅：只在 product.symbol 确定后启用
-  const symbol = product?.symbol ?? ''
-  const symbols = useMemo(() => (symbol ? [symbol] : []), [symbol])
-  const { quotes: realtimeQuotes } = useRealtimeQuotes(symbols)
-
-  const sseRealtime = useMemo(() => {
-    if (!symbol) return null
-    return realtimeQuotes.get(symbol) ?? null
-  }, [symbol, realtimeQuotes])
-
-  useEffect(() => {
-    if (!enabled) {
-      setIsLoading(false)
-      return
-    }
-
-    const abortController = new AbortController()
-    loadData(true, abortController.signal)
-
-    return () => abortController.abort()
-  }, [enabled, loadData])
-
-  // 当 SSE 推送新的实时价格时，覆盖本地状态
-  useEffect(() => {
-    if (sseRealtime) {
-      setRealtime(sseRealtime)
-    }
-  }, [sseRealtime])
+  // 项目未上线，暂不启用 SSE 实时价格推送。
+  // 实时接口已预留，恢复时取消下方注释即可：
+  // const symbol = product?.symbol ?? ''
+  // const symbols = useMemo(() => (symbol ? [symbol] : []), [symbol])
+  // const { quotes: realtimeQuotes } = useRealtimeQuotes(symbols)
+  // const sseRealtime = useMemo(() => { ... }, [])
+  // useEffect(() => { if (sseRealtime) { setRealtime(sseRealtime) } }, [sseRealtime])
 
   return {
     product,

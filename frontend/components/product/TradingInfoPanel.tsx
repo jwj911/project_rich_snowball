@@ -16,7 +16,8 @@ export default function TradingInfoPanel({ product, displayPrice, marginCost }: 
         交易信息
       </h2>
       <div className="mt-4 space-y-3 text-sm">
-        <InfoRow label="当前价格" value={formatPrice(displayPrice, product.price_precision)} />
+        <InfoRow label="收盘价" value={formatPrice(product.close_price, product.price_precision)} />
+        <InfoRow label="结算价" value={formatPrice(product.settle, product.price_precision)} />
         <InfoRow label="交易所" value={product.exchange ?? '--'} />
         <InfoRow label="合约代码" value={product.contract_code ?? '--'} />
         <InfoRow label="最小变动价位" value={product.tick_size != null ? formatPrice(Number(product.tick_size), product.price_precision) : '--'} />
@@ -25,19 +26,22 @@ export default function TradingInfoPanel({ product, displayPrice, marginCost }: 
         <InfoRow label="手续费" value={product.commission != null ? `${formatNumber(product.commission)} 元/手` : '--'} />
         <InfoRow label="涨停" value={formatPrice(product.limit_up, product.price_precision)} valueClassName="text-red-400" />
         <InfoRow label="跌停" value={formatPrice(product.limit_down, product.price_precision)} valueClassName="text-green-400" />
-        {product.bid1 != null && (
-          <InfoRow label="买一" value={formatPrice(product.bid1, product.price_precision)} valueClassName="text-red-300" />
-        )}
-        {product.ask1 != null && (
-          <InfoRow label="卖一" value={formatPrice(product.ask1, product.price_precision)} valueClassName="text-green-300" />
-        )}
         {product.open_interest != null && (
           <InfoRow label="持仓量" value={formatInteger(product.open_interest)} />
+        )}
+        {product.oi_chg != null && (
+          <InfoRow
+            label="持仓变化"
+            value={product.oi_chg > 0 ? `+${formatInteger(product.oi_chg)}` : formatInteger(product.oi_chg)}
+            valueClassName={product.oi_chg > 0 ? 'text-red-400' : product.oi_chg < 0 ? 'text-green-400' : 'text-white'}
+          />
         )}
         {product.pre_settlement != null && (
           <InfoRow label="昨结" value={formatPrice(product.pre_settlement, product.price_precision)} />
         )}
-        <InfoRow label="更新时间" value={formatDateTime(product.updated_at)} />
+        {product.trade_date && (
+          <InfoRow label="交易日期" value={product.trade_date} />
+        )}
       </div>
     </section>
   )

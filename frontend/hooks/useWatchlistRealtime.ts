@@ -13,6 +13,9 @@ interface UseWatchlistRealtimeResult {
  * 保留此 hook 仅作向后兼容。
  */
 export function useWatchlistRealtime(symbols: string[]): UseWatchlistRealtimeResult {
-  const { quotes, loading } = useRealtimeQuotes(symbols)
-  return { quotes, loading }
+  // 项目未上线，暂不启用实时推送（SSE/轮询）。
+  // 实时接口已预留，恢复时取消下方注释即可：
+  // const { quotes, loading } = useRealtimeQuotes(symbols)
+  // return { quotes, loading }
+  return { quotes: new Map(), loading: false }
 }

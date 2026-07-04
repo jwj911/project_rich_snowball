@@ -1050,53 +1050,6 @@ def _get_main_klines(
     except Exception as e:
         logger.warning("Get main klines failed for %s: %s", symbol, e)
         return {"error": f"获取主力合约 K 线失败: {e}"}
-    """获取市场状态。"""
-    today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-    entry = (
-        db.query(TradingCalendarDB)
-        .filter(TradingCalendarDB.trade_date == today, TradingCalendarDB.exchange == "ALL")
-        .first()
-    )
-    is_trading = entry.is_trading_day if entry else True
-    session_status = "unknown"
-    if entry and entry.is_trading_day:
-        time_str = datetime.now(UTC).strftime("%H:%M")
-        day_start = entry.day_session_start or "09:00"
-        day_end = entry.day_session_end or "15:00"
-        if day_start <= time_str <= day_end:
-            session_status = "day"
-        else:
-            night_start = entry.night_session_start
-            night_end = entry.night_session_end
-            if night_start and night_end:
-                if night_start < night_end:
-                    if night_start <= time_str <= night_end:
-                        session_status = "night"
-                else:
-                    if time_str >= night_start or time_str <= night_end:
-                        session_status = "night"
-            if session_status == "unknown":
-                session_status = "closed"
-    else:
-        session_status = "closed"
-
-    next_trade = (
-        db.query(TradingCalendarDB)
-        .filter(
-            TradingCalendarDB.trade_date > today,
-            TradingCalendarDB.is_trading_day,
-            TradingCalendarDB.exchange == "ALL",
-        )  # noqa: E712
-        .order_by(TradingCalendarDB.trade_date.asc())
-        .first()
-    )
-
-    return {
-        "date": today.strftime("%Y-%m-%d"),
-        "is_trading_day": is_trading,
-        "current_session": session_status,
-        "next_trade_date": next_trade.trade_date.strftime("%Y-%m-%d") if next_trade else None,
-    }
 
 
 # 注册扩展专用工具

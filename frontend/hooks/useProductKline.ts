@@ -84,13 +84,6 @@ export function useProductKline(
 
   useEffect(() => {
     if (!symbol || !enabled) return
-    if (selectedKlineSource === 'single' && !selectedContractId) {
-      setKlineData([])
-      setDisplayedKlinePeriod(selectedKlinePeriod)
-      setDisplayedKlineSource(selectedKlineSource)
-      setKlineNotice(isContractsLoading ? '正在加载合约列表...' : '当前品种暂无可选合约。')
-      return
-    }
 
     let cancelled = false
     const abortController = new AbortController()
@@ -98,8 +91,6 @@ export function useProductKline(
     setKlineNotice(null)
 
     loadKlineBySource(symbol, selectedKlineSource, selectedKlinePeriod, {
-      contractId: selectedContractId,
-      contractCode: selectedContract?.ts_code ?? selectedContract?.symbol ?? null,
       signal: abortController.signal,
     })
       .then((kline) => {
@@ -126,15 +117,7 @@ export function useProductKline(
       cancelled = true
       abortController.abort()
     }
-  }, [
-    enabled,
-    isContractsLoading,
-    selectedContract,
-    selectedContractId,
-    selectedKlinePeriod,
-    selectedKlineSource,
-    symbol,
-  ])
+  }, [enabled, selectedKlinePeriod, selectedKlineSource, symbol])
 
   return {
     klineData,
