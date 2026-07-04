@@ -163,7 +163,7 @@ class CommentResponse(BaseModel):
 
 
 class VarietyDetailResponse(BaseModel):
-    """品种详情（含实时行情+评论列表），用于替代 ProductDetailResponse。"""
+    """品种详情（含日线行情+评论列表），用于替代 ProductDetailResponse。"""
 
     id: int
     symbol: str
@@ -179,15 +179,19 @@ class VarietyDetailResponse(BaseModel):
     open_price: float | None = None
     high: float | None = None
     low: float | None = None
+    close_price: float | None = None
+    settle: float | None = None
     volume: int | None = None
     pre_settlement: float | None = None
     open_interest: int | None = None
+    oi_chg: int | None = None
     bid1: float | None = None
     ask1: float | None = None
     limit_up: float | None = None
     limit_down: float | None = None
     price_precision: int = 2
     updated_at: dt | None = None
+    trade_date: dt | None = None
     comments: list[CommentResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -985,7 +989,8 @@ class AgentType(StrEnum):
     BACKTEST = "backtest"
     ORCHESTRATOR = "orchestrator"
     STRATEGY_COMPILER = "strategy_compiler"
-    FACTOR_MINING = "factor_mining"
+    PARAMETER_OPTIMIZER = "parameter_optimizer"
+    AUTO = "auto"
 
 
 class AgentTaskStatus(StrEnum):
@@ -1012,7 +1017,7 @@ class AgentTaskCreate(BaseModel):
 
     agent_type: str = Field(
         ...,
-        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining|strategy_compiler)$",
+        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|factor_mining|strategy_compiler|parameter_optimizer|auto)$",
     )
     query: str = Field(..., min_length=1, max_length=4000)
 
@@ -1126,7 +1131,7 @@ class AgentChatRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=4000)
     agent_type: str = Field(
         default="data",
-        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining|strategy_compiler)$",
+        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|factor_mining|strategy_compiler|parameter_optimizer|auto)$",
     )
 
 
@@ -1136,7 +1141,7 @@ class AgentStreamEvent(BaseModel):
     用于向前端推送 Agent 思考过程和执行步骤。
     """
 
-    event_type: str = Field(..., pattern=r"^(start|thought|action|observation|result|error|done)$")
+    event_type: str = Field(..., pattern=r"^(start|progress|thought|action|observation|result|error|done)$")
     task_id: int | None = None
     step_number: int | None = None
     role: str | None = None

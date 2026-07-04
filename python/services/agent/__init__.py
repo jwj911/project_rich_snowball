@@ -6,15 +6,21 @@
 - Tool / ToolRegistry
 - AgentExecutor
 - DataAgent / DataQualityAgent / TechAnalysisAgent / RiskManagementAgent / AnalysisPipelineAgent
+- ParameterOptimizerAgent / IntentRouter
 """
 
+from services.agent.analysis_pipeline_agent import AnalysisPipelineAgent
+from services.agent.backtest_agent import BacktestAgent
 from services.agent.context import AgentContext
 from services.agent.core import Agent, AgentResult, AgentStatus, AgentStep
 from services.agent.data_agent import DataAgent
 from services.agent.data_quality_agent import DataQualityAgent
 from services.agent.executor import AgentExecutor
 from services.agent.factor_mining_agent import FactorMiningAgent
+from services.agent.intent_router import IntentRouter
+from services.agent.parameter_optimizer_agent import ParameterOptimizerAgent
 from services.agent.risk_management_agent import RiskManagementAgent
+from services.agent.strategy_compiler_agent import StrategyCompilerAgent
 from services.agent.tech_analysis_agent import TechAnalysisAgent
 
 __all__ = [
@@ -25,9 +31,13 @@ __all__ = [
     "AgentContext",
     "AgentExecutor",
     "AnalysisPipelineAgent",
+    "BacktestAgent",
     "DataAgent",
     "DataQualityAgent",
     "FactorMiningAgent",
+    "IntentRouter",
+    "ParameterOptimizerAgent",
+    "StrategyCompilerAgent",
     "TechAnalysisAgent",
     "RiskManagementAgent",
 ]

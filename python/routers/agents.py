@@ -28,6 +28,8 @@ from services.agent.executor import AgentExecutor
 from services.agent.factor_mining_agent import FactorMiningAgent
 from services.agent.risk_management_agent import RiskManagementAgent
 from services.agent.strategy_compiler_agent import StrategyCompilerAgent
+from services.agent.intent_router import IntentRouter
+from services.agent.parameter_optimizer_agent import ParameterOptimizerAgent
 from services.agent.tech_analysis_agent import TechAnalysisAgent
 from services.domain.exceptions import NotFoundError, ServiceError
 from services.llm_config import resolve_llm_config
@@ -43,7 +45,7 @@ _AGENT_CAPABILITIES: dict[str, dict[str, Any]] = {
     "backtest": {"label": "策略回测", "requires_llm": False},
     "factor_mining": {"label": "因子评估", "requires_llm": False},
     "strategy_compiler": {"label": "策略编译", "requires_llm": False},
-    "orchestrator": {"label": "编排器", "requires_llm": True},
+    "parameter_optimizer": {"label": "参数优化", "requires_llm": False},
 }
 
 
@@ -133,6 +135,8 @@ def _build_agent(agent_type: str, context: AgentContext) -> Agent:
         return FactorMiningAgent(context)
     if agent_type == "backtest":
         return BacktestAgent(context)
+    if agent_type == "parameter_optimizer":
+        return ParameterOptimizerAgent(context)
     raise ServiceError(
         code=ErrorCode.AGENT_INVALID_MODE,
         message=f"暂不支持 Agent 类型：{agent_type}",
@@ -243,7 +247,7 @@ async def create_agent_task(
 ):
     """创建 Agent 任务并同步执行（简单查询 <3s 场景）。
 
-    返回完整执行结果。
+    返回完整执行结果。对于需要长时间运行的场景，建议使用 SSE /api/agents/chat。
     """
     executor = AgentExecutor(db, current_user.id)
     task_id = executor.create_task(data.agent_type, data.query)
@@ -277,11 +281,18 @@ async def agent_chat(
     """
     async def event_stream():
         executor = AgentExecutor(db, current_user.id)
-        task_id = executor.create_task(data.agent_type, data.content)
+
+        # 处理 auto 模式：先路由到目标 Agent
+        actual_agent_type = data.agent_type
+        if data.agent_type == "auto":
+            router = IntentRouter(db, current_user.id)
+            actual_agent_type = await router.route(data.content)
+
+        task_id = executor.create_task(actual_agent_type, data.content)
         context = AgentContext(db=db, user_id=current_user.id, task_id=task_id)
 
         try:
-            agent = _build_agent(data.agent_type, context)
+            agent = _build_agent(actual_agent_type, context)
         except ServiceError as exc:
             executor.update_task_status(
                 task_id,

@@ -36,13 +36,15 @@ const statusColors: Record<TaskStatus, string> = {
 
 const agentTypeLabels: Record<string, string> = {
   data: '数据助手',
+  data_quality: '数据质检',
   tech_analysis: '技术分析',
   risk_management: '风控管理',
   analysis_pipeline: '完整分析',
   factor_mining: '因子评估',
   backtest: '策略回测',
-  orchestrator: '编排器',
   strategy_compiler: '策略编译',
+  parameter_optimizer: '参数优化',
+  auto: '智能模式',
 }
 
 export default function AgentsPage() {

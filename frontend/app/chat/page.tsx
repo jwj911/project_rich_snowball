@@ -24,6 +24,8 @@ import {
   Workflow,
   Search,
   Code,
+  Square,
+  SlidersHorizontal,
 } from 'lucide-react'
 import FactorResultCard from '@/components/agent/FactorResultCard'
 import TechAnalysisReportCard from '@/components/agent/TechAnalysisReportCard'
@@ -31,7 +33,7 @@ import StrategyResultCard from '@/components/agent/StrategyResultCard'
 import BacktestResultCard from '@/components/agent/BacktestResultCard'
 import { toast } from 'sonner'
 
-type AgentMode = 'chat' | 'data' | 'data_quality' | 'tech_analysis' | 'risk_management' | 'analysis_pipeline' | 'factor_mining' | 'strategy_compiler' | 'backtest'
+type AgentMode = 'chat' | 'data' | 'data_quality' | 'tech_analysis' | 'risk_management' | 'analysis_pipeline' | 'factor_mining' | 'strategy_compiler' | 'backtest' | 'parameter_optimizer' | 'auto'
 
 interface AgentMessage {
   id: number
@@ -103,6 +105,17 @@ const quickPrompts: Record<AgentMode, string[]> = {
     '铜 20 万资金 2 手均线回测',
     '原油做空 5/20 均线回测',
   ],
+  parameter_optimizer: [
+    '螺纹钢5日上穿20日均线参数优化',
+    '优化黄金MACD金叉策略参数',
+    '原油布林带策略参数网格搜索',
+  ],
+  auto: [
+    '帮我分析一下螺纹钢',
+    '黄金目前适合做多还是做空',
+    '螺纹钢5日上穿20日均线策略回测一下',
+    '优化一下刚才的策略参数',
+  ],
 }
 
 const modeLabels: Record<AgentMode, { label: string; icon: typeof Database; desc: string }> = {
@@ -115,6 +128,8 @@ const modeLabels: Record<AgentMode, { label: string; icon: typeof Database; desc
   factor_mining: { label: '因子评估', icon: Search, desc: '评估用户给定因子的 IC、分层回测与回撤' },
   strategy_compiler: { label: '策略编译', icon: Code, desc: '将口头策略编译为结构化 DSL 规则' },
   backtest: { label: '策略回测', icon: BarChart3, desc: '口头策略解析、历史回测与策略评分' },
+  parameter_optimizer: { label: '参数优化', icon: SlidersHorizontal, desc: '对策略进行参数网格搜索优化' },
+  auto: { label: '智能模式', icon: Sparkles, desc: '自动识别意图并选择最佳 Agent' },
 }
 
 export default function ChatPage() {
@@ -126,6 +141,7 @@ export default function ChatPage() {
   const [showModeMenu, setShowModeMenu] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const modeMenuRef = useRef<HTMLDivElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -164,12 +180,34 @@ export default function ChatPage() {
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      // 组件卸载时取消正在进行的流式请求
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+    }
+  }, [])
+
+  const handleStop = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+      setIsLoading(false)
+    }
   }, [])
 
   const handleSend = useCallback(
     async (text: string) => {
       if (!text.trim() || isLoading) return
+
+      // 取消上一条未完成的流式请求
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
 
       const userMsg: AgentMessage = {
         id: Date.now(),
@@ -181,7 +219,7 @@ export default function ChatPage() {
       setInput('')
       setIsLoading(true)
 
-      if (agentMode === 'data' || agentMode === 'data_quality' || agentMode === 'tech_analysis' || agentMode === 'risk_management' || agentMode === 'analysis_pipeline' || agentMode === 'factor_mining' || agentMode === 'strategy_compiler' || agentMode === 'backtest') {
+      if (agentMode !== 'chat') {
         // Agent 流式模式
         const assistantId = Date.now() + 1
         const assistantMsg: AgentMessage = {
@@ -205,8 +243,8 @@ export default function ChatPage() {
                 const updated = [...prev]
                 const msg = { ...updated[idx] }
 
-                if (event.event_type === 'start') {
-                  msg.content = event.content as string
+                if (event.event_type === 'start' || event.event_type === 'progress') {
+                  msg.content = (event.content as string) || msg.content || '正在处理...'
                 } else if (event.event_type === 'thought') {
                   msg.content = (event.content as string) || msg.content
                 } else if (event.event_type === 'action') {
@@ -249,22 +287,46 @@ export default function ChatPage() {
                 return updated
               })
             },
+            {
+              signal: abortController.signal,
+              onMalformed: (raw) => {
+                // eslint-disable-next-line no-console
+                console.warn('Malformed SSE line:', raw)
+              },
+            },
           )
         } catch (e) {
-          toast.error(e instanceof Error ? e.message : 'Agent 请求失败')
-          setMessages((prev) => {
-            const idx = prev.findIndex((m) => m.id === assistantId)
-            if (idx === -1) return prev
-            const updated = [...prev]
-            updated[idx] = {
-              ...updated[idx],
-              content: '请求失败，请稍后重试',
-              isStreaming: false,
-            }
-            return updated
-          })
+          if (e instanceof Error && e.name === 'AbortError') {
+            setMessages((prev) => {
+              const idx = prev.findIndex((m) => m.id === assistantId)
+              if (idx === -1) return prev
+              const updated = [...prev]
+              updated[idx] = {
+                ...updated[idx],
+                content: (updated[idx].content || '') + '\n\n[已取消]',
+                isStreaming: false,
+              }
+              return updated
+            })
+          } else {
+            toast.error(e instanceof Error ? e.message : 'Agent 请求失败')
+            setMessages((prev) => {
+              const idx = prev.findIndex((m) => m.id === assistantId)
+              if (idx === -1) return prev
+              const updated = [...prev]
+              updated[idx] = {
+                ...updated[idx],
+                content: '请求失败，请稍后重试',
+                isStreaming: false,
+              }
+              return updated
+            })
+          }
         } finally {
           setIsLoading(false)
+          if (abortControllerRef.current === abortController) {
+            abortControllerRef.current = null
+          }
         }
       } else {
         // 普通聊天模式
@@ -335,6 +397,12 @@ export default function ChatPage() {
                         key={mode}
                         type="button"
                         onClick={() => {
+                          // 切换模式时取消当前流式请求
+                          if (abortControllerRef.current) {
+                            abortControllerRef.current.abort()
+                            abortControllerRef.current = null
+                            setIsLoading(false)
+                          }
                           setAgentMode(mode)
                           setShowModeMenu(false)
                         }}
@@ -415,14 +483,25 @@ export default function ChatPage() {
               placeholder={`输入问题，Shift+Enter 换行...`}
               className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm text-white placeholder-slate-500 outline-none"
             />
-            <button
-              type="button"
-              onClick={() => handleSend(input)}
-              disabled={isLoading || !input.trim()}
-              className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-600 text-white transition hover:bg-amber-500 disabled:opacity-40"
-            >
-              <Send size={14} />
-            </button>
+            {isLoading ? (
+              <button
+                type="button"
+                onClick={handleStop}
+                className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white transition hover:bg-red-500"
+                title="停止生成"
+              >
+                <Square size={14} fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleSend(input)}
+                disabled={!input.trim()}
+                className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-600 text-white transition hover:bg-amber-500 disabled:opacity-40"
+              >
+                <Send size={14} />
+              </button>
+            )}
           </div>
           <p className="mt-1.5 text-center text-[10px] text-slate-600">
             AI 回答仅供参考，不构成投资建议
@@ -434,6 +513,8 @@ export default function ChatPage() {
             {agentMode === 'factor_mining' && ' · 因子评估基于历史数据计算 IC、分层收益与最大回撤'}
             {agentMode === 'strategy_compiler' && ' · 策略编译器将自然语言描述转换为结构化 DSL 规则'}
             {agentMode === 'backtest' && ' · 策略回测会解析口头策略并计算收益、回撤、胜率和评分'}
+            {agentMode === 'parameter_optimizer' && ' · 参数优化基于网格搜索，存在过拟合风险，建议结合样本外验证'}
+            {agentMode === 'auto' && ' · 智能模式会自动识别意图并路由到最佳 Agent'}
           </p>
         </div>
       </div>
