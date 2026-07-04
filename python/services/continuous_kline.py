@@ -68,35 +68,37 @@ def build_rollover_segments(
 
     segments: list[dict[str, Any]] = []
     if rollovers:
-        segments.append({
-            "start": variety_start,
-            "end": rollovers[0].effective_date,
-            "contract_id": rollovers[0].old_contract_id,
-            "contract_code": rollovers[0].old_contract_code,
-        })
+        segments.append(
+            {
+                "start": variety_start,
+                "end": rollovers[0].effective_date,
+                "contract_id": rollovers[0].old_contract_id,
+                "contract_code": rollovers[0].old_contract_code,
+            }
+        )
         for i in range(len(rollovers)):
             r = rollovers[i]
             seg_end = rollovers[i + 1].effective_date if i + 1 < len(rollovers) else _MAX_DT
-            segments.append({
-                "start": r.effective_date,
-                "end": seg_end,
-                "contract_id": r.new_contract_id,
-                "contract_code": r.new_contract_code,
-            })
+            segments.append(
+                {
+                    "start": r.effective_date,
+                    "end": seg_end,
+                    "contract_id": r.new_contract_id,
+                    "contract_code": r.new_contract_code,
+                }
+            )
     else:
         if variety.contract_code:
-            contract = (
-                db.query(FutContractDB)
-                .filter(FutContractDB.symbol == variety.contract_code)
-                .first()
-            )
+            contract = db.query(FutContractDB).filter(FutContractDB.symbol == variety.contract_code).first()
             if contract:
-                segments.append({
-                    "start": variety_start,
-                    "end": _MAX_DT,
-                    "contract_id": contract.id,
-                    "contract_code": contract.symbol,
-                })
+                segments.append(
+                    {
+                        "start": variety_start,
+                        "end": _MAX_DT,
+                        "contract_id": contract.id,
+                        "contract_code": contract.symbol,
+                    }
+                )
 
     # 与外部 start/end 取交集，提前过滤无数据区间
     filtered: list[dict[str, Any]] = []
@@ -144,8 +146,11 @@ def query_segment_klines(
         logger.warning(
             "Continuous kline gap: no data for contract_id=%s variety_id=%s period=%s "
             "segment [%s, %s). Skipping this segment.",
-            segment["contract_id"], variety_id, period,
-            query_start.isoformat(), query_end.isoformat(),
+            segment["contract_id"],
+            variety_id,
+            period,
+            query_start.isoformat(),
+            query_end.isoformat(),
         )
         return []
 
@@ -153,17 +158,19 @@ def query_segment_klines(
     for row in seg_rows:
         dt = _ensure_aware(row.trading_time)  # type: ignore[arg-type]
         assert dt is not None
-        rows.append({
-            "time": dt.isoformat(),
-            "open": row.open_price,
-            "high": row.high_price,
-            "low": row.low_price,
-            "close": row.close_price,
-            "volume": row.volume,
-            "contract_code": segment["contract_code"],
-            "contract_id": segment["contract_id"],
-            "_dt": dt,
-        })
+        rows.append(
+            {
+                "time": dt.isoformat(),
+                "open": row.open_price,
+                "high": row.high_price,
+                "low": row.low_price,
+                "close": row.close_price,
+                "volume": row.volume,
+                "contract_code": segment["contract_code"],
+                "contract_id": segment["contract_id"],
+                "_dt": dt,
+            }
+        )
     return rows
 
 
@@ -177,9 +184,7 @@ def _compute_segment_gaps(
     计算新旧合约在切换时的 close 价差，并将更早的历史价格累计该价差。
     返回 {contract_id: total_gap} 映射。
     """
-    segment_adj: dict[int | None, Decimal] = {
-        seg["contract_id"]: Decimal(0) for seg in sorted_segments
-    }
+    segment_adj: dict[int | None, Decimal] = {seg["contract_id"]: Decimal(0) for seg in sorted_segments}
     total_gap = Decimal(0)
 
     for i in range(len(sorted_segments) - 1, 0, -1):
@@ -187,15 +192,15 @@ def _compute_segment_gaps(
         prev_seg = sorted_segments[i - 1]
 
         curr_first = next(
-            (r for r in all_rows
-             if r.get("contract_id") == curr_seg["contract_id"]
-             and r["_dt"] >= curr_seg["start"]),
+            (r for r in all_rows if r.get("contract_id") == curr_seg["contract_id"] and r["_dt"] >= curr_seg["start"]),
             None,
         )
         prev_last = next(
-            (r for r in reversed(all_rows)
-             if r.get("contract_id") == prev_seg["contract_id"]
-             and r["_dt"] < curr_seg["start"]),
+            (
+                r
+                for r in reversed(all_rows)
+                if r.get("contract_id") == prev_seg["contract_id"] and r["_dt"] < curr_seg["start"]
+            ),
             None,
         )
 
@@ -229,7 +234,8 @@ def apply_backward_adjustment(all_rows: list[dict], segments: list[dict]) -> Non
         if any(r[k] <= 0 for k in ("open", "high", "low", "close")):
             logger.warning(
                 "Backward adjustment produced non-positive price for contract_id=%s: %s",
-                r.get("contract_id"), {k: r[k] for k in ("open", "high", "low", "close")}
+                r.get("contract_id"),
+                {k: r[k] for k in ("open", "high", "low", "close")},
             )
 
 
@@ -279,7 +285,9 @@ def get_continuous_kline(
     return all_rows[:limit]
 
 
-def _fetch_kline_rows(db: Session, base_filters: list, period: str, start: datetime | None, end: datetime | None, limit: int):
+def _fetch_kline_rows(
+    db: Session, base_filters: list, period: str, start: datetime | None, end: datetime | None, limit: int
+):
     """通用 K 线查询：先按 period 候选列表 fallback，再应用时间过滤和 limit。"""
     for candidate in period_candidates(period):
         q = db.query(KlineDataDB).filter(*base_filters).filter(KlineDataDB.period == candidate)
@@ -303,24 +311,27 @@ def attach_contract_metadata(rows: list, db: Session, default_contract_code: str
         return []
 
     contract_ids = {r.contract_id for r in rows}
-    contracts = {
-        c.id: c
-        for c in db.query(FutContractDB).filter(FutContractDB.id.in_(contract_ids)).all()
-    } if contract_ids else {}
+    contracts = (
+        {c.id: c for c in db.query(FutContractDB).filter(FutContractDB.id.in_(contract_ids)).all()}
+        if contract_ids
+        else {}
+    )
 
     result = []
     for r in rows:
         actual = contracts.get(r.contract_id)
-        result.append({
-            "time": r.trading_time.isoformat(),
-            "open": r.open_price,
-            "high": r.high_price,
-            "low": r.low_price,
-            "close": r.close_price,
-            "volume": r.volume,
-            "contract_code": actual.symbol if actual else default_contract_code,
-            "contract_id": actual.id if actual else r.contract_id,
-        })
+        result.append(
+            {
+                "time": r.trading_time.isoformat(),
+                "open": r.open_price,
+                "high": r.high_price,
+                "low": r.low_price,
+                "close": r.close_price,
+                "volume": r.volume,
+                "contract_code": actual.symbol if actual else default_contract_code,
+                "contract_id": actual.id if actual else r.contract_id,
+            }
+        )
     return result
 
 
@@ -340,21 +351,13 @@ def get_main_contract_kline(
     if not variety or not variety.contract_code:
         return []
 
-    contract = (
-        db.query(FutContractDB)
-        .filter(FutContractDB.symbol == variety.contract_code)
-        .first()
-    )
+    contract = db.query(FutContractDB).filter(FutContractDB.symbol == variety.contract_code).first()
 
     if contract:
-        rows = _fetch_kline_rows(
-            db, [KlineDataDB.contract_id == contract.id], period, start, end, limit
-        )
+        rows = _fetch_kline_rows(db, [KlineDataDB.contract_id == contract.id], period, start, end, limit)
         if rows:
             return attach_contract_metadata(rows, db, default_contract_code=contract.symbol)  # type: ignore[arg-type]
 
     # 回退：按 variety_id 查询，不限制 contract_id
-    rows = _fetch_kline_rows(
-        db, [KlineDataDB.variety_id == variety_id], period, start, end, limit
-    )
+    rows = _fetch_kline_rows(db, [KlineDataDB.variety_id == variety_id], period, start, end, limit)
     return attach_contract_metadata(rows, db, default_contract_code=variety.contract_code)  # type: ignore[arg-type]

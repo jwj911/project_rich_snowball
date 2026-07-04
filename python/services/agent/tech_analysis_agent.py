@@ -7,13 +7,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import pandas as pd
 
 from lib.technical_indicators import calculate_all_indicators
 from services.agent.analysis import analyze_trend, composite_score, detect_divergence, detect_patterns
-from services.agent.context import AgentContext
 from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
 from services.agent.data_tools import _get_kline_data, _get_realtime_quote, _get_variety_info
 from services.agent.utils import resolve_symbol
@@ -95,7 +95,7 @@ class TechAnalysisAgent(Agent):
 
         # 计算所有指标
         df = calculate_all_indicators(df)
-        self._add_step("system", f"计算完成：SMA/EMA/RSI/MACD/BOLL/KDJ/ATR/CCI/OBV/ADX/WR")
+        self._add_step("system", "计算完成：SMA/EMA/RSI/MACD/BOLL/KDJ/ATR/CCI/OBV/ADX/WR")
 
         # 运行各分析模块
         trend = analyze_trend(df)
@@ -132,15 +132,9 @@ class TechAnalysisAgent(Agent):
         vol_ratio = latest.get("vol_ratio")
         price_change = latest["close"] - prev["close"]
         if vol_ratio is not None and vol_ratio > 1.2:
-            if price_change > 0:
-                money_flow = "量价配合，资金流入"
-            else:
-                money_flow = "放量下跌，资金流出"
+            money_flow = "量价配合，资金流入" if price_change > 0 else "放量下跌，资金流出"
         elif vol_ratio is not None and vol_ratio < 0.8:
-            if price_change > 0:
-                money_flow = "缩量上涨，上涨动能减弱（量价背离风险）"
-            else:
-                money_flow = "缩量下跌，抛压减轻"
+            money_flow = "缩量上涨，上涨动能减弱（量价背离风险）" if price_change > 0 else "缩量下跌，抛压减轻"
         else:
             money_flow = "量能中性，观望资金动向"
 
@@ -164,7 +158,11 @@ class TechAnalysisAgent(Agent):
 
         # 风险提示
         atr14 = latest.get("atr14")
-        atr_note = f"ATR {atr14:.2f}，波动{'较大' if atr14 and atr14 > latest['close'] * 0.02 else '一般'}" if atr14 is not None else "波动数据不足"
+        atr_note = (
+            f"ATR {atr14:.2f}，波动{'较大' if atr14 and atr14 > latest['close'] * 0.02 else '一般'}"
+            if atr14 is not None
+            else "波动数据不足"
+        )
         risk_note = f"{atr_note}；当前评分 {composite['score']}/100（{composite['rating']}），建议结合仓位与止损规则。"
 
         report = {
@@ -209,7 +207,9 @@ class TechAnalysisAgent(Agent):
                 "dmi_plus": round(latest.get("dmi_plus", 0), 1) if latest.get("dmi_plus") else None,
                 "dmi_minus": round(latest.get("dmi_minus", 0), 1) if latest.get("dmi_minus") else None,
                 "vol_ratio": round(latest.get("vol_ratio", 0), 2) if latest.get("vol_ratio") else None,
-                "volume_change": round(latest.get("volume") / prev.get("volume") - 1, 2) if prev.get("volume") else None,
+                "volume_change": round(latest.get("volume") / prev.get("volume") - 1, 2)
+                if prev.get("volume")
+                else None,
                 "wr14": round(latest.get("wr14", 0), 1) if latest.get("wr14") else None,
             },
             "notes": composite["notes"],
@@ -241,7 +241,7 @@ class TechAnalysisAgent(Agent):
             "> ⚠️ 所有分析仅供参考，不构成投资建议",
         ]
 
-        summary = "\n".join(str(l) for l in summary_lines if l is not None)
+        summary = "\n".join(str(line) for line in summary_lines if line is not None)
 
         return AgentResult(
             status=AgentStatus.COMPLETED,

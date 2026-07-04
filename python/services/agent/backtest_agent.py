@@ -9,8 +9,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import AsyncIterator
 from dataclasses import asdict
-from typing import Any, AsyncIterator
+from typing import Any
 
 from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
 from services.agent.strategy_compiler_agent import StrategyParser
@@ -165,6 +166,7 @@ class BacktestAgent(Agent):
             },
             steps=self.get_steps(),
         )
+
     async def _run_multi_symbol(self, dsl, symbols: list[str]) -> AgentResult:
         """Run backtest across multiple symbols and produce a comparison report."""
         results: list[dict[str, Any]] = []
@@ -278,8 +280,14 @@ def _extract_strategy_keywords(query: str) -> list[str]:
     """从对比查询中提取策略关键词列表。"""
     # 常见策略短语
     strategy_phrases = [
-        "均线交叉", "MACD金叉", "MACD死叉", "RSI超卖", "RSI超买",
-        "布林带", "突破策略", "均线多头排列",
+        "均线交叉",
+        "MACD金叉",
+        "MACD死叉",
+        "RSI超卖",
+        "RSI超买",
+        "布林带",
+        "突破策略",
+        "均线多头排列",
     ]
     found = []
     for phrase in strategy_phrases:
@@ -310,29 +318,33 @@ def _format_backtest_report(result: dict, dsl: dict | None = None) -> str:
     if dsl:
         strategy_desc = dsl.get("description", f"方向 {dsl.get('direction', 'long')}")
     else:
-        strategy_desc = f"{config['short_window']} 周期均线上穿/下穿 {config['long_window']} 周期均线，方向 {config['direction']}"
+        strategy_desc = (
+            f"{config['short_window']} 周期均线上穿/下穿 {config['long_window']} 周期均线，方向 {config['direction']}"
+        )
 
-    return "\n".join([
-        f"## {variety['name']} ({config['symbol']}) 策略回测",
-        "",
-        f"策略：{strategy_desc}",
-        f"周期：{config['period']}，区间：{window['start']} 至 {window['end']}，样本：{window['bars']} 根",
-        "",
-        "### 核心指标",
-        f"- 策略评分：{metrics['score']}/100",
-        f"- 总收益率：{metrics['total_return_pct']}%",
-        f"- 年化收益率：{metrics['annualized_return_pct']}%",
-        f"- 最大回撤：{metrics['max_drawdown_pct']}%",
-        f"- 胜率：{metrics['win_rate_pct']}%",
-        f"- 盈亏比：{metrics['profit_factor']}",
-        f"- 夏普：{metrics['sharpe']}",
-        f"- 交易次数：{metrics['trade_count']}",
-        "",
-        "### 最近交易",
-        *trade_lines,
-        "",
-        "> 回测基于历史数据和固定规则，不构成投资建议；后续应加入滑点、合约换月和样本外验证。",
-    ])
+    return "\n".join(
+        [
+            f"## {variety['name']} ({config['symbol']}) 策略回测",
+            "",
+            f"策略：{strategy_desc}",
+            f"周期：{config['period']}，区间：{window['start']} 至 {window['end']}，样本：{window['bars']} 根",
+            "",
+            "### 核心指标",
+            f"- 策略评分：{metrics['score']}/100",
+            f"- 总收益率：{metrics['total_return_pct']}%",
+            f"- 年化收益率：{metrics['annualized_return_pct']}%",
+            f"- 最大回撤：{metrics['max_drawdown_pct']}%",
+            f"- 胜率：{metrics['win_rate_pct']}%",
+            f"- 盈亏比：{metrics['profit_factor']}",
+            f"- 夏普：{metrics['sharpe']}",
+            f"- 交易次数：{metrics['trade_count']}",
+            "",
+            "### 最近交易",
+            *trade_lines,
+            "",
+            "> 回测基于历史数据和固定规则，不构成投资建议；后续应加入滑点、合约换月和样本外验证。",
+        ]
+    )
 
 
 def _format_comparison_report(results: list[dict], dsl: dict, errors: list[str] | None = None) -> str:
@@ -342,7 +354,7 @@ def _format_comparison_report(results: list[dict], dsl: dict, errors: list[str] 
     direction_label = "做多" if direction == "long" else "做空"
 
     lines = [
-        f"## 多品种策略对比回测",
+        "## 多品种策略对比回测",
         "",
         f"**策略**：{dsl.get('description', '—')}",
         f"**方向**：{direction_label}",
@@ -380,17 +392,21 @@ def _format_comparison_report(results: list[dict], dsl: dict, errors: list[str] 
     if results:
         best = results[best_idx]
         best_v = best["variety"]
-        lines.extend([
-            "",
-            "### 最佳表现",
-            f"- **{best_v['name']}** 评分 {best_score}/100，在 {len(results)} 个品种中表现最优",
-            f"- 总收益 {best['metrics']['total_return_pct']}%，最大回撤 {best['metrics']['max_drawdown_pct']}%",
-        ])
+        lines.extend(
+            [
+                "",
+                "### 最佳表现",
+                f"- **{best_v['name']}** 评分 {best_score}/100，在 {len(results)} 个品种中表现最优",
+                f"- 总收益 {best['metrics']['total_return_pct']}%，最大回撤 {best['metrics']['max_drawdown_pct']}%",
+            ]
+        )
 
-    lines.extend([
-        "",
-        "> 回测基于历史数据和固定规则，不构成投资建议；跨品种对比需注意合约乘数和保证金差异。",
-    ])
+    lines.extend(
+        [
+            "",
+            "> 回测基于历史数据和固定规则，不构成投资建议；跨品种对比需注意合约乘数和保证金差异。",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -439,22 +455,26 @@ def _format_strategy_comparison_report(symbol: str, results: list[dict], errors:
     if len(results) >= 2:
         best = results[best_idx]
         best_label = best.get("_strategy_label", f"策略{best_idx + 1}")
-        lines.extend([
-            "",
-            "### 对比结论",
-            f"- **最优策略**：{best_label}（评分 {best_score}/100）",
-            f"- 总收益 {best['metrics']['total_return_pct']}%，夏普 {best['metrics']['sharpe']}",
-            f"- 最大回撤 {best['metrics']['max_drawdown_pct']}%，胜率 {best['metrics']['win_rate_pct']}%",
-        ])
+        lines.extend(
+            [
+                "",
+                "### 对比结论",
+                f"- **最优策略**：{best_label}（评分 {best_score}/100）",
+                f"- 总收益 {best['metrics']['total_return_pct']}%，夏普 {best['metrics']['sharpe']}",
+                f"- 最大回撤 {best['metrics']['max_drawdown_pct']}%，胜率 {best['metrics']['win_rate_pct']}%",
+            ]
+        )
         # 找出其他对比差异
         scores = [(r.get("_strategy_label", ""), r["metrics"]["sharpe"]) for r in results]
         sorted_by_sharpe = sorted(scores, key=lambda x: x[1], reverse=True)
         if sorted_by_sharpe:
             lines.append(f"- 夏普排名：{' > '.join(f'{label}({s:.2f})' for label, s in sorted_by_sharpe)}")
 
-    lines.extend([
-        "",
-        "> 回测基于历史数据和固定规则，不构成投资建议。策略选择应综合考虑收益、风险和自身风险偏好。",
-    ])
+    lines.extend(
+        [
+            "",
+            "> 回测基于历史数据和固定规则，不构成投资建议。策略选择应综合考虑收益、风险和自身风险偏好。",
+        ]
+    )
 
     return "\n".join(lines)

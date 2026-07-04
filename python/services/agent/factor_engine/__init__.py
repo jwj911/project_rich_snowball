@@ -5,7 +5,12 @@
 
 from services.agent.factor_engine.data_loader import load_panel_data
 from services.agent.factor_engine.dsl import PanelData, evaluate_factor, validate_factor_formula
-from services.agent.factor_engine.evaluator import FactorEvaluationResult, evaluate_factor as evaluate_factor_performance
+from services.agent.factor_engine.evaluator import (
+    FactorEvaluationResult,
+)
+from services.agent.factor_engine.evaluator import (
+    evaluate_factor as evaluate_factor_performance,
+)
 
 __all__ = [
     "PanelData",

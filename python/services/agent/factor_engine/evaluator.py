@@ -244,9 +244,7 @@ def evaluate_factor(
             ic_by_year[str(year)] = float(group.mean())
 
     # 分层回测
-    quantile_cum, long_short_cum = _compute_quantile_returns(
-        factor_values, forward_returns, n_quantiles=n_quantiles
-    )
+    quantile_cum, long_short_cum = _compute_quantile_returns(factor_values, forward_returns, n_quantiles=n_quantiles)
 
     quantile_returns = []
     if not quantile_cum.empty:

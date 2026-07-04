@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -77,7 +78,9 @@ class AgentExecutor:
             content=step.content,
             tool_name=step.tool_name,
             tool_input_json=json.dumps(step.tool_input, ensure_ascii=False, default=str) if step.tool_input else None,
-            tool_output_json=json.dumps(step.tool_output, ensure_ascii=False, default=str) if step.tool_output is not None else None,
+            tool_output_json=json.dumps(step.tool_output, ensure_ascii=False, default=str)
+            if step.tool_output is not None
+            else None,
         )
         self.db.add(db_step)
         self.db.commit()
@@ -171,7 +174,6 @@ class AgentExecutor:
                 # 收集最终结果用于任务状态更新
                 if event.get("event_type") == "result":
                     final_result = event.get("result")
-                    final_answer = event.get("content")
                     final_status = AgentStatus.COMPLETED
                 elif event.get("event_type") == "error":
                     final_result = event.get("result")

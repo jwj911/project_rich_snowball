@@ -14,11 +14,11 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
-from services.agent.context import AgentContext
 from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
-from services.agent.utils import resolve_symbol, resolve_symbols
+from services.agent.utils import resolve_symbols
 
 logger = logging.getLogger(__name__)
 
@@ -27,33 +27,77 @@ logger = logging.getLogger(__name__)
 # 表达式白名单
 # ------------------------------------------------------------------
 
-_VALID_INDICATORS = frozenset({
-    "sma", "ema", "rsi", "macd", "macd_dif", "macd_dea", "macd_bar",
-    "boll_upper", "boll_mid", "boll_lower", "kdj_k", "kdj_d", "kdj_j",
-    "atr", "cci", "obv", "adx", "dmi_plus", "dmi_minus", "wr", "volume",
-    "close", "open", "high", "low", "pre_close", "change_percent",
-})
+_VALID_INDICATORS = frozenset(
+    {
+        "sma",
+        "ema",
+        "rsi",
+        "macd",
+        "macd_dif",
+        "macd_dea",
+        "macd_bar",
+        "boll_upper",
+        "boll_mid",
+        "boll_lower",
+        "kdj_k",
+        "kdj_d",
+        "kdj_j",
+        "atr",
+        "cci",
+        "obv",
+        "adx",
+        "dmi_plus",
+        "dmi_minus",
+        "wr",
+        "volume",
+        "close",
+        "open",
+        "high",
+        "low",
+        "pre_close",
+        "change_percent",
+    }
+)
 
-_VALID_OPERATORS = frozenset({
-    "cross_above", "cross_below", "above", "below",
-    "greater_than", "less_than", "equal", "between",
-    "increase_by", "decrease_by",
-})
+_VALID_OPERATORS = frozenset(
+    {
+        "cross_above",
+        "cross_below",
+        "above",
+        "below",
+        "greater_than",
+        "less_than",
+        "equal",
+        "between",
+        "increase_by",
+        "decrease_by",
+    }
+)
 
 _VALID_PERIODS = frozenset({"1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1mo"})
 
 _VALID_DIRECTIONS = frozenset({"long", "short"})
 
-_VALID_RISK_TYPES = frozenset({
-    "fixed_lots", "fixed_cash", "risk_percent", "atr_multiple",
-    "fixed_price", "percent_below", "percent_above",
-    "risk_reward_ratio", "trailing_stop", "target_price",
-})
+_VALID_RISK_TYPES = frozenset(
+    {
+        "fixed_lots",
+        "fixed_cash",
+        "risk_percent",
+        "atr_multiple",
+        "fixed_price",
+        "percent_below",
+        "percent_above",
+        "risk_reward_ratio",
+        "trailing_stop",
+        "target_price",
+    }
+)
 
 
 # ------------------------------------------------------------------
 # Strategy DSL
 # ------------------------------------------------------------------
+
 
 class StrategyDSL:
     """策略 DSL 结构。"""
@@ -98,6 +142,7 @@ class StrategyDSL:
 # 策略解析器
 # ------------------------------------------------------------------
 
+
 class StrategyParser:
     """基于规则的自然语言策略解析器。"""
 
@@ -140,7 +185,9 @@ class StrategyParser:
         # 6. 默认模板：均线交叉
         return self._parse_ma_cross(query, symbols, timeframe, direction, logic)
 
-    def _parse_ma_cross(self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str) -> StrategyDSL:
+    def _parse_ma_cross(
+        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
+    ) -> StrategyDSL:
         """解析均线交叉策略。"""
         # 提取均线周期
         ma_matches = re.findall(r"(\d+)\s*(?:日|天|周期|根)?(?:均线|ma|MA)", query)
@@ -158,9 +205,7 @@ class StrategyParser:
         entry_op = "cross_above" if direction == "long" else "cross_below"
         exit_op = "cross_below" if direction == "long" else "cross_above"
 
-        base_conditions = [
-            {"indicator": short_indicator, "operator": entry_op, "indicator2": long_indicator}
-        ]
+        base_conditions = [{"indicator": short_indicator, "operator": entry_op, "indicator2": long_indicator}]
         extra_conditions = _parse_extra_conditions(query)
 
         return StrategyDSL(
@@ -174,9 +219,7 @@ class StrategyParser:
                 "logic": logic,
             },
             exit={
-                "conditions": [
-                    {"indicator": short_indicator, "operator": exit_op, "indicator2": long_indicator}
-                ],
+                "conditions": [{"indicator": short_indicator, "operator": exit_op, "indicator2": long_indicator}],
                 "logic": "and",
             },
             risk=_default_risk(query),
@@ -240,7 +283,9 @@ class StrategyParser:
             risk=_default_risk(query),
         )
 
-    def _parse_bollinger(self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str) -> StrategyDSL:
+    def _parse_bollinger(
+        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
+    ) -> StrategyDSL:
         """解析布林带策略。"""
         if direction == "long":
             entry_conditions = [{"indicator": "close", "operator": "cross_above", "indicator2": "boll_lower"}]
@@ -262,7 +307,9 @@ class StrategyParser:
             risk=_default_risk(query),
         )
 
-    def _parse_breakout(self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str) -> StrategyDSL:
+    def _parse_breakout(
+        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
+    ) -> StrategyDSL:
         """解析突破策略。"""
         # 提取周期（如 20 日高点）
         window_match = re.search(r"(\d+)\s*(?:日|天|周期|根)", query)
@@ -290,6 +337,7 @@ class StrategyParser:
 # ------------------------------------------------------------------
 # 校验器
 # ------------------------------------------------------------------
+
 
 class StrategyValidator:
     """策略 DSL 校验器。"""
@@ -371,6 +419,7 @@ class StrategyValidator:
 # 辅助函数
 # ------------------------------------------------------------------
 
+
 def _is_valid_indicator(name: str) -> bool:
     """校验指标名是否合法，支持基础名及带周期/窗口后缀的变体（如 sma5、rsi24、high_20）。"""
     if name in _VALID_INDICATORS:
@@ -383,15 +432,30 @@ def _is_valid_indicator(name: str) -> bool:
 def _extract_timeframe(query: str) -> str:
     """从查询中提取周期。"""
     period_map = {
-        "1分钟": "1m", "一分钟": "1m",
-        "5分钟": "5m", "五分钟": "5m",
-        "15分钟": "15m", "十五分钟": "15m",
-        "30分钟": "30m", "三十分钟": "30m",
-        "1小时": "1h", "一小时": "1h", "小时线": "1h",
+        "1分钟": "1m",
+        "一分钟": "1m",
+        "5分钟": "5m",
+        "五分钟": "5m",
+        "15分钟": "15m",
+        "十五分钟": "15m",
+        "30分钟": "30m",
+        "三十分钟": "30m",
+        "1小时": "1h",
+        "一小时": "1h",
+        "小时线": "1h",
         "4小时": "4h",
-        "日线": "1d", "日K": "1d", "日k": "1d", "日": "1d",
-        "周线": "1w", "周K": "1w", "周k": "1w", "周": "1w",
-        "月线": "1mo", "月K": "1mo", "月k": "1mo", "月": "1mo",
+        "日线": "1d",
+        "日K": "1d",
+        "日k": "1d",
+        "日": "1d",
+        "周线": "1w",
+        "周K": "1w",
+        "周k": "1w",
+        "周": "1w",
+        "月线": "1mo",
+        "月K": "1mo",
+        "月k": "1mo",
+        "月": "1mo",
     }
     for key, value in period_map.items():
         if key in query:
@@ -483,8 +547,12 @@ def _parse_extra_conditions(query: str) -> list[dict[str, Any]]:
         conditions.append({"indicator": "volume", "operator": "less_than", "value": 0.5})
 
     # 价格在均线上方/下方
-    ma_above = re.search(r"(?:价格|收盘价?)\s*(?:在|位于)?\s*(\d+)\s*(?:日|天)?(?:均线|ma|MA)\s*(?:上方|之上|以上)", query)
-    ma_below = re.search(r"(?:价格|收盘价?)\s*(?:在|位于)?\s*(\d+)\s*(?:日|天)?(?:均线|ma|MA)\s*(?:下方|之下|以下)", query)
+    ma_above = re.search(
+        r"(?:价格|收盘价?)\s*(?:在|位于)?\s*(\d+)\s*(?:日|天)?(?:均线|ma|MA)\s*(?:上方|之上|以上)", query
+    )
+    ma_below = re.search(
+        r"(?:价格|收盘价?)\s*(?:在|位于)?\s*(\d+)\s*(?:日|天)?(?:均线|ma|MA)\s*(?:下方|之下|以下)", query
+    )
     if ma_above:
         period = int(ma_above.group(1))
         conditions.append({"indicator": "close", "operator": "above", "indicator2": f"sma{period}"})
@@ -542,6 +610,7 @@ def _parse_extra_exit_conditions(query: str) -> list[dict[str, Any]]:
 # ------------------------------------------------------------------
 # StrategyCompilerAgent
 # ------------------------------------------------------------------
+
 
 class StrategyCompilerAgent(Agent):
     """策略编译 Agent。

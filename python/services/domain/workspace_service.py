@@ -36,9 +36,7 @@ class WorkspaceService:
         """聚合当前用户的价位标注、自选和最近评论。"""
         user_id = user.id
 
-        price_levels_rows = self._price_level_repo.list_by_user(
-            user_id, skip=0, limit=100
-        )
+        price_levels_rows = self._price_level_repo.list_by_user(user_id, skip=0, limit=100)
         price_levels = [
             PriceLevelResponse(
                 id=pl.id,

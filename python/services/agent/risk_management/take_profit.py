@@ -10,7 +10,6 @@ from typing import Literal
 
 import pandas as pd
 
-
 TakeProfitMethod = Literal["risk_reward", "atr", "resistance", "trailing", "fixed_pct"]
 
 
@@ -112,7 +111,9 @@ def calculate_take_profit(
         else:
             notes.append("未提供目标位，回退到风险收益比")
             used_method = "risk_reward"
-            take_profit = entry_price + (risk_distance * target_rr if direction == "long" else -risk_distance * target_rr)
+            take_profit = entry_price + (
+                risk_distance * target_rr if direction == "long" else -risk_distance * target_rr
+            )
 
     elif method == "trailing":
         # 移动止盈：先设一个目标触发价，触发后按回撤百分比跟踪

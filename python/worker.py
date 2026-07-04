@@ -7,6 +7,7 @@
 开发环境（API + scheduler 同进程）：
   ENABLE_SCHEDULER=1 python main.py
 """
+
 import logging
 import os
 import signal
@@ -59,6 +60,7 @@ def main():
     env = os.getenv("ENV", "development")
     if env != "production":
         from data_collector.init_mock_data import init_mock_data
+
         init_mock_data()
 
     start_scheduler()
@@ -70,6 +72,7 @@ def main():
     finally:
         shutdown_scheduler()
         from models import engine
+
         engine.dispose()
         logger.info("Scheduler worker stopped.")
 

@@ -264,14 +264,19 @@ class KlineService:
                 return None
             rows.reverse()
 
-            df = pd.DataFrame([{
-                "open": float(r.open_price),
-                "high": float(r.high_price),
-                "low": float(r.low_price),
-                "close": float(r.close_price),
-                "volume": r.volume,
-                "time": r.trading_time.isoformat(),
-            } for r in rows])
+            df = pd.DataFrame(
+                [
+                    {
+                        "open": float(r.open_price),
+                        "high": float(r.high_price),
+                        "low": float(r.low_price),
+                        "close": float(r.close_price),
+                        "volume": r.volume,
+                        "time": r.trading_time.isoformat(),
+                    }
+                    for r in rows
+                ]
+            )
 
             df = calculate_all_indicators(df)
 

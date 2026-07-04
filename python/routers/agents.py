@@ -14,7 +14,6 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-import config
 from dependencies import get_current_user_dependency, get_db
 from errors import ErrorCode
 from models import AgentTaskDB, UserDB
@@ -24,17 +23,20 @@ from services.agent.backtest_agent import BacktestAgent
 from services.agent.context import AgentContext
 from services.agent.core import Agent
 from services.agent.data_agent import DataAgent
+from services.agent.data_quality_agent import DataQualityAgent
 from services.agent.executor import AgentExecutor
 from services.agent.factor_mining_agent import FactorMiningAgent
 from services.agent.risk_management_agent import RiskManagementAgent
 from services.agent.strategy_compiler_agent import StrategyCompilerAgent
 from services.agent.tech_analysis_agent import TechAnalysisAgent
 from services.domain.exceptions import NotFoundError, ServiceError
+from services.llm_config import resolve_llm_config
 
 router = APIRouter(prefix="/api/agents", tags=["AI Agent"])
 
 _AGENT_CAPABILITIES: dict[str, dict[str, Any]] = {
     "data": {"label": "数据助手", "requires_llm": True},
+    "data_quality": {"label": "数据质检", "requires_llm": False},
     "tech_analysis": {"label": "技术分析", "requires_llm": False},
     "risk_management": {"label": "风控管理", "requires_llm": False},
     "analysis_pipeline": {"label": "完整分析", "requires_llm": False},
@@ -45,9 +47,9 @@ _AGENT_CAPABILITIES: dict[str, dict[str, Any]] = {
 }
 
 
-def _capability_status() -> list[dict[str, Any]]:
+def _capability_status(db: Session | None = None, user_id: int | None = None) -> list[dict[str, Any]]:
     """返回各 Agent 模式的可用性。"""
-    llm_configured = bool(config.OPENAI_API_KEY)
+    llm_configured = resolve_llm_config(db, user_id) is not None
     capabilities = []
     for agent_type, meta in _AGENT_CAPABILITIES.items():
         requires_llm = bool(meta.get("requires_llm"))
@@ -117,6 +119,8 @@ def _build_agent(agent_type: str, context: AgentContext) -> Agent:
     """根据类型创建 Agent 实例。"""
     if agent_type == "data":
         return DataAgent(context)
+    if agent_type == "data_quality":
+        return DataQualityAgent(context)
     if agent_type == "tech_analysis":
         return TechAnalysisAgent(context)
     if agent_type == "risk_management":
@@ -179,22 +183,23 @@ def get_agent_status(
     )
     return {
         "server_time": datetime.now(UTC),
-        "llm_configured": bool(config.OPENAI_API_KEY),
+        "llm_configured": resolve_llm_config(db, current_user.id) is not None,
         "total_tasks": sum(counts.values()),
         "running_tasks": counts.get("running", 0),
         "completed_tasks": counts.get("completed", 0),
         "failed_tasks": counts.get("failed", 0),
         "recent_failed_tasks": [_task_to_response(t) for t in recent_failed],
-        "capabilities": _capability_status(),
+        "capabilities": _capability_status(db, current_user.id),
     }
 
 
 @router.get("/permission-heartbeat", response_model=AgentPermissionHeartbeat)
 def get_agent_permission_heartbeat(
     current_user: UserDB = Depends(get_current_user_dependency),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """返回当前用户对 Agent 系统的权限心跳。"""
-    allowed_agent_types = [item["agent_type"] for item in _capability_status() if item["enabled"]]
+    allowed_agent_types = [item["agent_type"] for item in _capability_status(db, current_user.id) if item["enabled"]]
     return {
         "server_time": datetime.now(UTC),
         "authenticated": True,

@@ -7,12 +7,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import pandas as pd
 
 from lib.technical_indicators import calculate_all_indicators
-from services.agent.context import AgentContext
 from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
 from services.agent.data_tools import _get_kline_data, _get_realtime_quote, _get_variety_info
 from services.agent.risk_management.drawdown_control import generate_risk_management_plan
@@ -64,16 +64,20 @@ def _load_position_context(db, user_id: int, symbol: str | None) -> dict[str, An
         from sqlalchemy import text
 
         # 查询用户未平仓的 trade_records
-        rows = db.execute(
-            text(
-                "SELECT id, symbol, direction, entry_price, quantity, "
-                "stop_loss_price, take_profit_price, created_at, notes "
-                "FROM trade_records "
-                "WHERE user_id = :uid AND status = 'open' "
-                "ORDER BY created_at DESC"
-            ),
-            {"uid": user_id},
-        ).mappings().all()
+        rows = (
+            db.execute(
+                text(
+                    "SELECT id, symbol, direction, entry_price, quantity, "
+                    "stop_loss_price, take_profit_price, created_at, notes "
+                    "FROM trade_records "
+                    "WHERE user_id = :uid AND status = 'open' "
+                    "ORDER BY created_at DESC"
+                ),
+                {"uid": user_id},
+            )
+            .mappings()
+            .all()
+        )
 
         if not rows:
             return context
@@ -91,14 +95,18 @@ def _load_position_context(db, user_id: int, symbol: str | None) -> dict[str, An
             sym = pos.get("symbol", "")
             if not sym:
                 continue
-            quote_row = db.execute(
-                text(
-                    "SELECT r.current_price FROM realtime_quotes r "
-                    "JOIN varieties v ON r.variety_id = v.id "
-                    "WHERE v.symbol = :sym AND v.is_active IS TRUE"
-                ),
-                {"sym": sym},
-            ).mappings().first()
+            quote_row = (
+                db.execute(
+                    text(
+                        "SELECT r.current_price FROM realtime_quotes r "
+                        "JOIN varieties v ON r.variety_id = v.id "
+                        "WHERE v.symbol = :sym AND v.is_active IS TRUE"
+                    ),
+                    {"sym": sym},
+                )
+                .mappings()
+                .first()
+            )
 
             current_price = float(quote_row["current_price"]) if quote_row else float(pos.get("entry_price", 0))
             entry_price = float(pos.get("entry_price", 0))
@@ -116,13 +124,16 @@ def _load_position_context(db, user_id: int, symbol: str | None) -> dict[str, An
         # 查找该用户是否设置过初始资金（从 strategies 或 backtest_runs 推断）
         initial_balance = _DEFAULT_ACCOUNT_BALANCE
         try:
-            strategy_row = db.execute(
-                text(
-                    "SELECT initial_capital FROM strategies "
-                    "WHERE user_id = :uid ORDER BY updated_at DESC LIMIT 1"
-                ),
-                {"uid": user_id},
-            ).mappings().first()
+            strategy_row = (
+                db.execute(
+                    text(
+                        "SELECT initial_capital FROM strategies WHERE user_id = :uid ORDER BY updated_at DESC LIMIT 1"
+                    ),
+                    {"uid": user_id},
+                )
+                .mappings()
+                .first()
+            )
             if strategy_row and strategy_row.get("initial_capital"):
                 initial_balance = float(strategy_row["initial_capital"])
         except Exception:
@@ -210,7 +221,10 @@ class RiskManagementAgent(Agent):
             recent = df.iloc[-20:]
             support_levels = [round(recent["low"].min(), 2)]
             resistance_levels = [round(recent["high"].max(), 2)]
-            self._add_step("observation", f"K 线数据：{len(kline_data)} 根，支撑位={support_levels[0]}，阻力位={resistance_levels[0]}")
+            self._add_step(
+                "observation",
+                f"K 线数据：{len(kline_data)} 根，支撑位={support_levels[0]}，阻力位={resistance_levels[0]}",
+            )
         else:
             self._add_step("observation", "K 线数据不足，使用固定百分比风控")
 
@@ -249,7 +263,10 @@ class RiskManagementAgent(Agent):
             resistance_levels=resistance_levels,
         )
 
-        self._add_step("system", f"风控方案生成完成：仓位 {plan.position_sizing['position_size_pct']:.1f}%，止损 {plan.stop_loss['stop_loss_price']}")
+        self._add_step(
+            "system",
+            f"风控方案生成完成：仓位 {plan.position_sizing['position_size_pct']:.1f}%，止损 {plan.stop_loss['stop_loss_price']}",
+        )
 
         # 6. 构建报告
         sl = plan.stop_loss
@@ -287,62 +304,72 @@ class RiskManagementAgent(Agent):
 
         # 7. 自然语言总结
         summary_lines = [
-            f"## {variety_info['name']} ({symbol}) { '做多' if direction == 'long' else '做空' } 风控方案",
+            f"## {variety_info['name']} ({symbol}) {'做多' if direction == 'long' else '做空'} 风控方案",
             "",
             f"**入场价格**：{entry_price}  **账户权益**：{pos['account_balance']:.0f}  **风险等级**：{risk_level}",
         ]
         if pos_ctx["has_positions"]:
-            summary_lines.extend([
-                f"**现有持仓**：{len(pos_ctx['open_positions'])} 个，浮动盈亏 {pos_ctx['total_floating_pnl']:+,.2f}",
-                f"**初始资金**：{pos_ctx['initial_balance']:.0f}，当前回撤 {pos_ctx['total_drawdown_pct']:.1f}%",
-            ])
+            summary_lines.extend(
+                [
+                    f"**现有持仓**：{len(pos_ctx['open_positions'])} 个，浮动盈亏 {pos_ctx['total_floating_pnl']:+,.2f}",
+                    f"**初始资金**：{pos_ctx['initial_balance']:.0f}，当前回撤 {pos_ctx['total_drawdown_pct']:.1f}%",
+                ]
+            )
         summary_lines.extend(["", "### 1. 仓位管理"])
-        summary_lines.extend([
-            f"- 建议仓位：{pos['suggested_lots']:.2f} 手（占用资金 {pos['position_size_pct']:.1f}%）",
-            f"- 单次风险：{pos['risk_per_trade_pct']:.1f}%（{pos['risk_amount']:.0f}）",
-            f"- 最大允许仓位：{pos['max_position_size_pct']:.1f}%",
-        ])
+        summary_lines.extend(
+            [
+                f"- 建议仓位：{pos['suggested_lots']:.2f} 手（占用资金 {pos['position_size_pct']:.1f}%）",
+                f"- 单次风险：{pos['risk_per_trade_pct']:.1f}%（{pos['risk_amount']:.0f}）",
+                f"- 最大允许仓位：{pos['max_position_size_pct']:.1f}%",
+            ]
+        )
         if pos.get("margin_ratio"):
             summary_lines.append(f"- 保证金占用：{pos['margin_ratio']:.1f}%（{pos['margin_required']:.0f}）")
 
-        summary_lines.extend([
-            "",
-            "### 2. 止损控制",
-            f"- 止损价位：{sl['stop_loss_price']}",
-            f"- 止损距离：{sl['risk_distance']:.2f}（{sl['risk_distance_pct']:.1f}%）",
-            f"- 止损方法：{sl['method']}",
-            "",
-            "### 3. 止盈控制",
-            f"- 止盈价位：{tp['take_profit_price']}",
-            f"- 止盈距离：{tp['reward_distance']:.2f}（{tp['reward_distance_pct']:.1f}%）",
-            f"- 风险收益比：1:{tp['risk_reward_ratio']:.2f}",
-            f"- 止盈方法：{tp['method']}",
-        ])
+        summary_lines.extend(
+            [
+                "",
+                "### 2. 止损控制",
+                f"- 止损价位：{sl['stop_loss_price']}",
+                f"- 止损距离：{sl['risk_distance']:.2f}（{sl['risk_distance_pct']:.1f}%）",
+                f"- 止损方法：{sl['method']}",
+                "",
+                "### 3. 止盈控制",
+                f"- 止盈价位：{tp['take_profit_price']}",
+                f"- 止盈距离：{tp['reward_distance']:.2f}（{tp['reward_distance_pct']:.1f}%）",
+                f"- 风险收益比：1:{tp['risk_reward_ratio']:.2f}",
+                f"- 止盈方法：{tp['method']}",
+            ]
+        )
         if tp.get("trailing_trigger"):
-            summary_lines.extend([
-                f"- 移动止盈：触发价 {tp['trailing_trigger']}，触发后回撤止盈 {tp['trailing_stop']}",
-            ])
+            summary_lines.extend(
+                [
+                    f"- 移动止盈：触发价 {tp['trailing_trigger']}，触发后回撤止盈 {tp['trailing_stop']}",
+                ]
+            )
 
-        summary_lines.extend([
-            "",
-            "### 4. 回撤控制",
-            f"- 单日最大亏损：{dd.max_daily_loss_pct}%（{plan.daily_limits['max_daily_loss_amount']:.0f}）",
-            f"- 总最大回撤：{dd.max_drawdown_pct}%",
-            f"- 回撤 {dd.position_size_reduction * 100:.0f}% 时仓位缩减一半",
-            f"- 回撤 {dd.trading_halt_drawdown}% 时暂停交易",
-            f"- 建议最大连续亏损：{dd.max_consecutive_losses} 次后强制暂停",
-            "",
-            "### 5. 交易纪律",
-            "- 建仓：按建议手数一次性建仓或分 2 批（50% + 50%）",
-            "- 加仓：盈利后回撤不超过 30% 时可考虑加仓，加仓量不超过初始仓位 50%",
-            "- 减仓：亏损达到单次风险 50% 时减仓 50%",
-            "- 持仓监控：每日收盘检查是否触发回撤控制线",
-            "- 复盘：连续亏损 3 次或回撤 10% 后必须复盘再交易",
-            "",
-            "> ⚠️ 所有风控方案仅供参考，不构成投资建议。实际交易请根据自身情况调整。",
-        ])
+        summary_lines.extend(
+            [
+                "",
+                "### 4. 回撤控制",
+                f"- 单日最大亏损：{dd.max_daily_loss_pct}%（{plan.daily_limits['max_daily_loss_amount']:.0f}）",
+                f"- 总最大回撤：{dd.max_drawdown_pct}%",
+                f"- 回撤 {dd.position_size_reduction * 100:.0f}% 时仓位缩减一半",
+                f"- 回撤 {dd.trading_halt_drawdown}% 时暂停交易",
+                f"- 建议最大连续亏损：{dd.max_consecutive_losses} 次后强制暂停",
+                "",
+                "### 5. 交易纪律",
+                "- 建仓：按建议手数一次性建仓或分 2 批（50% + 50%）",
+                "- 加仓：盈利后回撤不超过 30% 时可考虑加仓，加仓量不超过初始仓位 50%",
+                "- 减仓：亏损达到单次风险 50% 时减仓 50%",
+                "- 持仓监控：每日收盘检查是否触发回撤控制线",
+                "- 复盘：连续亏损 3 次或回撤 10% 后必须复盘再交易",
+                "",
+                "> ⚠️ 所有风控方案仅供参考，不构成投资建议。实际交易请根据自身情况调整。",
+            ]
+        )
 
-        summary = "\n".join(str(l) for l in summary_lines)
+        summary = "\n".join(str(line) for line in summary_lines)
 
         return AgentResult(
             status=AgentStatus.COMPLETED,

@@ -8,7 +8,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-
 RiskLevel = Literal["low", "medium", "high"]
 
 
@@ -77,7 +76,6 @@ def calculate_drawdown_control(
 
     max_daily_loss = account_balance * (config["max_daily_loss"] / 100)
     max_drawdown = account_balance * (config["max_drawdown"] / 100)
-    trading_halt = account_balance * (config["trading_halt"] / 100)
 
     # 最大连续亏损次数：基于凯利简化
     # 假设胜率 40%，单次风险 2%，最大回撤 20% -> 约 10 次
@@ -174,7 +172,9 @@ def generate_risk_management_plan(
         stop_loss_price=stop_loss_price,
         margin_rate=margin_rate,
         contract_multiplier=contract_multiplier,
-        risk_profile="moderate" if risk_level == "medium" else ("conservative" if risk_level == "low" else "aggressive"),
+        risk_profile="moderate"
+        if risk_level == "medium"
+        else ("conservative" if risk_level == "low" else "aggressive"),
         max_drawdown_pct=drawdown.max_drawdown_pct,
     )
     notes.extend(position.notes)

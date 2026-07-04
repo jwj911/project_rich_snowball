@@ -1,7 +1,7 @@
 """add_varieties_realtime_kline_watchlists_opinions
 
 Revision ID: 7a8e00d86747
-Revises: 
+Revises:
 Create Date: 2026-05-02 22:40:49.004806
 
 """

@@ -126,7 +126,7 @@ def _reset_state(source: str) -> None:
 
 def _push_result(results: list[int], is_failure: bool) -> list[int]:
     """将最新结果推入滑动窗口。"""
-    results = results[-(CIRCUIT_RATE_WINDOW - 1):] if len(results) >= CIRCUIT_RATE_WINDOW else results
+    results = results[-(CIRCUIT_RATE_WINDOW - 1) :] if len(results) >= CIRCUIT_RATE_WINDOW else results
     results.append(1 if is_failure else 0)
     return results
 
@@ -179,14 +179,8 @@ def get_circuit_status(source: str | None = None) -> dict:
 def _status_for_source(src: str) -> dict:
     failure_count, last, results = _get_state(src)
     now = time.time()
-    consecutive_open = (
-        failure_count >= CIRCUIT_THRESHOLD
-        and (now - last) < CIRCUIT_COOLDOWN_SECONDS
-    )
-    rate_open = (
-        len(results) >= CIRCUIT_RATE_WINDOW
-        and (sum(results) / len(results)) >= CIRCUIT_FAILURE_THRESHOLD
-    )
+    consecutive_open = failure_count >= CIRCUIT_THRESHOLD and (now - last) < CIRCUIT_COOLDOWN_SECONDS
+    rate_open = len(results) >= CIRCUIT_RATE_WINDOW and (sum(results) / len(results)) >= CIRCUIT_FAILURE_THRESHOLD
     return {
         "source": src,
         "failure_count": failure_count,

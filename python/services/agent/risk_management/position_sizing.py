@@ -125,9 +125,7 @@ def calculate_position_sizing(
 
     # 8. 回撤关联检查
     max_trades_before_drawdown = max_drawdown_pct / risk_per_trade_pct if risk_per_trade_pct > 0 else float("inf")
-    notes.append(
-        f"连续 {max_trades_before_drawdown:.0f} 次止损将触及最大回撤限制（{max_drawdown_pct}%）"
-    )
+    notes.append(f"连续 {max_trades_before_drawdown:.0f} 次止损将触及最大回撤限制（{max_drawdown_pct}%）")
 
     # 9. 建议调整
     if position_size_pct > 50:

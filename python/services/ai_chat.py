@@ -4,15 +4,14 @@
 支持从数据库检索实时行情、品种信息、用户观点作为上下文。
 """
 
-import json
 import logging
-from datetime import UTC, datetime
 
 import httpx
 from sqlalchemy.orm import Session
 
 from config import CHAT_MAX_HISTORY, OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL
 from models import ChatMessageDB, OpinionDB, RealtimeQuoteDB, VarietyDB
+from services.llm_config import resolve_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -47,22 +46,23 @@ def _build_context(varieties: list[VarietyDB], db: Session, user_id: int) -> dic
 
     if variety_ids:
         quotes = {
-            q.variety_id: q
-            for q in db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id.in_(variety_ids)).all()
+            q.variety_id: q for q in db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id.in_(variety_ids)).all()
         }
         for v in varieties:
             q = quotes.get(v.id)
-            context["varieties"].append({
-                "symbol": v.symbol,
-                "name": v.name,
-                "exchange": v.exchange,
-                "category": v.category,
-                "current_price": str(q.current_price) if q else None,
-                "change_percent": str(q.change_percent) if q else None,
-                "high": str(q.high) if q else None,
-                "low": str(q.low) if q else None,
-                "volume": q.volume if q else None,
-            })
+            context["varieties"].append(
+                {
+                    "symbol": v.symbol,
+                    "name": v.name,
+                    "exchange": v.exchange,
+                    "category": v.category,
+                    "current_price": str(q.current_price) if q else None,
+                    "change_percent": str(q.change_percent) if q else None,
+                    "high": str(q.high) if q else None,
+                    "low": str(q.low) if q else None,
+                    "volume": q.volume if q else None,
+                }
+            )
 
         recent_opinions = (
             db.query(OpinionDB)
@@ -75,12 +75,14 @@ def _build_context(varieties: list[VarietyDB], db: Session, user_id: int) -> dic
             .all()
         )
         for o in recent_opinions:
-            context["opinions"].append({
-                "type": o.type,
-                "reason": o.reason,
-                "target_price": str(o.target_price) if o.target_price else None,
-                "stop_loss": str(o.stop_loss) if o.stop_loss else None,
-            })
+            context["opinions"].append(
+                {
+                    "type": o.type,
+                    "reason": o.reason,
+                    "target_price": str(o.target_price) if o.target_price else None,
+                    "stop_loss": str(o.stop_loss) if o.stop_loss else None,
+                }
+            )
 
     return context
 
@@ -125,34 +127,30 @@ async def chat_with_ai(user_id: int, user_content: str, db: Session) -> tuple[st
     Returns:
         (assistant_content, context_dict)
     """
-    if not OPENAI_API_KEY:
+    llm_config = resolve_llm_config(db, user_id)
+    if llm_config is None:
         return (
-            "AI 助手尚未配置。请管理员设置 OPENAI_API_KEY 环境变量以启用此功能。",
+            "AI 助手尚未配置。请在个人设置中配置 API Key，或请管理员设置系统默认 OPENAI_API_KEY。",
             {},
         )
 
     varieties = _extract_symbols(user_content, db)
     context = _build_context(varieties, db, user_id)
 
-    history = (
-        db.query(ChatMessageDB)
-        .filter(ChatMessageDB.user_id == user_id)
-        .order_by(ChatMessageDB.created_at)
-        .all()
-    )
+    history = db.query(ChatMessageDB).filter(ChatMessageDB.user_id == user_id).order_by(ChatMessageDB.created_at).all()
 
     messages = _build_messages(user_content, context, history)
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
-                f"{OPENAI_BASE_URL}/chat/completions",
+                f"{llm_config.base_url}/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Authorization": f"Bearer {llm_config.api_key}",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": OPENAI_MODEL,
+                    "model": llm_config.model,
                     "messages": messages,
                     "temperature": 0.7,
                     "max_tokens": 2048,

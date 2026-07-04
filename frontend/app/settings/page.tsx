@@ -1,14 +1,15 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import AppShell from '@/components/layout/AppShell'
 import LoginRequired from '@/components/auth/LoginRequired'
 import { useAuth } from '@/components/auth/AuthProvider'
 import ErrorState from '@/components/ui/ErrorState'
 import Button from '@/components/ui/Button'
-import { api, type UserPreference } from '@/lib/api'
+import Input from '@/components/ui/Input'
+import { api, type LLMConfigUpdate, type UserPreference } from '@/lib/api'
 import { toast } from 'sonner'
-import { Settings, Moon, Timer, Check } from 'lucide-react'
+import { Settings, Moon, Timer, Check, Cpu, KeyRound, Trash2 } from 'lucide-react'
 import useSWR from 'swr'
 import { usePreferences } from '@/hooks/usePreferences'
 
@@ -24,6 +25,14 @@ export default function SettingsPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
   const [saving, setSaving] = useState(false)
   const { updatePreferences } = usePreferences()
+  const [llmForm, setLlmForm] = useState<LLMConfigUpdate>({
+    provider: 'openai-compatible',
+    base_url: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
+    api_key: '',
+  })
+  const [savingLLM, setSavingLLM] = useState(false)
+  const [testingLLM, setTestingLLM] = useState(false)
 
   const {
     data: settings,
@@ -35,6 +44,27 @@ export default function SettingsPage() {
     () => api.getUserSettings(),
     { revalidateOnFocus: false },
   )
+
+  const {
+    data: llmConfig,
+    error: llmError,
+    mutate: mutateLLM,
+    isLoading: isLoadingLLM,
+  } = useSWR(
+    isAuthenticated ? 'llm-config' : null,
+    () => api.getLLMConfig(),
+    { revalidateOnFocus: false },
+  )
+
+  useEffect(() => {
+    if (!llmConfig) return
+    setLlmForm({
+      provider: llmConfig.provider,
+      base_url: llmConfig.base_url,
+      model: llmConfig.model,
+      api_key: '',
+    })
+  }, [llmConfig])
 
   const handleSave = useCallback(
     async (updates: Partial<UserPreference>) => {
@@ -64,6 +94,57 @@ export default function SettingsPage() {
     },
     [settings, mutate, updatePreferences],
   )
+
+  const handleSaveLLM = useCallback(async () => {
+    setSavingLLM(true)
+    try {
+      const payload = {
+        ...llmForm,
+        api_key: llmForm.api_key?.trim() ? llmForm.api_key.trim() : null,
+      }
+      const updated = await api.updateLLMConfig(payload)
+      await mutateLLM(updated, false)
+      setLlmForm((prev) => ({ ...prev, api_key: '' }))
+      toast.success('AI 配置已保存')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '保存失败')
+    } finally {
+      setSavingLLM(false)
+    }
+  }, [llmForm, mutateLLM])
+
+  const handleTestLLM = useCallback(async () => {
+    setTestingLLM(true)
+    try {
+      const result = await api.testLLMConfig({
+        ...llmForm,
+        api_key: llmForm.api_key?.trim() ? llmForm.api_key.trim() : null,
+      })
+      if (result.ok) {
+        toast.success(result.message)
+      } else {
+        toast.error(result.message)
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '测试失败')
+    } finally {
+      setTestingLLM(false)
+    }
+  }, [llmForm])
+
+  const handleDeleteLLMKey = useCallback(async () => {
+    setSavingLLM(true)
+    try {
+      await api.deleteLLMApiKey()
+      await mutateLLM()
+      setLlmForm((prev) => ({ ...prev, api_key: '' }))
+      toast.success('API Key 已清除')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '清除失败')
+    } finally {
+      setSavingLLM(false)
+    }
+  }, [mutateLLM])
 
   return (
     <AppShell>
@@ -138,6 +219,93 @@ export default function SettingsPage() {
                     </button>
                   ))}
                 </div>
+              </SettingCard>
+
+              <SettingCard title="AI 配置" icon={Cpu}>
+                {llmError ? (
+                  <ErrorState message={llmError instanceof Error ? llmError.message : '加载失败'} onRetry={() => mutateLLM()} />
+                ) : isLoadingLLM ? (
+                  <div className="h-44 animate-pulse rounded bg-slate-800/70" />
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="space-y-1.5 text-sm">
+                        <span className="text-slate-400">Provider</span>
+                        <Input
+                          value={llmForm.provider}
+                          onChange={(e) => setLlmForm((prev) => ({ ...prev, provider: e.target.value }))}
+                          disabled={savingLLM || testingLLM}
+                        />
+                      </label>
+                      <label className="space-y-1.5 text-sm">
+                        <span className="text-slate-400">Model</span>
+                        <Input
+                          value={llmForm.model}
+                          onChange={(e) => setLlmForm((prev) => ({ ...prev, model: e.target.value }))}
+                          disabled={savingLLM || testingLLM}
+                        />
+                      </label>
+                    </div>
+                    <label className="space-y-1.5 text-sm">
+                      <span className="text-slate-400">Base URL</span>
+                      <Input
+                        value={llmForm.base_url}
+                        onChange={(e) => setLlmForm((prev) => ({ ...prev, base_url: e.target.value }))}
+                        disabled={savingLLM || testingLLM}
+                      />
+                    </label>
+                    <label className="space-y-1.5 text-sm">
+                      <span className="text-slate-400">API Key</span>
+                      <Input
+                        type="password"
+                        value={llmForm.api_key ?? ''}
+                        placeholder={llmConfig?.api_key_masked ?? 'sk-...'}
+                        onChange={(e) => setLlmForm((prev) => ({ ...prev, api_key: e.target.value }))}
+                        disabled={savingLLM || testingLLM}
+                      />
+                    </label>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-400">
+                      <span>
+                        {llmConfig?.uses_system_default
+                          ? '当前使用系统默认配置'
+                          : `当前使用用户配置${llmConfig?.api_key_masked ? `（${llmConfig.api_key_masked}）` : ''}`}
+                      </span>
+                      <span>{llmConfig?.has_api_key ? 'Key 已配置' : 'Key 未配置'}</span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleSaveLLM}
+                        isLoading={savingLLM}
+                        leftIcon={<KeyRound size={14} />}
+                      >
+                        保存
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={handleTestLLM}
+                        isLoading={testingLLM}
+                      >
+                        测试连接
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="danger"
+                        onClick={handleDeleteLLMKey}
+                        disabled={!llmConfig?.has_api_key || llmConfig.uses_system_default || savingLLM}
+                        leftIcon={<Trash2 size={14} />}
+                      >
+                        清除 Key
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </SettingCard>
             </>
           ) : null}

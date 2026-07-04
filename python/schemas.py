@@ -553,7 +553,7 @@ def _validate_payload_structure(v: dict) -> dict:
                 max_d = max(max_d, d)
             elif isinstance(val, list):
                 for item in val:
-                    if isinstance(item, (dict, list)):
+                    if isinstance(item, dict | list):
                         k, d = _count_keys(item, depth + 1)
                         keys += k
                         max_d = max(max_d, d)
@@ -999,7 +999,10 @@ class AgentTaskStepRole(StrEnum):
 class AgentTaskCreate(BaseModel):
     """创建 Agent 任务请求。"""
 
-    agent_type: str = Field(..., pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining|strategy_compiler)$")
+    agent_type: str = Field(
+        ...,
+        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining|strategy_compiler)$",
+    )
     query: str = Field(..., min_length=1, max_length=4000)
 
 
@@ -1110,7 +1113,10 @@ class AgentChatRequest(BaseModel):
     """
 
     content: str = Field(..., min_length=1, max_length=4000)
-    agent_type: str = Field(default="data", pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining|strategy_compiler)$")
+    agent_type: str = Field(
+        default="data",
+        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining|strategy_compiler)$",
+    )
 
 
 class AgentStreamEvent(BaseModel):
@@ -1246,7 +1252,9 @@ class StrategyOptimizationRequest(BaseModel):
     自动运行多组回测并返回最优参数组合。
     """
 
-    param_space: dict[str, list[float]] = Field(..., description='参数搜索空间，如 {"short": [5,10,15], "long": [20,30,40]}')
+    param_space: dict[str, list[float]] = Field(
+        ..., description='参数搜索空间，如 {"short": [5,10,15], "long": [20,30,40]}'
+    )
     initial_cash: float = Field(default=100_000.0, ge=1000)
     quantity: int = Field(default=1, ge=1)
     limit: int = Field(default=500, ge=30, le=5000)
@@ -1335,4 +1343,3 @@ class FactorResponse(BaseModel):
         if isinstance(v, dt):
             return v.isoformat()
         return v
-

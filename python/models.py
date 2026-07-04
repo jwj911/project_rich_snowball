@@ -54,9 +54,12 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class Base(DeclarativeBase):
     """SQLAlchemy 2.0 声明式基类，替代 declarative_base() 以支持 mypy 类型检查。"""
+
     pass
 
+
 # ---------- 连接池监控 ----------
+
 
 def _update_pool_gauge():
     """将当前连接池状态同步到 Prometheus Gauge。SQLite 等 NullPool 环境自动跳过。"""
@@ -64,15 +67,19 @@ def _update_pool_gauge():
         pool = engine.pool
         if hasattr(pool, "size"):
             from services.metrics import db_pool_connections
+
             db_pool_connections.labels(state="size").set(pool.size())
         if hasattr(pool, "checkedin"):
             from services.metrics import db_pool_connections
+
             db_pool_connections.labels(state="checkedin").set(pool.checkedin())
         if hasattr(pool, "checkedout"):
             from services.metrics import db_pool_connections
+
             db_pool_connections.labels(state="checkedout").set(pool.checkedout())
         if hasattr(pool, "overflow"):
             from services.metrics import db_pool_connections
+
             db_pool_connections.labels(state="overflow").set(pool.overflow())
     except Exception:
         # 指标采集失败不应影响数据库连接本身
@@ -82,6 +89,7 @@ def _update_pool_gauge():
 @event.listens_for(engine, "connect")
 def _on_connect(dbapi_conn, connection_record):
     from services.metrics import db_pool_connect_total
+
     db_pool_connect_total.inc()
     _update_pool_gauge()
 
@@ -89,6 +97,7 @@ def _on_connect(dbapi_conn, connection_record):
 @event.listens_for(engine, "close")
 def _on_close(dbapi_conn, connection_record):
     from services.metrics import db_pool_close_total
+
     db_pool_close_total.inc()
     _update_pool_gauge()
 
@@ -96,6 +105,7 @@ def _on_close(dbapi_conn, connection_record):
 @event.listens_for(engine, "checkout")
 def _on_checkout(dbapi_conn, connection_record, connection_proxy):
     from services.metrics import db_pool_checkout_total
+
     db_pool_checkout_total.inc()
     _update_pool_gauge()
 
@@ -103,14 +113,17 @@ def _on_checkout(dbapi_conn, connection_record, connection_proxy):
 @event.listens_for(engine, "checkin")
 def _on_checkin(dbapi_conn, connection_record):
     from services.metrics import db_pool_checkin_total
+
     db_pool_checkin_total.inc()
     _update_pool_gauge()
+
 
 def _utc_now():
     return datetime.datetime.now(datetime.UTC)
 
 
 # ========== 慢查询日志 ==========
+
 
 @event.listens_for(engine, "before_cursor_execute")
 def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
@@ -222,6 +235,7 @@ class FutContractDB(Base):
     2. ContractRolloverDB（主力切换历史记录）
     需要判断某合约是否为主力时，应比对 VarietyDB.contract_code 或查询 rollover 链。
     """
+
     __tablename__ = "fut_contracts"
     id = Column(Integer, primary_key=True, autoincrement=True)
     ts_code = Column(String(20), unique=True, nullable=False, index=True)
@@ -323,9 +337,7 @@ class WatchlistDB(Base):
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     user = relationship("UserDB", back_populates="watchlists")
     variety = relationship("VarietyDB", back_populates="watchlists")
-    __table_args__ = (
-        UniqueConstraint("user_id", "variety_id", name="uix_watchlist_user_variety"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "variety_id", name="uix_watchlist_user_variety"),)
 
 
 class PriceAlertDB(Base):
@@ -498,19 +510,35 @@ class PriceLevelDB(Base):
     comments = relationship("CommentDB", back_populates="price_level", passive_deletes=True)
 
     __table_args__ = (
-        UniqueConstraint("user_id", "variety_id", "type", "price", "scope", "contract_id",
-                         name="uix_user_variety_type_price_scope_contract"),
+        UniqueConstraint(
+            "user_id",
+            "variety_id",
+            "type",
+            "price",
+            "scope",
+            "contract_id",
+            name="uix_user_variety_type_price_scope_contract",
+        ),
         # PostgreSQL partial unique indexes：NULL 值不参与标准唯一约束比较，
         # 因此用 partial index 分别处理 contract_id 为 NULL 和 NOT NULL 的场景
         Index(
             "uix_price_levels_null_contract",
-            "user_id", "variety_id", "type", "price", "scope",
+            "user_id",
+            "variety_id",
+            "type",
+            "price",
+            "scope",
             unique=True,
             postgresql_where=text("contract_id IS NULL"),
         ),
         Index(
             "uix_price_levels_not_null_contract",
-            "user_id", "variety_id", "type", "price", "scope", "contract_id",
+            "user_id",
+            "variety_id",
+            "type",
+            "price",
+            "scope",
+            "contract_id",
             unique=True,
             postgresql_where=text("contract_id IS NOT NULL"),
         ),
@@ -519,6 +547,7 @@ class PriceLevelDB(Base):
 
 class DataIngestionRunDB(Base):
     """采集批次质量追踪。"""
+
     __tablename__ = "data_ingestion_runs"
     id = Column(Integer, primary_key=True, autoincrement=True)
     job_name = Column(String(50), nullable=False, index=True)
@@ -539,6 +568,7 @@ class DataIngestionRunDB(Base):
 
 class FutDailyDataDB(Base):
     """期货日线/周线/月线行情（Tushare fut_daily / pro_bar D/W/M）。"""
+
     __tablename__ = "fut_daily_data"
     id = Column(Integer, primary_key=True, autoincrement=True)
     variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="CASCADE"), nullable=False)
@@ -568,6 +598,7 @@ class FutDailyDataDB(Base):
 
 class FutSettleDB(Base):
     """期货每日结算参数（Tushare fut_settle）。"""
+
     __tablename__ = "fut_settle"
     id = Column(Integer, primary_key=True, autoincrement=True)
     ts_code = Column(String(20), nullable=False)
@@ -592,6 +623,7 @@ class FutSettleDB(Base):
 
 class FutWeeklyDetailDB(Base):
     """期货主要品种交易周报（Tushare fut_weekly_detail）。"""
+
     __tablename__ = "fut_weekly_detail"
     id = Column(Integer, primary_key=True, autoincrement=True)
     exchange = Column(String(10))
@@ -620,6 +652,7 @@ class FutWeeklyDetailDB(Base):
 
 class FutWsrDB(Base):
     """期货仓单日报（Tushare fut_wsr）。"""
+
     __tablename__ = "fut_wsr"
     id = Column(Integer, primary_key=True, autoincrement=True)
     trade_date = Column(DateTime(timezone=True), nullable=False)
@@ -648,6 +681,7 @@ class FutWsrDB(Base):
 
 class FutHoldingDB(Base):
     """期货每日成交持仓排名（Tushare fut_holding）。"""
+
     __tablename__ = "fut_holding"
     id = Column(Integer, primary_key=True, autoincrement=True)
     trade_date = Column(DateTime(timezone=True), nullable=False)
@@ -669,6 +703,7 @@ class FutHoldingDB(Base):
 
 class FutPriceLimitDB(Base):
     """期货合约涨跌停价格（Tushare ft_limit）。"""
+
     __tablename__ = "fut_price_limits"
     id = Column(Integer, primary_key=True, autoincrement=True)
     ts_code = Column(String(20), nullable=False)
@@ -680,13 +715,12 @@ class FutPriceLimitDB(Base):
     cont = Column(String(20))
     exchange = Column(String(10))
     created_at = Column(DateTime(timezone=True), default=_utc_now)
-    __table_args__ = (
-        UniqueConstraint("ts_code", "trade_date", name="uix_fut_price_limits"),
-    )
+    __table_args__ = (UniqueConstraint("ts_code", "trade_date", name="uix_fut_price_limits"),)
 
 
 class FutIndexDB(Base):
     """期货指数行情（预留，接口权限待验证）。"""
+
     __tablename__ = "fut_index"
     id = Column(Integer, primary_key=True, autoincrement=True)
     ts_code = Column(String(20), nullable=False)
@@ -710,6 +744,7 @@ class FutIndexDB(Base):
 
 class FutTradeFeeDB(Base):
     """期货合约手续费与保证金（九期网 / AKShare futures_comm_info）。"""
+
     __tablename__ = "fut_trade_fee"
     id = Column(Integer, primary_key=True, autoincrement=True)
     exchange = Column(String(20), nullable=False, index=True)
@@ -742,6 +777,7 @@ class FutTradeFeeDB(Base):
 
 class RefreshTokenDB(Base):
     """Refresh Token 表，支持 token 轮转和吊销。"""
+
     __tablename__ = "refresh_tokens"
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -755,6 +791,7 @@ class RefreshTokenDB(Base):
 
 class TradingCalendarDB(Base):
     """中国期货市场交易日历。"""
+
     __tablename__ = "trading_calendar"
     id = Column(Integer, primary_key=True, autoincrement=True)
     trade_date = Column(DateTime(timezone=True), nullable=False, index=True)
@@ -766,9 +803,7 @@ class TradingCalendarDB(Base):
     exchange = Column(String(10), default="ALL")
     remark = Column(String(100))
     created_at = Column(DateTime(timezone=True), default=_utc_now)
-    __table_args__ = (
-        UniqueConstraint("trade_date", "exchange", name="uix_calendar_date_exchange"),
-    )
+    __table_args__ = (UniqueConstraint("trade_date", "exchange", name="uix_calendar_date_exchange"),)
 
 
 class FrontendLogDB(Base):
@@ -850,8 +885,10 @@ class NewsArticleDB(Base):
     __tablename__ = "news_articles"
     id = Column(Integer, primary_key=True, autoincrement=True)
     source_id = Column(
-        Integer, ForeignKey("news_sources.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        Integer,
+        ForeignKey("news_sources.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     title = Column(String(300), nullable=False)
     summary = Column(Text, nullable=True)
@@ -860,9 +897,8 @@ class NewsArticleDB(Base):
     published_at = Column(DateTime(timezone=True), nullable=True, index=True)
     fetched_at = Column(DateTime(timezone=True), default=_utc_now)
 
-    __table_args__ = (
-        UniqueConstraint("source_id", "url", name="uix_article_source_url"),
-    )
+    __table_args__ = (UniqueConstraint("source_id", "url", name="uix_article_source_url"),)
+
 
 class AgentTaskDB(Base):
     """Agent 任务主表。
@@ -879,7 +915,9 @@ class AgentTaskDB(Base):
         nullable=True,
         index=True,
     )
-    agent_type = Column(String(30), nullable=False, index=True)  # data | tech_analysis | risk_management | backtest | orchestrator | factor_mining
+    agent_type = Column(
+        String(30), nullable=False, index=True
+    )  # data | tech_analysis | risk_management | backtest | orchestrator | factor_mining
     query = Column(Text, nullable=False)
     status = Column(String(20), nullable=False, default="pending")  # pending | running | completed | failed
     result_json = Column(Text, nullable=True)
@@ -1032,4 +1070,3 @@ class BacktestRunDB(Base):
         Index("idx_backtest_runs_strategy", "strategy_id", "created_at"),
         Index("idx_backtest_runs_user_status", "user_id", "status"),
     )
-

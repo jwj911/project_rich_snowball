@@ -196,7 +196,9 @@ def composite_score(df: pd.DataFrame) -> dict[str, object]:
     notes = []
     notes.append(f"综合评分 {total:.1f}/100，评级：{rating}")
     notes.append(f"趋势维度：{scores['trend']:.1f}/30 — {trend['notes']}")
-    notes.append(f"动量维度：{scores['momentum']:.1f}/25 — RSI:{latest.get('rsi24', 'N/A'):.1f}, MACD柱状:{latest.get('macd_bar', 'N/A'):.2f}")
+    notes.append(
+        f"动量维度：{scores['momentum']:.1f}/25 — RSI:{latest.get('rsi24', 'N/A'):.1f}, MACD柱状:{latest.get('macd_bar', 'N/A'):.2f}"
+    )
     notes.append(f"量能维度：{scores['volume']:.1f}/15 — 量比:{latest.get('vol_ratio', 'N/A'):.2f}")
     notes.append(f"形态维度：{scores['pattern']:.1f}/15 — {pattern['pattern']}")
     notes.append(f"波动维度：{scores['volatility']:.1f}/15")

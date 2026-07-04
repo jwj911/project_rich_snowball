@@ -97,9 +97,7 @@ class PriceLevelRepository:
         self._db.delete(price_level)
         self._db.commit()
 
-    def list_by_user_and_varieties(
-        self, user_id: int, variety_ids: set[int]
-    ) -> list[PriceLevelDB]:
+    def list_by_user_and_varieties(self, user_id: int, variety_ids: set[int]) -> list[PriceLevelDB]:
         return (
             self._db.query(PriceLevelDB)
             .filter(

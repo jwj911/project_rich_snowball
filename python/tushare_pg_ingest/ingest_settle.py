@@ -63,6 +63,46 @@ def _is_weekend(date_str: str) -> bool:
     return datetime.strptime(date_str, "%Y%m%d").weekday() >= 5
 
 
+def _ingest_one_date_exchange(
+    client: TushareClient,
+    db,
+    trade_date: str,
+    exchange: str,
+    *,
+    dry_run: bool,
+) -> tuple[int, int, int] | None:
+    """Fetch and upsert ``fut_settle`` for a single (date, exchange) pair.
+
+    Returns:
+        A tuple of (fetched, skipped, written) counters.  Raises on API failure
+        so the caller can decide whether to retry.
+    """
+    from data_collector.adapters import map_tushare_fut_settle
+    from data_collector.upsert import upsert_fut_settle_bulk
+
+    df = client.query("fut_settle", trade_date=trade_date, exchange=exchange)
+    raw_rows = records_from_df(df)
+    rows = [map_tushare_fut_settle(row) for row in raw_rows]
+    rows = [row for row in rows if row.get("ts_code") and row.get("trade_date")]
+    # FIX #1: inject exchange because Tushare response omits it
+    for row in rows:
+        row["exchange"] = exchange
+
+    fetched = len(raw_rows)
+    skipped = len(raw_rows) - len(rows)
+    if dry_run:
+        print(f"[DRY] {trade_date} {exchange}: fetched={fetched} mapped={len(rows)}")
+        return fetched, skipped, 0
+
+    if not raw_rows:
+        print(f"[WARN] {trade_date} {exchange}: 0 rows (Tushare coverage may be limited)")
+    else:
+        print(f"[OK] {trade_date} {exchange}: fetched={fetched}")
+    written = upsert_fut_settle_bulk(db, rows)
+    db.commit()
+    return fetched, skipped, written
+
+
 def ingest(args: argparse.Namespace) -> IngestStats:
     """Run the ``fut_settle`` ingestion workflow.
 
@@ -74,7 +114,9 @@ def ingest(args: argparse.Namespace) -> IngestStats:
 
     *Mode B* (default):
         Iterate every calendar day in the requested window (skipping weekends)
-        and query per exchange.
+        and query per exchange.  A single (date, exchange) failure is logged
+        and skipped instead of aborting the whole batch; failed items are
+        retried once at the end.
 
     Args:
         args: Parsed namespace from ``build_parser()``.
@@ -101,9 +143,9 @@ def ingest(args: argparse.Namespace) -> IngestStats:
                 print(f"[FETCH] ts_code={ts_code} ...", end=" ")
                 df = client.query("fut_settle", ts_code=ts_code)
                 raw_rows = records_from_df(df)
+                # Mode A does not know exchange; leave as None.
                 rows = [map_tushare_fut_settle(row) for row in raw_rows]
                 rows = [row for row in rows if row.get("ts_code") and row.get("trade_date")]
-                # ts_code mode does not know exchange; leave as None
                 stats.fetched += len(raw_rows)
                 stats.skipped += len(raw_rows) - len(rows)
                 if args.dry_run:
@@ -119,29 +161,51 @@ def ingest(args: argparse.Namespace) -> IngestStats:
         # ------------------------------------------------------------------
         start_date, end_date = date_window(args)
         exchanges = parse_exchanges(args.exchanges)
-        for trade_date in iter_yyyymmdd(start_date, end_date):
-            if _is_weekend(trade_date):
-                continue
-            for exchange in exchanges:
-                df = client.query("fut_settle", trade_date=trade_date, exchange=exchange)
-                raw_rows = records_from_df(df)
-                rows = [map_tushare_fut_settle(row) for row in raw_rows]
-                rows = [row for row in rows if row.get("ts_code") and row.get("trade_date")]
-                # FIX #1: inject exchange because Tushare response omits it
-                for row in rows:
-                    row["exchange"] = exchange
-                stats.fetched += len(raw_rows)
-                stats.skipped += len(raw_rows) - len(rows)
-                if args.dry_run:
-                    print(f"[DRY] {trade_date} {exchange}: fetched={len(raw_rows)} mapped={len(rows)}")
-                    continue
-                if not raw_rows:
-                    # Warn once per exchange so user knows coverage is limited
-                    print(f"[WARN] {trade_date} {exchange}: 0 rows (Tushare coverage may be limited)")
-                else:
-                    print(f"[OK] {trade_date} {exchange}: fetched={len(raw_rows)}")
-                stats.written += upsert_fut_settle_bulk(db, rows)
-                db.commit()
+        failures: list[tuple[str, str, Exception]] = []
+        tasks = [
+            (trade_date, exchange)
+            for trade_date in iter_yyyymmdd(start_date, end_date)
+            if not _is_weekend(trade_date)
+            for exchange in exchanges
+        ]
+
+        for trade_date, exchange in tasks:
+            try:
+                fetched, skipped, written = _ingest_one_date_exchange(
+                    client, db, trade_date, exchange, dry_run=args.dry_run
+                )
+                stats.fetched += fetched
+                stats.skipped += skipped
+                stats.written += written
+            except Exception as e:
+                stats.failed += 1
+                failures.append((trade_date, exchange, e))
+                print(f"[FAIL] {trade_date} {exchange}: {e}")
+
+        # Retry failed tasks once more before giving up.  Network hiccups
+        # (e.g. chunked encoding dropped) often succeed on a second pass.
+        if failures:
+            print(f"\n[RETRY] {len(failures)} failed task(s) will be retried once...\n")
+            still_failed: list[tuple[str, str, Exception]] = []
+            for trade_date, exchange, _ in failures:
+                try:
+                    fetched, skipped, written = _ingest_one_date_exchange(
+                        client, db, trade_date, exchange, dry_run=args.dry_run
+                    )
+                    stats.fetched += fetched
+                    stats.skipped += skipped
+                    stats.written += written
+                    stats.failed = max(0, stats.failed - 1)
+                    print(f"[RECOVERED] {trade_date} {exchange}")
+                except Exception as e:
+                    still_failed.append((trade_date, exchange, e))
+                    print(f"[STILL FAIL] {trade_date} {exchange}: {e}")
+            failures = still_failed
+
+        if failures:
+            print(f"\n[SUMMARY] {len(failures)} task(s) still failed after retry:")
+            for trade_date, exchange, e in failures:
+                print(f"  - {trade_date} {exchange}: {e}")
     finally:
         db.close()
     return stats

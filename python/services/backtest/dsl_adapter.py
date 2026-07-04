@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # DSL -> BacktestConfig
 # ------------------------------------------------------------------
 
+
 def dsl_to_backtest_config(
     dsl: StrategyDSL,
     initial_cash: float = 100_000.0,
@@ -42,8 +43,6 @@ def dsl_to_backtest_config(
     # 风控参数解析
     risk = dsl.risk
     position = risk.get("position_size", {})
-    stop_loss = risk.get("stop_loss", {})
-    take_profit = risk.get("take_profit", {})
 
     # 从止损类型推断数量（如 fixed_lots 的 value 直接就是手数）
     if position.get("type") == "fixed_lots":
@@ -67,11 +66,19 @@ def dsl_to_backtest_config(
 # 辅助函数
 # ------------------------------------------------------------------
 
+
 def _timeframe_to_period(timeframe: str) -> str:
     """将 DSL 周期转换为回测周期。"""
     mapping = {
-        "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
-        "1h": "1h", "4h": "4h", "1d": "1d", "1w": "1w", "1mo": "1mo",
+        "1m": "1m",
+        "5m": "5m",
+        "15m": "15m",
+        "30m": "30m",
+        "1h": "1h",
+        "4h": "4h",
+        "1d": "1d",
+        "1w": "1w",
+        "1mo": "1mo",
     }
     return mapping.get(timeframe, "1d")
 

@@ -1,0 +1,53 @@
+# 全局 pre-commit hooks — 按变更文件类型触发对应校验器。
+# 安装: pip install pre-commit && pre-commit install
+#
+# 手册:
+#   pre-commit run --all-files           # 全量校验
+#   pre-commit run --files <path>...     # 仅校验指定文件
+#   SKIP=ruff-lint,eslint git commit ...  # 跳过指定 hook
+
+repos:
+  # Python — Ruff 格式 + 基础 lint
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.1
+    hooks:
+      - id: ruff-format
+        name: "[ruff] 格式化 Python"
+        args: [--line-length, "120"]
+        files: '^python/.*\.py$'
+      - id: ruff-check
+        name: "[ruff] 检查 Python"
+        args: [--fix, --line-length, "120"]
+        files: '^python/.*\.py$'
+
+  # 通用 — 检查冲突标记、YAML/JSON 语法、尾随空格
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+        name: "[通用] 检查合并冲突标记"
+      - id: check-yaml
+        name: "[通用] 验证 YAML 语法"
+      - id: check-json
+        name: "[通用] 验证 JSON 语法"
+      - id: trailing-whitespace
+        name: "[通用] 删除行尾空格"
+        exclude: '\.md$'
+      - id: end-of-file-fixer
+        name: "[通用] 确保文件以换行符结尾"
+        exclude: '\.md$'
+
+  # TypeScript/TSX — ESLint（仅在 frontend/ 变更时运行）
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.38.0
+    hooks:
+      - id: eslint
+        name: "[eslint] 检查前端代码"
+        args: [--fix]
+        files: '^frontend/.*\.(ts|tsx|js|jsx)$'
+        additional_dependencies:
+          - eslint@9.38.0
+          - eslint-config-next@14.2.35
+          - typescript@5.3.3
+          - "@typescript-eslint/parser@7.18.0"
+          - "@typescript-eslint/eslint-plugin@7.18.0"

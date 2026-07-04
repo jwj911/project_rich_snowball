@@ -25,6 +25,7 @@ from models import (
 from services.agent.context import AgentContext
 from services.agent.tools import Tool, ToolDefinition, ToolParameter, register_tool
 from services.agent.utils import resolve_symbol
+from services.data_catalog import DataCatalogService
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,12 @@ class GetKlineDataTool(Tool):
             description=self.description,
             parameters=[
                 ToolParameter(name="symbol", type="string", description="品种代码", required=True),
-                ToolParameter(name="period", type="string", description="周期，如 1d(日线)、1h(小时线)、15m(15分钟线)", required=False),
+                ToolParameter(
+                    name="period",
+                    type="string",
+                    description="周期，如 1d(日线)、1h(小时线)、15m(15分钟线)",
+                    required=False,
+                ),
                 ToolParameter(name="limit", type="number", description="返回条数，默认 100，最大 500", required=False),
             ],
         )
@@ -108,10 +114,24 @@ class ListActiveVarietiesTool(Tool):
             name=self.name,
             description=self.description,
             parameters=[
-                ToolParameter(name="category", type="string", description="类别筛选，如有色金属、黑色系、农产品等", required=False),
-                ToolParameter(name="sort_by", type="string", description="排序字段：change_percent（涨跌幅）、volume（成交量）、current_price（最新价）、symbol（品种代码）", required=False),
-                ToolParameter(name="sort_order", type="string", description="排序方向：asc（升序）或 desc（降序），默认 asc", required=False),
-                ToolParameter(name="limit", type="number", description="返回数量上限，默认 50，最大 200", required=False),
+                ToolParameter(
+                    name="category", type="string", description="类别筛选，如有色金属、黑色系、农产品等", required=False
+                ),
+                ToolParameter(
+                    name="sort_by",
+                    type="string",
+                    description="排序字段：change_percent（涨跌幅）、volume（成交量）、current_price（最新价）、symbol（品种代码）",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="sort_order",
+                    type="string",
+                    description="排序方向：asc（升序）或 desc（降序），默认 asc",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="limit", type="number", description="返回数量上限，默认 50，最大 200", required=False
+                ),
             ],
         )
 
@@ -148,12 +168,111 @@ class GetMarketStatusTool(Tool):
         return _get_market_status(context.db)
 
 
+class ListAvailableDatasetsTool(Tool):
+    """列出 Agent 可用数据集。"""
+
+    name = "list_available_datasets"
+    description = "列出当前系统可供 Agent 使用的数据集，包括业务含义、粒度、行数、日期覆盖、品种覆盖和质量状态。"
+
+    def _build_definition(self) -> ToolDefinition:
+        return ToolDefinition(name=self.name, description=self.description, parameters=[])
+
+    async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
+        return DataCatalogService(context.db).list_available_datasets()
+
+
+class GetDatasetProfileTool(Tool):
+    """查询数据集 profile。"""
+
+    name = "get_dataset_profile"
+    description = "查询指定数据集的 profile，包括字段列表、业务含义、粒度、覆盖范围和可用 Agent。"
+
+    def _build_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(
+                    name="dataset_name",
+                    type="string",
+                    description="数据集名称，如 kline_data、realtime_quotes、fut_daily_data",
+                    required=True,
+                ),
+            ],
+        )
+
+    async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
+        dataset_name = kwargs.get("dataset_name", "")
+        try:
+            return DataCatalogService(context.db).get_dataset_profile(dataset_name)
+        except ValueError as exc:
+            return {"error": str(exc)}
+
+
+class GetSymbolDataCoverageTool(Tool):
+    """查询品种数据覆盖。"""
+
+    name = "get_symbol_data_coverage"
+    description = "查询某个品种在品种表、实时行情、K 线和扩展日线中的覆盖范围。"
+
+    def _build_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(
+                    name="symbol", type="string", description="品种代码或中文名称，如 RB、螺纹钢", required=True
+                ),
+                ToolParameter(name="period", type="string", description="K 线周期，默认 1d", required=False),
+            ],
+        )
+
+    async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
+        symbol = kwargs.get("symbol", "")
+        period = kwargs.get("period")
+        return DataCatalogService(context.db).get_symbol_data_coverage(symbol, period=period)
+
+
+class GetDataQualitySummaryTool(Tool):
+    """查询数据质量摘要。"""
+
+    name = "get_data_quality_summary"
+    description = "查询数据质量摘要。可指定 symbol 和 dataset_name；kline_data 会执行 OHLC、重复和缺口检查。"
+
+    def _build_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=[
+                ToolParameter(name="symbol", type="string", description="品种代码或中文名称，可选", required=False),
+                ToolParameter(
+                    name="dataset_name",
+                    type="string",
+                    description="数据集名称，如 kline_data、realtime_quotes，可选",
+                    required=False,
+                ),
+                ToolParameter(name="period", type="string", description="K 线周期，默认 1d", required=False),
+            ],
+        )
+
+    async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
+        return DataCatalogService(context.db).get_data_quality_summary(
+            symbol=kwargs.get("symbol"),
+            dataset_name=kwargs.get("dataset_name"),
+            period=kwargs.get("period"),
+        )
+
+
 # 注册基础工具（实例化后注册到全局注册表）
 register_tool(GetVarietyInfoTool())
 register_tool(GetRealtimeQuoteTool())
 register_tool(GetKlineDataTool())
 register_tool(ListActiveVarietiesTool())
 register_tool(GetMarketStatusTool())
+register_tool(ListAvailableDatasetsTool())
+register_tool(GetDatasetProfileTool())
+register_tool(GetSymbolDataCoverageTool())
+register_tool(GetDataQualitySummaryTool())
 
 
 # ---------- 服务层直接调用函数（供 DataAgent 内部使用） ----------
@@ -409,7 +528,11 @@ def _get_market_status(db: Session) -> dict[str, Any]:
 
     next_trade = (
         db.query(TradingCalendarDB)
-        .filter(TradingCalendarDB.trade_date > today, TradingCalendarDB.is_trading_day == True, TradingCalendarDB.exchange == "ALL")  # noqa: E712
+        .filter(
+            TradingCalendarDB.trade_date > today,
+            TradingCalendarDB.is_trading_day,
+            TradingCalendarDB.exchange == "ALL",
+        )  # noqa: E712
         .order_by(TradingCalendarDB.trade_date.asc())
         .first()
     )
@@ -431,10 +554,7 @@ class GetWarehouseReceiptsTool(Tool):
     """查询仓单日报数据。"""
 
     name = "get_warehouse_receipts"
-    description = (
-        "查询期货品种的仓单日报数据（仓库库存、品级、年度等）。"
-        "可分析库存压力、交割博弈和基差变化。"
-    )
+    description = "查询期货品种的仓单日报数据（仓库库存、品级、年度等）。可分析库存压力、交割博弈和基差变化。"
 
     def _build_definition(self) -> ToolDefinition:
         return ToolDefinition(
@@ -442,7 +562,9 @@ class GetWarehouseReceiptsTool(Tool):
             description=self.description,
             parameters=[
                 ToolParameter(name="symbol", type="string", description="品种代码，如 RB、CU、AU", required=True),
-                ToolParameter(name="days", type="number", description="查询最近 N 天，默认 30，最大 365", required=False),
+                ToolParameter(
+                    name="days", type="number", description="查询最近 N 天，默认 30，最大 365", required=False
+                ),
             ],
         )
 
@@ -459,10 +581,7 @@ class GetHoldingRankingsTool(Tool):
     """查询持仓排名数据。"""
 
     name = "get_holding_rankings"
-    description = (
-        "查询期货品种的成交持仓排名数据（成交量/多空持仓前 N 券商）。"
-        "可分析资金流向、多空博弈和主力动向。"
-    )
+    description = "查询期货品种的成交持仓排名数据（成交量/多空持仓前 N 券商）。可分析资金流向、多空博弈和主力动向。"
 
     def _build_definition(self) -> ToolDefinition:
         return ToolDefinition(
@@ -470,7 +589,12 @@ class GetHoldingRankingsTool(Tool):
             description=self.description,
             parameters=[
                 ToolParameter(name="symbol", type="string", description="品种代码，如 RB、AU", required=True),
-                ToolParameter(name="trade_date", type="string", description="交易日，格式 YYYY-MM-DD。不填则取最新", required=False),
+                ToolParameter(
+                    name="trade_date",
+                    type="string",
+                    description="交易日，格式 YYYY-MM-DD。不填则取最新",
+                    required=False,
+                ),
                 ToolParameter(name="top_n", type="number", description="返回前 N 名，默认 20，最大 50", required=False),
             ],
         )
@@ -489,10 +613,7 @@ class GetSettlementParamsTool(Tool):
     """查询结算参数数据。"""
 
     name = "get_settlement_params"
-    description = (
-        "查询期货品种的每日结算参数（保证金率、手续费率、交割结算价等）。"
-        "可分析保证金变化对杠杆和风控的影响。"
-    )
+    description = "查询期货品种的每日结算参数（保证金率、手续费率、交割结算价等）。可分析保证金变化对杠杆和风控的影响。"
 
     def _build_definition(self) -> ToolDefinition:
         return ToolDefinition(
@@ -500,7 +621,9 @@ class GetSettlementParamsTool(Tool):
             description=self.description,
             parameters=[
                 ToolParameter(name="symbol", type="string", description="品种代码，如 RB、AU", required=True),
-                ToolParameter(name="days", type="number", description="查询最近 N 天，默认 30，最大 365", required=False),
+                ToolParameter(
+                    name="days", type="number", description="查询最近 N 天，默认 30，最大 365", required=False
+                ),
             ],
         )
 
@@ -517,10 +640,7 @@ class GetPriceLimitsTool(Tool):
     """查询涨跌停价格数据。"""
 
     name = "get_price_limits"
-    description = (
-        "查询期货品种的涨跌停价格数据（涨停价、跌停价、保证金比例）。"
-        "可分析当日交易边界和波动率预期。"
-    )
+    description = "查询期货品种的涨跌停价格数据（涨停价、跌停价、保证金比例）。可分析当日交易边界和波动率预期。"
 
     def _build_definition(self) -> ToolDefinition:
         return ToolDefinition(
@@ -528,7 +648,9 @@ class GetPriceLimitsTool(Tool):
             description=self.description,
             parameters=[
                 ToolParameter(name="symbol", type="string", description="品种代码，如 RB、AU", required=True),
-                ToolParameter(name="days", type="number", description="查询最近 N 天，默认 10，最大 90", required=False),
+                ToolParameter(
+                    name="days", type="number", description="查询最近 N 天，默认 10，最大 90", required=False
+                ),
             ],
         )
 
@@ -546,8 +668,7 @@ class GetContinuousKlinesTool(Tool):
 
     name = "get_continuous_klines"
     description = (
-        "获取期货品种的连续 K 线数据（主力合约切换时自动拼接）。"
-        "适合长期趋势分析和策略回测，避免换月跳空影响。"
+        "获取期货品种的连续 K 线数据（主力合约切换时自动拼接）。适合长期趋势分析和策略回测，避免换月跳空影响。"
     )
 
     def _build_definition(self) -> ToolDefinition:
@@ -556,7 +677,9 @@ class GetContinuousKlinesTool(Tool):
             description=self.description,
             parameters=[
                 ToolParameter(name="symbol", type="string", description="品种代码，如 RB、AU", required=True),
-                ToolParameter(name="period", type="string", description="周期，如 1d(日线)、1h(小时线)。默认 1d", required=False),
+                ToolParameter(
+                    name="period", type="string", description="周期，如 1d(日线)、1h(小时线)。默认 1d", required=False
+                ),
                 ToolParameter(name="limit", type="number", description="返回条数，默认 120，最大 500", required=False),
             ],
         )
@@ -575,10 +698,7 @@ class GetMainKlinesTool(Tool):
     """查询当前主力合约 K 线。"""
 
     name = "get_main_klines"
-    description = (
-        "获取期货品种当前主力合约的 K 线数据（不拼接历史合约）。"
-        "适合分析当前主力合约的独立走势。"
-    )
+    description = "获取期货品种当前主力合约的 K 线数据（不拼接历史合约）。适合分析当前主力合约的独立走势。"
 
     def _build_definition(self) -> ToolDefinition:
         return ToolDefinition(
@@ -586,7 +706,9 @@ class GetMainKlinesTool(Tool):
             description=self.description,
             parameters=[
                 ToolParameter(name="symbol", type="string", description="品种代码，如 RB、AU", required=True),
-                ToolParameter(name="period", type="string", description="周期，如 1d(日线)、1h(小时线)。默认 1d", required=False),
+                ToolParameter(
+                    name="period", type="string", description="周期，如 1d(日线)、1h(小时线)。默认 1d", required=False
+                ),
                 ToolParameter(name="limit", type="number", description="返回条数，默认 120，最大 500", required=False),
             ],
         )
@@ -621,6 +743,7 @@ def _get_warehouse_receipts(
         return {"error": f"未找到品种 {symbol}"}
 
     from datetime import timedelta
+
     cutoff = datetime.now(UTC) - timedelta(days=days)
 
     rows = (
@@ -644,15 +767,17 @@ def _get_warehouse_receipts(
         if date_key:
             daily_summary[date_key]["total_vol"] += r.vol or 0
             daily_summary[date_key]["warehouse_count"] += 1
-        detail_records.append({
-            "date": date_key,
-            "warehouse": r.warehouse,
-            "vol": r.vol,
-            "vol_chg": r.vol_chg,
-            "area": r.area,
-            "year": r.year,
-            "grade": r.grade,
-        })
+        detail_records.append(
+            {
+                "date": date_key,
+                "warehouse": r.warehouse,
+                "vol": r.vol,
+                "vol_chg": r.vol_chg,
+                "area": r.area,
+                "year": r.year,
+                "grade": r.grade,
+            }
+        )
 
     return {
         "symbol": symbol,
@@ -684,6 +809,7 @@ def _get_holding_rankings(
     query = db.query(FutHoldingDB).filter(FutHoldingDB.symbol == symbol)
     if trade_date:
         from datetime import datetime as _dt
+
         try:
             dt = _dt.strptime(trade_date, "%Y-%m-%d")
             query = query.filter(FutHoldingDB.trade_date >= dt.replace(hour=0, minute=0))
@@ -704,15 +830,12 @@ def _get_holding_rankings(
             query = query.filter(FutHoldingDB.trade_date < dt.replace(hour=23, minute=59))
 
     # 多头排名
-    longs = (
-        query.order_by(FutHoldingDB.long_hld.desc())
-        .limit(top_n)
-        .all()
-    )
+    longs = query.order_by(FutHoldingDB.long_hld.desc()).limit(top_n).all()
     # 空头排名（重新查，因为 order_by 不能复用）
     query2 = db.query(FutHoldingDB).filter(FutHoldingDB.symbol == symbol)
     if trade_date:
         from datetime import datetime as _dt
+
         dt = _dt.strptime(trade_date, "%Y-%m-%d")
         query2 = query2.filter(FutHoldingDB.trade_date >= dt.replace(hour=0, minute=0))
         query2 = query2.filter(FutHoldingDB.trade_date < dt.replace(hour=23, minute=59))
@@ -722,11 +845,7 @@ def _get_holding_rankings(
             query2 = query2.filter(FutHoldingDB.trade_date >= dt.replace(hour=0, minute=0))
             query2 = query2.filter(FutHoldingDB.trade_date < dt.replace(hour=23, minute=59))
 
-    shorts = (
-        query2.order_by(FutHoldingDB.short_hld.desc())
-        .limit(top_n)
-        .all()
-    )
+    shorts = query2.order_by(FutHoldingDB.short_hld.desc()).limit(top_n).all()
 
     actual_date = longs[0].trade_date.strftime("%Y-%m-%d") if longs and longs[0].trade_date else trade_date or ""
 
@@ -773,6 +892,7 @@ def _get_settlement_params(
 
     contract_code = variety.contract_code
     from datetime import timedelta
+
     cutoff = datetime.now(UTC) - timedelta(days=days)
 
     rows = (
@@ -794,7 +914,13 @@ def _get_settlement_params(
         )
 
     if not rows:
-        return {"symbol": symbol, "contract_code": contract_code, "days": days, "data": [], "note": "该品种暂无结算参数数据（SHFE/INE 覆盖较好，其他交易所可能缺失）"}
+        return {
+            "symbol": symbol,
+            "contract_code": contract_code,
+            "days": days,
+            "data": [],
+            "note": "该品种暂无结算参数数据（SHFE/INE 覆盖较好，其他交易所可能缺失）",
+        }
 
     return {
         "symbol": symbol,
@@ -835,6 +961,7 @@ def _get_price_limits(
 
     contract_code = variety.contract_code
     from datetime import timedelta
+
     cutoff = datetime.now(UTC) - timedelta(days=days)
 
     rows = (
@@ -855,7 +982,13 @@ def _get_price_limits(
         )
 
     if not rows:
-        return {"symbol": symbol, "contract_code": contract_code, "days": days, "data": [], "note": "该品种暂无涨跌停数据"}
+        return {
+            "symbol": symbol,
+            "contract_code": contract_code,
+            "days": days,
+            "data": [],
+            "note": "该品种暂无涨跌停数据",
+        }
 
     return {
         "symbol": symbol,
@@ -886,6 +1019,7 @@ def _get_continuous_klines(
     symbol = symbol.upper().strip()
     try:
         from services.domain.kline_service import KlineService
+
         svc = KlineService(db)
         # 将前端周期映射为 KlineService 格式
         period_map = {"1d": "D", "1w": "W", "1h": "1h", "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m"}
@@ -907,6 +1041,7 @@ def _get_main_klines(
     symbol = symbol.upper().strip()
     try:
         from services.domain.kline_service import KlineService
+
         svc = KlineService(db)
         period_map = {"1d": "D", "1w": "W", "1h": "1h", "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m"}
         svc_period = period_map.get(period, period)
@@ -947,7 +1082,11 @@ def _get_main_klines(
 
     next_trade = (
         db.query(TradingCalendarDB)
-        .filter(TradingCalendarDB.trade_date > today, TradingCalendarDB.is_trading_day == True, TradingCalendarDB.exchange == "ALL")  # noqa: E712
+        .filter(
+            TradingCalendarDB.trade_date > today,
+            TradingCalendarDB.is_trading_day,
+            TradingCalendarDB.exchange == "ALL",
+        )  # noqa: E712
         .order_by(TradingCalendarDB.trade_date.asc())
         .first()
     )
@@ -958,6 +1097,7 @@ def _get_main_klines(
         "current_session": session_status,
         "next_trade_date": next_trade.trade_date.strftime("%Y-%m-%d") if next_trade else None,
     }
+
 
 # 注册扩展专用工具
 register_tool(GetWarehouseReceiptsTool())

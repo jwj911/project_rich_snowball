@@ -10,7 +10,6 @@ from typing import Literal
 
 import pandas as pd
 
-
 StopLossMethod = Literal["atr", "fixed_pct", "swing_low", "support_resistance", "volatility"]
 
 
@@ -69,10 +68,7 @@ def calculate_stop_loss(
             used_method = "fixed_pct"
 
     if used_method == "fixed_pct":
-        if direction == "long":
-            stop_loss = entry_price * (1 - fixed_pct / 100)
-        else:
-            stop_loss = entry_price * (1 + fixed_pct / 100)
+        stop_loss = entry_price * (1 - fixed_pct / 100) if direction == "long" else entry_price * (1 + fixed_pct / 100)
         notes.append(f"固定百分比止损：{fixed_pct}%，止损={stop_loss:.2f}")
 
     elif used_method == "swing_low":
@@ -117,10 +113,7 @@ def calculate_stop_loss(
     elif used_method == "volatility":
         if df is not None and len(df) >= 20:
             std = df["close"].iloc[-20:].std()
-            if direction == "long":
-                stop_loss = entry_price - std * 2
-            else:
-                stop_loss = entry_price + std * 2
+            stop_loss = entry_price - std * 2 if direction == "long" else entry_price + std * 2
             notes.append(f"波动率止损：20日标准差={std:.2f}，止损={stop_loss:.2f}")
         else:
             notes.append("波动率数据不足，回退到固定百分比")

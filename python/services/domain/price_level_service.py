@@ -41,8 +41,14 @@ class PriceLevelService:
         return pl
 
     def _check_duplicate(
-        self, user_id: int, variety_id: int, type: str, price,
-        scope: str = "continuous", contract_id: int | None = None, exclude_id: int | None = None
+        self,
+        user_id: int,
+        variety_id: int,
+        type: str,
+        price,
+        scope: str = "continuous",
+        contract_id: int | None = None,
+        exclude_id: int | None = None,
     ) -> bool:
         return self._repo.check_duplicate(user_id, variety_id, type, price, scope, contract_id, exclude_id)
 
@@ -73,10 +79,7 @@ class PriceLevelService:
         self._validate_and_normalize_scope_contract(item)
         self._verify_contract(item.contract_id)
 
-        if self._check_duplicate(
-            user_id, item.variety_id, item.type, item.price,
-            item.scope, item.contract_id
-        ):
+        if self._check_duplicate(user_id, item.variety_id, item.type, item.price, item.scope, item.contract_id):
             raise ConflictError("该价位标注已存在")
 
         try:
@@ -93,15 +96,12 @@ class PriceLevelService:
             self._db.rollback()
             raise ConflictError("该价位标注已存在") from err
 
-    def update_price_level(
-        self, user_id: int, price_level_id: int, item: PriceLevelUpdate
-    ) -> PriceLevelDB:
+    def update_price_level(self, user_id: int, price_level_id: int, item: PriceLevelUpdate) -> PriceLevelDB:
         pl = self._get_and_check_owner(user_id, price_level_id)
 
         if item.price is not None:
             if self._check_duplicate(
-                user_id, pl.variety_id, pl.type, item.price,
-                pl.scope, pl.contract_id, exclude_id=price_level_id
+                user_id, pl.variety_id, pl.type, item.price, pl.scope, pl.contract_id, exclude_id=price_level_id
             ):
                 raise ConflictError("该价位标注已存在")
             pl.price = item.price
@@ -130,10 +130,7 @@ class PriceLevelService:
         failed: list[dict] = []
 
         variety_ids = {item.variety_id for item in body.items}
-        varieties = {
-            v.id: v
-            for v in self._db.query(VarietyDB).filter(VarietyDB.id.in_(variety_ids)).all()
-        }
+        varieties = {v.id: v for v in self._db.query(VarietyDB).filter(VarietyDB.id.in_(variety_ids)).all()}
 
         contract_ids = {item.contract_id for item in body.items if item.contract_id is not None}
         valid_contracts = set()

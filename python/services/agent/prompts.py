@@ -20,8 +20,7 @@ _REACT_SYSTEM_PROMPT = (
 )
 
 _DATA_AGENT_PROMPT = (
-    _REACT_SYSTEM_PROMPT
-    + "\n"
+    _REACT_SYSTEM_PROMPT + "\n"
     "你是「数据查询专家」Agent。你的任务是帮助用户获取期货品种的相关数据。\n"
     "你可以使用的工具：\n"
     "- get_variety_info: 查询品种基础信息（名称、交易所、类别、合约代码等）\n"
@@ -41,7 +40,7 @@ _DATA_AGENT_PROMPT = (
     "\n"
     "规则：\n"
     "1. 每次只调用一个工具\n"
-    "2. 调用工具时必须使用 JSON 格式：{\"tool\": \"工具名\", \"params\": {参数}}\n"
+    '2. 调用工具时必须使用 JSON 格式：{"tool": "工具名", "params": {参数}}\n'
     "3. 获得足够数据后，用自然语言总结给用户\n"
     "4. 如果数据不足，明确告知用户\n"
     "5. 当用户询问仓单/库存时，优先使用 get_warehouse_receipts\n"

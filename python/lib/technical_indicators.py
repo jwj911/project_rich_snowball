@@ -39,11 +39,14 @@ def macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> 
     dif = ema_fast - ema_slow
     dea = ema(dif, signal)
     macd_bar = (dif - dea) * 2
-    return pd.DataFrame({
-        "dif": dif,
-        "dea": dea,
-        "macd": macd_bar,
-    }, index=series.index)
+    return pd.DataFrame(
+        {
+            "dif": dif,
+            "dea": dea,
+            "macd": macd_bar,
+        },
+        index=series.index,
+    )
 
 
 def bollinger(series: pd.Series, window: int = 20, num_std: float = 2.0) -> pd.DataFrame:
@@ -52,11 +55,14 @@ def bollinger(series: pd.Series, window: int = 20, num_std: float = 2.0) -> pd.D
     std = series.rolling(window=window, min_periods=1).std(ddof=0)
     upper = mid + num_std * std
     lower = mid - num_std * std
-    return pd.DataFrame({
-        "mid": mid,
-        "upper": upper,
-        "lower": lower,
-    }, index=series.index)
+    return pd.DataFrame(
+        {
+            "mid": mid,
+            "upper": upper,
+            "lower": lower,
+        },
+        index=series.index,
+    )
 
 
 def kdj(df: pd.DataFrame, n: int = 9, m1: int = 3, m2: int = 3) -> pd.DataFrame:
@@ -65,15 +71,18 @@ def kdj(df: pd.DataFrame, n: int = 9, m1: int = 3, m2: int = 3) -> pd.DataFrame:
     high_list = df["high"].rolling(window=n, min_periods=1).max()
     rsv = (df["close"] - low_list) / (high_list - low_list + 1e-10) * 100
 
-    k = rsv.ewm(alpha=1/m1, adjust=False, min_periods=1).mean()
-    d = k.ewm(alpha=1/m2, adjust=False, min_periods=1).mean()
+    k = rsv.ewm(alpha=1 / m1, adjust=False, min_periods=1).mean()
+    d = k.ewm(alpha=1 / m2, adjust=False, min_periods=1).mean()
     j = 3 * k - 2 * d
 
-    return pd.DataFrame({
-        "k": k,
-        "d": d,
-        "j": j,
-    }, index=df.index)
+    return pd.DataFrame(
+        {
+            "k": k,
+            "d": d,
+            "j": j,
+        },
+        index=df.index,
+    )
 
 
 def atr(df: pd.DataFrame, window: int = 14) -> pd.Series:
@@ -123,15 +132,20 @@ def adx_dmi(df: pd.DataFrame, window: int = 14) -> pd.DataFrame:
 
     atr_val = tr.rolling(window=window, min_periods=1).mean()
     plus_di = 100 * pd.Series(plus_dm, index=df.index).rolling(window=window, min_periods=1).mean() / (atr_val + 1e-10)
-    minus_di = 100 * pd.Series(minus_dm, index=df.index).rolling(window=window, min_periods=1).mean() / (atr_val + 1e-10)
+    minus_di = (
+        100 * pd.Series(minus_dm, index=df.index).rolling(window=window, min_periods=1).mean() / (atr_val + 1e-10)
+    )
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di + 1e-10)
     adx = dx.rolling(window=window, min_periods=1).mean()
 
-    return pd.DataFrame({
-        "plus_di": plus_di,
-        "minus_di": minus_di,
-        "adx": adx,
-    }, index=df.index)
+    return pd.DataFrame(
+        {
+            "plus_di": plus_di,
+            "minus_di": minus_di,
+            "adx": adx,
+        },
+        index=df.index,
+    )
 
 
 def volume_ratio(df: pd.DataFrame, short: int = 5, long: int = 20) -> pd.Series:
@@ -227,7 +241,11 @@ def factor_ts_mean_return_div_open(df: pd.DataFrame, window: int = 43) -> pd.Ser
     open_ = df["open"]
     amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
     _t0 = open_ / amount.replace(0, np.nan)
-    _t1 = (np.sign(_t0) * (_t0 - _t0.shift(1)) / _t0.abs().replace(0, np.nan)).rolling(window=window, min_periods=1).mean()
+    _t1 = (
+        (np.sign(_t0) * (_t0 - _t0.shift(1)) / _t0.abs().replace(0, np.nan))
+        .rolling(window=window, min_periods=1)
+        .mean()
+    )
     return pd.Series(_t1, index=df.index)
 
 
@@ -461,7 +479,9 @@ def factor_sub_sign_ts_std(df: pd.DataFrame, window: int = 117) -> pd.Series:
     """
     ret_5 = df["close"].pct_change(5, fill_method=None)
     amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
-    _t0 = (ret_5 - ret_5.rolling(window=95, min_periods=1).mean()) / ret_5.rolling(window=95, min_periods=1).std().replace(0, np.nan)
+    _t0 = (ret_5 - ret_5.rolling(window=95, min_periods=1).mean()) / ret_5.rolling(
+        window=95, min_periods=1
+    ).std().replace(0, np.nan)
     _t1 = _t0.rolling(window=80, min_periods=1).skew()
     _t2 = _t1.rolling(window=112, min_periods=1).std()
     _t3 = np.sign(_t2)
@@ -737,7 +757,9 @@ def factor_ts_inverse_cv_delta_amount(df: pd.DataFrame, window: int = 85) -> pd.
     """
     amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
     _t0 = amount.diff()
-    _t1 = _t0.rolling(window=window, min_periods=1).mean() / _t0.rolling(window=window, min_periods=1).std().replace(0, np.nan)
+    _t1 = _t0.rolling(window=window, min_periods=1).mean() / _t0.rolling(window=window, min_periods=1).std().replace(
+        0, np.nan
+    )
     return pd.Series(_t1, index=df.index)
 
 
@@ -760,7 +782,9 @@ def factor_ts_inverse_cv_div_delta(df: pd.DataFrame, window: int = 85) -> pd.Ser
     amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
     _t0 = amount.diff()
     _t1 = _t0 / 0.1643122401170105
-    _t2 = _t1.rolling(window=window, min_periods=1).mean() / _t1.rolling(window=window, min_periods=1).std().replace(0, np.nan)
+    _t2 = _t1.rolling(window=window, min_periods=1).mean() / _t1.rolling(window=window, min_periods=1).std().replace(
+        0, np.nan
+    )
     return pd.Series(_t2, index=df.index)
 
 
@@ -804,7 +828,9 @@ def factor_ema_ts_dema_delta(df: pd.DataFrame, window: int = 38) -> pd.Series:
     Q值: 0.8826 | test_rankicir: 0.4554 | monotonicity: 1.0 | ls_sharpe: 1.5643
     """
     amplitude = (df["high"] - df["low"]) / df["close"].shift(1).replace(0, np.nan)
-    _t0 = amplitude.rolling(window=38, min_periods=1).mean() / amplitude.rolling(window=38, min_periods=1).std().replace(0, np.nan)
+    _t0 = amplitude.rolling(window=38, min_periods=1).mean() / amplitude.rolling(
+        window=38, min_periods=1
+    ).std().replace(0, np.nan)
     _t1 = _t0.diff()
     ema1 = _t1.ewm(span=3, adjust=False, min_periods=1).mean()
     ema2 = ema1.ewm(span=3, adjust=False, min_periods=1).mean()
@@ -857,7 +883,9 @@ def factor_div_ts_inverse_cv_volume(df: pd.DataFrame, window: int = 5) -> pd.Ser
     """
     volume = df["volume"]
     amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
-    _t0 = volume.rolling(window=window, min_periods=1).mean() / volume.rolling(window=window, min_periods=1).std().replace(0, np.nan)
+    _t0 = volume.rolling(window=window, min_periods=1).mean() / volume.rolling(
+        window=window, min_periods=1
+    ).std().replace(0, np.nan)
     _t1 = _t0 / amount.replace(0, np.nan)
     return pd.Series(_t1, index=df.index)
 

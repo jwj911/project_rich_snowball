@@ -69,6 +69,7 @@ def _get_client_id(request: Request) -> str:
         return f"{client_ip}:{user_id}"
     return client_ip
 
+
 # ---- 内存降级实现 ----
 _rate_limit_store: dict[str, list[datetime]] = {}
 _rate_limit_lock = Lock()
@@ -128,7 +129,8 @@ def _cleanup_stale_rate_limit_keys():
     window_start = now - timedelta(seconds=_WINDOW_SECONDS)
     with _rate_limit_lock:
         stale_keys = [
-            key for key, entries in _rate_limit_store.items()
+            key
+            for key, entries in _rate_limit_store.items()
             if not entries or all(ts <= window_start for ts in entries)
         ]
         for key in stale_keys:
@@ -252,20 +254,14 @@ async def rate_limit_middleware(request: Request, call_next):
     method = request.method
 
     # 白名单排除（含常规 GET/HEAD/OPTIONS），但高成本 GET 端点仍需限流
-    if _is_excluded(request) and (
-        method not in _EXCLUDED_METHODS or path not in _GET_COSTLY_ENDPOINTS
-    ):
+    if _is_excluded(request) and (method not in _EXCLUDED_METHODS or path not in _GET_COSTLY_ENDPOINTS):
         return await call_next(request)
 
     # 高成本 GET/SSE 端点使用 IP+user 维度；普通写入端点使用 IP 维度
     costly_endpoint = next((p for p in _GET_COSTLY_ENDPOINTS if path.startswith(p)), None)
     is_costly_get = method in ("GET", "HEAD") and costly_endpoint is not None
     is_sse = method == "GET" and path == "/api/realtime/stream"
-    client_id = (
-        _get_client_id(request)
-        if is_costly_get or is_sse
-        else _get_client_ip(request)
-    )
+    client_id = _get_client_id(request) if is_costly_get or is_sse else _get_client_ip(request)
 
     # 高成本 GET 端点使用独立限流参数
     if method in ("GET", "HEAD") and costly_endpoint:

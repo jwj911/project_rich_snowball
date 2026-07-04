@@ -58,8 +58,7 @@ class OptimizationReport:
             "best_params": self.best_params,
             "best_metrics": self.best_metrics,
             "top_results": [
-                {"rank": r.rank, "params": r.params, "score": r.score, "metrics": r.metrics}
-                for r in self.results[:10]
+                {"rank": r.rank, "params": r.params, "score": r.score, "metrics": r.metrics} for r in self.results[:10]
             ],
         }
 
@@ -88,7 +87,7 @@ def _generate_ma_param_grid(query: str) -> list[dict[str, Any]]:
         short_values = [v for v in short_values if lo <= v <= hi]
         long_values = [v for v in long_values if lo <= v <= hi]
 
-    return [{"short_window": s, "long_window": l} for s in short_values for l in long_values if s < l]
+    return [{"short_window": s, "long_window": lw} for s in short_values for lw in long_values if s < lw]
 
 
 def _generate_rsi_param_grid(query: str) -> list[dict[str, Any]]:
@@ -159,12 +158,8 @@ def optimize_strategy(
 
     for params in param_grid:
         # 根据参数类型修改 DSL 条件中的数值
-        adjusted_entry = _apply_params_to_conditions(
-            dsl.entry.get("conditions", []), params
-        )
-        adjusted_exit = _apply_params_to_conditions(
-            dsl.exit.get("conditions", []), params
-        )
+        adjusted_entry = _apply_params_to_conditions(dsl.entry.get("conditions", []), params)
+        adjusted_exit = _apply_params_to_conditions(dsl.exit.get("conditions", []), params)
 
         try:
             bt_result = run_dsl_backtest(
@@ -199,9 +194,7 @@ def optimize_strategy(
     )
 
 
-def _apply_params_to_conditions(
-    conditions: list[dict[str, Any]], params: dict[str, Any]
-) -> list[dict[str, Any]]:
+def _apply_params_to_conditions(conditions: list[dict[str, Any]], params: dict[str, Any]) -> list[dict[str, Any]]:
     """将参数网格中的数值应用到 DSL 条件中。
 
     替换规则：
@@ -223,13 +216,17 @@ def _apply_params_to_conditions(
                     c[key] = _replace_ma_period(c[key], sw, lw)
 
         # RSI 阈值替换
-        if "rsi_buy" in params and "rsi_sell" in params:
-            if c.get("indicator") and "rsi" in str(c.get("indicator", "")).lower():
-                op = c.get("operator", "")
-                if op in ("less_than", "below"):
-                    c["value"] = params["rsi_buy"]
-                elif op in ("greater_than", "above"):
-                    c["value"] = params["rsi_sell"]
+        if (
+            "rsi_buy" in params
+            and "rsi_sell" in params
+            and c.get("indicator")
+            and "rsi" in str(c.get("indicator", "")).lower()
+        ):
+            op = c.get("operator", "")
+            if op in ("less_than", "below"):
+                c["value"] = params["rsi_buy"]
+            elif op in ("greater_than", "above"):
+                c["value"] = params["rsi_sell"]
 
         adjusted.append(c)
 
@@ -278,13 +275,15 @@ def format_optimization_report(report: OptimizationReport) -> str:
         lines.append(f"- 最大回撤：{report.best_metrics.get('max_drawdown_pct', '—')}%")
         lines.append(f"- 夏普：{report.best_metrics.get('sharpe', '—')}")
 
-    lines.extend([
-        "",
-        "### 前 10 名结果",
-        "",
-        "| 排名 | 参数 | 评分 | 总收益 | 最大回撤 | 夏普 | 胜率 | 交易次数 |",
-        "|------|------|------|--------|----------|------|------|----------|",
-    ])
+    lines.extend(
+        [
+            "",
+            "### 前 10 名结果",
+            "",
+            "| 排名 | 参数 | 评分 | 总收益 | 最大回撤 | 夏普 | 胜率 | 交易次数 |",
+            "|------|------|------|--------|----------|------|------|----------|",
+        ]
+    )
 
     for r in report.results:
         params_short = ", ".join(f"{k}={v}" for k, v in r.params.items())
@@ -300,9 +299,11 @@ def format_optimization_report(report: OptimizationReport) -> str:
             f"| {m.get('trade_count', '—')} |"
         )
 
-    lines.extend([
-        "",
-        "> 参数优化基于历史数据网格搜索，存在过拟合风险。建议结合样本外验证使用。",
-    ])
+    lines.extend(
+        [
+            "",
+            "> 参数优化基于历史数据网格搜索，存在过拟合风险。建议结合样本外验证使用。",
+        ]
+    )
 
     return "\n".join(lines)

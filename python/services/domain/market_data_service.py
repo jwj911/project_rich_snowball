@@ -69,11 +69,7 @@ class MarketDataService:
         cache_key = _realtime_cache_key(symbol)
 
         def _fetch():
-            quote = (
-                self._db.query(RealtimeQuoteDB)
-                .filter(RealtimeQuoteDB.variety_id == variety.id)
-                .first()
-            )
+            quote = self._db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).first()
             return self._quote_to_dict(variety, quote)
 
         quote = get_cached(cache_key, _fetch, ttl=_REALTIME_TTL_SECONDS)
@@ -99,20 +95,13 @@ class MarketDataService:
 
         def _fetch():
             varieties = {
-                v.symbol: v
-                for v in self._db.query(VarietyDB)
-                .filter(VarietyDB.symbol.in_(unique_symbols))
-                .all()
+                v.symbol: v for v in self._db.query(VarietyDB).filter(VarietyDB.symbol.in_(unique_symbols)).all()
             }
             if not varieties:
                 return {"quotes": [], "not_found": unique_symbols}
 
             variety_ids = [v.id for v in varieties.values()]
-            quotes_rows = (
-                self._db.query(RealtimeQuoteDB)
-                .filter(RealtimeQuoteDB.variety_id.in_(variety_ids))
-                .all()
-            )
+            quotes_rows = self._db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id.in_(variety_ids)).all()
             quotes_map = {q.variety_id: q for q in quotes_rows}
 
             quotes: list[dict[str, Any]] = []
@@ -198,26 +187,24 @@ class MarketDataService:
         variety_ids = [v.id for v in items]
         quotes_map = {}
         if variety_ids:
-            quotes = (
-                self._db.query(RealtimeQuoteDB)
-                .filter(RealtimeQuoteDB.variety_id.in_(variety_ids))
-                .all()
-            )
+            quotes = self._db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id.in_(variety_ids)).all()
             quotes_map = {q.variety_id: q for q in quotes}
 
         result = []
         for v in items:
             quote = quotes_map.get(v.id)
-            result.append({
-                "symbol": v.symbol,
-                "name": v.name,
-                "exchange": v.exchange,
-                "category": v.category,
-                "current_price": quote.current_price if quote else None,
-                "change_percent": quote.change_percent if quote else None,
-                "volume": quote.volume if quote else None,
-                "updated_at": quote.updated_at if quote else None,
-            })
+            result.append(
+                {
+                    "symbol": v.symbol,
+                    "name": v.name,
+                    "exchange": v.exchange,
+                    "category": v.category,
+                    "current_price": quote.current_price if quote else None,
+                    "change_percent": quote.change_percent if quote else None,
+                    "volume": quote.volume if quote else None,
+                    "updated_at": quote.updated_at if quote else None,
+                }
+            )
 
         summary = {
             "total": total,
@@ -244,12 +231,14 @@ class MarketDataService:
         result = []
         for q in quotes:
             change = q.get("change_percent") or 0.0
-            result.append({
-                "symbol": q["symbol"],
-                "current_price": q["current_price"],
-                "change_percent": change,
-                "direction": "up" if change > 0 else ("down" if change < 0 else "flat"),
-            })
+            result.append(
+                {
+                    "symbol": q["symbol"],
+                    "current_price": q["current_price"],
+                    "change_percent": change,
+                    "direction": "up" if change > 0 else ("down" if change < 0 else "flat"),
+                }
+            )
 
         # 按涨跌幅排序
         result.sort(key=lambda x: x["change_percent"], reverse=True)
@@ -281,12 +270,14 @@ class MarketDataService:
                 is_stale = (now - updated_at) > stale_threshold
             if is_stale:
                 stale_count += 1
-            details.append({
-                "symbol": variety.symbol,
-                "data_source": quote.data_source,
-                "updated_at": quote.updated_at.isoformat() if quote.updated_at else None,
-                "stale": is_stale,
-            })
+            details.append(
+                {
+                    "symbol": variety.symbol,
+                    "data_source": quote.data_source,
+                    "updated_at": quote.updated_at.isoformat() if quote.updated_at else None,
+                    "stale": is_stale,
+                }
+            )
 
         overall = "healthy" if stale_count == 0 else ("degraded" if stale_count <= len(rows) * 0.2 else "unhealthy")
         return {

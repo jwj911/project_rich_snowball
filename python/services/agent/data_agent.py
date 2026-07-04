@@ -17,6 +17,7 @@ from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, 
 from services.agent.llm_client import AgentLLMClient
 from services.agent.tools import get_tool_registry
 from services.agent.utils import resolve_symbol
+from services.data_catalog import DataCatalogService
 from services.domain.exceptions import ServiceError
 
 logger = logging.getLogger(__name__)
@@ -134,12 +135,14 @@ class DataAgent(Agent):
                         )
 
                         # 将工具结果添加到消息历史
-                        messages.append({
-                            "tool_call_id": tc["id"],
-                            "role": "tool",
-                            "name": tool_name,
-                            "content": json.dumps(tool_result, ensure_ascii=False, default=str),
-                        })
+                        messages.append(
+                            {
+                                "tool_call_id": tc["id"],
+                                "role": "tool",
+                                "name": tool_name,
+                                "content": json.dumps(tool_result, ensure_ascii=False, default=str),
+                            }
+                        )
                 else:
                     # 模型直接回答，不再调用工具
                     answer = message.get("content", "").strip()
@@ -182,6 +185,36 @@ class DataAgent(Agent):
         db = self.context.db
         symbol = resolve_symbol(db, query)
 
+        # 0. 数据目录 / 数据质量类查询
+        if any(k in query for k in ["有哪些数据", "数据资产", "数据目录", "可用数据", "数据覆盖", "数据质量"]):
+            catalog = DataCatalogService(db)
+            if symbol and "覆盖" in query:
+                result = catalog.get_symbol_data_coverage(symbol, period="1d")
+                tool_name = "get_symbol_data_coverage"
+                answer = _format_symbol_coverage_answer(result)
+            elif symbol and "质量" in query:
+                result = catalog.get_data_quality_summary(symbol=symbol, dataset_name="kline_data", period="1d")
+                tool_name = "get_data_quality_summary"
+                answer = _format_quality_answer(result)
+            else:
+                result = catalog.list_available_datasets()
+                tool_name = "list_available_datasets"
+                answer = _format_dataset_list_answer(result)
+            self._add_step("action", f"调用工具：{tool_name}", tool_name=tool_name, tool_input={"query": query})
+            self._add_step(
+                "observation",
+                f"工具返回结果：{result}",
+                tool_name=tool_name,
+                tool_input={"query": query},
+                tool_output=result,
+            )
+            return AgentResult(
+                status=AgentStatus.COMPLETED,
+                answer=answer,
+                data={"query": query, "result": result},
+                steps=self.get_steps(),
+            )
+
         # 1. 排名 / 列表类查询（中文 + 英文）
         # 中文关键词
         cn_ranking = any(k in query for k in ["涨幅", "跌幅", "前", "排名", "排序", "活跃品种"])
@@ -213,6 +246,7 @@ class DataAgent(Agent):
                     break
             # 提取数量
             import re
+
             limit_match = re.search(r"(\d+)", query)
             limit = int(limit_match.group(1)) if limit_match else 5
 
@@ -223,12 +257,27 @@ class DataAgent(Agent):
                 sort_order=sort_order,
                 limit=limit,
             )
-            self._add_step("action", "调用工具：list_active_varieties", tool_name="list_active_varieties", tool_input={"category": category, "sort_by": sort_by, "sort_order": sort_order, "limit": limit})
-            self._add_step("observation", f"工具返回结果：{result}", tool_name="list_active_varieties", tool_input={"category": category, "sort_by": sort_by, "sort_order": sort_order, "limit": limit}, tool_output=result)
+            self._add_step(
+                "action",
+                "调用工具：list_active_varieties",
+                tool_name="list_active_varieties",
+                tool_input={"category": category, "sort_by": sort_by, "sort_order": sort_order, "limit": limit},
+            )
+            self._add_step(
+                "observation",
+                f"工具返回结果：{result}",
+                tool_name="list_active_varieties",
+                tool_input={"category": category, "sort_by": sort_by, "sort_order": sort_order, "limit": limit},
+                tool_output=result,
+            )
 
-            lines = [f"{'类别：' + category + ' ' if category else ''}品种排名（按 {sort_by} {'降序' if sort_order == 'desc' else '升序'}）："]
+            lines = [
+                f"{'类别：' + category + ' ' if category else ''}品种排名（按 {sort_by} {'降序' if sort_order == 'desc' else '升序'}）："
+            ]
             label = "Ranking" if any(k in query.lower() for k in ["top", "ranking", "gainer", "loser"]) else "品种排名"
-            lines = [f"{'Category: ' + category + ' | ' if category else ''}{label} (sort by {sort_by} {'DESC' if sort_order == 'desc' else 'ASC'}):"]
+            lines = [
+                f"{'Category: ' + category + ' | ' if category else ''}{label} (sort by {sort_by} {'DESC' if sort_order == 'desc' else 'ASC'}):"
+            ]
             for i, item in enumerate(result, 1):
                 lines.append(
                     f"{i}. {item.get('name', item.get('symbol'))} ({item.get('symbol')}): "
@@ -246,7 +295,13 @@ class DataAgent(Agent):
         if any(k in query for k in ["市场状态", "交易时间", "是否开盘", "开盘"]):
             result = data_tools._get_market_status(db)
             self._add_step("action", "调用工具：get_market_status", tool_name="get_market_status", tool_input={})
-            self._add_step("observation", f"工具返回结果：{result}", tool_name="get_market_status", tool_input={}, tool_output=result)
+            self._add_step(
+                "observation",
+                f"工具返回结果：{result}",
+                tool_name="get_market_status",
+                tool_input={},
+                tool_output=result,
+            )
             answer = f"当前日期：{result.get('date')}，是否交易日：{result.get('is_trading_day')}，当前时段：{result.get('current_session')}，下一交易日：{result.get('next_trade_date') or '—'}。"
             return AgentResult(
                 status=AgentStatus.COMPLETED,
@@ -268,7 +323,17 @@ class DataAgent(Agent):
         # 4. K 线 / 历史走势
         if any(k in query for k in ["K线", "k线", "历史", "走势", "日线", "周线", "小时线", "分钟线"]):
             import re
-            period_map = {"日线": "1d", "周线": "1w", "小时线": "1h", "1小时": "1h", "30分钟": "30m", "15分钟": "15m", "5分钟": "5m", "1分钟": "1m"}
+
+            period_map = {
+                "日线": "1d",
+                "周线": "1w",
+                "小时线": "1h",
+                "1小时": "1h",
+                "30分钟": "30m",
+                "15分钟": "15m",
+                "5分钟": "5m",
+                "1分钟": "1m",
+            }
             period = "1d"
             for k, v in period_map.items():
                 if k in query:
@@ -277,8 +342,19 @@ class DataAgent(Agent):
             limit_match = re.search(r"(\d+)", query)
             limit = int(limit_match.group(1)) if limit_match else 60
             result = data_tools._get_kline_data(db, symbol, period=period, limit=limit)
-            self._add_step("action", f"调用工具：get_kline_data ({symbol})", tool_name="get_kline_data", tool_input={"symbol": symbol, "period": period, "limit": limit})
-            self._add_step("observation", f"获取 K 线 {len(result)} 根", tool_name="get_kline_data", tool_input={"symbol": symbol, "period": period, "limit": limit}, tool_output=result)
+            self._add_step(
+                "action",
+                f"调用工具：get_kline_data ({symbol})",
+                tool_name="get_kline_data",
+                tool_input={"symbol": symbol, "period": period, "limit": limit},
+            )
+            self._add_step(
+                "observation",
+                f"获取 K 线 {len(result)} 根",
+                tool_name="get_kline_data",
+                tool_input={"symbol": symbol, "period": period, "limit": limit},
+                tool_output=result,
+            )
 
             if not result:
                 answer = f"未找到 {symbol} 的 K 线数据。"
@@ -299,8 +375,19 @@ class DataAgent(Agent):
         # 5. 默认：品种信息 + 实时行情
         variety_info = data_tools._get_variety_info(db, symbol)
         quote = data_tools._get_realtime_quote(db, symbol)
-        self._add_step("action", f"调用工具：get_variety_info / get_realtime_quote ({symbol})", tool_name="get_realtime_quote", tool_input={"symbol": symbol})
-        self._add_step("observation", f"品种信息：{variety_info}；行情：{quote}", tool_name="get_realtime_quote", tool_input={"symbol": symbol}, tool_output={"variety_info": variety_info, "quote": quote})
+        self._add_step(
+            "action",
+            f"调用工具：get_variety_info / get_realtime_quote ({symbol})",
+            tool_name="get_realtime_quote",
+            tool_input={"symbol": symbol},
+        )
+        self._add_step(
+            "observation",
+            f"品种信息：{variety_info}；行情：{quote}",
+            tool_name="get_realtime_quote",
+            tool_input={"symbol": symbol},
+            tool_output={"variety_info": variety_info, "quote": quote},
+        )
 
         if not variety_info:
             return AgentResult(
@@ -314,10 +401,7 @@ class DataAgent(Agent):
         current = quote.get("current_price", "—") if quote else "—"
         change = quote.get("change_percent", "—") if quote else "—"
         volume = quote.get("volume", "—") if quote else "—"
-        answer = (
-            f"{name} ({symbol}) · 交易所：{exchange}\n"
-            f"最新价：{current}，涨跌幅：{change}%，成交量：{volume}"
-        )
+        answer = f"{name} ({symbol}) · 交易所：{exchange}\n最新价：{current}，涨跌幅：{change}%，成交量：{volume}"
         data: dict[str, Any] = {"query": query, "symbol": symbol}
         if quote:
             data.update(quote)
@@ -346,7 +430,11 @@ class DataAgent(Agent):
             result = await self._run_fallback(query)
             for step in result.steps[1:]:
                 yield AgentEvent(
-                    event_type=AgentEventType.ACTION if step.role == "action" else AgentEventType.OBSERVATION if step.role == "observation" else AgentEventType.THOUGHT,
+                    event_type=AgentEventType.ACTION
+                    if step.role == "action"
+                    else AgentEventType.OBSERVATION
+                    if step.role == "observation"
+                    else AgentEventType.THOUGHT,
                     step_number=step.step_number,
                     role=step.role,
                     content=step.content,
@@ -434,12 +522,14 @@ class DataAgent(Agent):
                             tool_output=tool_result,
                         ).to_dict()
 
-                        messages.append({
-                            "tool_call_id": tc["id"],
-                            "role": "tool",
-                            "name": tool_name,
-                            "content": json.dumps(tool_result, ensure_ascii=False, default=str),
-                        })
+                        messages.append(
+                            {
+                                "tool_call_id": tc["id"],
+                                "role": "tool",
+                                "name": tool_name,
+                                "content": json.dumps(tool_result, ensure_ascii=False, default=str),
+                            }
+                        )
                 else:
                     answer = message.get("content", "").strip()
                     self._add_step("system", f"最终回答：{answer}")
@@ -491,3 +581,39 @@ class DataAgent(Agent):
             content=answer,
             result=result.to_dict(),
         ).to_dict()
+
+
+def _format_dataset_list_answer(datasets: list[dict[str, Any]]) -> str:
+    lines = ["当前可用数据集："]
+    for item in datasets:
+        lines.append(
+            f"- {item['dataset_name']}（{item['label']}）：{item['quality_status']}，"
+            f"rows={item['row_count']}，粒度={item['grain']}"
+        )
+    return "\n".join(lines)
+
+
+def _format_symbol_coverage_answer(result: dict[str, Any]) -> str:
+    lines = [f"{result['symbol']} 数据覆盖："]
+    for dataset_name, coverage in result["datasets"].items():
+        availability = "可用" if coverage.get("available") else "不可用"
+        dates = ""
+        if coverage.get("first_date") or coverage.get("last_date"):
+            dates = f"，范围 {coverage.get('first_date') or '—'} ~ {coverage.get('last_date') or '—'}"
+        lines.append(f"- {dataset_name}: {availability}，rows={coverage.get('row_count', 0)}{dates}")
+    return "\n".join(lines)
+
+
+def _format_quality_answer(result: dict[str, Any]) -> str:
+    lines = [
+        f"数据质量状态：{result.get('status')}，评分 {result.get('score')}/100",
+        f"覆盖摘要：{result.get('coverage')}",
+    ]
+    issues = result.get("issues") or []
+    if issues:
+        lines.append("问题：")
+        for issue in issues:
+            lines.append(f"- [{issue.get('severity')}] {issue.get('code')}：{issue.get('message')}")
+    else:
+        lines.append("未发现 P0 级数据质量问题。")
+    return "\n".join(lines)

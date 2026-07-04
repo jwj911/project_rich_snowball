@@ -8,8 +8,9 @@ from __future__ import annotations
 import inspect
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from errors import ErrorCode
 from services.domain.exceptions import ServiceError
@@ -79,7 +80,7 @@ class Tool:
         """子类可重写以自定义参数定义。"""
         return ToolDefinition(name=self.name, description=self.description)
 
-    async def execute(self, context: "AgentContext", **kwargs: Any) -> Any:
+    async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
         """执行工具逻辑。
 
         子类必须实现。
@@ -88,7 +89,7 @@ class Tool:
 
     def format_result(self, result: Any) -> str:
         """将工具执行结果格式化为文本，供 LLM 观察。"""
-        if isinstance(result, (dict, list)):
+        if isinstance(result, dict | list):
             return json.dumps(result, ensure_ascii=False, default=str)
         return str(result)
 
@@ -121,7 +122,7 @@ class ToolRegistry:
         """获取所有工具的 OpenAI function schema。"""
         return [t.definition.to_openai_schema() for t in self._tools.values()]
 
-    async def execute(self, name: str, context: "AgentContext", params: dict[str, Any]) -> Any:
+    async def execute(self, name: str, context: AgentContext, params: dict[str, Any]) -> Any:
         """按名称执行已注册工具。"""
         tool = self.get(name)
         if tool is None:
@@ -177,21 +178,24 @@ def tool_def(name: str, description: str) -> Callable:
     被装饰的函数第一个参数必须是 context（AgentContext），
     其余参数即为工具参数。
     """
+
     def decorator(func: Callable) -> Tool:
         sig = inspect.signature(func)
         params: list[ToolParameter] = []
         for param_name, param in list(sig.parameters.items())[1:]:  # 跳过 context
             ptype = "string"
-            if param.annotation == int or param.annotation == float:
+            if isinstance(param.annotation, type) and issubclass(param.annotation, int | float):
                 ptype = "number"
-            elif param.annotation == bool:
+            elif isinstance(param.annotation, type) and issubclass(param.annotation, bool):
                 ptype = "boolean"
-            params.append(ToolParameter(
-                name=param_name,
-                type=ptype,
-                description="",
-                required=param.default is inspect.Parameter.empty,
-            ))
+            params.append(
+                ToolParameter(
+                    name=param_name,
+                    type=ptype,
+                    description="",
+                    required=param.default is inspect.Parameter.empty,
+                )
+            )
 
         class _FuncTool(Tool):
             def __init__(self) -> None:
@@ -203,7 +207,7 @@ def tool_def(name: str, description: str) -> Callable:
             def _build_definition(self) -> ToolDefinition:
                 return ToolDefinition(name=name, description=description, parameters=params)
 
-            async def execute(self, context: "AgentContext", **kwargs: Any) -> Any:
+            async def execute(self, context: AgentContext, **kwargs: Any) -> Any:
                 return await self._func(context, **kwargs)
 
         t = _FuncTool()

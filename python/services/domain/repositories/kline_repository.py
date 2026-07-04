@@ -105,25 +105,24 @@ class KlineRepository:
         contracts: dict[int, FutContractDB] = {}
         if contract_ids:
             contracts = {
-                c.id: c
-                for c in self._db.query(FutContractDB)
-                .filter(FutContractDB.id.in_(contract_ids))
-                .all()
+                c.id: c for c in self._db.query(FutContractDB).filter(FutContractDB.id.in_(contract_ids)).all()
             }
 
         result = []
         for r in rows:
             contract = contracts.get(r.contract_id) if r.contract_id is not None else None
-            result.append({
-                "time": r.trading_time.isoformat(),
-                "open": float(r.open_price),
-                "high": float(r.high_price),
-                "low": float(r.low_price),
-                "close": float(r.close_price),
-                "volume": r.volume,
-                "contract_code": contract.symbol if contract else None,
-                "contract_id": contract.id if contract else r.contract_id,
-            })
+            result.append(
+                {
+                    "time": r.trading_time.isoformat(),
+                    "open": float(r.open_price),
+                    "high": float(r.high_price),
+                    "low": float(r.low_price),
+                    "close": float(r.close_price),
+                    "volume": r.volume,
+                    "contract_code": contract.symbol if contract else None,
+                    "contract_id": contract.id if contract else r.contract_id,
+                }
+            )
         return result
 
     def list_contracts_by_variety_symbol(

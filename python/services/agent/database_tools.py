@@ -25,36 +25,78 @@ logger = logging.getLogger(__name__)
 # ------------------------------------------------------------------
 
 # 禁止的 SQL 关键字（写操作 + 危险操作）
-_FORBIDDEN_KEYWORDS: frozenset[str] = frozenset({
-    "insert", "update", "delete", "drop", "alter", "create",
-    "truncate", "grant", "revoke", "exec", "execute",
-    "sp_", "xp_", "pragma", "attach", "detach", "vacuum",
-    "replace", "merge", "copy", "load", "import",
-})
+_FORBIDDEN_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "insert",
+        "update",
+        "delete",
+        "drop",
+        "alter",
+        "create",
+        "truncate",
+        "grant",
+        "revoke",
+        "exec",
+        "execute",
+        "sp_",
+        "xp_",
+        "pragma",
+        "attach",
+        "detach",
+        "vacuum",
+        "replace",
+        "merge",
+        "copy",
+        "load",
+        "import",
+    }
+)
 
 # 白名单表（Agent 可以查询的表）
 # 注意：users 表被排除，避免泄露密码哈希等敏感信息
-_ALLOWED_TABLES: frozenset[str] = frozenset({
-    # 品种与合约
-    "varieties", "fut_contracts", "contract_rollovers",
-    # 行情数据
-    "realtime_quotes", "kline_data", "fut_daily_data", "fut_index",
-    # 基本面数据
-    "fut_settle", "fut_wsr", "fut_holding", "fut_price_limits",
-    "fut_weekly_detail", "fut_trade_fee",
-    # 交易日历与监控
-    "trading_calendar", "data_ingestion_runs",
-    # 新闻
-    "news_articles", "news_sources",
-    # 用户业务数据（需通过 user_id 过滤，由查询逻辑自动注入）
-    "opinions", "trade_records", "strategies", "backtest_runs",
-    "price_levels", "watchlists", "comments", "price_alerts",
-    "alert_events", "alert_event_user_states",
-    # Agent 数据
-    "agent_tasks", "agent_task_steps",
-    # 其他
-    "frontend_logs", "user_preferences",
-})
+_ALLOWED_TABLES: frozenset[str] = frozenset(
+    {
+        # 品种与合约
+        "varieties",
+        "fut_contracts",
+        "contract_rollovers",
+        # 行情数据
+        "realtime_quotes",
+        "kline_data",
+        "fut_daily_data",
+        "fut_index",
+        # 基本面数据
+        "fut_settle",
+        "fut_wsr",
+        "fut_holding",
+        "fut_price_limits",
+        "fut_weekly_detail",
+        "fut_trade_fee",
+        # 交易日历与监控
+        "trading_calendar",
+        "data_ingestion_runs",
+        # 新闻
+        "news_articles",
+        "news_sources",
+        # 用户业务数据（需通过 user_id 过滤，由查询逻辑自动注入）
+        "opinions",
+        "trade_records",
+        "strategies",
+        "backtest_runs",
+        "price_levels",
+        "watchlists",
+        "comments",
+        "price_alerts",
+        "alert_events",
+        "alert_event_user_states",
+        # Agent 数据
+        "agent_tasks",
+        "agent_task_steps",
+        # 其他
+        "frontend_logs",
+        "user_preferences",
+    }
+)
 
 # 敏感字段映射：某些表的特定字段需要脱敏或排除
 _SENSITIVE_FIELDS: dict[str, set[str]] = {
@@ -121,13 +163,13 @@ def _validate_sql(sql: str) -> tuple[bool, str]:
 # 工具实现
 # ------------------------------------------------------------------
 
+
 class ListTablesTool(Tool):
     """列出 Agent 可以查询的数据库表。"""
 
     name = "list_tables"
     description = (
-        "列出数据库中所有 Agent 可以查询的表名及其简要说明。"
-        "当用户要求查询数据库但你不确定表名时，先调用此工具。"
+        "列出数据库中所有 Agent 可以查询的表名及其简要说明。当用户要求查询数据库但你不确定表名时，先调用此工具。"
     )
 
     def _build_definition(self) -> ToolDefinition:
@@ -171,17 +213,16 @@ class GetTableSchemaTool(Tool):
     """获取指定表的结构信息。"""
 
     name = "get_table_schema"
-    description = (
-        "获取指定数据库表的列名、类型和说明。"
-        "在写 SQL 查询前调用此工具了解表结构，可避免字段名错误。"
-    )
+    description = "获取指定数据库表的列名、类型和说明。在写 SQL 查询前调用此工具了解表结构，可避免字段名错误。"
 
     def _build_definition(self) -> ToolDefinition:
         return ToolDefinition(
             name=self.name,
             description=self.description,
             parameters=[
-                ToolParameter(name="table_name", type="string", description="表名，如 fut_wsr, fut_holding", required=True),
+                ToolParameter(
+                    name="table_name", type="string", description="表名，如 fut_wsr, fut_holding", required=True
+                ),
             ],
         )
 
@@ -348,12 +389,22 @@ class QueryDatabaseTool(Tool):
 # SQL 辅助函数
 # ------------------------------------------------------------------
 
-_PRIVATE_TABLES: frozenset[str] = frozenset({
-    "opinions", "trade_records", "strategies", "backtest_runs",
-    "price_levels", "watchlists", "comments", "price_alerts",
-    "alert_events", "alert_event_user_states",
-    "agent_tasks", "agent_task_steps",
-})
+_PRIVATE_TABLES: frozenset[str] = frozenset(
+    {
+        "opinions",
+        "trade_records",
+        "strategies",
+        "backtest_runs",
+        "price_levels",
+        "watchlists",
+        "comments",
+        "price_alerts",
+        "alert_events",
+        "alert_event_user_states",
+        "agent_tasks",
+        "agent_task_steps",
+    }
+)
 
 
 _USER_ID_COLUMN_MAP: dict[str, str] = {

@@ -53,9 +53,7 @@ class WatchlistService:
             raise ForbiddenError("无权操作")
         return w
 
-    def update_watchlist(
-        self, user_id: int, watchlist_id: int, item: WatchlistUpdate
-    ) -> WatchlistDB:
+    def update_watchlist(self, user_id: int, watchlist_id: int, item: WatchlistUpdate) -> WatchlistDB:
         w = self._get_and_check_owner(user_id, watchlist_id)
 
         if item.notes is not None:

@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import ast
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -293,9 +294,8 @@ def validate_factor_formula(formula: str) -> None:
         )
     )
     for node in ast.walk(tree):
-        if isinstance(node, ast.Name):
-            if node.id not in namespace:
-                raise ValueError(f"因子公式包含未定义的标识符：{node.id}")
+        if isinstance(node, ast.Name) and node.id not in namespace:
+            raise ValueError(f"因子公式包含未定义的标识符：{node.id}")
 
 
 def evaluate_factor(formula: str, panel: PanelData) -> pd.DataFrame:

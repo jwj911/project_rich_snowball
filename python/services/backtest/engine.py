@@ -10,7 +10,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -176,7 +175,6 @@ def run_backtest(
     return BacktestResult(config=config, metrics=metrics, trades=trades, equity_curve=equity_curve, signals=signals)
 
 
-
 def _eval_conditions(data: pd.DataFrame, conditions: list[dict[str, Any]], logic: str = "and") -> pd.Series:
     """根据 DSL 条件列表生成布尔信号序列。
 
@@ -318,6 +316,7 @@ def _safe_round(value: Any) -> float | None:
 # 指标计算
 # ------------------------------------------------------------------
 
+
 def _compute_indicator(df: pd.DataFrame, indicator: str) -> pd.Series:
     """根据指标名计算对应序列。支持基础名及带周期后缀的变体。"""
     close = df["close"]
@@ -417,7 +416,9 @@ def _atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) ->
     return tr.rolling(period, min_periods=period).mean()
 
 
-def _kdj(high: pd.Series, low: pd.Series, close: pd.Series, n: int = 9, m1: int = 3, m2: int = 3) -> tuple[pd.Series, pd.Series, pd.Series]:
+def _kdj(
+    high: pd.Series, low: pd.Series, close: pd.Series, n: int = 9, m1: int = 3, m2: int = 3
+) -> tuple[pd.Series, pd.Series, pd.Series]:
     rsv = (close - low.rolling(n).min()) / (high.rolling(n).max() - low.rolling(n).min() + 1e-12) * 100
     k = rsv.ewm(alpha=1 / m1, adjust=False).mean()
     d = k.ewm(alpha=1 / m2, adjust=False).mean()

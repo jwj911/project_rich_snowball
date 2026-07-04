@@ -96,7 +96,7 @@ def optimize_strategy_params(
     results = []
 
     for combo in itertools.product(*param_values):
-        params = dict(zip(param_names, combo))
+        params = dict(zip(param_names, combo, strict=False))
         actual_entry = substitute_params(entry_conditions, params)
         actual_exit = substitute_params(exit_conditions, params)
 
@@ -114,21 +114,25 @@ def optimize_strategy_params(
             )
             metrics = result["metrics"]
             score = _calculate_composite_score(metrics, metric_weights)
-            results.append({
-                "params": params,
-                "metrics": metrics,
-                "score": score,
-                "trades_count": metrics.get("trade_count", 0),
-            })
+            results.append(
+                {
+                    "params": params,
+                    "metrics": metrics,
+                    "score": score,
+                    "trades_count": metrics.get("trade_count", 0),
+                }
+            )
         except Exception as exc:
             logger.warning("回测失败 params=%s: %s", params, exc)
-            results.append({
-                "params": params,
-                "metrics": None,
-                "score": -9999.0,
-                "trades_count": 0,
-                "error": str(exc),
-            })
+            results.append(
+                {
+                    "params": params,
+                    "metrics": None,
+                    "score": -9999.0,
+                    "trades_count": 0,
+                    "error": str(exc),
+                }
+            )
 
     runtime = time.time() - start_time
 
@@ -184,9 +188,7 @@ def _calculate_composite_score(metrics: dict[str, Any], weights: dict[str, float
     return score
 
 
-def _build_sensitivity_matrix(
-    results: list[dict[str, Any]], param_names: list[str]
-) -> dict[str, Any]:
+def _build_sensitivity_matrix(results: list[dict[str, Any]], param_names: list[str]) -> dict[str, Any]:
     """构建单参数敏感性矩阵。
 
     对每个参数，计算其不同取值下的平均评分，用于判断参数敏感性。
@@ -206,9 +208,6 @@ def _build_sensitivity_matrix(
                 param_scores[key] = []
             param_scores[key].append(r["score"])
 
-        matrix[pname] = {
-            key: round(sum(scores) / len(scores), 4)
-            for key, scores in param_scores.items()
-        }
+        matrix[pname] = {key: round(sum(scores) / len(scores), 4) for key, scores in param_scores.items()}
 
     return matrix

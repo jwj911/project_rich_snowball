@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, AsyncIterator
+from typing import Any
 
 
 class AgentStatus(StrEnum):
@@ -126,7 +127,7 @@ class Agent:
     name: str = "base"
     description: str = "基础 Agent"
 
-    def __init__(self, context: "AgentContext") -> None:  # type: ignore[name-defined]
+    def __init__(self, context: AgentContext) -> None:  # noqa: F821  # forward reference, resolved at runtime
         from services.agent.context import AgentContext
 
         self.context: AgentContext = context

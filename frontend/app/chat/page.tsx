@@ -15,6 +15,7 @@ import {
   Wrench,
   Brain,
   Database,
+  BadgeCheck,
   ChevronDown,
   ChevronUp,
   TrendingUp,
@@ -30,7 +31,7 @@ import StrategyResultCard from '@/components/agent/StrategyResultCard'
 import BacktestResultCard from '@/components/agent/BacktestResultCard'
 import { toast } from 'sonner'
 
-type AgentMode = 'chat' | 'data' | 'tech_analysis' | 'risk_management' | 'analysis_pipeline' | 'factor_mining' | 'strategy_compiler' | 'backtest'
+type AgentMode = 'chat' | 'data' | 'data_quality' | 'tech_analysis' | 'risk_management' | 'analysis_pipeline' | 'factor_mining' | 'strategy_compiler' | 'backtest'
 
 interface AgentMessage {
   id: number
@@ -55,6 +56,12 @@ const quickPrompts: Record<AgentMode, string[]> = {
     '列出所有有色金属品种',
     '黄金近 20 日 K 线数据',
     '当前市场状态如何',
+  ],
+  data_quality: [
+    '检查 RB 日 K 数据质量',
+    '现在库里有哪些可用数据',
+    '螺纹钢日线数据完整吗',
+    '检查实时行情数据质量',
   ],
   tech_analysis: [
     '分析螺纹钢日线技术面',
@@ -97,6 +104,7 @@ const quickPrompts: Record<AgentMode, string[]> = {
 const modeLabels: Record<AgentMode, { label: string; icon: typeof Database; desc: string }> = {
   chat: { label: 'AI 助手', icon: Sparkles, desc: '期货行情分析、投资知识问答' },
   data: { label: '数据助手', icon: Database, desc: '实时行情、品种信息、K 线数据查询' },
+  data_quality: { label: '数据质检', icon: BadgeCheck, desc: '检查数据覆盖、异常和回测可用性' },
   tech_analysis: { label: '技术分析', icon: TrendingUp, desc: '基于经典指标的综合技术面分析' },
   risk_management: { label: '风控管理', icon: Shield, desc: '仓位管理、止损止盈、回撤控制' },
   analysis_pipeline: { label: '完整分析', icon: Workflow, desc: '数据 + 技术分析 + 风控方案自动串联' },
@@ -169,7 +177,7 @@ export default function ChatPage() {
       setInput('')
       setIsLoading(true)
 
-      if (agentMode === 'data' || agentMode === 'tech_analysis' || agentMode === 'risk_management' || agentMode === 'analysis_pipeline' || agentMode === 'factor_mining' || agentMode === 'strategy_compiler' || agentMode === 'backtest') {
+      if (agentMode === 'data' || agentMode === 'data_quality' || agentMode === 'tech_analysis' || agentMode === 'risk_management' || agentMode === 'analysis_pipeline' || agentMode === 'factor_mining' || agentMode === 'strategy_compiler' || agentMode === 'backtest') {
         // Agent 流式模式
         const assistantId = Date.now() + 1
         const assistantMsg: AgentMessage = {
@@ -415,6 +423,7 @@ export default function ChatPage() {
           <p className="mt-1.5 text-center text-[10px] text-slate-600">
             AI 回答仅供参考，不构成投资建议
             {agentMode === 'data' && ' · 数据助手会调用实时行情和品种数据库'}
+            {agentMode === 'data_quality' && ' · 数据质检基于确定性规则检查覆盖、OHLC 与缺口'}
             {agentMode === 'tech_analysis' && ' · 技术分析基于 10+ 经典指标进行综合评分'}
             {agentMode === 'risk_management' && ' · 风控方案基于账户 10 万模拟资金，支持自定义'}
             {agentMode === 'analysis_pipeline' && ' · 完整分析会串联数据、技术分析与风控三个 Agent'}

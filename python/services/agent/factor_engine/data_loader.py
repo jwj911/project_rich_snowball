@@ -7,13 +7,16 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING
 
 import pandas as pd
 from sqlalchemy.orm import Session
 
 from models import KlineDataDB, VarietyDB
 from services.agent.utils import resolve_symbol, resolve_symbols
+
+if TYPE_CHECKING:
+    from services.agent.factor_engine.dsl import PanelData
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +29,7 @@ def load_panel_data(
     end_date: date | datetime | None = None,
     period: str = "1d",
     min_bars: int = 30,
-) -> "PanelData":
+) -> PanelData:
     """加载因子面板数据。
 
     Args:

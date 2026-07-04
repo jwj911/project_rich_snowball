@@ -8,21 +8,27 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+from sqlalchemy.orm import Session
 
-import config
 from errors import ErrorCode
 from services.domain.exceptions import ServiceError
+from services.llm_config import ResolvedLLMConfig, resolve_llm_config
 
 
 class AgentLLMClient:
     """OpenAI 兼容 Chat Completions 客户端。"""
 
-    def __init__(self, timeout: float = 60.0) -> None:
+    def __init__(self, db: Session | None = None, user_id: int | None = None, timeout: float = 60.0) -> None:
+        self.db = db
+        self.user_id = user_id
         self.timeout = timeout
 
     @property
     def is_configured(self) -> bool:
-        return bool(config.OPENAI_API_KEY)
+        return self._resolve_config() is not None
+
+    def _resolve_config(self) -> ResolvedLLMConfig | None:
+        return resolve_llm_config(self.db, self.user_id)
 
     async def chat_completion(
         self,
@@ -34,15 +40,16 @@ class AgentLLMClient:
         max_tokens: int = 2048,
     ) -> dict[str, Any]:
         """调用 OpenAI 兼容 chat/completions，并返回 assistant message。"""
-        if not self.is_configured:
+        llm_config = self._resolve_config()
+        if llm_config is None:
             raise ServiceError(
                 code=ErrorCode.AGENT_LLM_ERROR,
-                message="AI 助手尚未配置。请管理员设置 OPENAI_API_KEY 环境变量。",
+                message="AI 助手尚未配置。请在个人设置中配置 API Key，或请管理员设置系统默认 OPENAI_API_KEY。",
                 status_code=503,
             )
 
         payload: dict[str, Any] = {
-            "model": config.OPENAI_MODEL,
+            "model": llm_config.model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
@@ -55,9 +62,9 @@ class AgentLLMClient:
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 resp = await client.post(
-                    f"{config.OPENAI_BASE_URL}/chat/completions",
+                    f"{llm_config.base_url}/chat/completions",
                     headers={
-                        "Authorization": f"Bearer {config.OPENAI_API_KEY}",
+                        "Authorization": f"Bearer {llm_config.api_key}",
                         "Content-Type": "application/json",
                     },
                     json=payload,

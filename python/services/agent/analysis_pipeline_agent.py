@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from services.agent.context import AgentContext
 from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
@@ -63,7 +64,7 @@ class AnalysisPipelineAgent(Agent):
         data_query = f"获取 {symbol} 的品种信息和最新行情"
         ta_query = f"分析 {symbol} 日线技术面"
 
-        self._add_step("thought", f"并行执行：DataAgent + TechAnalysisAgent")
+        self._add_step("thought", "并行执行：DataAgent + TechAnalysisAgent")
         data_task_id = executor.create_task("data", data_query, parent_task_id=parent_task_id)
         ta_task_id = executor.create_task("tech_analysis", ta_query, parent_task_id=parent_task_id)
 
@@ -108,7 +109,7 @@ class AnalysisPipelineAgent(Agent):
             current_price = data_result.data.get("current_price")
 
         # Step 3: RiskManagementAgent - 风控方案（依赖 Data + Tech 结果）
-        risk_query = f"{symbol} { '做多' if direction == 'long' else '做空' } 风控方案"
+        risk_query = f"{symbol} {'做多' if direction == 'long' else '做空'} 风控方案"
         if current_price:
             risk_query += f"，入场价 {current_price}"
         self._add_step("thought", f"步骤 3：调用 RiskManagementAgent - {risk_query}")
@@ -276,24 +277,30 @@ class AnalysisPipelineAgent(Agent):
         if tech.get("risk_note"):
             lines.append(f"- 风险提示：{tech['risk_note']}")
 
-        lines.extend([
-            "",
-            "### 3. 风控方案",
-        ])
+        lines.extend(
+            [
+                "",
+                "### 3. 风控方案",
+            ]
+        )
 
         position = risk.get("position") or {}
         stop_loss = risk.get("stop_loss") or {}
         take_profit = risk.get("take_profit") or {}
 
-        lines.extend([
-            f"- 建议仓位：{position.get('suggested_lots', '—')} 手（占用 {position.get('position_size_pct', '—')}%）",
-            f"- 止损价：{stop_loss.get('stop_loss_price', '—')}（{stop_loss.get('risk_distance_pct', '—')}%）",
-            f"- 止盈价：{take_profit.get('take_profit_price', '—')}（风险收益比 1:{take_profit.get('risk_reward_ratio', '—')}）",
-        ])
+        lines.extend(
+            [
+                f"- 建议仓位：{position.get('suggested_lots', '—')} 手（占用 {position.get('position_size_pct', '—')}%）",
+                f"- 止损价：{stop_loss.get('stop_loss_price', '—')}（{stop_loss.get('risk_distance_pct', '—')}%）",
+                f"- 止盈价：{take_profit.get('take_profit_price', '—')}（风险收益比 1:{take_profit.get('risk_reward_ratio', '—')}）",
+            ]
+        )
 
-        lines.extend([
-            "",
-            "> ⚠️ 以上分析由数据、技术分析、风控三个 Agent 自动汇总生成，仅供参考，不构成投资建议。",
-        ])
+        lines.extend(
+            [
+                "",
+                "> ⚠️ 以上分析由数据、技术分析、风控三个 Agent 自动汇总生成，仅供参考，不构成投资建议。",
+            ]
+        )
 
-        return "\n".join(str(l) for l in lines)
+        return "\n".join(str(line) for line in lines)

@@ -14,14 +14,12 @@ def analyze_trend(df: pd.DataFrame) -> dict[str, str]:
     返回趋势方向、强度描述、关键价位。
     """
     latest = df.iloc[-1]
-    prev = df.iloc[-2] if len(df) > 1 else latest
     close = latest["close"]
 
     # 均线排列
     ma5 = latest.get("sma5")
     ma20 = latest.get("sma20")
     ma60 = latest.get("sma60")
-    ma120 = latest.get("sma120")
 
     ma_bullish = False
     ma_bearish = False
@@ -51,10 +49,7 @@ def analyze_trend(df: pd.DataFrame) -> dict[str, str]:
     dmi_minus = latest.get("dmi_minus")
     dmi_direction = "unknown"
     if dmi_plus is not None and dmi_minus is not None:
-        if dmi_plus > dmi_minus:
-            dmi_direction = "多头主导"
-        else:
-            dmi_direction = "空头主导"
+        dmi_direction = "多头主导" if dmi_plus > dmi_minus else "空头主导"
 
     # 综合判断
     if ma_bullish:

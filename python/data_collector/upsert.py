@@ -175,15 +175,35 @@ def insert_kline_bulk(db: Session, rows: list[dict], period: str) -> int:
 
 
 def upsert_fut_daily_bulk(db: Session, rows: list[dict]) -> int:
-    """批量写入期货日线/周线/月线数据。自动拆批避免 PostgreSQL 参数上限。"""
+    """批量写入期货日线/周线/月线数据。自动拆批避免 PostgreSQL 参数上限。
+
+    同一批次中若存在重复的唯一键 (variety_id, period, trade_date)——例如同一
+    品种的主力合约与连续合约被映射到同一品种——会触发 PostgreSQL 的
+    "ON CONFLICT DO UPDATE command cannot affect row a second time" 错误。
+    此处按唯一键保留最后一条记录，避免批量插入失败。
+    """
     if not rows:
         return 0
+
+    # Deduplicate within the whole buffer before splitting into batches.
+    seen: dict[tuple[int, str, object], dict] = {}
+    for row in rows:
+        key = (row.get("variety_id"), row.get("period"), row.get("trade_date"))
+        seen[key] = row
+    unique_rows = list(seen.values())
+    dropped = len(rows) - len(unique_rows)
+    if dropped:
+        logger.warning(
+            f"upsert_fut_daily_bulk dropped {dropped} duplicate rows "
+            "(same variety_id/period/trade_date within batch)"
+        )
+
     # PostgreSQL 协议参数上限 32767；FutDailyDataDB 每条约 18 个字段，
     # 300 条 ≈ 5400 个参数，留足安全余量。
     batch_size = 300
     total = 0
-    for i in range(0, len(rows), batch_size):
-        batch = rows[i:i + batch_size]
+    for i in range(0, len(unique_rows), batch_size):
+        batch = unique_rows[i:i + batch_size]
         stmt = _dialect_insert(FutDailyDataDB).values(batch)
         stmt = stmt.on_conflict_do_update(
             index_elements=["variety_id", "period", "trade_date"],

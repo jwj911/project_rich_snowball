@@ -1,10 +1,11 @@
 """交易观点领域服务。"""
+
 from datetime import UTC, datetime
 
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, joinedload
 
-from models import OpinionDB, UserDB, VarietyDB
+from models import OpinionDB, VarietyDB
 from schemas import OpinionCreate, OpinionUpdate
 from services.domain.exceptions import ForbiddenError, NotFoundError
 
@@ -50,12 +51,7 @@ class OpinionService:
             q = q.filter(OpinionDB.variety_id == variety_id)
         if status:
             q = q.filter(OpinionDB.status == status)
-        opinions = (
-            q.order_by(desc(OpinionDB.created_at))
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+        opinions = q.order_by(desc(OpinionDB.created_at)).offset(skip).limit(limit).all()
         return [self._to_response(o) for o in opinions]
 
     def list_my_opinions(
@@ -66,26 +62,16 @@ class OpinionService:
         limit: int = 50,
     ) -> list[dict]:
         """查询当前用户的交易观点时间线。"""
-        q = self._db.query(OpinionDB).options(joinedload(OpinionDB.variety)).filter(
-            OpinionDB.user_id == user_id
-        )
+        q = self._db.query(OpinionDB).options(joinedload(OpinionDB.variety)).filter(OpinionDB.user_id == user_id)
         if status:
             q = q.filter(OpinionDB.status == status)
-        opinions = (
-            q.order_by(desc(OpinionDB.created_at))
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+        opinions = q.order_by(desc(OpinionDB.created_at)).offset(skip).limit(limit).all()
         return [self._to_response(o) for o in opinions]
 
     def get_opinion(self, opinion_id: int) -> dict:
         """获取单条观点详情。"""
         opinion = (
-            self._db.query(OpinionDB)
-            .options(joinedload(OpinionDB.variety))
-            .filter(OpinionDB.id == opinion_id)
-            .first()
+            self._db.query(OpinionDB).options(joinedload(OpinionDB.variety)).filter(OpinionDB.id == opinion_id).first()
         )
         if not opinion:
             raise NotFoundError("观点不存在")

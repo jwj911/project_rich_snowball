@@ -38,6 +38,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable
 
+import requests.exceptions
+import urllib3.exceptions
+
 # ---------------------------------------------------------------------------
 # Project-path bootstrap
 # ---------------------------------------------------------------------------
@@ -145,12 +148,14 @@ class TushareClient:
     re-raised immediately to avoid burning retries.
     """
 
-    def __init__(self, min_interval: float = 0.55):
+    def __init__(self, min_interval: float = 0.55, timeout: float | None = None):
         """Initialise the client.
 
         Args:
             min_interval: Minimum seconds between successive API calls.
                           Tushare Pro's free tier is typically ~0.5 s.
+            timeout:      HTTP timeout in seconds for the underlying Tushare Pro
+                          client. Defaults to ``TUSHARE_TIMEOUT`` env var or 60 s.
 
         Raises:
             RuntimeError: If ``TUSHARE_TOKEN`` is missing or still set to the
@@ -163,7 +168,9 @@ class TushareClient:
         import tushare as ts
 
         ts.set_token(token)
-        self.pro = ts.pro_api()
+        if timeout is None:
+            timeout = float(os.getenv("TUSHARE_TIMEOUT", "60"))
+        self.pro = ts.pro_api(timeout=timeout)
         self.min_interval = min_interval
         self._last_call_at = 0.0
 
@@ -192,6 +199,15 @@ class TushareClient:
         # None values which some endpoints reject.
         filtered = {k: v for k, v in kwargs.items() if v not in (None, "")}
 
+        # Network-level errors that are usually transient and worth a longer wait.
+        network_errors = (
+            requests.exceptions.ChunkedEncodingError,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            urllib3.exceptions.ProtocolError,
+            urllib3.exceptions.ReadTimeoutError,
+        )
+
         last_exc = None
         for attempt in range(3):
             try:
@@ -203,7 +219,11 @@ class TushareClient:
                 if any(k in msg for k in ("unauthorized", "积分", "权限", "freq", "frequency", "配额", "超限", " limit")):
                     raise
                 if attempt < 2:
-                    wait = 2 ** attempt
+                    # Give network-layer problems more time to recover.
+                    if isinstance(e, network_errors):
+                        wait = 2 ** (attempt + 1)
+                    else:
+                        wait = 2 ** attempt
                     print(f"[RETRY {attempt + 1}/3] {api_name} failed, waiting {wait}s: {e}")
                     time.sleep(wait)
         raise last_exc

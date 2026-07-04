@@ -77,8 +77,12 @@ def run_strategy_backtest(db: Session, intent: StrategyIntent) -> dict[str, Any]
     result = run_backtest(df, config).to_dict()
     result["variety"] = variety_info
     result["data_window"] = {
-        "start": df["time"].iloc[0].isoformat() if hasattr(df["time"].iloc[0], "isoformat") else str(df["time"].iloc[0]),
-        "end": df["time"].iloc[-1].isoformat() if hasattr(df["time"].iloc[-1], "isoformat") else str(df["time"].iloc[-1]),
+        "start": df["time"].iloc[0].isoformat()
+        if hasattr(df["time"].iloc[0], "isoformat")
+        else str(df["time"].iloc[0]),
+        "end": df["time"].iloc[-1].isoformat()
+        if hasattr(df["time"].iloc[-1], "isoformat")
+        else str(df["time"].iloc[-1]),
         "bars": len(df),
     }
     return result
@@ -117,6 +121,7 @@ def _run_dsl_backtest_inner(
         ind = cond.get("indicator", "")
         ind2 = cond.get("indicator2", "")
         import re
+
         m1 = re.search(r"(\d+)", ind)
         m2 = re.search(r"(\d+)", ind2)
         if m1 and m2:
@@ -141,8 +146,12 @@ def _run_dsl_backtest_inner(
     result = run_backtest(df, config, entry_conditions=entry_conditions, exit_conditions=exit_conditions).to_dict()
     result["variety"] = variety_info
     result["data_window"] = {
-        "start": df["time"].iloc[0].isoformat() if hasattr(df["time"].iloc[0], "isoformat") else str(df["time"].iloc[0]),
-        "end": df["time"].iloc[-1].isoformat() if hasattr(df["time"].iloc[-1], "isoformat") else str(df["time"].iloc[-1]),
+        "start": df["time"].iloc[0].isoformat()
+        if hasattr(df["time"].iloc[0], "isoformat")
+        else str(df["time"].iloc[0]),
+        "end": df["time"].iloc[-1].isoformat()
+        if hasattr(df["time"].iloc[-1], "isoformat")
+        else str(df["time"].iloc[-1]),
         "bars": len(df),
     }
     return result

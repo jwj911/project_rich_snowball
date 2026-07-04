@@ -1,4 +1,5 @@
 """Comment domain service."""
+
 from models import UserDB
 from schemas import CommentCreate, CommentResponse
 from services.domain.exceptions import NotFoundError

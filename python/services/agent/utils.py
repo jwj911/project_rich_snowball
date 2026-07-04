@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import re
 from functools import lru_cache
-from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -32,12 +31,12 @@ _BUILTIN_NAME_MAP: dict[str, str] = {
     "铝": "AL",
     "锌": "ZN",
     "铅": "PB",
-    "镍": "NI",
     "锡": "SN",
     "原油": "SC",
     "沥青": "BU",
     "燃油": "FU",
     "液化气": "PG",
+    "镍": "NI",
     "橡胶": "RU",
     "20号胶": "NR",
     "纸浆": "SP",
@@ -66,7 +65,6 @@ _BUILTIN_NAME_MAP: dict[str, str] = {
     "塑料": "L",
     "苯乙烯": "EB",
     "短纤": "PF",
-    "镍": "NI",
     "不锈钢": "SS",
     "锰硅": "SM",
     "硅铁": "SF",
@@ -78,7 +76,6 @@ _BUILTIN_NAME_MAP: dict[str, str] = {
     "早稻": "RI",
     "强麦": "WH",
     "普麦": "PM",
-    "苹果": "AP",
     "国债": "T",
     "十年国债": "T",
     "五年国债": "TF",
@@ -227,7 +224,6 @@ def _split_variety_parts(text: str) -> list[str]:
     connectors = r"(?:和|与|及|以及|、)"
     parts = re.split(connectors, text)
     return [p.strip() for p in parts if p.strip()]
-
 
 
 def extract_direction(query: str) -> str | None:

@@ -121,6 +121,7 @@ async def _delayed_first_sync():
     await asyncio.sleep(5)
     try:
         from data_collector.scheduler import refresh_realtime_quotes, sync_daily_kline
+
         refresh_realtime_quotes()
         sync_daily_kline()
     except Exception as e:
@@ -131,12 +132,15 @@ async def _delayed_first_sync():
 async def lifespan(app: FastAPI):
     init_db()
     from data_collector.init_varieties import init_varieties
+
     init_varieties()
     if ENV != "production":
         from data_collector.init_mock_data import init_mock_data
+
         init_mock_data()
     if ENABLE_SCHEDULER:
         from data_collector.scheduler import start_scheduler
+
         start_scheduler()
         # 首次数据采集放入后台任务，避免阻塞启动
         global _delayed_sync_task
@@ -144,6 +148,7 @@ async def lifespan(app: FastAPI):
     yield
     if ENABLE_SCHEDULER:
         from data_collector.scheduler import shutdown_scheduler
+
         shutdown_scheduler()
     # 取消可能仍在 sleep/执行的后台同步任务
     if _delayed_sync_task and not _delayed_sync_task.done():
@@ -152,6 +157,7 @@ async def lifespan(app: FastAPI):
             await _delayed_sync_task
     # 显式关闭 SQLAlchemy 连接池，避免 uvicorn 等待连接超时
     from models import engine
+
     engine.dispose()
 
 
@@ -228,6 +234,7 @@ async def request_id_middleware(request: Request, call_next):
     request.state.request_id = request_id
     # 将 request_id 注入 structlog 上下文，确保全链路日志可追踪
     import structlog
+
     structlog.contextvars.bind_contextvars(request_id=request_id)
 
     response = await call_next(request)
@@ -312,10 +319,7 @@ async def service_error_handler(request, exc: ServiceError):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):
     """统一参数校验错误格式。"""
-    errors = [
-        {"field": err["loc"][-1], "message": err["msg"]}
-        for err in exc.errors()
-    ]
+    errors = [{"field": err["loc"][-1], "message": err["msg"]} for err in exc.errors()]
     return _error_response(
         code=ErrorCode.VALIDATION_ERROR.value,
         message="请求参数校验失败",

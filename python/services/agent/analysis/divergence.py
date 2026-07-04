@@ -13,9 +13,12 @@ def _find_local_extrema(series: pd.Series, window: int = 5, is_high: bool = True
     extrema = []
     vals = series.values
     for i in range(window, len(series) - window):
-        if is_high and vals[i] == max(vals[i - window:i + window + 1]):
-            extrema.append((i, vals[i]))
-        elif not is_high and vals[i] == min(vals[i - window:i + window + 1]):
+        if (
+            is_high
+            and vals[i] == max(vals[i - window : i + window + 1])
+            or not is_high
+            and vals[i] == min(vals[i - window : i + window + 1])
+        ):
             extrema.append((i, vals[i]))
     return extrema
 
@@ -38,18 +41,26 @@ def detect_divergence(df: pd.DataFrame) -> dict[str, str]:
         high_pts = _find_local_extrema(close, 5, True)[-3:]
         macd_high_pts = _find_local_extrema(macd_bar, 5, True)[-3:]
 
-        if len(high_pts) >= 2 and len(macd_high_pts) >= 2:
-            if close.iloc[high_pts[-1][0]] > close.iloc[high_pts[-2][0]] and \
-               macd_high_pts[-1][1] < macd_high_pts[-2][1]:
-                results.append("MACD 顶背离：价格创新高，MACD 未创新高")
+        if (
+            len(high_pts) >= 2
+            and len(macd_high_pts) >= 2
+            and (
+                close.iloc[high_pts[-1][0]] > close.iloc[high_pts[-2][0]]
+                and macd_high_pts[-1][1] < macd_high_pts[-2][1]
+            )
+        ):
+            results.append("MACD 顶背离：价格创新高，MACD 未创新高")
 
         low_pts = _find_local_extrema(close, 5, False)[-3:]
         macd_low_pts = _find_local_extrema(macd_bar, 5, False)[-3:]
 
-        if len(low_pts) >= 2 and len(macd_low_pts) >= 2:
-            if close.iloc[low_pts[-1][0]] < close.iloc[low_pts[-2][0]] and \
-               macd_low_pts[-1][1] > macd_low_pts[-2][1]:
-                results.append("MACD 底背离：价格创新低，MACD 未创新低")
+        if (
+            len(low_pts) >= 2
+            and len(macd_low_pts) >= 2
+            and close.iloc[low_pts[-1][0]] < close.iloc[low_pts[-2][0]]
+            and macd_low_pts[-1][1] > macd_low_pts[-2][1]
+        ):
+            results.append("MACD 底背离：价格创新低，MACD 未创新低")
 
     # RSI 背离
     rsi24 = df.get("rsi24")
@@ -60,15 +71,21 @@ def detect_divergence(df: pd.DataFrame) -> dict[str, str]:
         high_pts = _find_local_extrema(close, 5, True)[-3:]
         low_pts = _find_local_extrema(close, 5, False)[-3:]
 
-        if len(high_pts) >= 2 and len(rsi_high_pts) >= 2:
-            if close.iloc[high_pts[-1][0]] > close.iloc[high_pts[-2][0]] and \
-               rsi_high_pts[-1][1] < rsi_high_pts[-2][1]:
-                results.append("RSI 顶背离：价格创新高，RSI 未创新高")
+        if (
+            len(high_pts) >= 2
+            and len(rsi_high_pts) >= 2
+            and close.iloc[high_pts[-1][0]] > close.iloc[high_pts[-2][0]]
+            and rsi_high_pts[-1][1] < rsi_high_pts[-2][1]
+        ):
+            results.append("RSI 顶背离：价格创新高，RSI 未创新高")
 
-        if len(low_pts) >= 2 and len(rsi_low_pts) >= 2:
-            if close.iloc[low_pts[-1][0]] < close.iloc[low_pts[-2][0]] and \
-               rsi_low_pts[-1][1] > rsi_low_pts[-2][1]:
-                results.append("RSI 底背离：价格创新低，RSI 未创新低")
+        if (
+            len(low_pts) >= 2
+            and len(rsi_low_pts) >= 2
+            and close.iloc[low_pts[-1][0]] < close.iloc[low_pts[-2][0]]
+            and rsi_low_pts[-1][1] > rsi_low_pts[-2][1]
+        ):
+            results.append("RSI 底背离：价格创新低，RSI 未创新低")
 
     # KDJ 背离 (J 值)
     kdj_j = df.get("kdj_j")
@@ -79,15 +96,21 @@ def detect_divergence(df: pd.DataFrame) -> dict[str, str]:
         high_pts = _find_local_extrema(close, 5, True)[-3:]
         low_pts = _find_local_extrema(close, 5, False)[-3:]
 
-        if len(high_pts) >= 2 and len(j_high_pts) >= 2:
-            if close.iloc[high_pts[-1][0]] > close.iloc[high_pts[-2][0]] and \
-               j_high_pts[-1][1] < j_high_pts[-2][1]:
-                results.append("KDJ 顶背离：价格创新高，J 值未创新高")
+        if (
+            len(high_pts) >= 2
+            and len(j_high_pts) >= 2
+            and close.iloc[high_pts[-1][0]] > close.iloc[high_pts[-2][0]]
+            and j_high_pts[-1][1] < j_high_pts[-2][1]
+        ):
+            results.append("KDJ 顶背离：价格创新高，J 值未创新高")
 
-        if len(low_pts) >= 2 and len(j_low_pts) >= 2:
-            if close.iloc[low_pts[-1][0]] < close.iloc[low_pts[-2][0]] and \
-               j_low_pts[-1][1] > j_low_pts[-2][1]:
-                results.append("KDJ 底背离：价格创新低，J 值未创新低")
+        if (
+            len(low_pts) >= 2
+            and len(j_low_pts) >= 2
+            and close.iloc[low_pts[-1][0]] < close.iloc[low_pts[-2][0]]
+            and j_low_pts[-1][1] > j_low_pts[-2][1]
+        ):
+            results.append("KDJ 底背离：价格创新低，J 值未创新低")
 
     if not results:
         return {"divergence": "无", "notes": "未检测到明显背离信号"}
