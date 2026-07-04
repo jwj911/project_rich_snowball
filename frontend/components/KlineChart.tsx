@@ -22,6 +22,7 @@ interface KlineChartProps {
   resetKey?: string | number
   supportLevels?: number[]
   resistanceLevels?: number[]
+  signals?: Array<{ time: string; type: 'entry' | 'exit'; price: number }>
   onAddSupport?: (price: number) => void
   onAddResistance?: (price: number) => void
   onRemoveSupport?: (price: number) => void
@@ -37,6 +38,7 @@ export default function KlineChart({
   resetKey,
   supportLevels = [],
   resistanceLevels = [],
+  signals = [],
   onAddSupport,
   onAddResistance,
   onRemoveSupport,
@@ -93,7 +95,7 @@ export default function KlineChart({
     })
   }, [])
 
-  const { instanceRef, setData, fitContent, resetFitFlag } = useKlineChart({
+  const { instanceRef, setData, setMarkers, fitContent, resetFitFlag } = useKlineChart({
     containerRef: chartContainerRef,
     enabled: hasChartData,
     pricePrecision,
@@ -109,6 +111,38 @@ export default function KlineChart({
     pointByTimeRef.current = pointByTime
     setData(candleData, volumeData)
   }
+
+  // Sync signals to chart markers
+  const chartMarkers = useMemo(() => {
+    if (!signals.length) return []
+    return signals
+      .map((s) => {
+        const parsed = Date.parse(s.time)
+        if (!Number.isFinite(parsed)) return null
+        const isEntry = s.type === 'entry'
+        return {
+          time: Math.floor(parsed / 1000) as Time,
+          position: isEntry ? ('belowBar' as const) : ('aboveBar' as const),
+          color: isEntry ? '#ff6b6b' : '#4ade80',
+          shape: isEntry ? ('arrowUp' as const) : ('arrowDown' as const),
+          text: isEntry ? '买入' : '卖出',
+          size: 2,
+        }
+      })
+      .filter(Boolean) as Array<{
+        time: Time
+        position: 'aboveBar' | 'belowBar'
+        color: string
+        shape: 'arrowUp' | 'arrowDown' | 'circle'
+        text: string
+        size: number
+      }>
+  }, [signals])
+
+  useEffect(() => {
+    if (!hasChartData) return
+    setMarkers(chartMarkers)
+  }, [chartMarkers, hasChartData, setMarkers])
 
   // 当 resetKey 变化时重置视口
   useEffect(() => {

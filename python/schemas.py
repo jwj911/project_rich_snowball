@@ -1156,6 +1156,23 @@ class BacktestRunResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BacktestSignal(BaseModel):
+    """回测买卖信号（entry / exit）。"""
+
+    time: str
+    type: str = Field(..., pattern=r"^(entry|exit)$")
+    price: float
+
+
+class BacktestSignalsResponse(BaseModel):
+    """回测信号列表响应。"""
+
+    strategy_id: int
+    backtest_id: int
+    signals: list[BacktestSignal]
+    trades: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class StrategyBacktestRequest(BaseModel):
     """对已有策略触发回测的请求。"""
 

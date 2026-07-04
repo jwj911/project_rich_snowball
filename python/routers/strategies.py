@@ -18,6 +18,7 @@ from errors import ErrorCode
 from models import BacktestRunDB, RealtimeQuoteDB, StrategyDB, UserDB, VarietyDB
 from schemas import (
     BacktestRunResponse,
+    BacktestSignalsResponse,
     OptimizationRunItem,
     StrategyBacktestRequest,
     StrategyCreate,
@@ -203,8 +204,51 @@ def list_strategy_backtests(
 
 
 # ------------------------------------------------------------------
-# 辅助
+# 回测信号
 # ------------------------------------------------------------------
+
+@router.get("/{strategy_id}/backtests/{backtest_id}/signals", response_model=BacktestSignalsResponse)
+def get_backtest_signals(
+    strategy_id: int,
+    backtest_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user_dependency),
+):
+    """获取回测的买卖信号列表。"""
+    strategy = db.query(StrategyDB).filter(StrategyDB.id == strategy_id).first()
+    if not strategy:
+        raise NotFoundError("策略不存在", code=ErrorCode.NOT_FOUND)
+    if strategy.user_id != current_user.id:
+        raise ForbiddenError("无权访问该策略")
+
+    run = db.query(BacktestRunDB).filter(
+        BacktestRunDB.id == backtest_id,
+        BacktestRunDB.strategy_id == strategy_id,
+    ).first()
+    if not run:
+        raise NotFoundError("回测记录不存在", code=ErrorCode.NOT_FOUND)
+
+    result_json = run.result_json or "{}"
+    result = json.loads(result_json)
+    signals_raw = result.get("signals", [])
+    trades_raw = result.get("trades", [])
+
+    signals = [
+        BacktestSignal(
+            time=str(s.get("time", "")),
+            type=str(s.get("type", "")),
+            price=float(s.get("price", 0)),
+        )
+        for s in signals_raw
+        if s.get("type") in ("entry", "exit")
+    ]
+
+    return BacktestSignalsResponse(
+        strategy_id=strategy_id,
+        backtest_id=backtest_id,
+        signals=signals,
+        trades=trades_raw,
+    )
 
 @router.post("/{strategy_id}/portfolio-plan", response_model=StrategyPortfolioPlanResponse)
 def generate_strategy_portfolio_plan(

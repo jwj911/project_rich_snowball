@@ -186,6 +186,20 @@ export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCro
     }
   }
 
+  const setMarkers = (markers: Array<{
+    time: Time
+    position: 'aboveBar' | 'belowBar'
+    color: string
+    shape: 'arrowUp' | 'arrowDown' | 'circle'
+    text: string
+    size?: number
+  }>) => {
+    const instance = instanceRef.current
+    if (!instance) return
+    // lightweight-charts v5 setMarkers 在 CandlestickSeries 上可用，但类型定义未暴露
+    (instance.candleSeries as unknown as { setMarkers: (m: typeof markers) => void }).setMarkers(markers)
+  }
+
   const fitContent = useCallback(() => {
     const instance = instanceRef.current
     if (!instance) return
@@ -196,5 +210,5 @@ export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCro
     hasFitInitialContentRef.current = false
   }, [])
 
-  return { instanceRef, setData, fitContent, resetFitFlag }
+  return { instanceRef, setData, setMarkers, fitContent, resetFitFlag }
 }
