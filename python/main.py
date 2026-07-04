@@ -52,6 +52,8 @@ setup_logging()
 from middleware.api_version import ApiVersionMiddleware  # noqa: E402
 from middleware.rate_limit import _is_trusted_proxy, rate_limit_middleware  # noqa: E402
 from routers import (  # noqa: E402
+    agents,
+    alerts,
     auth,
     comments,
     contracts,
@@ -68,10 +70,10 @@ from routers import (  # noqa: E402
     price_levels,
     realtime,
     settings,
+    strategies,
     varieties,
     watchlists,
     workspace,
-    agents,
 )
 from errors import ErrorCode, get_default_error_code  # noqa: E402
 from services.domain.exceptions import ServiceError  # noqa: E402
@@ -130,11 +132,13 @@ async def _delayed_first_sync():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    from data_collector.init_varieties import init_varieties
-    init_varieties()
-    if ENV != "production":
-        from data_collector.init_mock_data import init_mock_data
-        init_mock_data()
+    # 测试环境由 fixture 自行控制种子数据，避免 lifespan 全局初始化造成测试间污染
+    if os.getenv("PYTEST_RUNNING") != "1":
+        from data_collector.init_varieties import init_varieties
+        init_varieties()
+        if ENV != "production":
+            from data_collector.init_mock_data import init_mock_data
+            init_mock_data()
     if ENABLE_SCHEDULER:
         from data_collector.scheduler import start_scheduler
         start_scheduler()
@@ -214,7 +218,9 @@ app.include_router(opinions.router)
 app.include_router(portfolio.router)
 app.include_router(chat.router)
 app.include_router(price_alerts.router)
+app.include_router(alerts.router)
 app.include_router(agents.router)
+app.include_router(strategies.router)
 
 
 @app.middleware("http")

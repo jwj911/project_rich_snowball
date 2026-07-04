@@ -37,6 +37,7 @@ export const secondaryNavGroups: NavGroup[] = [
     title: 'AGENT',
     items: [
       { label: 'Agent 工作台', icon: Bot, href: '/agents' },
+      { label: '策略工作台', icon: BarChart3, href: '/strategies' },
       { label: 'AI 助手', icon: Sparkles, href: '/chat' },
     ],
   },

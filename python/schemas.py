@@ -682,6 +682,8 @@ class NewsArticleResponse(BaseModel):
     url: str
     published_at: dt | None
     fetched_at: dt
+    alert_event_id: int | None = None
+    alert_severity: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -814,6 +816,36 @@ class PriceAlertResponse(BaseModel):
     created_at: dt
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AlertEventResponse(BaseModel):
+    """预警中心事件响应。"""
+
+    id: int
+    category: str
+    severity: str
+    title: str
+    summary: str | None
+    source_type: str
+    source_id: int | None
+    source_url: str | None
+    related_variety_id: int | None
+    related_variety_symbol: str | None
+    related_variety_name: str | None
+    user_id: int | None
+    target_scope: str
+    triggered_at: dt
+    created_at: dt
+    read_at: dt | None = None
+    dismissed_at: dt | None = None
+
+
+class AlertSummaryResponse(BaseModel):
+    """预警中心概览。"""
+
+    unread_count: int
+    news_count: int
+    market_count: int
 
 
 class TradeRecordCreate(BaseModel):
@@ -1053,3 +1085,62 @@ class AgentStreamEvent(BaseModel):
     error_message: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ========== Strategies & Backtest ==========
+
+
+class StrategyCreate(BaseModel):
+    """创建策略请求。"""
+
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    symbol: str = Field(..., min_length=1, max_length=20)
+    dsl_json: str = Field(..., min_length=1, max_length=8000)
+    timeframe: str = Field(default="1d", pattern=r"^(1m|5m|15m|30m|1h|4h|1d|1w|1mo)$")
+    direction: str = Field(default="long", pattern=r"^(long|short)$")
+
+
+class StrategyResponse(BaseModel):
+    """策略响应。"""
+
+    id: int
+    user_id: int
+    name: str
+    description: str | None
+    symbol: str
+    dsl_json: str
+    timeframe: str
+    direction: str
+    is_active: bool
+    created_at: str
+    updated_at: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BacktestRunResponse(BaseModel):
+    """回测运行记录响应。"""
+
+    id: int
+    strategy_id: int | None
+    user_id: int
+    query: str | None
+    metrics_score: int | None
+    trade_count: int | None
+    total_return_pct: float | None
+    max_drawdown_pct: float | None
+    status: str
+    error_message: str | None
+    created_at: str
+    finished_at: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class StrategyBacktestRequest(BaseModel):
+    """对已有策略触发回测的请求。"""
+
+    initial_cash: float = Field(default=100_000.0, ge=1000)
+    quantity: int = Field(default=1, ge=1)
+    limit: int = Field(default=500, ge=30, le=5000)

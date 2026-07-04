@@ -1,12 +1,18 @@
-"""Strategy backtesting Agent."""
+"""Strategy backtesting Agent.
+
+支持两种回测路径：
+1. 传统均线交叉（兼容 Phase 2）
+2. DSL 编译策略（Phase 3 -> Phase 4 链路）
+"""
 
 from __future__ import annotations
 
 from dataclasses import asdict
 
 from services.agent.core import Agent, AgentResult, AgentStatus
+from services.agent.strategy_compiler_agent import StrategyParser
 from services.backtest.parser import parse_strategy_intent
-from services.backtest.service import run_strategy_backtest
+from services.backtest.service import run_dsl_backtest, run_strategy_backtest
 
 
 class BacktestAgent(Agent):
@@ -17,6 +23,36 @@ class BacktestAgent(Agent):
 
     async def run(self, query: str) -> AgentResult:
         self._add_step("thought", f"解析回测需求：{query}")
+
+        # 优先尝试 DSL 编译（支持 MACD/RSI/布林带等多种策略）
+        parser = StrategyParser(self.context.db)
+        dsl = parser.parse(query)
+        if dsl and dsl.entry.get("conditions"):
+            self._add_step(
+                "action",
+                "策略编译为 DSL",
+                tool_name="StrategyParser",
+                tool_input={"query": query},
+                tool_output=dsl.to_dict(),
+            )
+            try:
+                result = run_dsl_backtest(
+                    self.context.db,
+                    symbol=dsl.universe[0],
+                    period=dsl.timeframe,
+                    direction=dsl.direction,
+                    entry_conditions=dsl.entry["conditions"],
+                    exit_conditions=dsl.exit["conditions"],
+                )
+            except ValueError as exc:
+                return AgentResult(
+                    status=AgentStatus.FAILED,
+                    error_message=str(exc),
+                    steps=self.get_steps(),
+                )
+            return self._format_result(result, dsl=dsl.to_dict())
+
+        # 回退到传统均线交叉解析
         intent = parse_strategy_intent(self.context.db, query)
         if intent is None:
             return AgentResult(
@@ -42,12 +78,15 @@ class BacktestAgent(Agent):
                 steps=self.get_steps(),
             )
 
+        return self._format_result(result)
+
+    def _format_result(self, result: dict, dsl: dict | None = None) -> AgentResult:
         metrics = result["metrics"]
         window = result["data_window"]
         self._add_step("observation", f"回测区间：{window['start']} 至 {window['end']}，共 {window['bars']} 根 K 线")
         self._add_step("system", f"策略评分：{metrics['score']}/100")
 
-        answer = _format_backtest_report(result)
+        answer = _format_backtest_report(result, dsl=dsl)
         return AgentResult(
             status=AgentStatus.COMPLETED,
             answer=answer,
@@ -56,7 +95,7 @@ class BacktestAgent(Agent):
         )
 
 
-def _format_backtest_report(result: dict) -> str:
+def _format_backtest_report(result: dict, dsl: dict | None = None) -> str:
     config = result["config"]
     metrics = result["metrics"]
     variety = result["variety"]
@@ -70,10 +109,15 @@ def _format_backtest_report(result: dict) -> str:
     if not trade_lines:
         trade_lines = ["- 回测区间内没有形成完整开平仓交易"]
 
+    if dsl:
+        strategy_desc = dsl.get("description", f"方向 {dsl.get('direction', 'long')}")
+    else:
+        strategy_desc = f"{config['short_window']} 周期均线上穿/下穿 {config['long_window']} 周期均线，方向 {config['direction']}"
+
     return "\n".join([
         f"## {variety['name']} ({config['symbol']}) 策略回测",
         "",
-        f"策略：{config['short_window']} 周期均线上穿/下穿 {config['long_window']} 周期均线，方向 {config['direction']}",
+        f"策略：{strategy_desc}",
         f"周期：{config['period']}，区间：{window['start']} 至 {window['end']}，样本：{window['bars']} 根",
         "",
         "### 核心指标",

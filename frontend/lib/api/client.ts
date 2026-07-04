@@ -63,6 +63,13 @@ import {
   getPortfolio,
 } from './portfolio'
 import { createNewsSource, deleteNewsSource, getNewsArticles, getNewsSources, summarizeArticle } from './news'
+import {
+  createStrategy,
+  deleteStrategy,
+  getStrategies,
+  getStrategyBacktests,
+  runStrategyBacktest,
+} from './strategies'
 import { getUserSettings, updateUserSettings } from './settings'
 import {
   createPriceLevel,
@@ -117,6 +124,10 @@ import type {
   VarietyFees,
   Watchlist,
   WorkspaceSummary,
+  StrategyResponse,
+  StrategyCreate,
+  BacktestRunResponse,
+  StrategyBacktestRequest,
 } from './types'
 
 class ApiService extends AuthCore {
@@ -449,6 +460,28 @@ class ApiService extends AuthCore {
 
   deleteTradeRecord(id: number): Promise<void> {
     return deleteTradeRecord(this, id)
+  }
+
+  // ========== Strategies ==========
+
+  getStrategies(): Promise<StrategyResponse[]> {
+    return getStrategies(this)
+  }
+
+  createStrategy(data: StrategyCreate): Promise<StrategyResponse> {
+    return createStrategy(this, data)
+  }
+
+  deleteStrategy(strategyId: number): Promise<{ message: string }> {
+    return deleteStrategy(this, strategyId)
+  }
+
+  runStrategyBacktest(strategyId: number, data: StrategyBacktestRequest): Promise<BacktestRunResponse> {
+    return runStrategyBacktest(this, strategyId, data)
+  }
+
+  getStrategyBacktests(strategyId: number): Promise<BacktestRunResponse[]> {
+    return getStrategyBacktests(this, strategyId)
   }
 }
 

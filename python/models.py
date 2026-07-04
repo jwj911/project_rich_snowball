@@ -162,6 +162,10 @@ class UserDB(Base):
     price_levels = relationship("PriceLevelDB", back_populates="user", passive_deletes=True)
     refresh_tokens = relationship("RefreshTokenDB", back_populates="user", passive_deletes=True)
     agent_tasks = relationship("AgentTaskDB", back_populates="user", passive_deletes=True)
+    alert_events = relationship("AlertEventDB", back_populates="user", passive_deletes=True)
+    alert_event_states = relationship("AlertEventUserStateDB", back_populates="user", passive_deletes=True)
+    strategies = relationship("StrategyDB", back_populates="user", passive_deletes=True)
+    backtest_runs = relationship("BacktestRunDB", back_populates="user", passive_deletes=True)
 
 
 class CommentDB(Base):
@@ -200,6 +204,7 @@ class VarietyDB(Base):
     realtime = relationship("RealtimeQuoteDB", back_populates="variety", uselist=False, passive_deletes=True)
     klines = relationship("KlineDataDB", back_populates="variety", passive_deletes=True)
     price_alerts = relationship("PriceAlertDB", back_populates="variety", passive_deletes=True)
+    alert_events = relationship("AlertEventDB", back_populates="related_variety", passive_deletes=True)
     trade_records = relationship("TradeRecordDB", back_populates="variety", passive_deletes=True)
     daily_data = relationship("FutDailyDataDB", back_populates="variety", passive_deletes=True)
     watchlists = relationship("WatchlistDB", back_populates="variety", passive_deletes=True)
@@ -340,6 +345,60 @@ class PriceAlertDB(Base):
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     user = relationship("UserDB", back_populates="price_alerts")
     variety = relationship("VarietyDB", back_populates="price_alerts")
+
+
+class AlertEventDB(Base):
+    """统一预警事件。
+
+    记录新闻、市场、日历等事件本身；广播事件只存一条，用户已读/忽略状态
+    存在 AlertEventUserStateDB，避免为每个用户复制事件内容。
+    """
+
+    __tablename__ = "alert_events"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    category = Column(String(20), nullable=False)  # news | market | calendar
+    severity = Column(String(20), nullable=False)  # low | medium | high | critical
+    title = Column(String(300), nullable=False)
+    summary = Column(Text, nullable=True)
+    source_type = Column(String(30), nullable=False)  # news_article | price_alert | calendar
+    source_id = Column(Integer, nullable=True)
+    source_url = Column(String(500), nullable=True)
+    related_variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    target_scope = Column(String(20), nullable=False, default="personal")  # personal | broadcast
+    triggered_at = Column(DateTime(timezone=True), default=_utc_now, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=_utc_now, nullable=False)
+
+    user = relationship("UserDB", back_populates="alert_events")
+    related_variety = relationship("VarietyDB", back_populates="alert_events")
+    user_states = relationship("AlertEventUserStateDB", back_populates="event", passive_deletes=True)
+
+    __table_args__ = (
+        Index("idx_alert_events_visible", "target_scope", "user_id", "created_at"),
+        Index("idx_alert_events_category", "category", "severity", "created_at"),
+        Index("idx_alert_events_source", "source_type", "source_id", "target_scope", "user_id"),
+    )
+
+
+class AlertEventUserStateDB(Base):
+    """用户对预警事件的阅读/忽略状态。"""
+
+    __tablename__ = "alert_event_user_states"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event_id = Column(Integer, ForeignKey("alert_events.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    dismissed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now, nullable=False)
+
+    event = relationship("AlertEventDB", back_populates="user_states")
+    user = relationship("UserDB", back_populates="alert_event_states")
+
+    __table_args__ = (
+        UniqueConstraint("event_id", "user_id", name="uix_alert_event_state_event_user"),
+        Index("idx_alert_event_states_user", "user_id", "dismissed_at", "read_at"),
+    )
 
 
 class OpinionDB(Base):
@@ -843,5 +902,61 @@ class AgentTaskStepDB(Base):
     __table_args__ = (
         UniqueConstraint("task_id", "step_number", name="uix_agent_step_number"),
         Index("idx_agent_task_steps_task", "task_id", "step_number"),
+    )
+
+
+class StrategyDB(Base):
+    """用户策略库。
+
+    存储由 StrategyCompilerAgent 编译的策略 DSL，支持版本管理和回测历史关联。
+    """
+
+    __tablename__ = "strategies"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    dsl_json = Column(Text, nullable=False)  # StrategyDSL JSON 序列化
+    timeframe = Column(String(10), nullable=False, default="1d")
+    direction = Column(String(10), nullable=False, default="long")
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
+    user = relationship("UserDB", back_populates="strategies")
+    backtest_runs = relationship("BacktestRunDB", back_populates="strategy", passive_deletes=True)
+
+    __table_args__ = (
+        Index("idx_strategies_user_symbol", "user_id", "symbol"),
+        Index("idx_strategies_created", "created_at"),
+    )
+
+
+class BacktestRunDB(Base):
+    """策略回测运行记录。
+
+    每次回测执行的结果快照，关联到策略或一次性查询。
+    """
+
+    __tablename__ = "backtest_runs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    strategy_id = Column(Integer, ForeignKey("strategies.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    query = Column(Text, nullable=True)  # 原始自然语言查询
+    result_json = Column(Text, nullable=True)  # BacktestResult JSON 序列化
+    metrics_score = Column(Integer, nullable=True)
+    trade_count = Column(Integer, nullable=True)
+    total_return_pct = Column(Numeric(10, 2), nullable=True)
+    max_drawdown_pct = Column(Numeric(10, 2), nullable=True)
+    status = Column(String(20), nullable=False, default="pending")  # pending | running | completed | failed
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    strategy = relationship("StrategyDB", back_populates="backtest_runs")
+    user = relationship("UserDB", back_populates="backtest_runs")
+
+    __table_args__ = (
+        Index("idx_backtest_runs_strategy", "strategy_id", "created_at"),
+        Index("idx_backtest_runs_user_status", "user_id", "status"),
     )
 
