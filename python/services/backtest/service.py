@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 import pandas as pd
@@ -16,6 +18,21 @@ from models import VarietyDB
 from services.agent.data_tools import _get_kline_data, _get_variety_info
 from services.backtest.engine import BacktestConfig, run_backtest
 from services.backtest.parser import StrategyIntent
+from services.cache import get_cached
+
+
+def _backtest_cache_key(
+    symbol: str,
+    period: str,
+    direction: str,
+    entry_conditions: list[dict[str, Any]],
+    exit_conditions: list[dict[str, Any]],
+    limit: int,
+) -> str:
+    """生成回测缓存 key（基于条件参数哈希，排除资金/手数等不影信号的逻辑）。"""
+    cond_str = json.dumps({"entry": entry_conditions, "exit": exit_conditions, "limit": limit}, sort_keys=True)
+    cond_hash = hashlib.md5(cond_str.encode()).hexdigest()[:12]
+    return f"backtest:v1:{symbol}:{period}:{direction}:{cond_hash}"
 
 
 def _prepare_dataframe(db: Session, intent: StrategyIntent) -> tuple[pd.DataFrame, dict[str, Any], VarietyDB | None]:
@@ -64,18 +81,18 @@ def run_strategy_backtest(db: Session, intent: StrategyIntent) -> dict[str, Any]
     return result
 
 
-def run_dsl_backtest(
+def _run_dsl_backtest_inner(
     db: Session,
     symbol: str,
     period: str,
     direction: str,
     entry_conditions: list[dict[str, Any]],
     exit_conditions: list[dict[str, Any]],
-    initial_cash: float = 100_000.0,
-    quantity: int = 1,
-    limit: int = 500,
+    initial_cash: float,
+    quantity: int,
+    limit: int,
 ) -> dict[str, Any]:
-    """根据 DSL 条件执行回测。"""
+    """无缓存版本的 DSL 回测执行（供 get_cached 调用）。"""
     variety_info = _get_variety_info(db, symbol)
     if not variety_info:
         raise ValueError(f"未找到品种 {symbol}")
@@ -91,7 +108,6 @@ def run_dsl_backtest(
     df = pd.DataFrame(klines)
     df["time"] = pd.to_datetime(df["time"], format="mixed")
 
-    # 从 entry conditions 推断窗口
     short_window = 5
     long_window = 20
     for cond in entry_conditions:
@@ -127,3 +143,25 @@ def run_dsl_backtest(
         "bars": len(df),
     }
     return result
+
+
+def run_dsl_backtest(
+    db: Session,
+    symbol: str,
+    period: str,
+    direction: str,
+    entry_conditions: list[dict[str, Any]],
+    exit_conditions: list[dict[str, Any]],
+    initial_cash: float = 100_000.0,
+    quantity: int = 1,
+    limit: int = 500,
+) -> dict[str, Any]:
+    """根据 DSL 条件执行回测（带 5 分钟 LRU 缓存）。"""
+    cache_key = _backtest_cache_key(symbol, period, direction, entry_conditions, exit_conditions, limit)
+    return get_cached(
+        cache_key,
+        lambda: _run_dsl_backtest_inner(
+            db, symbol, period, direction, entry_conditions, exit_conditions, initial_cash, quantity, limit
+        ),
+        ttl=300,  # 5 分钟缓存
+    )
