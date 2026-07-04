@@ -1,0 +1,3323 @@
+{
+  "total_scanned": 2400,
+  "eligible_count": 1979,
+  "unique_count": 1979,
+  "top100": [
+    {
+      "pack": "factor_pack_027",
+      "name": "AM_ts_mean_return_div_open_d4085de9",
+      "Q": 0.9487,
+      "test_rankicir": 0.5679192806051658,
+      "monotonicity": 0.89999999999991,
+      "ls_sharpe": 1.1711776884649918,
+      "formula": "",
+      "columns": [
+        "开盘价_复权",
+        "成交额"
+      ],
+      "composite_score": 0.7737650404637071,
+      "code_hash": "200070ca20aaaaa1309acd20fc7f1f16",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_028",
+      "name": "AM_add_open_delta_c1a4ac91",
+      "Q": 0.941,
+      "test_rankicir": -0.5749280585168889,
+      "monotonicity": -0.79999999999992,
+      "ls_sharpe": -1.3281147505521929,
+      "formula": "",
+      "columns": [
+        "开盘价_复权",
+        "成交量"
+      ],
+      "composite_score": 0.7672489092401317,
+      "code_hash": "f312c6d34ec1172a6f8824f0905eb52d",
+      "category": "量能基础"
+    },
+    {
+      "pack": "factor_pack_029",
+      "name": "AM_mul_ts_sum_amount_bf8b6da1",
+      "Q": 0.932,
+      "test_rankicir": -0.5156999560514294,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -0.9809647146931356,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "收盘价_复权",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7534088106385234,
+      "code_hash": "04ff00ab89346501bb81a958b8ae343d",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_neg_ts_pct_change_abs_ee1bb069",
+      "Q": 0.9211,
+      "test_rankicir": 0.5110693522890968,
+      "monotonicity": 0.9999999999999,
+      "ls_sharpe": 1.1636281854650636,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7526584118688878,
+      "code_hash": "147e9e17bfd39569678486eb4ee2ef48",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_mul_signed_power_amplitude_758209a4",
+      "Q": 0.9178,
+      "test_rankicir": -0.5015342420615271,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.2863199999407864,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7522376059498077,
+      "code_hash": "ecceae750fa20e3b120b3ed177c7035b",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_mul_amount_ts_std_0910cc9f",
+      "Q": 0.9134,
+      "test_rankicir": -0.5205221180077236,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.1800852593421802,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "收盘价_复权",
+        "最低价_复权"
+      ],
+      "composite_score": 0.752192810713713,
+      "code_hash": "ceb793a1cf69f0ac007721d697323eee",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_026",
+      "name": "AM_signed_power_ts_maxmin_volume_3abae467",
+      "Q": 0.9212,
+      "test_rankicir": -0.4886751493249863,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.264702076162784,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7493592806695787,
+      "code_hash": "dd456a50fefb17453c772960ad96da09",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_028",
+      "name": "AM_ts_maxmin_signed_power_volume_8af03928",
+      "Q": 0.9054,
+      "test_rankicir": -0.5231662024357335,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.3770275442354662,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7455507788718932,
+      "code_hash": "fe6c824f56404587e00d9a108b1f58a0",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_mul_abs_amount_3779853f",
+      "Q": 0.9047,
+      "test_rankicir": -0.4987964605562052,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.2683063120729472,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "收盘价_复权",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7442658152359497,
+      "code_hash": "d6ff578a537d1b64d29f71750e0c8358",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_023",
+      "name": "AM_abs_mul_amount_a1dda97d",
+      "Q": 0.9012,
+      "test_rankicir": -0.4899109651615358,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3639773428325264,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7430392009762016,
+      "code_hash": "655878d3368c889684b05b076e6ba387",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_029",
+      "name": "AM_sub_sign_ts_std_dd8ee5e9",
+      "Q": 0.8951,
+      "test_rankicir": -0.506720985840092,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.6026850936109514,
+      "formula": "",
+      "columns": [
+        "成交额",
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7429891322057169,
+      "code_hash": "a9b536de7b8e67e942f196a21120f06f",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_026",
+      "name": "AM_mul_amount_log_ed73d532",
+      "Q": 0.8994,
+      "test_rankicir": -0.4888945838661138,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3712412467216757,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7420764167172132,
+      "code_hash": "9e928eed402ad11f0abb5c6c27267c7e",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_026",
+      "name": "AM_ts_dema_mul_amount_f2ef68c3",
+      "Q": 0.8963,
+      "test_rankicir": -0.4881554885322563,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3257276807655882,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7387875692518532,
+      "code_hash": "2a4d57853cb5d9561c84ffdc1e0b2562",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_neg_ts_maxmin_volume_b4c7097f",
+      "Q": 0.9116,
+      "test_rankicir": 0.4788999112958386,
+      "monotonicity": 0.9999999999999,
+      "ls_sharpe": 1.1290086725184436,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7371035958060229,
+      "code_hash": "5882b8e2286ae1cfaa605050f2f4896b",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_026",
+      "name": "AM_mul_amount_mul_0992fa40",
+      "Q": 0.8977,
+      "test_rankicir": -0.4575664674982624,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.5235311112640189,
+      "formula": "",
+      "columns": [
+        "成交额",
+        "成交量",
+        "最高价_复权",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7369043106249361,
+      "code_hash": "6ad6e70cfcb9dd9d0bbfd131be5498ec",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_028",
+      "name": "AM_ts_std_signed_power_amount_888f7541",
+      "Q": 0.8779,
+      "test_rankicir": -0.4859819888984827,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.5577518986211778,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7366696599569074,
+      "code_hash": "6c0ee3b27c95dd402212c21d88154f50",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_029",
+      "name": "AM_ts_maxmin_abs_volume_22868f8f",
+      "Q": 0.9023,
+      "test_rankicir": -0.4958850634679203,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.3781272178879451,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7358530929699653,
+      "code_hash": "fe172b41fe25989a9c62805da9dad7fc",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_029",
+      "name": "AM_abs_ts_maxmin_sub_627088c0",
+      "Q": 0.9023,
+      "test_rankicir": -0.4958850634679203,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.3781272178879451,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7358530929699653,
+      "code_hash": "a76f6b1fdf0d9e926b3fc5454ff80cfa",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_026",
+      "name": "AM_ts_maxmin_add_volume_bd3d9c28",
+      "Q": 0.9028,
+      "test_rankicir": -0.4963780001604771,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.2977045171418948,
+      "formula": "",
+      "columns": [
+        "开盘价_复权",
+        "成交量",
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7335702172861973,
+      "code_hash": "edc1e0175754456d4768c0408d80843e",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_026",
+      "name": "AM_signed_power_mul_amount_8ae7bd21",
+      "Q": 0.8819,
+      "test_rankicir": -0.4899109651615358,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3639773428325264,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7333892009762016,
+      "code_hash": "4808eb8d382d4a1ad8ed81bf01994223",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_023",
+      "name": "AM_ts_pct_change_signed_power_mul_621cb807",
+      "Q": 0.913,
+      "test_rankicir": -0.5271820092039581,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -0.8145837629737259,
+      "formula": "",
+      "columns": [
+        "成交额",
+        "成交量",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7318073948603027,
+      "code_hash": "daf73edd04870aba45e65fccfc4ec7c7",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_028",
+      "name": "AM_ts_inverse_cv_delta_amount_5166de46",
+      "Q": 0.901,
+      "test_rankicir": -0.489315075653895,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.310714062068269,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7309849914317685,
+      "code_hash": "c9dfac6e066991c0e25b3a58340062b5",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_027",
+      "name": "AM_ts_inverse_cv_div_delta_a5e987bd",
+      "Q": 0.901,
+      "test_rankicir": -0.489315075653895,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.310714062068269,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7309849914317685,
+      "code_hash": "9928337094438d49d58a5672a62fc6e4",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_025",
+      "name": "AM_log_mul_amplitude_79b9b6af",
+      "Q": 0.8754,
+      "test_rankicir": -0.4899109651615358,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3639773428325264,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7301392009762017,
+      "code_hash": "8f14d44d7bd3162db44fe8b3a660b4b7",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_ema_ts_dema_delta_8dc6d97c",
+      "Q": 0.8826,
+      "test_rankicir": 0.4553658193347336,
+      "monotonicity": 0.9999999999999,
+      "ls_sharpe": 1.5643466009310756,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7300546324981126,
+      "code_hash": "67de44d7feb72f7978d2aabf1426f539",
+      "category": "波动振幅"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_sub_ts_median_clip_bff1a9fb",
+      "Q": 0.888,
+      "test_rankicir": 0.4899275671914116,
+      "monotonicity": 0.9999999999999,
+      "ls_sharpe": 1.131530726043859,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7286959610255421,
+      "code_hash": "77cf7bcf638bbf300840c9ba9848934a",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_021",
+      "name": "AM_div_ts_inverse_cv_volume_d69faf0f",
+      "Q": 0.8717,
+      "test_rankicir": 0.4688792997327656,
+      "monotonicity": 0.9999999999999,
+      "ls_sharpe": 1.522976869143548,
+      "formula": "",
+      "columns": [
+        "成交量",
+        "成交额"
+      ],
+      "composite_score": 0.727279685557938,
+      "code_hash": "72ffe1406647c220a6d82e353f336e9e",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_029",
+      "name": "AM_ts_maxmin_ts_midpoint_volume_32d023ee",
+      "Q": 0.9011,
+      "test_rankicir": -0.4646262040977176,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.0734076729583195,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7257181169945826,
+      "code_hash": "6f9c999670fa03bf239704a472c21f1e",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_024",
+      "name": "AM_ts_regression_beta_amplitude_ret_581e00f9",
+      "Q": 0.8912,
+      "test_rankicir": -0.4428430761963368,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.398164537240688,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "收盘价_复权",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7250584074335806,
+      "code_hash": "ee6dbd5307ade4fcb18c06900d1810c6",
+      "category": "波动振幅"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_ts_maxmin_sub_low_27004162",
+      "Q": 0.885,
+      "test_rankicir": 0.5311621203366477,
+      "monotonicity": 0.69999999999993,
+      "ls_sharpe": 1.5378708479246328,
+      "formula": "",
+      "columns": [
+        "成交量",
+        "最低价_复权"
+      ],
+      "composite_score": 0.723110997698475,
+      "code_hash": "cb4181686f1aa2231b455c34faec6926",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_024",
+      "name": "AM_ts_pct_change_signed_power_mul_6e2207c0",
+      "Q": 0.9008,
+      "test_rankicir": -0.4826027358500483,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.1245274737237465,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7226650698791304,
+      "code_hash": "d1a2fbbb8d2cf26247599ed581c1f88b",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_023",
+      "name": "AM_clip_sub_ts_pct_change_b8767106",
+      "Q": 0.8999,
+      "test_rankicir": -0.4890737016037402,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.0580864085199069,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交量",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7219416574317766,
+      "code_hash": "eb3f5dc58b19edb3e0b7e3e4e4b3b845",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_027",
+      "name": "AM_ts_pct_change_add_amount_3d19f079",
+      "Q": 0.8976,
+      "test_rankicir": -0.5059618874005976,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -0.9383543812503464,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7218670455951817,
+      "code_hash": "8bd924c901dac3d641816d3894309697",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_024",
+      "name": "AM_ts_pct_change_amount_e7440388",
+      "Q": 0.8976,
+      "test_rankicir": -0.5059618874005976,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -0.9383543812503464,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7218670455951817,
+      "code_hash": "e30464df7cdcb099a031ebb9fb1b4fe3",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_025",
+      "name": "AM_ts_regression_beta_amplitude_ret_05be75b2",
+      "Q": 0.8894,
+      "test_rankicir": -0.4395641836341277,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3538668509273546,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "收盘价_复权",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.72169815012114,
+      "code_hash": "ff2383e91ae7d31dc0ec5ff34693c355",
+      "category": "波动振幅"
+    },
+    {
+      "pack": "factor_pack_027",
+      "name": "AM_signed_power_ts_maxmin_volume_d96caecf",
+      "Q": 0.8909,
+      "test_rankicir": -0.5310729050286529,
+      "monotonicity": -0.69999999999993,
+      "ls_sharpe": -1.4036320197943586,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7215596055017341,
+      "code_hash": "86729dfd95445adc30caba61a7ed1dbd",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_026",
+      "name": "AM_log_ts_pct_change_amount_3836ea63",
+      "Q": 0.8884,
+      "test_rankicir": -0.4946960506215895,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.1547589793248108,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7211007811639615,
+      "code_hash": "c29d910c5d8e0f14008344da6fd386b8",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_ts_pct_change_neg_amount_de17d0c9",
+      "Q": 0.8883,
+      "test_rankicir": -0.4946960506215895,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.1547589793248108,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7210507811639615,
+      "code_hash": "ed1694af45c48ff11e8899b045aff86e",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_ts_maxmin_log_signed_power_1e956d80",
+      "Q": 0.9081,
+      "test_rankicir": -0.4959140465774961,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -0.8234843425918681,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7202736920596354,
+      "code_hash": "e8c2261ce3741650a4eb42697e945ca1",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_021",
+      "name": "AM_signed_power_abs_amount_c2dc0fb9",
+      "Q": 0.8898,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7200401067334143,
+      "code_hash": "04c5b26d788340fd9468c9b4e4dccd89",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_026",
+      "name": "AM_abs_neg_signed_power_af8ca0fe",
+      "Q": 0.8898,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7200401067334143,
+      "code_hash": "98f9c7b6e9ec03dcd609a1177e06f00d",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_add_open_signed_power_7aeb28e0",
+      "Q": 0.8898,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "开盘价_复权",
+        "成交额"
+      ],
+      "composite_score": 0.7200401067334143,
+      "code_hash": "f94e07614b9b3c34c6b147219cacfaf4",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_023",
+      "name": "AM_add_amplitude_signed_power_01378434",
+      "Q": 0.8898,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7200401067334143,
+      "code_hash": "d5905c7cb1a15bbff6d7c70983a47ce3",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_023",
+      "name": "AM_signed_power_sub_amount_ccf1bcbf",
+      "Q": 0.8898,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7200401067334143,
+      "code_hash": "ab9056ed992dad7c604075fd69b81874",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_029",
+      "name": "AM_neg_neg_neg_858953d7",
+      "Q": 0.8898,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7200401067334143,
+      "code_hash": "f7bb5d0ede11f9972264e2aad9d122a4",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_028",
+      "name": "AM_sub_signed_power_amount_cf9a6c96",
+      "Q": 0.8898,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7200401067334143,
+      "code_hash": "49cf8084cc011b0244baa02818e3a2b8",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_021",
+      "name": "AM_add_signed_power_amount_8a9beef3",
+      "Q": 0.8898,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7200401067334143,
+      "code_hash": "99907d6e3e5e85381eecfcd8a6f079bf",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_add_signed_power_amount_08059a91",
+      "Q": 0.8898,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7200401067334143,
+      "code_hash": "36b3482993061cafd859aa59daa7b349",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_signed_power_abs_amount_492e056f",
+      "Q": 0.8898,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7200401067334143,
+      "code_hash": "8121492e361904c055a993aeb4c3fa36",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_025",
+      "name": "AM_signed_power_add_amount_c65fd7b0",
+      "Q": 0.8898,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7200401067334143,
+      "code_hash": "74dedc4eb28c8de2bab24b3f60714544",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_024",
+      "name": "AM_signed_power_sub_amount_ecdd2e11",
+      "Q": 0.8898,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "开盘价_复权",
+        "成交额"
+      ],
+      "composite_score": 0.7200401067334143,
+      "code_hash": "633c6fafc856c48543bfd97e3491892a",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_021",
+      "name": "AM_signed_power_sub_amount_21e4cc97",
+      "Q": 0.8926,
+      "test_rankicir": -0.4389181190829053,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.2338106632145525,
+      "formula": "",
+      "columns": [
+        "成交额",
+        "成交量"
+      ],
+      "composite_score": 0.7191024578320133,
+      "code_hash": "890af13fa165eebcea3c964e3e7bef1e",
+      "category": "量能基础"
+    },
+    {
+      "pack": "factor_pack_023",
+      "name": "AM_mul_ts_max_ret_1_288d9368",
+      "Q": 0.8797,
+      "test_rankicir": -0.5059893208378429,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.0893633869954409,
+      "formula": "",
+      "columns": [
+        "成交额",
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7179589091511919,
+      "code_hash": "d1a91ee01da6c4c7901d44c803bf7267",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_028",
+      "name": "AM_ts_mean_return_ema_signed_power_53189614",
+      "Q": 0.8764,
+      "test_rankicir": -0.4723065184604209,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.4139965151210525,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7170251727088189,
+      "code_hash": "9c0a8004108a4a70b206b556e1655188",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_024",
+      "name": "AM_ts_std_mul_amount_3047de62",
+      "Q": 0.8718,
+      "test_rankicir": -0.4580815853638812,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.305774525556094,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7168502931276908,
+      "code_hash": "295b12ea7973b7bd584a20927f177afe",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_025",
+      "name": "AM_signed_power_ts_dema_abs_c9388462",
+      "Q": 0.8975,
+      "test_rankicir": -0.4509154262722896,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -0.978341632698712,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7166360156383006,
+      "code_hash": "394c2a700a210636ed6634922f693834",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_mul_amount_ts_mean_422340d9",
+      "Q": 0.8771,
+      "test_rankicir": -0.4924585902429703,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.2056334972918687,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7164753603159443,
+      "code_hash": "4fc92c6087ab34fdca583d848ff56622",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_023",
+      "name": "AM_ts_median_mul_amount_52cf5944",
+      "Q": 0.8759,
+      "test_rankicir": -0.488476339200074,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.255325601905963,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "收盘价_复权",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7163370884902119,
+      "code_hash": "dd8580d26126295e19149f3a135a0c40",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_026",
+      "name": "AM_ts_min_ema_sign_a553175f",
+      "Q": 0.874,
+      "test_rankicir": 0.4197468010738244,
+      "monotonicity": 0.9999999999999,
+      "ls_sharpe": 1.5562366711880988,
+      "formula": "",
+      "columns": [
+        "开盘价_复权",
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7147985960284073,
+      "code_hash": "acf4538ae90f8ca96bc1f6c57eac3304",
+      "category": "其他"
+    },
+    {
+      "pack": "factor_pack_024",
+      "name": "AM_ts_maxmin_add_ret_5_093626ad",
+      "Q": 0.8853,
+      "test_rankicir": -0.4621202189285067,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.0027891778077591,
+      "formula": "",
+      "columns": [
+        "成交额",
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7147123716054673,
+      "code_hash": "ee3954b421e17d2e6ff6a13ad15e535b",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_025",
+      "name": "AM_mul_amplitude_ts_max_8d2f6d6b",
+      "Q": 0.8687,
+      "test_rankicir": -0.475783443774829,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.4273882756071998,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7146646423193463,
+      "code_hash": "0915984097125068104fc1eb8b8b3043",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_mul_ts_midpoint_ts_std_dfe547b9",
+      "Q": 0.8712,
+      "test_rankicir": -0.4727038110146632,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.1090220417131815,
+      "formula": "",
+      "columns": [
+        "开盘价_复权",
+        "成交额",
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7143785446948283,
+      "code_hash": "29ee65701512139a5b6e1babcf677a1d",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_ts_regression_beta_intraday_rang_b4142f62",
+      "Q": 0.879,
+      "test_rankicir": -0.4524502538290708,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.443226095903687,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "收盘价_复权",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7133426126788351,
+      "code_hash": "f3a6cff47138b43ccb28ded525f79713",
+      "category": "波动振幅"
+    },
+    {
+      "pack": "factor_pack_027",
+      "name": "AM_ema_ts_maxmin_volume_87c23f0d",
+      "Q": 0.8763,
+      "test_rankicir": -0.4675080040868108,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.0428249527744586,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7131632329851818,
+      "code_hash": "4896b3c9860d0eda14fe9253358e42f7",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_029",
+      "name": "AM_clip_ts_maxmin_sub_9bb34adc",
+      "Q": 0.8931,
+      "test_rankicir": 0.5362798951657153,
+      "monotonicity": 0.69999999999993,
+      "ls_sharpe": 1.0689817045482477,
+      "formula": "",
+      "columns": [
+        "成交量",
+        "成交额",
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7130666920346491,
+      "code_hash": "caeb102b89df96033c3162a638c258ae",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_mul_ema_amplitude_f8fd11ed",
+      "Q": 0.8702,
+      "test_rankicir": -0.4841318313698988,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.2815721212604192,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7130586201196413,
+      "code_hash": "5fd2538e536edf06529628ecff11bd1c",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_023",
+      "name": "AM_signed_power_ts_std_amount_19f266a0",
+      "Q": 0.8785,
+      "test_rankicir": -0.4177458578173224,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.45255457766678,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7129922432674126,
+      "code_hash": "8ced19ca0920d1f45bccd06981fdd9c5",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_ts_maxmin_abs_volume_2e47f348",
+      "Q": 0.8823,
+      "test_rankicir": -0.5269376298808712,
+      "monotonicity": -0.69999999999993,
+      "ls_sharpe": -1.3069043586424305,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7127947675856687,
+      "code_hash": "1287e9007995ea3edba9cc1591c391f5",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_027",
+      "name": "AM_ts_pct_change_amount_2e61f251",
+      "Q": 0.8902,
+      "test_rankicir": -0.4708336975127547,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.0479540675178294,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7112819115044117,
+      "code_hash": "df6d25bb41f5e008016e87d92045b77d",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_025",
+      "name": "AM_ts_pct_change_amount_5b8b9cf8",
+      "Q": 0.8809,
+      "test_rankicir": -0.4624495918765779,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.2590072763898583,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7111517867759596,
+      "code_hash": "0de902b8e0cbabf9ef26e3fd84254b13",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_mul_sub_amount_d5b5d73e",
+      "Q": 0.879,
+      "test_rankicir": 0.4859466574882054,
+      "monotonicity": 0.89999999999991,
+      "ls_sharpe": 1.0562236923066448,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "收盘价_复权",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7104914536566741,
+      "code_hash": "03fbc17ecbd9619cd79de8536fd18d92",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_ts_sum_signed_power_ret_1_8b399a4f",
+      "Q": 0.8867,
+      "test_rankicir": -0.4328896158551283,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.1116426714323489,
+      "formula": "",
+      "columns": [
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7102716404709402,
+      "code_hash": "bf73118c6d7ff06e98636c142e93e4d8",
+      "category": "其他"
+    },
+    {
+      "pack": "factor_pack_027",
+      "name": "AM_ema_ts_maxmin_volume_d6c865b3",
+      "Q": 0.8778,
+      "test_rankicir": -0.4941365217514861,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -0.9779389361323588,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7097389210631821,
+      "code_hash": "8887a37c0549fda6f0a65c418d53d833",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_026",
+      "name": "AM_ts_min_neg_ret_20_8ece5d20",
+      "Q": 0.8953,
+      "test_rankicir": 0.4760525480813078,
+      "monotonicity": 0.89999999999991,
+      "ls_sharpe": 0.8774763793997968,
+      "formula": "",
+      "columns": [
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7097149770710433,
+      "code_hash": "e99266f594f3333712173157433af2cc",
+      "category": "其他"
+    },
+    {
+      "pack": "factor_pack_028",
+      "name": "AM_neg_ts_min_log_c9045c13",
+      "Q": 0.8933,
+      "test_rankicir": -0.472606287601777,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -0.925813167601192,
+      "formula": "",
+      "columns": [
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7092923252005638,
+      "code_hash": "f29bf502247d53480afe19c35079aacb",
+      "category": "其他"
+    },
+    {
+      "pack": "factor_pack_029",
+      "name": "AM_ts_inverse_cv_delta_volume_e7a5680e",
+      "Q": 0.8879,
+      "test_rankicir": -0.4671353886398438,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.051973678197163,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7091564058651829,
+      "code_hash": "61d027449ceb2edb5bc8b0b4a6229c01",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_021",
+      "name": "AM_ts_max_ret_20_296b1c32",
+      "Q": 0.893,
+      "test_rankicir": -0.4725639471369667,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -0.925813167601192,
+      "formula": "",
+      "columns": [
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7091296230611207,
+      "code_hash": "0b8bf87c94627a867fdf525462286020",
+      "category": "其他"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_signed_power_ts_pct_change_amoun_98d96888",
+      "Q": 0.8903,
+      "test_rankicir": -0.4881799577319635,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -0.7885488476626372,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7078889489083346,
+      "code_hash": "6722c39501485fe9aadb7bdd86541773",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_024",
+      "name": "AM_ts_max_clip_ret_20_02db363e",
+      "Q": 0.8951,
+      "test_rankicir": -0.4462582258042239,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -0.7903425856008973,
+      "formula": "",
+      "columns": [
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7077722205946204,
+      "code_hash": "7f01d8eaa5ba9f8ef5676aada2aa3287",
+      "category": "价格动量"
+    },
+    {
+      "pack": "factor_pack_024",
+      "name": "AM_div_ts_inverse_cv_ts_dema_dbdcacaa",
+      "Q": 0.8624,
+      "test_rankicir": 0.4672307335705787,
+      "monotonicity": 0.89999999999991,
+      "ls_sharpe": 1.3885587713181031,
+      "formula": "",
+      "columns": [
+        "成交量",
+        "成交额"
+      ],
+      "composite_score": 0.7076545124484347,
+      "code_hash": "b424b295bf4b2c1d1c77851979193c75",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_023",
+      "name": "AM_log_ts_maxmin_sub_60982373",
+      "Q": 0.8738,
+      "test_rankicir": 0.474161813682348,
+      "monotonicity": 0.89999999999991,
+      "ls_sharpe": 1.149824178426165,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7074760167189009,
+      "code_hash": "6a52d6e4dac80bdab7a50f37f4a00116",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_023",
+      "name": "AM_ts_maxmin_abs_amount_3530d635",
+      "Q": 0.8738,
+      "test_rankicir": -0.4753829249567736,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.132124085981225,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7072523470197306,
+      "code_hash": "884b078d3aee2d6c04048c6a7a032e10",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_021",
+      "name": "AM_neg_signed_power_ts_max_dd28d683",
+      "Q": 0.8934,
+      "test_rankicir": 0.4405441058089805,
+      "monotonicity": 0.9999999999999,
+      "ls_sharpe": 0.8422670102321631,
+      "formula": "",
+      "columns": [
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7069387987504229,
+      "code_hash": "fe190ecbbb8bef52f064be450e3c1b75",
+      "category": "其他"
+    },
+    {
+      "pack": "factor_pack_028",
+      "name": "AM_ts_regression_beta_ret_20_intrad_a93226c2",
+      "Q": 0.86,
+      "test_rankicir": -0.4007281028232985,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.692618357452222,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "收盘价_复权",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7066390427620536,
+      "code_hash": "210d42febb8055a480a1a64bb17a69e5",
+      "category": "波动振幅"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_clip_ts_pct_change_signed_power_9e766938",
+      "Q": 0.9016,
+      "test_rankicir": -0.517360360935181,
+      "monotonicity": -0.79999999999992,
+      "ls_sharpe": -0.6077588688958104,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7062667372437399,
+      "code_hash": "78f2842db93d0da3e98d3c2123813093",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_ts_regression_beta_neg_amplitude_e0ddc0c0",
+      "Q": 0.8659,
+      "test_rankicir": 0.4365130648809166,
+      "monotonicity": 0.89999999999991,
+      "ls_sharpe": 1.5688924365676409,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "收盘价_复权",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7062003340165206,
+      "code_hash": "a02ea63455af45f7deb5a6cce12d4933",
+      "category": "波动振幅"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_sub_gap_ts_pct_change_9572d239",
+      "Q": 0.8822,
+      "test_rankicir": 0.4825446420247626,
+      "monotonicity": 0.89999999999991,
+      "ls_sharpe": 0.906326340345722,
+      "formula": "",
+      "columns": [
+        "开盘价_复权",
+        "成交量",
+        "收盘价_复权"
+      ],
+      "composite_score": 0.7060742706189439,
+      "code_hash": "fdd4195857e837ed40a039cae0860bf6",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_024",
+      "name": "AM_ts_maxmin_ts_dema_volume_b07e98ad",
+      "Q": 0.8824,
+      "test_rankicir": -0.4502599785990959,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -0.8928355183681211,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7060391775253227,
+      "code_hash": "37cba6b5518368e818ba8a9961991e6d",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_023",
+      "name": "AM_signed_power_ts_max_ret_20_4ab73333",
+      "Q": 0.8891,
+      "test_rankicir": -0.4644407128050259,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -0.949574154361749,
+      "formula": "",
+      "columns": [
+        "收盘价_复权"
+      ],
+      "composite_score": 0.705534685653557,
+      "code_hash": "11bdb54a2cad5c519d0e2ae8d056c94a",
+      "category": "其他"
+    },
+    {
+      "pack": "factor_pack_025",
+      "name": "AM_div_ts_pct_change_intraday_range_7dfa319a",
+      "Q": 0.8811,
+      "test_rankicir": -0.4224130460231019,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.1461793381587022,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "收盘价_复权",
+        "最低价_复权"
+      ],
+      "composite_score": 0.705479891745544,
+      "code_hash": "e3ae10f10f97289f3a9323b00356b192",
+      "category": "波动振幅"
+    },
+    {
+      "pack": "factor_pack_027",
+      "name": "AM_div_amount_6693106c",
+      "Q": 0.8605,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7053901067334143,
+      "code_hash": "db08f1a149fc9834451612f9e23832b8",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_ts_pct_change_log_volume_bacd05bd",
+      "Q": 0.8856,
+      "test_rankicir": -0.4622651362671524,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.0161088274048078,
+      "formula": "",
+      "columns": [
+        "成交量"
+      ],
+      "composite_score": 0.7053498351269637,
+      "code_hash": "747e432b624dd5e4424abb66e34c915d",
+      "category": "量能动量"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_div_amount_d008f97f",
+      "Q": 0.8595,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7048901067334143,
+      "code_hash": "02f6385b9f3ae526098b83f86c5cae93",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_ts_std_ts_dema_amount_48650d31",
+      "Q": 0.8481,
+      "test_rankicir": -0.4559963139531394,
+      "monotonicity": -0.89999999999991,
+      "ls_sharpe": -1.6157140978054965,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7047060307794493,
+      "code_hash": "3f159319a59d37e1e56df4abc21850dd",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_022",
+      "name": "AM_ts_dema_signed_power_amount_4454a286",
+      "Q": 0.8696,
+      "test_rankicir": -0.4044714027626858,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.456026742870666,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7046756455911514,
+      "code_hash": "cb7714701f322068d1612a32ea4ba518",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_div_amount_eb73412d",
+      "Q": 0.8585,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7043901067334142,
+      "code_hash": "4ac3b8587426062989ae8ec422309e0d",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_030",
+      "name": "AM_div_sub_ts_maxmin_b0358b94",
+      "Q": 0.8657,
+      "test_rankicir": -0.4410053825637219,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.1759922602419133,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7043513567771703,
+      "code_hash": "440d3b425b7ccad7ed6e91b543b1274d",
+      "category": "资金动量"
+    },
+    {
+      "pack": "factor_pack_025",
+      "name": "AM_mul_high_signed_power_b6abef99",
+      "Q": 0.8774,
+      "test_rankicir": -0.4161696698608191,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.2216298790846851,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额"
+      ],
+      "composite_score": 0.7042718969277252,
+      "code_hash": "d67e20ffb7f5f69b4c206e0c6f9aa8e1",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_026",
+      "name": "AM_div_amount_f3aa53db",
+      "Q": 0.8581,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "成交额"
+      ],
+      "composite_score": 0.7041901067334142,
+      "code_hash": "4f5e31ee0532b620cdf200e732adc1b2",
+      "category": "资金基础"
+    },
+    {
+      "pack": "factor_pack_028",
+      "name": "AM_sub_signed_power_amount_1a450514",
+      "Q": 0.8578,
+      "test_rankicir": -0.4347081423414088,
+      "monotonicity": -0.9999999999999,
+      "ls_sharpe": -1.3418299209300493,
+      "formula": "",
+      "columns": [
+        "最高价_复权",
+        "成交额",
+        "前收盘价",
+        "最低价_复权"
+      ],
+      "composite_score": 0.7040401067334143,
+      "code_hash": "f7014c4fb03bd851d2b2b4d3e4320a04",
+      "category": "资金基础"
+    }
+  ],
+  "by_category": {
+    "资金动量": [
+      {
+        "pack": "factor_pack_027",
+        "name": "AM_ts_mean_return_div_open_d4085de9",
+        "Q": 0.9487,
+        "test_rankicir": 0.5679192806051658,
+        "monotonicity": 0.89999999999991,
+        "ls_sharpe": 1.1711776884649918,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "成交额"
+        ],
+        "composite_score": 0.7737650404637071,
+        "code_hash": "200070ca20aaaaa1309acd20fc7f1f16",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_mul_amount_ts_std_0910cc9f",
+        "Q": 0.9134,
+        "test_rankicir": -0.5205221180077236,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.1800852593421802,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "收盘价_复权",
+          "最低价_复权"
+        ],
+        "composite_score": 0.752192810713713,
+        "code_hash": "ceb793a1cf69f0ac007721d697323eee",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_029",
+        "name": "AM_sub_sign_ts_std_dd8ee5e9",
+        "Q": 0.8951,
+        "test_rankicir": -0.506720985840092,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.6026850936109514,
+        "formula": "",
+        "columns": [
+          "成交额",
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7429891322057169,
+        "code_hash": "a9b536de7b8e67e942f196a21120f06f",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_ts_dema_mul_amount_f2ef68c3",
+        "Q": 0.8963,
+        "test_rankicir": -0.4881554885322563,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3257276807655882,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7387875692518532,
+        "code_hash": "2a4d57853cb5d9561c84ffdc1e0b2562",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_ts_std_signed_power_amount_888f7541",
+        "Q": 0.8779,
+        "test_rankicir": -0.4859819888984827,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.5577518986211778,
+        "formula": "",
+        "columns": [
+          "成交额"
+        ],
+        "composite_score": 0.7366696599569074,
+        "code_hash": "6c0ee3b27c95dd402212c21d88154f50",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_ts_inverse_cv_delta_amount_5166de46",
+        "Q": 0.901,
+        "test_rankicir": -0.489315075653895,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.310714062068269,
+        "formula": "",
+        "columns": [
+          "成交额"
+        ],
+        "composite_score": 0.7309849914317685,
+        "code_hash": "c9dfac6e066991c0e25b3a58340062b5",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_027",
+        "name": "AM_ts_inverse_cv_div_delta_a5e987bd",
+        "Q": 0.901,
+        "test_rankicir": -0.489315075653895,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.310714062068269,
+        "formula": "",
+        "columns": [
+          "成交额"
+        ],
+        "composite_score": 0.7309849914317685,
+        "code_hash": "9928337094438d49d58a5672a62fc6e4",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_027",
+        "name": "AM_ts_pct_change_add_amount_3d19f079",
+        "Q": 0.8976,
+        "test_rankicir": -0.5059618874005976,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -0.9383543812503464,
+        "formula": "",
+        "columns": [
+          "成交额"
+        ],
+        "composite_score": 0.7218670455951817,
+        "code_hash": "8bd924c901dac3d641816d3894309697",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_024",
+        "name": "AM_ts_pct_change_amount_e7440388",
+        "Q": 0.8976,
+        "test_rankicir": -0.5059618874005976,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -0.9383543812503464,
+        "formula": "",
+        "columns": [
+          "成交额"
+        ],
+        "composite_score": 0.7218670455951817,
+        "code_hash": "e30464df7cdcb099a031ebb9fb1b4fe3",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_log_ts_pct_change_amount_3836ea63",
+        "Q": 0.8884,
+        "test_rankicir": -0.4946960506215895,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.1547589793248108,
+        "formula": "",
+        "columns": [
+          "成交额"
+        ],
+        "composite_score": 0.7211007811639615,
+        "code_hash": "c29d910c5d8e0f14008344da6fd386b8",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_ts_pct_change_neg_amount_de17d0c9",
+        "Q": 0.8883,
+        "test_rankicir": -0.4946960506215895,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.1547589793248108,
+        "formula": "",
+        "columns": [
+          "成交额"
+        ],
+        "composite_score": 0.7210507811639615,
+        "code_hash": "ed1694af45c48ff11e8899b045aff86e",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_024",
+        "name": "AM_ts_std_mul_amount_3047de62",
+        "Q": 0.8718,
+        "test_rankicir": -0.4580815853638812,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.305774525556094,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7168502931276908,
+        "code_hash": "295b12ea7973b7bd584a20927f177afe",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_mul_amount_ts_mean_422340d9",
+        "Q": 0.8771,
+        "test_rankicir": -0.4924585902429703,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.2056334972918687,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7164753603159443,
+        "code_hash": "4fc92c6087ab34fdca583d848ff56622",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_024",
+        "name": "AM_ts_maxmin_add_ret_5_093626ad",
+        "Q": 0.8853,
+        "test_rankicir": -0.4621202189285067,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.0027891778077591,
+        "formula": "",
+        "columns": [
+          "成交额",
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7147123716054673,
+        "code_hash": "ee3954b421e17d2e6ff6a13ad15e535b",
+        "category": "资金动量"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_mul_ts_midpoint_ts_std_dfe547b9",
+        "Q": 0.8712,
+        "test_rankicir": -0.4727038110146632,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.1090220417131815,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "成交额",
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7143785446948283,
+        "code_hash": "29ee65701512139a5b6e1babcf677a1d",
+        "category": "资金动量"
+      }
+    ],
+    "量能基础": [
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_add_open_delta_c1a4ac91",
+        "Q": 0.941,
+        "test_rankicir": -0.5749280585168889,
+        "monotonicity": -0.79999999999992,
+        "ls_sharpe": -1.3281147505521929,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "成交量"
+        ],
+        "composite_score": 0.7672489092401317,
+        "code_hash": "f312c6d34ec1172a6f8824f0905eb52d",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_021",
+        "name": "AM_signed_power_sub_amount_21e4cc97",
+        "Q": 0.8926,
+        "test_rankicir": -0.4389181190829053,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.2338106632145525,
+        "formula": "",
+        "columns": [
+          "成交额",
+          "成交量"
+        ],
+        "composite_score": 0.7191024578320133,
+        "code_hash": "890af13fa165eebcea3c964e3e7bef1e",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_mul_volume_signed_power_3bf119ae",
+        "Q": 0.8674,
+        "test_rankicir": -0.4995004302358187,
+        "monotonicity": -0.69999999999993,
+        "ls_sharpe": -1.444932202205497,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交量",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7017145358109217,
+        "code_hash": "157442daf4faa80670864f4d6e79dc70",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_abs_mul_mul_d60b6334",
+        "Q": 0.8605,
+        "test_rankicir": -0.4208065890368642,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.6036347495648595,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "成交量",
+          "成交额"
+        ],
+        "composite_score": 0.6999464683632122,
+        "code_hash": "90a6c3ac3c9d4dca2bb656bfc3c079e1",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_neg_abs_mul_969d5f4b",
+        "Q": 0.8605,
+        "test_rankicir": 0.3907498567593608,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.5458657875214536,
+        "formula": "",
+        "columns": [
+          "成交额",
+          "成交量"
+        ],
+        "composite_score": 0.6990038166118466,
+        "code_hash": "c621ec306cb9e38bbb52bdf8308e69c8",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_sub_amount_ema_f948456a",
+        "Q": 0.8418,
+        "test_rankicir": -0.4375786896260118,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.2870526023785949,
+        "formula": "",
+        "columns": [
+          "成交额",
+          "成交量"
+        ],
+        "composite_score": 0.6950753603004134,
+        "code_hash": "8dba6b4816c202021deb5fdc72a9f16c",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_025",
+        "name": "AM_add_signed_power_volume_138a7459",
+        "Q": 0.8396,
+        "test_rankicir": -0.434683272216907,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3418299209300493,
+        "formula": "",
+        "columns": [
+          "成交量",
+          "成交额"
+        ],
+        "composite_score": 0.6949326456960636,
+        "code_hash": "cfefe884d7bc29400e67e60125f7e093",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_029",
+        "name": "AM_add_amount_mul_090d1b68",
+        "Q": 0.8391,
+        "test_rankicir": -0.4335014758194987,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3519805417477273,
+        "formula": "",
+        "columns": [
+          "成交额",
+          "成交量",
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6946664608040972,
+        "code_hash": "5429c6ea7b54e5791e2ba0eeba46b6ce",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_signed_power_mul_volume_4c683be3",
+        "Q": 0.8634,
+        "test_rankicir": -0.425166421385699,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.355479648593058,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "成交量"
+        ],
+        "composite_score": 0.6944325813688026,
+        "code_hash": "bf29ca01f49d35e7e3c958f46b4409eb",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_sub_volume_neg_3e4463a6",
+        "Q": 0.8392,
+        "test_rankicir": -0.4333471808272875,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3374009043167658,
+        "formula": "",
+        "columns": [
+          "成交量",
+          "成交额"
+        ],
+        "composite_score": 0.6941841843920684,
+        "code_hash": "20074e0e2501d068b2afb237bda61bda",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_024",
+        "name": "AM_neg_sub_volume_d78a34db",
+        "Q": 0.8424,
+        "test_rankicir": -0.4389181190829053,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.2338106632145525,
+        "formula": "",
+        "columns": [
+          "成交量",
+          "成交额"
+        ],
+        "composite_score": 0.6940024578320134,
+        "code_hash": "d73c9dec3a4ace17d38e5400e7663a5e",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_029",
+        "name": "AM_signed_power_neg_mul_a8ae6205",
+        "Q": 0.8645,
+        "test_rankicir": 0.4267503767867868,
+        "monotonicity": 0.89999999999991,
+        "ls_sharpe": 1.2682606683471098,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交量"
+        ],
+        "composite_score": 0.6925504686475974,
+        "code_hash": "05d4f1f87a62bd4335274f4e064a4b54",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_signed_power_mul_low_118cf8b0",
+        "Q": 0.8622,
+        "test_rankicir": -0.4232937655604405,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.2927014572577165,
+        "formula": "",
+        "columns": [
+          "成交量",
+          "最低价_复权"
+        ],
+        "composite_score": 0.6911781782433803,
+        "code_hash": "cbbadc8cd7880342a2aa767a6fa9934a",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_027",
+        "name": "AM_zscore_ema_volume_c251ca25",
+        "Q": 0.87,
+        "test_rankicir": -0.4296040167863436,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -0.7740954450798554,
+        "formula": "",
+        "columns": [
+          "成交量"
+        ],
+        "composite_score": 0.6896843865385548,
+        "code_hash": "295d07e50c1ba5fe9f72b3a50e628467",
+        "category": "量能基础"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_mul_high_signed_power_25639a9a",
+        "Q": 0.8352,
+        "test_rankicir": -0.4220837891287199,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.5463254490579528,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交量"
+        ],
+        "composite_score": 0.685769318373872,
+        "code_hash": "6078d707cef54f879b5acc9f06e18e81",
+        "category": "量能基础"
+      }
+    ],
+    "资金基础": [
+      {
+        "pack": "factor_pack_029",
+        "name": "AM_mul_ts_sum_amount_bf8b6da1",
+        "Q": 0.932,
+        "test_rankicir": -0.5156999560514294,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -0.9809647146931356,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "收盘价_复权",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7534088106385234,
+        "code_hash": "04ff00ab89346501bb81a958b8ae343d",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_mul_signed_power_amplitude_758209a4",
+        "Q": 0.9178,
+        "test_rankicir": -0.5015342420615271,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.2863199999407864,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7522376059498077,
+        "code_hash": "ecceae750fa20e3b120b3ed177c7035b",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_mul_abs_amount_3779853f",
+        "Q": 0.9047,
+        "test_rankicir": -0.4987964605562052,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.2683063120729472,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "收盘价_复权",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7442658152359497,
+        "code_hash": "d6ff578a537d1b64d29f71750e0c8358",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_023",
+        "name": "AM_abs_mul_amount_a1dda97d",
+        "Q": 0.9012,
+        "test_rankicir": -0.4899109651615358,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3639773428325264,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7430392009762016,
+        "code_hash": "655878d3368c889684b05b076e6ba387",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_mul_amount_log_ed73d532",
+        "Q": 0.8994,
+        "test_rankicir": -0.4888945838661138,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3712412467216757,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7420764167172132,
+        "code_hash": "9e928eed402ad11f0abb5c6c27267c7e",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_signed_power_mul_amount_8ae7bd21",
+        "Q": 0.8819,
+        "test_rankicir": -0.4899109651615358,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3639773428325264,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7333892009762016,
+        "code_hash": "4808eb8d382d4a1ad8ed81bf01994223",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_025",
+        "name": "AM_log_mul_amplitude_79b9b6af",
+        "Q": 0.8754,
+        "test_rankicir": -0.4899109651615358,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3639773428325264,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7301392009762017,
+        "code_hash": "8f14d44d7bd3162db44fe8b3a660b4b7",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_sub_ts_median_clip_bff1a9fb",
+        "Q": 0.888,
+        "test_rankicir": 0.4899275671914116,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.131530726043859,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7286959610255421,
+        "code_hash": "77cf7bcf638bbf300840c9ba9848934a",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_021",
+        "name": "AM_signed_power_abs_amount_c2dc0fb9",
+        "Q": 0.8898,
+        "test_rankicir": -0.4347081423414088,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3418299209300493,
+        "formula": "",
+        "columns": [
+          "成交额"
+        ],
+        "composite_score": 0.7200401067334143,
+        "code_hash": "04c5b26d788340fd9468c9b4e4dccd89",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_abs_neg_signed_power_af8ca0fe",
+        "Q": 0.8898,
+        "test_rankicir": -0.4347081423414088,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3418299209300493,
+        "formula": "",
+        "columns": [
+          "成交额"
+        ],
+        "composite_score": 0.7200401067334143,
+        "code_hash": "98f9c7b6e9ec03dcd609a1177e06f00d",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_add_open_signed_power_7aeb28e0",
+        "Q": 0.8898,
+        "test_rankicir": -0.4347081423414088,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3418299209300493,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "成交额"
+        ],
+        "composite_score": 0.7200401067334143,
+        "code_hash": "f94e07614b9b3c34c6b147219cacfaf4",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_023",
+        "name": "AM_add_amplitude_signed_power_01378434",
+        "Q": 0.8898,
+        "test_rankicir": -0.4347081423414088,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3418299209300493,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交额",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7200401067334143,
+        "code_hash": "d5905c7cb1a15bbff6d7c70983a47ce3",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_023",
+        "name": "AM_signed_power_sub_amount_ccf1bcbf",
+        "Q": 0.8898,
+        "test_rankicir": -0.4347081423414088,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3418299209300493,
+        "formula": "",
+        "columns": [
+          "成交额",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7200401067334143,
+        "code_hash": "ab9056ed992dad7c604075fd69b81874",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_029",
+        "name": "AM_neg_neg_neg_858953d7",
+        "Q": 0.8898,
+        "test_rankicir": -0.4347081423414088,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3418299209300493,
+        "formula": "",
+        "columns": [
+          "成交额"
+        ],
+        "composite_score": 0.7200401067334143,
+        "code_hash": "f7bb5d0ede11f9972264e2aad9d122a4",
+        "category": "资金基础"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_sub_signed_power_amount_cf9a6c96",
+        "Q": 0.8898,
+        "test_rankicir": -0.4347081423414088,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3418299209300493,
+        "formula": "",
+        "columns": [
+          "成交额"
+        ],
+        "composite_score": 0.7200401067334143,
+        "code_hash": "49cf8084cc011b0244baa02818e3a2b8",
+        "category": "资金基础"
+      }
+    ],
+    "量能动量": [
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_neg_ts_pct_change_abs_ee1bb069",
+        "Q": 0.9211,
+        "test_rankicir": 0.5110693522890968,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.1636281854650636,
+        "formula": "",
+        "columns": [
+          "成交量"
+        ],
+        "composite_score": 0.7526584118688878,
+        "code_hash": "147e9e17bfd39569678486eb4ee2ef48",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_signed_power_ts_maxmin_volume_3abae467",
+        "Q": 0.9212,
+        "test_rankicir": -0.4886751493249863,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.264702076162784,
+        "formula": "",
+        "columns": [
+          "成交量"
+        ],
+        "composite_score": 0.7493592806695787,
+        "code_hash": "dd456a50fefb17453c772960ad96da09",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_ts_maxmin_signed_power_volume_8af03928",
+        "Q": 0.9054,
+        "test_rankicir": -0.5231662024357335,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.3770275442354662,
+        "formula": "",
+        "columns": [
+          "成交量"
+        ],
+        "composite_score": 0.7455507788718932,
+        "code_hash": "fe6c824f56404587e00d9a108b1f58a0",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_neg_ts_maxmin_volume_b4c7097f",
+        "Q": 0.9116,
+        "test_rankicir": 0.4788999112958386,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.1290086725184436,
+        "formula": "",
+        "columns": [
+          "成交量"
+        ],
+        "composite_score": 0.7371035958060229,
+        "code_hash": "5882b8e2286ae1cfaa605050f2f4896b",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_mul_amount_mul_0992fa40",
+        "Q": 0.8977,
+        "test_rankicir": -0.4575664674982624,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.5235311112640189,
+        "formula": "",
+        "columns": [
+          "成交额",
+          "成交量",
+          "最高价_复权",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7369043106249361,
+        "code_hash": "6ad6e70cfcb9dd9d0bbfd131be5498ec",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_029",
+        "name": "AM_ts_maxmin_abs_volume_22868f8f",
+        "Q": 0.9023,
+        "test_rankicir": -0.4958850634679203,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.3781272178879451,
+        "formula": "",
+        "columns": [
+          "成交量"
+        ],
+        "composite_score": 0.7358530929699653,
+        "code_hash": "fe172b41fe25989a9c62805da9dad7fc",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_029",
+        "name": "AM_abs_ts_maxmin_sub_627088c0",
+        "Q": 0.9023,
+        "test_rankicir": -0.4958850634679203,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.3781272178879451,
+        "formula": "",
+        "columns": [
+          "成交量"
+        ],
+        "composite_score": 0.7358530929699653,
+        "code_hash": "a76f6b1fdf0d9e926b3fc5454ff80cfa",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_ts_maxmin_add_volume_bd3d9c28",
+        "Q": 0.9028,
+        "test_rankicir": -0.4963780001604771,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.2977045171418948,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "成交量",
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7335702172861973,
+        "code_hash": "edc1e0175754456d4768c0408d80843e",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_023",
+        "name": "AM_ts_pct_change_signed_power_mul_621cb807",
+        "Q": 0.913,
+        "test_rankicir": -0.5271820092039581,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -0.8145837629737259,
+        "formula": "",
+        "columns": [
+          "成交额",
+          "成交量",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7318073948603027,
+        "code_hash": "daf73edd04870aba45e65fccfc4ec7c7",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_021",
+        "name": "AM_div_ts_inverse_cv_volume_d69faf0f",
+        "Q": 0.8717,
+        "test_rankicir": 0.4688792997327656,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.522976869143548,
+        "formula": "",
+        "columns": [
+          "成交量",
+          "成交额"
+        ],
+        "composite_score": 0.727279685557938,
+        "code_hash": "72ffe1406647c220a6d82e353f336e9e",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_029",
+        "name": "AM_ts_maxmin_ts_midpoint_volume_32d023ee",
+        "Q": 0.9011,
+        "test_rankicir": -0.4646262040977176,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.0734076729583195,
+        "formula": "",
+        "columns": [
+          "成交量"
+        ],
+        "composite_score": 0.7257181169945826,
+        "code_hash": "6f9c999670fa03bf239704a472c21f1e",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_ts_maxmin_sub_low_27004162",
+        "Q": 0.885,
+        "test_rankicir": 0.5311621203366477,
+        "monotonicity": 0.69999999999993,
+        "ls_sharpe": 1.5378708479246328,
+        "formula": "",
+        "columns": [
+          "成交量",
+          "最低价_复权"
+        ],
+        "composite_score": 0.723110997698475,
+        "code_hash": "cb4181686f1aa2231b455c34faec6926",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_024",
+        "name": "AM_ts_pct_change_signed_power_mul_6e2207c0",
+        "Q": 0.9008,
+        "test_rankicir": -0.4826027358500483,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.1245274737237465,
+        "formula": "",
+        "columns": [
+          "成交量"
+        ],
+        "composite_score": 0.7226650698791304,
+        "code_hash": "d1a2fbbb8d2cf26247599ed581c1f88b",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_023",
+        "name": "AM_clip_sub_ts_pct_change_b8767106",
+        "Q": 0.8999,
+        "test_rankicir": -0.4890737016037402,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.0580864085199069,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "成交量",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7219416574317766,
+        "code_hash": "eb3f5dc58b19edb3e0b7e3e4e4b3b845",
+        "category": "量能动量"
+      },
+      {
+        "pack": "factor_pack_027",
+        "name": "AM_signed_power_ts_maxmin_volume_d96caecf",
+        "Q": 0.8909,
+        "test_rankicir": -0.5310729050286529,
+        "monotonicity": -0.69999999999993,
+        "ls_sharpe": -1.4036320197943586,
+        "formula": "",
+        "columns": [
+          "成交量"
+        ],
+        "composite_score": 0.7215596055017341,
+        "code_hash": "86729dfd95445adc30caba61a7ed1dbd",
+        "category": "量能动量"
+      }
+    ],
+    "波动振幅": [
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_ema_ts_dema_delta_8dc6d97c",
+        "Q": 0.8826,
+        "test_rankicir": 0.4553658193347336,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.5643466009310756,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7300546324981126,
+        "code_hash": "67de44d7feb72f7978d2aabf1426f539",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_024",
+        "name": "AM_ts_regression_beta_amplitude_ret_581e00f9",
+        "Q": 0.8912,
+        "test_rankicir": -0.4428430761963368,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.398164537240688,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "收盘价_复权",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7250584074335806,
+        "code_hash": "ee6dbd5307ade4fcb18c06900d1810c6",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_025",
+        "name": "AM_ts_regression_beta_amplitude_ret_05be75b2",
+        "Q": 0.8894,
+        "test_rankicir": -0.4395641836341277,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.3538668509273546,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "收盘价_复权",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.72169815012114,
+        "code_hash": "ff2383e91ae7d31dc0ec5ff34693c355",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_ts_regression_beta_intraday_rang_b4142f62",
+        "Q": 0.879,
+        "test_rankicir": -0.4524502538290708,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.443226095903687,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "收盘价_复权",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7133426126788351,
+        "code_hash": "f3a6cff47138b43ccb28ded525f79713",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_ts_regression_beta_ret_20_intrad_a93226c2",
+        "Q": 0.86,
+        "test_rankicir": -0.4007281028232985,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.692618357452222,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "收盘价_复权",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7066390427620536,
+        "code_hash": "210d42febb8055a480a1a64bb17a69e5",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_ts_regression_beta_neg_amplitude_e0ddc0c0",
+        "Q": 0.8659,
+        "test_rankicir": 0.4365130648809166,
+        "monotonicity": 0.89999999999991,
+        "ls_sharpe": 1.5688924365676409,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "收盘价_复权",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7062003340165206,
+        "code_hash": "a02ea63455af45f7deb5a6cce12d4933",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_025",
+        "name": "AM_div_ts_pct_change_intraday_range_7dfa319a",
+        "Q": 0.8811,
+        "test_rankicir": -0.4224130460231019,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.1461793381587022,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "收盘价_复权",
+          "最低价_复权"
+        ],
+        "composite_score": 0.705479891745544,
+        "code_hash": "e3ae10f10f97289f3a9323b00356b192",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_021",
+        "name": "AM_ts_regression_beta_amplitude_ret_9dd99b95",
+        "Q": 0.8684,
+        "test_rankicir": -0.4382093208804532,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.401068858601827,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "收盘价_复权",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7023650915508545,
+        "code_hash": "d7e946bc32d7e0adb7c7d68761f72636",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_021",
+        "name": "AM_ts_inverse_cv_clip_amplitude_08281271",
+        "Q": 0.8581,
+        "test_rankicir": 0.4304802877816869,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.270006146735715,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7005276245590198,
+        "code_hash": "2f5cef36144b81be69b9cf088e56b7f9",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_log_ts_inverse_cv_amplitude_efee879b",
+        "Q": 0.8581,
+        "test_rankicir": 0.4304802877816869,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.270006146735715,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7005276245590198,
+        "code_hash": "08c74dfd7ef86162a1207e4392a85bab",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_027",
+        "name": "AM_signed_power_log_ts_inverse_cv_47d012aa",
+        "Q": 0.858,
+        "test_rankicir": 0.4304802877816869,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.270006146735715,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.7004776245590199,
+        "code_hash": "2d22ea9a15d25f42a0a76638878d6e71",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_ts_regression_beta_intraday_rang_a710f66d",
+        "Q": 0.8607,
+        "test_rankicir": -0.4222245901301623,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.5015166562372126,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "收盘价_复权",
+          "最低价_复权"
+        ],
+        "composite_score": 0.6970679322469469,
+        "code_hash": "dd341675ead4f2d27d63b79703d2b572",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_ts_inverse_cv_signed_power_ampli_5edab627",
+        "Q": 0.8579,
+        "test_rankicir": 0.4629013523624256,
+        "monotonicity": 0.89999999999991,
+        "ls_sharpe": 1.168810377244535,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.6967807516168698,
+        "code_hash": "dfd51fba135b1bb07cdc713d94fc5f2b",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_ts_regression_beta_ret_5_amplitu_d445f1af",
+        "Q": 0.8657,
+        "test_rankicir": -0.4103634521787134,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.2032198097642353,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "前收盘价",
+          "收盘价_复权",
+          "最低价_复权"
+        ],
+        "composite_score": 0.6960663626457452,
+        "code_hash": "e521f3a54e289204778210640e019205",
+        "category": "波动振幅"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_ts_inverse_cv_clip_amplitude_5b7c2f0a",
+        "Q": 0.8545,
+        "test_rankicir": 0.426498045157612,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.1700863936245212,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "前收盘价",
+          "最低价_复权"
+        ],
+        "composite_score": 0.6942022933347577,
+        "code_hash": "9fd5b817f21bc69be0ca748dfdbde70e",
+        "category": "波动振幅"
+      }
+    ],
+    "其他": [
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_ts_min_ema_sign_a553175f",
+        "Q": 0.874,
+        "test_rankicir": 0.4197468010738244,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.5562366711880988,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7147985960284073,
+        "code_hash": "acf4538ae90f8ca96bc1f6c57eac3304",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_ts_sum_signed_power_ret_1_8b399a4f",
+        "Q": 0.8867,
+        "test_rankicir": -0.4328896158551283,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.1116426714323489,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7102716404709402,
+        "code_hash": "bf73118c6d7ff06e98636c142e93e4d8",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_ts_min_neg_ret_20_8ece5d20",
+        "Q": 0.8953,
+        "test_rankicir": 0.4760525480813078,
+        "monotonicity": 0.89999999999991,
+        "ls_sharpe": 0.8774763793997968,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7097149770710433,
+        "code_hash": "e99266f594f3333712173157433af2cc",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_neg_ts_min_log_c9045c13",
+        "Q": 0.8933,
+        "test_rankicir": -0.472606287601777,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -0.925813167601192,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7092923252005638,
+        "code_hash": "f29bf502247d53480afe19c35079aacb",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_021",
+        "name": "AM_ts_max_ret_20_296b1c32",
+        "Q": 0.893,
+        "test_rankicir": -0.4725639471369667,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -0.925813167601192,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7091296230611207,
+        "code_hash": "0b8bf87c94627a867fdf525462286020",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_021",
+        "name": "AM_neg_signed_power_ts_max_dd28d683",
+        "Q": 0.8934,
+        "test_rankicir": 0.4405441058089805,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 0.8422670102321631,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7069387987504229,
+        "code_hash": "fe190ecbbb8bef52f064be450e3c1b75",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_023",
+        "name": "AM_signed_power_ts_max_ret_20_4ab73333",
+        "Q": 0.8891,
+        "test_rankicir": -0.4644407128050259,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -0.949574154361749,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.705534685653557,
+        "code_hash": "11bdb54a2cad5c519d0e2ae8d056c94a",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_ts_sum_signed_power_ret_1_dc4eeea6",
+        "Q": 0.8799,
+        "test_rankicir": -0.4276350390110014,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.043129000428639,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7030114783842452,
+        "code_hash": "651305fb88af8ede9ed3c558c3fc3b3e",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_ts_dema_neg_neg_3fd50dd2",
+        "Q": 0.896,
+        "test_rankicir": -0.4455406312819498,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -0.5775855355495675,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7009150405695604,
+        "code_hash": "cad4dbc3a916fb517dc001b2adce5847",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_mul_ts_sum_ema_630da08f",
+        "Q": 0.8674,
+        "test_rankicir": 0.4301679083378293,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.1201275941153948,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7000879589718518,
+        "code_hash": "9cc555beb09770ee6af5a5f80976b1e3",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_025",
+        "name": "AM_ts_min_neg_ret_20_8d553f64",
+        "Q": 0.8824,
+        "test_rankicir": 0.4274517864470754,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 0.7547003924264712,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6945922156816616,
+        "code_hash": "d04bf53a9e6b231fd8541e91a34ea2a8",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_ts_max_ts_mean_ret_1_f856a941",
+        "Q": 0.8813,
+        "test_rankicir": -0.4555702372323756,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -0.7949319398252107,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6938188024972106,
+        "code_hash": "9ca5300a1c117cc589403478d23689b2",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_028",
+        "name": "AM_add_ts_median_gap_51416d6e",
+        "Q": 0.8542,
+        "test_rankicir": 0.3843862320329925,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.4747290635197556,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6915735050605463,
+        "code_hash": "37c88f0e5b7020773522aeccb66ab886",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_025",
+        "name": "AM_log_ts_median_log_260799e5",
+        "Q": 0.8437,
+        "test_rankicir": 0.3661411706732391,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.7907260546710135,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6913832196909956,
+        "code_hash": "2dd42bc279ec6b93823280356a43155b",
+        "category": "其他"
+      },
+      {
+        "pack": "factor_pack_022",
+        "name": "AM_ts_max_signed_power_ret_20_afbef8c9",
+        "Q": 0.8746,
+        "test_rankicir": -0.4433694888375766,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -0.9076046052814368,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6905643334939785,
+        "code_hash": "f59e22253502825961532d5b5c2ad407",
+        "category": "其他"
+      }
+    ],
+    "价格动量": [
+      {
+        "pack": "factor_pack_024",
+        "name": "AM_ts_max_clip_ret_20_02db363e",
+        "Q": 0.8951,
+        "test_rankicir": -0.4462582258042239,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -0.7903425856008973,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.7077722205946204,
+        "code_hash": "7f01d8eaa5ba9f8ef5676aada2aa3287",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_ts_max_clip_ret_20_182fe8f2",
+        "Q": 0.8787,
+        "test_rankicir": -0.4512076795968081,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -0.8167407303224835,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6919369948897829,
+        "code_hash": "8aa1d78d4c6f22495e3433645934056a",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_clip_ts_midpoint_ret_5_4add4d1f",
+        "Q": 0.8696,
+        "test_rankicir": -0.4103133249373082,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -0.9310553616971692,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6889291762044215,
+        "code_hash": "8bca661e3e0667852c4dd247d22f0db4",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_ts_median_clip_signed_power_93834b51",
+        "Q": 0.8494,
+        "test_rankicir": 0.3796323603173918,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.4251495456974048,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6860946929517877,
+        "code_hash": "c1f9c7bff9c10e78a20e00d92e49f11b",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_ts_midpoint_ema_div_ac93a5fb",
+        "Q": 0.8571,
+        "test_rankicir": -0.3871821916547311,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.2115521839321644,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6850897302941481,
+        "code_hash": "209b435f2ca1893754a89e4427370f6c",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_029",
+        "name": "AM_ts_max_clip_ret_20_22e335a9",
+        "Q": 0.87,
+        "test_rankicir": -0.4378017401814475,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -0.8314168825682019,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6840544181400319,
+        "code_hash": "f08f17198ec343420ef799c0bc3506ca",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_ts_skew_div_open_0fc887b7",
+        "Q": 0.8516,
+        "test_rankicir": 0.3775036438564014,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.136748554865776,
+        "formula": "",
+        "columns": [
+          "开盘价_复权"
+        ],
+        "composite_score": 0.6769427116524364,
+        "code_hash": "51d8707aed2cfcade7d8eb5a6454bb43",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_027",
+        "name": "AM_ts_skew_signed_power_close_ead39f93",
+        "Q": 0.8509,
+        "test_rankicir": -0.4117083515842255,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.022438582899914,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6730437915719224,
+        "code_hash": "ad6b86e59ea6bd1610ee706b002696ed",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_029",
+        "name": "AM_signed_power_ts_kurt_delta_c11b7137",
+        "Q": 0.8389,
+        "test_rankicir": -0.3645619068791859,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -1.2943895802887833,
+        "formula": "",
+        "columns": [
+          "开盘价_复权"
+        ],
+        "composite_score": 0.6719648914067051,
+        "code_hash": "41d8ce61c6472caf3f9a3edb379bcf61",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_signed_power_ts_median_clip_7b728030",
+        "Q": 0.8334,
+        "test_rankicir": 0.3835623409897451,
+        "monotonicity": 0.89999999999991,
+        "ls_sharpe": 1.382762674674173,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6678607914527203,
+        "code_hash": "0d472ba8612bd602019f1a79c7cce66b",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_024",
+        "name": "AM_clip_ts_median_gap_376ad298",
+        "Q": 0.8316,
+        "test_rankicir": 0.35022671550897,
+        "monotonicity": 0.9999999999999,
+        "ls_sharpe": 1.3318081714839527,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6652616203688126,
+        "code_hash": "aa396c52e2d29784a8901f21191daf64",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_026",
+        "name": "AM_clip_log_ts_kurt_0db9abb5",
+        "Q": 0.8213,
+        "test_rankicir": -0.3688298278805924,
+        "monotonicity": -0.89999999999991,
+        "ls_sharpe": -1.5302023219331438,
+        "formula": "",
+        "columns": [
+          "开盘价_复权"
+        ],
+        "composite_score": 0.6623056924286068,
+        "code_hash": "e002acf7f6731c1ce3b148bf4314d154",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_023",
+        "name": "AM_ts_median_clip_gap_a1e25558",
+        "Q": 0.8307,
+        "test_rankicir": 0.3770017756484258,
+        "monotonicity": 0.89999999999991,
+        "ls_sharpe": 1.3072864726211642,
+        "formula": "",
+        "columns": [
+          "开盘价_复权",
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6620267484485575,
+        "code_hash": "4a9e41a640d7902f362ead032532f6cc",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_030",
+        "name": "AM_ts_skew_mul_close_390cf4f4",
+        "Q": 0.8528,
+        "test_rankicir": -0.3797257849100939,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -0.6492946752438291,
+        "formula": "",
+        "columns": [
+          "收盘价_复权"
+        ],
+        "composite_score": 0.6619608913144791,
+        "code_hash": "8b55d651633238ad3857041c44a1bdef",
+        "category": "价格动量"
+      },
+      {
+        "pack": "factor_pack_029",
+        "name": "AM_ts_skew_add_open_d952eaf8",
+        "Q": 0.8415,
+        "test_rankicir": -0.3635853526372916,
+        "monotonicity": -0.9999999999999,
+        "ls_sharpe": -0.9446703835433988,
+        "formula": "",
+        "columns": [
+          "最高价_复权",
+          "开盘价_复权"
+        ],
+        "composite_score": 0.6613146185759574,
+        "code_hash": "993c43acbba1acdd06800b29ba02be68",
+        "category": "价格动量"
+      }
+    ]
+  }
+}

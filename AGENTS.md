@@ -78,7 +78,8 @@
 | 缓存 | Redis 优先 + 内存 LRU 降级 | `services/cache.py` 线程安全实现；Redis 可接入，内存作为降级 |
 | 可观测性 | Prometheus 风格指标 + structlog 结构化日志 | `services/metrics.py` + `services/logging_config.py` |
 | 限流 | 内存/Redis 滑动窗口 | `middleware/rate_limit.py`，覆盖所有写入端点 |
-| **Agent 技术指标** | **numpy + pandas** | **后端纯 numpy/pandas 指标库（`python/lib/technical_indicators.py`）：SMA/EMA/RSI/MACD/BOLL/KDJ/ATR/CCI/OBV/ADX/WR/量比** |
+| **Agent 技术指标** | **numpy + pandas** | **后端纯 numpy/pandas 指标库（`python/lib/technical_indicators.py`）：SMA/EMA/RSI/MACD/BOLL/KDJ/ATR/CCI/OBV/ADX/WR/量比 + 万因子精选27个** |
+| **因子引擎** | **services/agent/factor_engine + lib/technical_indicators.py** | **万因子精选27个（L1 预置）+ 用户自定义DSL（L2 动态）** |
 | **Agent LLM 调用** | **OpenAI 兼容 API** | **复用 `services/ai_chat.py`，Agent 通过 `services/agent/llm_client.py` 统一调用** |
 
 ---
@@ -309,15 +310,17 @@ project_rich_snowball/
 │   │   │   └── exceptions.py       # ServiceError 体系
 │   │   └── ...
 │   ├── lib/
-│   │   └── technical_indicators.py # 纯 numpy/pandas 技术指标库（12 个指标）
+│   │   └── technical_indicators.py # 纯 numpy/pandas 技术指标库（12 个经典指标 + 27 个万因子精选因子）
 │   ├── middleware/
 │   │   ├── rate_limit.py           # 限流中间件
 │   │   └── api_version.py          # API 版本透明映射
 │   ├── tushare_pg_ingest/          # 独立历史数据回填脚本
 │   ├── scripts/                    # 一次性采集/验证/回填/备份脚本
+│   │   └── import_wanfactor_selected.py  # 万因子 Top27 导入 factor_definitions 表
 │   ├── tests/                      # pytest 测试（50 个文件，含 conftest.py）
 │   ├── data/                       # 静态 CSV/手续费/交易日历
-│   └── docs/                       # 架构决策、运维手册、API 契约
+│   └── docs/                       # 架构决策、运维手册、API 契约、因子集成文档
+│       └── factor_integration.md   # 万因子精选27因子集成架构与使用指南
 │
 ├── docker-compose.yml              # PostgreSQL 16 + Redis 7 + backend 服务
 ├── .env.example                    # 环境变量模板
@@ -375,6 +378,7 @@ project_rich_snowball/
 - Prometheus 指标通过 `prometheus_middleware` 自动收集，排除 `/metrics`、`/docs`、`/redoc`、`/openapi.json`。
 - **错误码契约**（2026-06-04）：`python/errors.py` 定义 `ErrorCode(StrEnum)`，38 个稳定业务错误码；`ServiceError` 及其子类（`NotFoundError`、`ForbiddenError` 等）携带 `code` 参数；全局 exception handler 统一返回 `{code, message, errors, timestamp}`。新增 router 业务错误优先使用 `ServiceError` 而非裸 `HTTPException`。
 - **API 版本映射**（2026-06-24）：`ApiVersionMiddleware` 将 `/api/v1/*` 透明映射到 `/api/*`，`/api/` 继续兼容；新代码优先使用 `/api/v1/*`。
+- **因子新增规范**（2026-07-04）：新增因子须统一使用 `open/high/low/close/volume/amount` 字段；缺失 `amount` 时用 `close * volume` 近似；所有除法须防除零（`.replace(0, np.nan)` 或 `+ 1e-10`）；`rolling`/`ewm` 须设 `min_periods=1`；每个函数须有完整中文 docstring 说明逻辑与信号方向；同步更新 `tests/test_wanfactor_indicators.py` 与 `docs/factor_integration.md`。
 
 ### 后端关键配置
 
@@ -593,6 +597,7 @@ ruff format .
 - `test_strategy_compiler.py`
 - `test_strategies.py`
 - `test_technical_indicators.py`
+- `test_wanfactor_indicators.py`
 - `test_market_data_service.py`
 - `test_backup_scripts.py`
 

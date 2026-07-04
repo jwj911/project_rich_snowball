@@ -916,6 +916,45 @@ class AgentTaskStepDB(Base):
     )
 
 
+class FactorDefinitionDB(Base):
+    """Imported factor definitions that can be evaluated or selected by agents."""
+
+    __tablename__ = "factor_definitions"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    package_id = Column(String(80), nullable=False, default="manual", index=True)
+    factor_id = Column(String(80), nullable=False, index=True)
+    name = Column(String(240), nullable=False, index=True)
+    source = Column(String(80), nullable=True, index=True)
+    cluster_id = Column(String(80), nullable=True, index=True)
+    is_cluster_rep = Column(Boolean, nullable=False, default=False)
+    q_score = Column(Numeric(12, 6), nullable=True)
+    rankic = Column(Numeric(18, 10), nullable=True)
+    rankicir = Column(Numeric(18, 10), nullable=True)
+    test_rankicir = Column(Numeric(18, 10), nullable=True)
+    monotonicity = Column(Numeric(18, 10), nullable=True)
+    ls_sharpe = Column(Numeric(18, 10), nullable=True)
+    size_corr = Column(Numeric(18, 10), nullable=True)
+    coverage = Column(Numeric(18, 10), nullable=True)
+    source_expression = Column(Text, nullable=False)
+    converted_formula = Column(Text, nullable=True)
+    conversion_status = Column(String(30), nullable=False, default="pending", index=True)
+    conversion_error = Column(Text, nullable=True)
+    category = Column(String(60), nullable=True, index=True)
+    fields_json = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    watermark_sig = Column(String(200), nullable=True)
+    source_file = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
+
+    __table_args__ = (
+        UniqueConstraint("package_id", "factor_id", name="uix_factor_definitions_package_factor"),
+        Index("idx_factor_definitions_quality", "conversion_status", "q_score"),
+        Index("idx_factor_definitions_source_category", "source", "category"),
+    )
+
+
 class StrategyDB(Base):
     """用户策略库。
 

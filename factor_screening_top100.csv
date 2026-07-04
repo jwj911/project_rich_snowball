@@ -1,0 +1,101 @@
+rank,pack,name,category,Q,test_rankicir,monotonicity,ls_sharpe,composite_score,formula,columns
+1,factor_pack_027,AM_ts_mean_return_div_open_d4085de9,资金动量,0.9487,0.5679,0.9,1.1712,0.7738,,"开盘价_复权, 成交额"
+2,factor_pack_028,AM_add_open_delta_c1a4ac91,量能基础,0.941,-0.5749,-0.8,-1.3281,0.7672,,"开盘价_复权, 成交量"
+3,factor_pack_029,AM_mul_ts_sum_amount_bf8b6da1,资金基础,0.932,-0.5157,-1.0,-0.981,0.7534,,"最高价_复权, 成交额, 收盘价_复权, 最低价_复权"
+4,factor_pack_022,AM_neg_ts_pct_change_abs_ee1bb069,量能动量,0.9211,0.5111,1.0,1.1636,0.7527,,成交量
+5,factor_pack_022,AM_mul_signed_power_amplitude_758209a4,资金基础,0.9178,-0.5015,-1.0,-1.2863,0.7522,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+6,factor_pack_030,AM_mul_amount_ts_std_0910cc9f,资金动量,0.9134,-0.5205,-1.0,-1.1801,0.7522,,"最高价_复权, 成交额, 收盘价_复权, 最低价_复权"
+7,factor_pack_026,AM_signed_power_ts_maxmin_volume_3abae467,量能动量,0.9212,-0.4887,-1.0,-1.2647,0.7494,,成交量
+8,factor_pack_028,AM_ts_maxmin_signed_power_volume_8af03928,量能动量,0.9054,-0.5232,-0.9,-1.377,0.7456,,成交量
+9,factor_pack_022,AM_mul_abs_amount_3779853f,资金基础,0.9047,-0.4988,-1.0,-1.2683,0.7443,,"最高价_复权, 成交额, 收盘价_复权, 最低价_复权"
+10,factor_pack_023,AM_abs_mul_amount_a1dda97d,资金基础,0.9012,-0.4899,-1.0,-1.364,0.743,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+11,factor_pack_029,AM_sub_sign_ts_std_dd8ee5e9,资金动量,0.8951,-0.5067,-0.9,-1.6027,0.743,,"成交额, 收盘价_复权"
+12,factor_pack_026,AM_mul_amount_log_ed73d532,资金基础,0.8994,-0.4889,-1.0,-1.3712,0.7421,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+13,factor_pack_026,AM_ts_dema_mul_amount_f2ef68c3,资金动量,0.8963,-0.4882,-1.0,-1.3257,0.7388,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+14,factor_pack_030,AM_neg_ts_maxmin_volume_b4c7097f,量能动量,0.9116,0.4789,1.0,1.129,0.7371,,成交量
+15,factor_pack_026,AM_mul_amount_mul_0992fa40,量能动量,0.8977,-0.4576,-1.0,-1.5235,0.7369,,"成交额, 成交量, 最高价_复权, 前收盘价, 最低价_复权"
+16,factor_pack_028,AM_ts_std_signed_power_amount_888f7541,资金动量,0.8779,-0.486,-1.0,-1.5578,0.7367,,成交额
+17,factor_pack_029,AM_ts_maxmin_abs_volume_22868f8f,量能动量,0.9023,-0.4959,-0.9,-1.3781,0.7359,,成交量
+18,factor_pack_029,AM_abs_ts_maxmin_sub_627088c0,量能动量,0.9023,-0.4959,-0.9,-1.3781,0.7359,,成交量
+19,factor_pack_026,AM_ts_maxmin_add_volume_bd3d9c28,量能动量,0.9028,-0.4964,-0.9,-1.2977,0.7336,,"开盘价_复权, 成交量, 收盘价_复权"
+20,factor_pack_026,AM_signed_power_mul_amount_8ae7bd21,资金基础,0.8819,-0.4899,-1.0,-1.364,0.7334,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+21,factor_pack_023,AM_ts_pct_change_signed_power_mul_621cb807,量能动量,0.913,-0.5272,-0.9,-0.8146,0.7318,,"成交额, 成交量, 最低价_复权"
+22,factor_pack_028,AM_ts_inverse_cv_delta_amount_5166de46,资金动量,0.901,-0.4893,-0.9,-1.3107,0.731,,成交额
+23,factor_pack_027,AM_ts_inverse_cv_div_delta_a5e987bd,资金动量,0.901,-0.4893,-0.9,-1.3107,0.731,,成交额
+24,factor_pack_025,AM_log_mul_amplitude_79b9b6af,资金基础,0.8754,-0.4899,-1.0,-1.364,0.7301,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+25,factor_pack_030,AM_ema_ts_dema_delta_8dc6d97c,波动振幅,0.8826,0.4554,1.0,1.5643,0.7301,,"最高价_复权, 前收盘价, 最低价_复权"
+26,factor_pack_022,AM_sub_ts_median_clip_bff1a9fb,资金基础,0.888,0.4899,1.0,1.1315,0.7287,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+27,factor_pack_021,AM_div_ts_inverse_cv_volume_d69faf0f,量能动量,0.8717,0.4689,1.0,1.523,0.7273,,"成交量, 成交额"
+28,factor_pack_029,AM_ts_maxmin_ts_midpoint_volume_32d023ee,量能动量,0.9011,-0.4646,-1.0,-1.0734,0.7257,,成交量
+29,factor_pack_024,AM_ts_regression_beta_amplitude_ret_581e00f9,波动振幅,0.8912,-0.4428,-1.0,-1.3982,0.7251,,"最高价_复权, 收盘价_复权, 前收盘价, 最低价_复权"
+30,factor_pack_022,AM_ts_maxmin_sub_low_27004162,量能动量,0.885,0.5312,0.7,1.5379,0.7231,,"成交量, 最低价_复权"
+31,factor_pack_024,AM_ts_pct_change_signed_power_mul_6e2207c0,量能动量,0.9008,-0.4826,-0.9,-1.1245,0.7227,,成交量
+32,factor_pack_023,AM_clip_sub_ts_pct_change_b8767106,量能动量,0.8999,-0.4891,-0.9,-1.0581,0.7219,,"最高价_复权, 成交量, 前收盘价, 最低价_复权"
+33,factor_pack_027,AM_ts_pct_change_add_amount_3d19f079,资金动量,0.8976,-0.506,-0.9,-0.9384,0.7219,,成交额
+34,factor_pack_024,AM_ts_pct_change_amount_e7440388,资金动量,0.8976,-0.506,-0.9,-0.9384,0.7219,,成交额
+35,factor_pack_025,AM_ts_regression_beta_amplitude_ret_05be75b2,波动振幅,0.8894,-0.4396,-1.0,-1.3539,0.7217,,"最高价_复权, 收盘价_复权, 前收盘价, 最低价_复权"
+36,factor_pack_027,AM_signed_power_ts_maxmin_volume_d96caecf,量能动量,0.8909,-0.5311,-0.7,-1.4036,0.7216,,成交量
+37,factor_pack_026,AM_log_ts_pct_change_amount_3836ea63,资金动量,0.8884,-0.4947,-0.9,-1.1548,0.7211,,成交额
+38,factor_pack_022,AM_ts_pct_change_neg_amount_de17d0c9,资金动量,0.8883,-0.4947,-0.9,-1.1548,0.7211,,成交额
+39,factor_pack_022,AM_ts_maxmin_log_signed_power_1e956d80,量能动量,0.9081,-0.4959,-0.9,-0.8235,0.7203,,成交量
+40,factor_pack_021,AM_signed_power_abs_amount_c2dc0fb9,资金基础,0.8898,-0.4347,-1.0,-1.3418,0.72,,成交额
+41,factor_pack_026,AM_abs_neg_signed_power_af8ca0fe,资金基础,0.8898,-0.4347,-1.0,-1.3418,0.72,,成交额
+42,factor_pack_022,AM_add_open_signed_power_7aeb28e0,资金基础,0.8898,-0.4347,-1.0,-1.3418,0.72,,"开盘价_复权, 成交额"
+43,factor_pack_023,AM_add_amplitude_signed_power_01378434,资金基础,0.8898,-0.4347,-1.0,-1.3418,0.72,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+44,factor_pack_023,AM_signed_power_sub_amount_ccf1bcbf,资金基础,0.8898,-0.4347,-1.0,-1.3418,0.72,,"成交额, 最低价_复权"
+45,factor_pack_029,AM_neg_neg_neg_858953d7,资金基础,0.8898,-0.4347,-1.0,-1.3418,0.72,,成交额
+46,factor_pack_028,AM_sub_signed_power_amount_cf9a6c96,资金基础,0.8898,-0.4347,-1.0,-1.3418,0.72,,成交额
+47,factor_pack_021,AM_add_signed_power_amount_8a9beef3,资金基础,0.8898,-0.4347,-1.0,-1.3418,0.72,,成交额
+48,factor_pack_022,AM_add_signed_power_amount_08059a91,资金基础,0.8898,-0.4347,-1.0,-1.3418,0.72,,成交额
+49,factor_pack_022,AM_signed_power_abs_amount_492e056f,资金基础,0.8898,-0.4347,-1.0,-1.3418,0.72,,成交额
+50,factor_pack_025,AM_signed_power_add_amount_c65fd7b0,资金基础,0.8898,-0.4347,-1.0,-1.3418,0.72,,成交额
+51,factor_pack_024,AM_signed_power_sub_amount_ecdd2e11,资金基础,0.8898,-0.4347,-1.0,-1.3418,0.72,,"开盘价_复权, 成交额"
+52,factor_pack_021,AM_signed_power_sub_amount_21e4cc97,量能基础,0.8926,-0.4389,-1.0,-1.2338,0.7191,,"成交额, 成交量"
+53,factor_pack_023,AM_mul_ts_max_ret_1_288d9368,资金基础,0.8797,-0.506,-0.9,-1.0894,0.718,,"成交额, 收盘价_复权"
+54,factor_pack_028,AM_ts_mean_return_ema_signed_power_53189614,量能动量,0.8764,-0.4723,-0.9,-1.414,0.717,,成交量
+55,factor_pack_024,AM_ts_std_mul_amount_3047de62,资金动量,0.8718,-0.4581,-1.0,-1.3058,0.7169,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+56,factor_pack_025,AM_signed_power_ts_dema_abs_c9388462,量能动量,0.8975,-0.4509,-1.0,-0.9783,0.7166,,成交量
+57,factor_pack_030,AM_mul_amount_ts_mean_422340d9,资金动量,0.8771,-0.4925,-0.9,-1.2056,0.7165,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+58,factor_pack_023,AM_ts_median_mul_amount_52cf5944,资金基础,0.8759,-0.4885,-0.9,-1.2553,0.7163,,"最高价_复权, 成交额, 收盘价_复权, 最低价_复权"
+59,factor_pack_026,AM_ts_min_ema_sign_a553175f,其他,0.874,0.4197,1.0,1.5562,0.7148,,"开盘价_复权, 收盘价_复权"
+60,factor_pack_024,AM_ts_maxmin_add_ret_5_093626ad,资金动量,0.8853,-0.4621,-1.0,-1.0028,0.7147,,"成交额, 收盘价_复权"
+61,factor_pack_025,AM_mul_amplitude_ts_max_8d2f6d6b,资金基础,0.8687,-0.4758,-0.9,-1.4274,0.7147,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+62,factor_pack_030,AM_mul_ts_midpoint_ts_std_dfe547b9,资金动量,0.8712,-0.4727,-1.0,-1.109,0.7144,,"开盘价_复权, 成交额, 收盘价_复权"
+63,factor_pack_030,AM_ts_regression_beta_intraday_rang_b4142f62,波动振幅,0.879,-0.4525,-0.9,-1.4432,0.7133,,"最高价_复权, 收盘价_复权, 最低价_复权"
+64,factor_pack_027,AM_ema_ts_maxmin_volume_87c23f0d,量能动量,0.8763,-0.4675,-1.0,-1.0428,0.7132,,成交量
+65,factor_pack_029,AM_clip_ts_maxmin_sub_9bb34adc,量能动量,0.8931,0.5363,0.7,1.069,0.7131,,"成交量, 成交额, 收盘价_复权"
+66,factor_pack_030,AM_mul_ema_amplitude_f8fd11ed,资金基础,0.8702,-0.4841,-0.9,-1.2816,0.7131,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+67,factor_pack_023,AM_signed_power_ts_std_amount_19f266a0,资金动量,0.8785,-0.4177,-1.0,-1.4526,0.713,,成交额
+68,factor_pack_030,AM_ts_maxmin_abs_volume_2e47f348,量能动量,0.8823,-0.5269,-0.7,-1.3069,0.7128,,成交量
+69,factor_pack_027,AM_ts_pct_change_amount_2e61f251,资金动量,0.8902,-0.4708,-0.9,-1.048,0.7113,,成交额
+70,factor_pack_025,AM_ts_pct_change_amount_5b8b9cf8,资金动量,0.8809,-0.4624,-0.9,-1.259,0.7112,,成交额
+71,factor_pack_030,AM_mul_sub_amount_d5b5d73e,资金基础,0.879,0.4859,0.9,1.0562,0.7105,,"最高价_复权, 成交额, 收盘价_复权, 最低价_复权"
+72,factor_pack_022,AM_ts_sum_signed_power_ret_1_8b399a4f,其他,0.8867,-0.4329,-1.0,-1.1116,0.7103,,收盘价_复权
+73,factor_pack_027,AM_ema_ts_maxmin_volume_d6c865b3,量能动量,0.8778,-0.4941,-0.9,-0.9779,0.7097,,成交量
+74,factor_pack_026,AM_ts_min_neg_ret_20_8ece5d20,其他,0.8953,0.4761,0.9,0.8775,0.7097,,收盘价_复权
+75,factor_pack_028,AM_neg_ts_min_log_c9045c13,其他,0.8933,-0.4726,-0.9,-0.9258,0.7093,,收盘价_复权
+76,factor_pack_029,AM_ts_inverse_cv_delta_volume_e7a5680e,量能动量,0.8879,-0.4671,-0.9,-1.052,0.7092,,成交量
+77,factor_pack_021,AM_ts_max_ret_20_296b1c32,其他,0.893,-0.4726,-0.9,-0.9258,0.7091,,收盘价_复权
+78,factor_pack_022,AM_signed_power_ts_pct_change_amoun_98d96888,资金动量,0.8903,-0.4882,-0.9,-0.7885,0.7079,,成交额
+79,factor_pack_024,AM_ts_max_clip_ret_20_02db363e,价格动量,0.8951,-0.4463,-1.0,-0.7903,0.7078,,收盘价_复权
+80,factor_pack_024,AM_div_ts_inverse_cv_ts_dema_dbdcacaa,量能动量,0.8624,0.4672,0.9,1.3886,0.7077,,"成交量, 成交额"
+81,factor_pack_023,AM_log_ts_maxmin_sub_60982373,资金动量,0.8738,0.4742,0.9,1.1498,0.7075,,成交额
+82,factor_pack_023,AM_ts_maxmin_abs_amount_3530d635,资金动量,0.8738,-0.4754,-0.9,-1.1321,0.7073,,成交额
+83,factor_pack_021,AM_neg_signed_power_ts_max_dd28d683,其他,0.8934,0.4405,1.0,0.8423,0.7069,,收盘价_复权
+84,factor_pack_028,AM_ts_regression_beta_ret_20_intrad_a93226c2,波动振幅,0.86,-0.4007,-1.0,-1.6926,0.7066,,"最高价_复权, 收盘价_复权, 最低价_复权"
+85,factor_pack_022,AM_clip_ts_pct_change_signed_power_9e766938,量能动量,0.9016,-0.5174,-0.8,-0.6078,0.7063,,成交量
+86,factor_pack_022,AM_ts_regression_beta_neg_amplitude_e0ddc0c0,波动振幅,0.8659,0.4365,0.9,1.5689,0.7062,,"最高价_复权, 收盘价_复权, 前收盘价, 最低价_复权"
+87,factor_pack_022,AM_sub_gap_ts_pct_change_9572d239,量能动量,0.8822,0.4825,0.9,0.9063,0.7061,,"开盘价_复权, 成交量, 收盘价_复权"
+88,factor_pack_024,AM_ts_maxmin_ts_dema_volume_b07e98ad,量能动量,0.8824,-0.4503,-1.0,-0.8928,0.706,,成交量
+89,factor_pack_023,AM_signed_power_ts_max_ret_20_4ab73333,其他,0.8891,-0.4644,-0.9,-0.9496,0.7055,,收盘价_复权
+90,factor_pack_025,AM_div_ts_pct_change_intraday_range_7dfa319a,波动振幅,0.8811,-0.4224,-1.0,-1.1462,0.7055,,"最高价_复权, 收盘价_复权, 最低价_复权"
+91,factor_pack_027,AM_div_amount_6693106c,资金基础,0.8605,-0.4347,-1.0,-1.3418,0.7054,,成交额
+92,factor_pack_030,AM_ts_pct_change_log_volume_bacd05bd,量能动量,0.8856,-0.4623,-0.9,-1.0161,0.7053,,成交量
+93,factor_pack_030,AM_div_amount_d008f97f,资金基础,0.8595,-0.4347,-1.0,-1.3418,0.7049,,成交额
+94,factor_pack_022,AM_ts_std_ts_dema_amount_48650d31,资金动量,0.8481,-0.456,-0.9,-1.6157,0.7047,,成交额
+95,factor_pack_022,AM_ts_dema_signed_power_amount_4454a286,资金动量,0.8696,-0.4045,-1.0,-1.456,0.7047,,成交额
+96,factor_pack_030,AM_div_amount_eb73412d,资金基础,0.8585,-0.4347,-1.0,-1.3418,0.7044,,成交额
+97,factor_pack_030,AM_div_sub_ts_maxmin_b0358b94,资金动量,0.8657,-0.441,-1.0,-1.176,0.7044,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"
+98,factor_pack_025,AM_mul_high_signed_power_b6abef99,资金基础,0.8774,-0.4162,-1.0,-1.2216,0.7043,,"最高价_复权, 成交额"
+99,factor_pack_026,AM_div_amount_f3aa53db,资金基础,0.8581,-0.4347,-1.0,-1.3418,0.7042,,成交额
+100,factor_pack_028,AM_sub_signed_power_amount_1a450514,资金基础,0.8578,-0.4347,-1.0,-1.3418,0.704,,"最高价_复权, 成交额, 前收盘价, 最低价_复权"

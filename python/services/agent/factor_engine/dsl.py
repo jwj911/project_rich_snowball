@@ -93,8 +93,21 @@ def _ts_std(df: pd.DataFrame, window: int) -> pd.DataFrame:
     return df.rolling(window=window, min_periods=1).std()
 
 
+def _ema(df: pd.DataFrame, span: int) -> pd.DataFrame:
+    return df.ewm(span=span, adjust=False).mean()
+
+
+def _ts_dema(df: pd.DataFrame, span: int) -> pd.DataFrame:
+    ema = _ema(df, span)
+    return 2.0 * ema - _ema(ema, span)
+
+
 def _ts_sum(df: pd.DataFrame, window: int) -> pd.DataFrame:
     return df.rolling(window=window, min_periods=1).sum()
+
+
+def _ts_median(df: pd.DataFrame, window: int) -> pd.DataFrame:
+    return df.rolling(window=window, min_periods=1).median()
 
 
 def _ts_max(df: pd.DataFrame, window: int) -> pd.DataFrame:
@@ -103,6 +116,35 @@ def _ts_max(df: pd.DataFrame, window: int) -> pd.DataFrame:
 
 def _ts_min(df: pd.DataFrame, window: int) -> pd.DataFrame:
     return df.rolling(window=window, min_periods=1).min()
+
+
+def _ts_midpoint(df: pd.DataFrame, window: int) -> pd.DataFrame:
+    rolling = df.rolling(window=window, min_periods=1)
+    return (rolling.max() + rolling.min()) / 2.0
+
+
+def _ts_inverse_cv(df: pd.DataFrame, window: int) -> pd.DataFrame:
+    rolling = df.rolling(window=window, min_periods=1)
+    return rolling.mean() / rolling.std().replace(0, np.nan)
+
+
+def _ts_maxmin(df: pd.DataFrame, window: int) -> pd.DataFrame:
+    rolling = df.rolling(window=window, min_periods=1)
+    min_value = rolling.min()
+    return (df - min_value) / (rolling.max() - min_value).replace(0, np.nan)
+
+
+def _ts_mean_return(df: pd.DataFrame, window: int) -> pd.DataFrame:
+    one_period_return = np.sign(df) * (df - df.shift(1)) / df.abs().replace(0, np.nan)
+    return one_period_return.rolling(window=window, min_periods=1).mean()
+
+
+def _ts_skew(df: pd.DataFrame, window: int) -> pd.DataFrame:
+    return df.rolling(window=window, min_periods=1).skew()
+
+
+def _ts_kurt(df: pd.DataFrame, window: int) -> pd.DataFrame:
+    return df.rolling(window=window, min_periods=1).kurt()
 
 
 def _ts_delay(df: pd.DataFrame, window: int) -> pd.DataFrame:
@@ -134,6 +176,12 @@ def _ts_corr(x: pd.DataFrame, y: pd.DataFrame, window: int) -> pd.DataFrame:
 
 def _ts_cov(x: pd.DataFrame, y: pd.DataFrame, window: int) -> pd.DataFrame:
     return x.rolling(window=window, min_periods=1).cov(y)
+
+
+def _ts_regression_beta(x: pd.DataFrame, y: pd.DataFrame, window: int) -> pd.DataFrame:
+    covariance = x.rolling(window=window, min_periods=1).cov(y)
+    variance = y.rolling(window=window, min_periods=1).var()
+    return covariance / variance.replace(0, np.nan)
 
 
 # ---------- 横截面算子 ----------
@@ -180,17 +228,27 @@ def _build_namespace(panel: PanelData) -> dict[str, Any]:
     namespace: dict[str, Any] = panel.to_dict()
     functions: dict[str, Callable[..., Any]] = {
         # 时间序列
+        "ema": _ema,
+        "ts_dema": _ts_dema,
         "ts_mean": _ts_mean,
         "ts_std": _ts_std,
         "ts_sum": _ts_sum,
+        "ts_median": _ts_median,
         "ts_max": _ts_max,
         "ts_min": _ts_min,
+        "ts_midpoint": _ts_midpoint,
+        "ts_inverse_cv": _ts_inverse_cv,
+        "ts_maxmin": _ts_maxmin,
+        "ts_mean_return": _ts_mean_return,
+        "ts_skew": _ts_skew,
+        "ts_kurt": _ts_kurt,
         "ts_delay": _ts_delay,
         "ts_delta": _ts_delta,
         "ts_rank": _ts_rank,
         "ts_zscore": _ts_zscore,
         "ts_corr": _ts_corr,
         "ts_cov": _ts_cov,
+        "ts_regression_beta": _ts_regression_beta,
         # 横截面
         "rank": _rank,
         "zscore": _zscore,

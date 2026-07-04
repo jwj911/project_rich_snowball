@@ -1,7 +1,7 @@
 """后端技术指标计算库。
 
 基于纯 numpy/pandas 实现，无需 talib 依赖。
-输入为 pandas DataFrame，列名：open, high, low, close, volume。
+输入为 pandas DataFrame，列名：open, high, low, close, volume, amount。
 """
 
 from __future__ import annotations
@@ -202,4 +202,704 @@ def calculate_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     # WR
     df["wr14"] = williams_r(df, 14)
 
+    return df
+
+
+# ========== 万因子·歌者计划 精选27因子（A股万因子适配期货） ==========
+
+
+def factor_ts_mean_return_div_open(df: pd.DataFrame, window: int = 43) -> pd.Series:
+    """资金动量因子 | AM_ts_mean_return_div_open_d4085de9
+
+    万因子·歌者计划精选因子（Rank 1）。
+    原始公式: ts_mean_return(div(open, amount), 43)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 open, amount。
+        window: 主窗口参数，默认 43。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 正向（高值预示上涨）
+    Q值: 0.9487 | test_rankicir: 0.5679 | monotonicity: 0.9 | ls_sharpe: 1.1712
+    """
+    open_ = df["open"]
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    _t0 = open_ / amount.replace(0, np.nan)
+    _t1 = (np.sign(_t0) * (_t0 - _t0.shift(1)) / _t0.abs().replace(0, np.nan)).rolling(window=window, min_periods=1).mean()
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_add_open_delta(df: pd.DataFrame, window: int = 90) -> pd.Series:
+    """量能基础因子 | AM_add_open_delta_c1a4ac91
+
+    万因子·歌者计划精选因子（Rank 2）。
+    原始公式: add(open, delta(ts_sum(volume, 90)))
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 open, volume。
+        window: 主窗口参数，默认 90。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.941 | test_rankicir: -0.5749 | monotonicity: -0.8 | ls_sharpe: -1.3281
+    """
+    open_ = df["open"]
+    volume = df["volume"]
+    _t0 = volume.rolling(window=window, min_periods=1).sum()
+    _t1 = _t0.diff()
+    _t2 = open_ + _t1
+    return pd.Series(_t2, index=df.index)
+
+
+def factor_mul_ts_sum_amount(df: pd.DataFrame, window: int = 23) -> pd.Series:
+    """资金基础因子 | AM_mul_ts_sum_amount_bf8b6da1
+
+    万因子·歌者计划精选因子（Rank 3）。
+    原始公式: mul(ts_sum(amount, 23), signed_power(intraday_range, exponent=3.0))
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, close, high, low。
+        window: 主窗口参数，默认 23。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.932 | test_rankicir: -0.5157 | monotonicity: -1.0 | ls_sharpe: -0.981
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    intraday_range = (df["high"] - df["low"]) / df["close"].replace(0, np.nan)
+    _t0 = amount.rolling(window=window, min_periods=1).sum()
+    _t1 = np.sign(intraday_range) * np.abs(intraday_range) ** 3.0
+    _t2 = _t0 * _t1
+    return pd.Series(_t2, index=df.index)
+
+
+def factor_neg_ts_pct_change_abs(df: pd.DataFrame, window: int = 71) -> pd.Series:
+    """量能动量因子 | AM_neg_ts_pct_change_abs_ee1bb069
+
+    万因子·歌者计划精选因子（Rank 4）。
+    原始公式: neg(ts_pct_change(abs(volume), 71))
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 volume。
+        window: 主窗口参数，默认 71。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 正向（高值预示上涨）
+    Q值: 0.9211 | test_rankicir: 0.5111 | monotonicity: 1.0 | ls_sharpe: 1.1636
+    """
+    volume = df["volume"]
+    _t0 = volume.abs()
+    _t1 = np.sign(_t0) * (_t0 - _t0.shift(window)) / _t0.abs().replace(0, np.nan)
+    _t2 = -(_t1)
+    return pd.Series(_t2, index=df.index)
+
+
+def factor_mul_signed_power_amplitude(df: pd.DataFrame, window: int = 10) -> pd.Series:
+    """资金基础因子 | AM_mul_signed_power_amplitude_758209a4
+
+    万因子·歌者计划精选因子（Rank 5）。
+    原始公式: mul(signed_power(amplitude, exponent=1.5), amount)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, high, low。
+        window: 保留参数，默认 10（原始因子无时序窗口）。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.9178 | test_rankicir: -0.5015 | monotonicity: -1.0 | ls_sharpe: -1.2863
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    amplitude = (df["high"] - df["low"]) / df["close"].shift(1).replace(0, np.nan)
+    _t0 = np.sign(amplitude) * np.abs(amplitude) ** 1.5
+    _t1 = _t0 * amount
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_mul_amount_ts_std(df: pd.DataFrame, window: int = 77) -> pd.Series:
+    """资金动量因子 | AM_mul_amount_ts_std_0910cc9f
+
+    万因子·歌者计划精选因子（Rank 6）。
+    原始公式: mul(amount, ts_std(abs(intraday_range), 77))
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, close, high, low。
+        window: 主窗口参数，默认 77。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.9134 | test_rankicir: -0.5205 | monotonicity: -1.0 | ls_sharpe: -1.1801
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    intraday_range = (df["high"] - df["low"]) / df["close"].replace(0, np.nan)
+    _t0 = intraday_range.abs()
+    _t1 = _t0.rolling(window=window, min_periods=1).std()
+    _t2 = amount * _t1
+    return pd.Series(_t2, index=df.index)
+
+
+def factor_signed_power_ts_maxmin_volume(df: pd.DataFrame, window: int = 84) -> pd.Series:
+    """量能动量因子 | AM_signed_power_ts_maxmin_volume_3abae467
+
+    万因子·歌者计划精选因子（Rank 7）。
+    原始公式: signed_power(ts_maxmin(volume, 84), exponent=2.0)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 volume。
+        window: 主窗口参数，默认 84。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.9212 | test_rankicir: -0.4887 | monotonicity: -1.0 | ls_sharpe: -1.2647
+    """
+    volume = df["volume"]
+    vmin = volume.rolling(window=window, min_periods=1).min()
+    vmax = volume.rolling(window=window, min_periods=1).max()
+    _t0 = (volume - vmin) / (vmax - vmin).replace(0, np.nan)
+    _t1 = np.sign(_t0) * np.abs(_t0) ** 2.0
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_ts_maxmin_signed_power_volume(df: pd.DataFrame, window: int = 111) -> pd.Series:
+    """量能动量因子 | AM_ts_maxmin_signed_power_volume_8af03928
+
+    万因子·歌者计划精选因子（Rank 8）。
+    原始公式: ts_maxmin(signed_power(volume, exponent=1.5), 111)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 volume。
+        window: 主窗口参数，默认 111。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.9054 | test_rankicir: -0.5232 | monotonicity: -0.9 | ls_sharpe: -1.377
+    """
+    volume = df["volume"]
+    _t0 = np.sign(volume) * np.abs(volume) ** 1.5
+    vmin = _t0.rolling(window=window, min_periods=1).min()
+    vmax = _t0.rolling(window=window, min_periods=1).max()
+    _t1 = (_t0 - vmin) / (vmax - vmin).replace(0, np.nan)
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_mul_abs_amount(df: pd.DataFrame, window: int = 10) -> pd.Series:
+    """资金基础因子 | AM_mul_abs_amount_3779853f
+
+    万因子·歌者计划精选因子（Rank 9）。
+    原始公式: mul(abs(amount), intraday_range)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, close, high, low。
+        window: 保留参数，默认 10（原始因子无时序窗口）。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.9047 | test_rankicir: -0.4988 | monotonicity: -1.0 | ls_sharpe: -1.2683
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    intraday_range = (df["high"] - df["low"]) / df["close"].replace(0, np.nan)
+    _t0 = amount.abs()
+    _t1 = _t0 * intraday_range
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_abs_mul_amount(df: pd.DataFrame, window: int = 10) -> pd.Series:
+    """资金基础因子 | AM_abs_mul_amount_a1dda97d
+
+    万因子·歌者计划精选因子（Rank 10）。
+    原始公式: abs(mul(amount, amplitude))
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, high, low。
+        window: 保留参数，默认 10（原始因子无时序窗口）。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.9012 | test_rankicir: -0.4899 | monotonicity: -1.0 | ls_sharpe: -1.364
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    amplitude = (df["high"] - df["low"]) / df["close"].shift(1).replace(0, np.nan)
+    _t0 = amount * amplitude
+    _t1 = _t0.abs()
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_sub_sign_ts_std(df: pd.DataFrame, window: int = 117) -> pd.Series:
+    """资金动量因子 | AM_sub_sign_ts_std_dd8ee5e9
+
+    万因子·歌者计划精选因子（Rank 11）。
+    原始公式: sub(sign(ts_std(ts_skew(zscore(ret_5, 95), 80), 112)), ts_maxmin(neg(ts_max(amount, 6)), 117))
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, close。
+        window: 主窗口参数，默认 117。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.8951 | test_rankicir: -0.5067 | monotonicity: -0.9 | ls_sharpe: -1.6027
+    """
+    ret_5 = df["close"].pct_change(5, fill_method=None)
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    _t0 = (ret_5 - ret_5.rolling(window=95, min_periods=1).mean()) / ret_5.rolling(window=95, min_periods=1).std().replace(0, np.nan)
+    _t1 = _t0.rolling(window=80, min_periods=1).skew()
+    _t2 = _t1.rolling(window=112, min_periods=1).std()
+    _t3 = np.sign(_t2)
+    _t4 = amount.rolling(window=6, min_periods=1).max()
+    _t5 = -(_t4)
+    _t6_min = _t5.rolling(window=window, min_periods=1).min()
+    _t6_max = _t5.rolling(window=window, min_periods=1).max()
+    _t6 = (_t5 - _t6_min) / (_t6_max - _t6_min).replace(0, np.nan)
+    _t7 = _t3 - _t6
+    return pd.Series(_t7, index=df.index)
+
+
+def factor_mul_amount_log(df: pd.DataFrame, window: int = 10) -> pd.Series:
+    """资金基础因子 | AM_mul_amount_log_ed73d532
+
+    万因子·歌者计划精选因子（Rank 12）。
+    原始公式: mul(amount, log(amplitude))
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, high, low。
+        window: 保留参数，默认 10（原始因子无时序窗口）。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.8994 | test_rankicir: -0.4889 | monotonicity: -1.0 | ls_sharpe: -1.3712
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    amplitude = (df["high"] - df["low"]) / df["close"].shift(1).replace(0, np.nan)
+    _t0 = np.sign(amplitude) * np.log1p(np.abs(amplitude))
+    _t1 = amount * _t0
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_ts_dema_mul_amount(df: pd.DataFrame, window: int = 13) -> pd.Series:
+    """资金动量因子 | AM_ts_dema_mul_amount_f2ef68c3
+
+    万因子·歌者计划精选因子（Rank 13）。
+    原始公式: ts_dema(mul(amount, amplitude), 13)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, high, low。
+        window: 主窗口参数，默认 13。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.8963 | test_rankicir: -0.4882 | monotonicity: -1.0 | ls_sharpe: -1.3257
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    amplitude = (df["high"] - df["low"]) / df["close"].shift(1).replace(0, np.nan)
+    _t0 = amount * amplitude
+    ema1 = _t0.ewm(span=window, adjust=False, min_periods=1).mean()
+    ema2 = ema1.ewm(span=window, adjust=False, min_periods=1).mean()
+    _t1 = 2.0 * ema1 - ema2
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_neg_ts_maxmin_volume(df: pd.DataFrame, window: int = 79) -> pd.Series:
+    """量能动量因子 | AM_neg_ts_maxmin_volume_b4c7097f
+
+    万因子·歌者计划精选因子（Rank 14）。
+    原始公式: neg(ts_maxmin(volume, 79))
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 volume。
+        window: 主窗口参数，默认 79。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 正向（高值预示上涨）
+    Q值: 0.9116 | test_rankicir: 0.4789 | monotonicity: 1.0 | ls_sharpe: 1.129
+    """
+    volume = df["volume"]
+    vmin = volume.rolling(window=window, min_periods=1).min()
+    vmax = volume.rolling(window=window, min_periods=1).max()
+    _t0 = (volume - vmin) / (vmax - vmin).replace(0, np.nan)
+    _t1 = -(_t0)
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_mul_amount_mul(df: pd.DataFrame, window: int = 10) -> pd.Series:
+    """量能动量因子 | AM_mul_amount_mul_0992fa40
+
+    万因子·歌者计划精选因子（Rank 15）。
+    原始公式: mul(amount, mul(ts_dema(amplitude, 10), volume))
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, high, low, volume。
+        window: 主窗口参数，默认 10。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.8977 | test_rankicir: -0.4576 | monotonicity: -1.0 | ls_sharpe: -1.5235
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    amplitude = (df["high"] - df["low"]) / df["close"].shift(1).replace(0, np.nan)
+    volume = df["volume"]
+    ema1 = amplitude.ewm(span=window, adjust=False, min_periods=1).mean()
+    ema2 = ema1.ewm(span=window, adjust=False, min_periods=1).mean()
+    _t0 = 2.0 * ema1 - ema2
+    _t1 = _t0 * volume
+    _t2 = amount * _t1
+    return pd.Series(_t2, index=df.index)
+
+
+def factor_ts_std_signed_power_amount(df: pd.DataFrame, window: int = 5) -> pd.Series:
+    """资金动量因子 | AM_ts_std_signed_power_amount_888f7541
+
+    万因子·歌者计划精选因子（Rank 16）。
+    原始公式: ts_std(signed_power(amount, exponent=0.5), 5)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount。
+        window: 主窗口参数，默认 5。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.8779 | test_rankicir: -0.486 | monotonicity: -1.0 | ls_sharpe: -1.5578
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    _t0 = np.sign(amount) * np.abs(amount) ** 0.5
+    _t1 = _t0.rolling(window=window, min_periods=1).std()
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_ts_maxmin_abs_volume(df: pd.DataFrame, window: int = 91) -> pd.Series:
+    """量能动量因子 | AM_ts_maxmin_abs_volume_22868f8f
+
+    万因子·歌者计划精选因子（Rank 17）。
+    原始公式: ts_maxmin(abs(volume), 91)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 volume。
+        window: 主窗口参数，默认 91。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.9023 | test_rankicir: -0.4959 | monotonicity: -0.9 | ls_sharpe: -1.3781
+    """
+    volume = df["volume"]
+    _t0 = volume.abs()
+    vmin = _t0.rolling(window=window, min_periods=1).min()
+    vmax = _t0.rolling(window=window, min_periods=1).max()
+    _t1 = (_t0 - vmin) / (vmax - vmin).replace(0, np.nan)
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_abs_ts_maxmin_sub(df: pd.DataFrame, window: int = 91) -> pd.Series:
+    """量能动量因子 | AM_abs_ts_maxmin_sub_627088c0
+
+    万因子·歌者计划精选因子（Rank 18）。
+    原始公式: abs(ts_maxmin(sub(volume, -1.8931), 91))
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 volume。
+        window: 主窗口参数，默认 91。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.9023 | test_rankicir: -0.4959 | monotonicity: -0.9 | ls_sharpe: -1.3781
+    """
+    volume = df["volume"]
+    _t0 = volume - -1.893107054794875
+    vmin = _t0.rolling(window=window, min_periods=1).min()
+    vmax = _t0.rolling(window=window, min_periods=1).max()
+    _t1 = (_t0 - vmin) / (vmax - vmin).replace(0, np.nan)
+    _t2 = _t1.abs()
+    return pd.Series(_t2, index=df.index)
+
+
+def factor_ts_maxmin_add_volume(df: pd.DataFrame, window: int = 88) -> pd.Series:
+    """量能动量因子 | AM_ts_maxmin_add_volume_bd3d9c28
+
+    万因子·歌者计划精选因子（Rank 19）。
+    原始公式: ts_maxmin(add(volume, gap), 88)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 close, open, volume。
+        window: 主窗口参数，默认 88。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.9028 | test_rankicir: -0.4964 | monotonicity: -0.9 | ls_sharpe: -1.2977
+    """
+    volume = df["volume"]
+    gap = df["open"] / df["close"].shift(1).replace(0, np.nan) - 1
+    _t0 = volume + gap
+    vmin = _t0.rolling(window=window, min_periods=1).min()
+    vmax = _t0.rolling(window=window, min_periods=1).max()
+    _t1 = (_t0 - vmin) / (vmax - vmin).replace(0, np.nan)
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_signed_power_mul_amount(df: pd.DataFrame, window: int = 10) -> pd.Series:
+    """资金基础因子 | AM_signed_power_mul_amount_8ae7bd21
+
+    万因子·歌者计划精选因子（Rank 20）。
+    原始公式: signed_power(mul(amount, amplitude), exponent=0.5)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, high, low。
+        window: 保留参数，默认 10（原始因子无时序窗口）。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.8819 | test_rankicir: -0.4899 | monotonicity: -1.0 | ls_sharpe: -1.364
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    amplitude = (df["high"] - df["low"]) / df["close"].shift(1).replace(0, np.nan)
+    _t0 = amount * amplitude
+    _t1 = np.sign(_t0) * np.abs(_t0) ** 0.5
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_ts_pct_change_signed_power_mul(df: pd.DataFrame, window: int = 56) -> pd.Series:
+    """量能动量因子 | AM_ts_pct_change_signed_power_mul_621cb807
+
+    万因子·歌者计划精选因子（Rank 21）。
+    原始公式: ts_pct_change(signed_power(mul(amount, ts_mean_return(add(low, volume), 56)), exponent=1.5), 43)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, low, volume。
+        window: 主窗口参数，默认 56。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.913 | test_rankicir: -0.5272 | monotonicity: -0.9 | ls_sharpe: -0.8146
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    low = df["low"]
+    volume = df["volume"]
+    _t0 = low + volume
+    _t1 = (np.sign(_t0) * (_t0 - _t0.shift(1)) / _t0.abs().replace(0, np.nan)).rolling(window=56, min_periods=1).mean()
+    _t2 = amount * _t1
+    _t3 = np.sign(_t2) * np.abs(_t2) ** 1.5
+    _t4 = np.sign(_t3) * (_t3 - _t3.shift(43)) / _t3.abs().replace(0, np.nan)
+    return pd.Series(_t4, index=df.index)
+
+
+def factor_ts_inverse_cv_delta_amount(df: pd.DataFrame, window: int = 85) -> pd.Series:
+    """资金动量因子 | AM_ts_inverse_cv_delta_amount_5166de46
+
+    万因子·歌者计划精选因子（Rank 22）。
+    原始公式: ts_inverse_cv(delta(amount), 85)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount。
+        window: 主窗口参数，默认 85。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.901 | test_rankicir: -0.4893 | monotonicity: -0.9 | ls_sharpe: -1.3107
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    _t0 = amount.diff()
+    _t1 = _t0.rolling(window=window, min_periods=1).mean() / _t0.rolling(window=window, min_periods=1).std().replace(0, np.nan)
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_ts_inverse_cv_div_delta(df: pd.DataFrame, window: int = 85) -> pd.Series:
+    """资金动量因子 | AM_ts_inverse_cv_div_delta_a5e987bd
+
+    万因子·歌者计划精选因子（Rank 23）。
+    原始公式: ts_inverse_cv(div(delta(amount), 0.1643), 85)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount。
+        window: 主窗口参数，默认 85。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.901 | test_rankicir: -0.4893 | monotonicity: -0.9 | ls_sharpe: -1.3107
+    """
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    _t0 = amount.diff()
+    _t1 = _t0 / 0.1643122401170105
+    _t2 = _t1.rolling(window=window, min_periods=1).mean() / _t1.rolling(window=window, min_periods=1).std().replace(0, np.nan)
+    return pd.Series(_t2, index=df.index)
+
+
+def factor_log_mul_amplitude(df: pd.DataFrame, window: int = 10) -> pd.Series:
+    """资金基础因子 | AM_log_mul_amplitude_79b9b6af
+
+    万因子·歌者计划精选因子（Rank 24）。
+    原始公式: log(mul(amplitude, amount))
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, high, low。
+        window: 保留参数，默认 10（原始因子无时序窗口）。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 负向（高值预示下跌）
+    Q值: 0.8754 | test_rankicir: -0.4899 | monotonicity: -1.0 | ls_sharpe: -1.364
+    """
+    amplitude = (df["high"] - df["low"]) / df["close"].shift(1).replace(0, np.nan)
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    _t0 = amplitude * amount
+    _t1 = np.sign(_t0) * np.log1p(np.abs(_t0))
+    return pd.Series(_t1, index=df.index)
+
+
+def factor_ema_ts_dema_delta(df: pd.DataFrame, window: int = 38) -> pd.Series:
+    """波动振幅因子 | AM_ema_ts_dema_delta_8dc6d97c
+
+    万因子·歌者计划精选因子（Rank 25）。
+    原始公式: ema(ts_dema(delta(ts_inverse_cv(amplitude, 38)), 3), 103)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 high, low。
+        window: 主窗口参数，默认 38。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 正向（高值预示上涨）
+    Q值: 0.8826 | test_rankicir: 0.4554 | monotonicity: 1.0 | ls_sharpe: 1.5643
+    """
+    amplitude = (df["high"] - df["low"]) / df["close"].shift(1).replace(0, np.nan)
+    _t0 = amplitude.rolling(window=38, min_periods=1).mean() / amplitude.rolling(window=38, min_periods=1).std().replace(0, np.nan)
+    _t1 = _t0.diff()
+    ema1 = _t1.ewm(span=3, adjust=False, min_periods=1).mean()
+    ema2 = ema1.ewm(span=3, adjust=False, min_periods=1).mean()
+    _t2 = 2.0 * ema1 - ema2
+    _t3 = _t2.ewm(span=103, adjust=False, min_periods=1).mean()
+    return pd.Series(_t3, index=df.index)
+
+
+def factor_sub_ts_median_clip(df: pd.DataFrame, window: int = 65) -> pd.Series:
+    """资金基础因子 | AM_sub_ts_median_clip_bff1a9fb
+
+    万因子·歌者计划精选因子（Rank 26）。
+    原始公式: sub(ts_median(clip(low, low=-3.0, high=3.0), 65), mul(amount, amplitude))
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, high, low。
+        window: 主窗口参数，默认 65。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 正向（高值预示上涨）
+    Q值: 0.888 | test_rankicir: 0.4899 | monotonicity: 1.0 | ls_sharpe: 1.1315
+    """
+    low = df["low"]
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    amplitude = (df["high"] - df["low"]) / df["close"].shift(1).replace(0, np.nan)
+    _t0 = low.clip(lower=-3.0, upper=3.0)
+    _t1 = _t0.rolling(window=window, min_periods=1).median()
+    _t2 = amount * amplitude
+    _t3 = _t1 - _t2
+    return pd.Series(_t3, index=df.index)
+
+
+def factor_div_ts_inverse_cv_volume(df: pd.DataFrame, window: int = 5) -> pd.Series:
+    """量能动量因子 | AM_div_ts_inverse_cv_volume_d69faf0f
+
+    万因子·歌者计划精选因子（Rank 27）。
+    原始公式: div(ts_inverse_cv(volume, 5), amount)
+
+    Args:
+        df: 包含OHLCV数据的DataFrame，列名需含 amount, volume。
+        window: 主窗口参数，默认 5。
+
+    Returns:
+        pd.Series: 因子值序列，与输入行数一致。
+
+    信号方向: 正向（高值预示上涨）
+    Q值: 0.8717 | test_rankicir: 0.4689 | monotonicity: 1.0 | ls_sharpe: 1.523
+    """
+    volume = df["volume"]
+    amount = df["amount"] if "amount" in df.columns else df["close"] * df["volume"]
+    _t0 = volume.rolling(window=window, min_periods=1).mean() / volume.rolling(window=window, min_periods=1).std().replace(0, np.nan)
+    _t1 = _t0 / amount.replace(0, np.nan)
+    return pd.Series(_t1, index=df.index)
+
+
+def calculate_all_factors(df: pd.DataFrame) -> pd.DataFrame:
+    """计算全部27个万因子精选因子，返回宽表。
+
+    参数:
+        df: 包含 open/high/low/close/volume/amount 的 DataFrame。
+            若缺少 amount 列，内部将使用 close * volume 近似。
+
+    返回:
+        新增27列因子值的 DataFrame
+    """
+    if "amount" not in df.columns:
+        df = df.copy()
+        df["amount"] = df["close"] * df["volume"]
+    df["factor_ts_mean_return_div_open"] = factor_ts_mean_return_div_open(df)
+    df["factor_add_open_delta"] = factor_add_open_delta(df)
+    df["factor_mul_ts_sum_amount"] = factor_mul_ts_sum_amount(df)
+    df["factor_neg_ts_pct_change_abs"] = factor_neg_ts_pct_change_abs(df)
+    df["factor_mul_signed_power_amplitude"] = factor_mul_signed_power_amplitude(df)
+    df["factor_mul_amount_ts_std"] = factor_mul_amount_ts_std(df)
+    df["factor_signed_power_ts_maxmin_volume"] = factor_signed_power_ts_maxmin_volume(df)
+    df["factor_ts_maxmin_signed_power_volume"] = factor_ts_maxmin_signed_power_volume(df)
+    df["factor_mul_abs_amount"] = factor_mul_abs_amount(df)
+    df["factor_abs_mul_amount"] = factor_abs_mul_amount(df)
+    df["factor_sub_sign_ts_std"] = factor_sub_sign_ts_std(df)
+    df["factor_mul_amount_log"] = factor_mul_amount_log(df)
+    df["factor_ts_dema_mul_amount"] = factor_ts_dema_mul_amount(df)
+    df["factor_neg_ts_maxmin_volume"] = factor_neg_ts_maxmin_volume(df)
+    df["factor_mul_amount_mul"] = factor_mul_amount_mul(df)
+    df["factor_ts_std_signed_power_amount"] = factor_ts_std_signed_power_amount(df)
+    df["factor_ts_maxmin_abs_volume"] = factor_ts_maxmin_abs_volume(df)
+    df["factor_abs_ts_maxmin_sub"] = factor_abs_ts_maxmin_sub(df)
+    df["factor_ts_maxmin_add_volume"] = factor_ts_maxmin_add_volume(df)
+    df["factor_signed_power_mul_amount"] = factor_signed_power_mul_amount(df)
+    df["factor_ts_pct_change_signed_power_mul"] = factor_ts_pct_change_signed_power_mul(df)
+    df["factor_ts_inverse_cv_delta_amount"] = factor_ts_inverse_cv_delta_amount(df)
+    df["factor_ts_inverse_cv_div_delta"] = factor_ts_inverse_cv_div_delta(df)
+    df["factor_log_mul_amplitude"] = factor_log_mul_amplitude(df)
+    df["factor_ema_ts_dema_delta"] = factor_ema_ts_dema_delta(df)
+    df["factor_sub_ts_median_clip"] = factor_sub_ts_median_clip(df)
+    df["factor_div_ts_inverse_cv_volume"] = factor_div_ts_inverse_cv_volume(df)
     return df
