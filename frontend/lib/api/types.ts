@@ -435,6 +435,31 @@ export interface StrategyBacktestRequest {
   limit?: number
 }
 
+export interface StrategyPortfolioPlanRequest {
+  account_balance?: number | string
+  risk_level?: 'low' | 'medium' | 'high'
+  entry_price?: number | string | null
+}
+
+export interface StrategyPortfolioPlanResponse {
+  strategy_id: number
+  variety_id: number
+  symbol: string
+  variety_name: string
+  direction: 'long' | 'short'
+  account_balance: string
+  risk_level: 'low' | 'medium' | 'high'
+  entry_price: string
+  suggested_lots: number
+  suggested_quantity: number
+  can_create: boolean
+  stop_loss_price: string
+  take_profit_price: string
+  margin_required: string
+  risk_amount: string
+  risk_reward_ratio: string
+  notes: string[]
+}
 
 export interface TradeRecord {
   id: number
@@ -443,6 +468,8 @@ export interface TradeRecord {
   variety_symbol: string
   variety_name: string
   opinion_id: number | null
+  strategy_id: number | null
+  backtest_run_id: number | null
   direction: 'long' | 'short'
   entry_price: string
   exit_price: string | null
@@ -452,6 +479,13 @@ export interface TradeRecord {
   pnl_percent: string | null
   unrealized_pnl: string | null
   unrealized_pnl_percent: string | null
+  account_balance: string | null
+  stop_loss_price: string | null
+  take_profit_price: string | null
+  margin_required: string | null
+  risk_amount: string | null
+  risk_reward_ratio: string | null
+  source: 'manual' | 'strategy' | string
   closed_at: string | null
   created_at: string
 }
@@ -459,9 +493,18 @@ export interface TradeRecord {
 export interface TradeRecordCreate {
   variety_id: number
   opinion_id?: number | null
+  strategy_id?: number | null
+  backtest_run_id?: number | null
   direction: 'long' | 'short'
   entry_price: string
   quantity?: number
+  account_balance?: string | null
+  stop_loss_price?: string | null
+  take_profit_price?: string | null
+  margin_required?: string | null
+  risk_amount?: string | null
+  risk_reward_ratio?: string | null
+  source?: 'manual' | 'strategy'
 }
 
 export interface TradeRecordClose {

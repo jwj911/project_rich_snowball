@@ -72,6 +72,7 @@ import { createNewsSource, deleteNewsSource, getNewsArticles, getNewsSources, su
 import {
   createStrategy,
   deleteStrategy,
+  generateStrategyPortfolioPlan,
   getStrategies,
   getStrategyBacktests,
   runStrategyBacktest,
@@ -137,6 +138,8 @@ import type {
   StrategyCreate,
   BacktestRunResponse,
   StrategyBacktestRequest,
+  StrategyPortfolioPlanRequest,
+  StrategyPortfolioPlanResponse,
 } from './types'
 
 class ApiService extends AuthCore {
@@ -507,6 +510,13 @@ class ApiService extends AuthCore {
 
   getStrategyBacktests(strategyId: number): Promise<BacktestRunResponse[]> {
     return getStrategyBacktests(this, strategyId)
+  }
+
+  generateStrategyPortfolioPlan(
+    strategyId: number,
+    data: StrategyPortfolioPlanRequest,
+  ): Promise<StrategyPortfolioPlanResponse> {
+    return generateStrategyPortfolioPlan(this, strategyId, data)
   }
 }
 

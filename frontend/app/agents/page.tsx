@@ -93,7 +93,7 @@ export default function AgentsPage() {
 
   useEffect(() => {
     fetchTasks()
-  }, [statusFilter])
+  }, [fetchTasks])
 
   useEffect(() => {
     fetchWorkspaceStatus()
@@ -250,7 +250,7 @@ export default function AgentsPage() {
                 key={task.id}
                 className="flex items-center justify-between rounded-xl border border-slate-800 bg-surface p-4 transition hover:border-slate-700"
               >
-                <Link href={`/agents/${task.id}`} className="flex-1">
+                <Link href={`/agents/detail?id=${task.id}`} className="flex-1">
                   <div className="flex items-center gap-3">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs ${statusColors[task.status as TaskStatus] || 'bg-slate-600 text-slate-200'}`}

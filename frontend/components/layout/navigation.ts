@@ -1,3 +1,4 @@
+import type { ElementType } from 'react'
 import {
   BarChart3,
   Bell,
@@ -23,7 +24,7 @@ export const primaryNavItems = [
 
 export interface SecondaryNavItem {
   label: string
-  icon: React.ElementType
+  icon: ElementType
   href?: string
 }
 
@@ -46,7 +47,6 @@ export const secondaryNavGroups: NavGroup[] = [
     items: [
       { label: '新闻资讯', icon: Database, href: '/news' },
       { label: '交易观点', icon: PenLine, href: '/opinions' },
-      { label: '模拟持仓', icon: Briefcase, href: '/portfolio' },
       { label: '预警中心', icon: Bell, href: '/alerts' },
     ],
   },

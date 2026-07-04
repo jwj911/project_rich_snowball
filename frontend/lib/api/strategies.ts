@@ -1,6 +1,13 @@
 import { API_BASE } from './request'
 import type { RequestCore } from './request'
-import type { StrategyResponse, StrategyCreate, BacktestRunResponse, StrategyBacktestRequest } from './types'
+import type {
+  StrategyResponse,
+  StrategyCreate,
+  BacktestRunResponse,
+  StrategyBacktestRequest,
+  StrategyPortfolioPlanRequest,
+  StrategyPortfolioPlanResponse,
+} from './types'
 
 export async function getStrategies(core: RequestCore): Promise<StrategyResponse[]> {
   return core.request<StrategyResponse[]>('/api/strategies')
@@ -32,4 +39,16 @@ export async function runStrategyBacktest(
 
 export async function getStrategyBacktests(core: RequestCore, strategyId: number): Promise<BacktestRunResponse[]> {
   return core.request<BacktestRunResponse[]>(`/api/strategies/${strategyId}/backtests`)
+}
+
+export async function generateStrategyPortfolioPlan(
+  core: RequestCore,
+  strategyId: number,
+  data: StrategyPortfolioPlanRequest,
+): Promise<StrategyPortfolioPlanResponse> {
+  return core.request<StrategyPortfolioPlanResponse>(`/api/strategies/${strategyId}/portfolio-plan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
 }

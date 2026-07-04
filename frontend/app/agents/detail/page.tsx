@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 import { api } from '@/lib/api'
 import type { AgentTaskResponse, AgentTaskStepResponse } from '@/lib/api'
@@ -34,8 +34,24 @@ const roleIcons: Record<string, typeof Brain> = {
 }
 
 export default function AgentTaskDetailPage() {
-  const params = useParams()
-  const taskId = Number(params.id)
+  return (
+    <Suspense
+      fallback={
+        <AppShell>
+          <div className="mx-auto flex h-64 max-w-4xl items-center justify-center px-4">
+            <Loader2 size={24} className="animate-spin text-slate-500" />
+          </div>
+        </AppShell>
+      }
+    >
+      <AgentTaskDetailContent />
+    </Suspense>
+  )
+}
+
+function AgentTaskDetailContent() {
+  const searchParams = useSearchParams()
+  const taskId = Number(searchParams.get('id'))
   const [task, setTask] = useState<AgentTaskResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -112,7 +128,7 @@ export default function AgentTaskDetailPage() {
                   {task.sub_tasks.map((sub) => (
                     <Link
                       key={sub.id}
-                      href={`/agents/${sub.id}`}
+                      href={`/agents/detail?id=${sub.id}`}
                       className="block rounded-lg border border-slate-800 bg-slate-900/50 p-3 transition hover:border-slate-700"
                     >
                       <div className="flex items-center justify-between">
