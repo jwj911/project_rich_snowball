@@ -1,7 +1,7 @@
 # Phase 5 迭代跟踪文档
 
 > 创建时间：2026-07-04
-> 当前状态：Phase 5-1~5-3 已完成，Phase 5-4 已完成，进入 Phase 5-5 监控告警与日志增强
+> 当前状态：Phase 5-1~5-4 已完成，Phase 5-5 已完成，进入 Phase 5-6 全量测试 + 提交到 master
 
 ---
 
@@ -165,14 +165,49 @@
 
 ---
 
-## 六、Phase 5-5 ~ 5-6 规划（待启动）
+## 六、Phase 5-5：监控告警与日志增强（已完成）
 
-### 5-5：监控告警与日志增强（进行中）
-- 策略运行监控：心跳检测、异常告警
-- 告警事件系统：策略回测失败、参数异常等
-- 结构化日志：策略优化全流程追踪
+### 6.1 目标
+策略回测/优化失败时自动创建告警事件，并在关键流程中注入结构化日志。
 
-### 5-6：全量测试 + 提交到 master
+### 6.2 实现
+
+**告警事件系统扩展**：
+- `services/alert_events.py` 新增：
+  - `create_strategy_alert_for_backtest()`：回测失败时创建 `category="strategy"` 个人告警
+  - `create_strategy_alert_for_optimization()`：优化失败时创建个人告警
+  - 告警类型常量：`STRATEGY_BACKTEST_SOURCE_TYPE`、`STRATEGY_OPTIMIZATION_SOURCE_TYPE`
+
+**回测/优化路由集成**：
+- `routers/strategies.py` 回测端点 `POST /{id}/backtest`：
+  - except 块中调用 `create_strategy_alert_for_backtest()`，失败静默（不阻塞主流程）
+- `routers/strategies.py` 优化端点 `POST /{id}/optimize`：
+  - 新增 try/except 块，失败时调用 `create_strategy_alert_for_optimization()` 后抛出 `ServiceError`
+
+**结构化日志**：
+- `optimization_engine.py`：
+  - `strategy_optimization_start`：记录 symbol、period、组合数、参数空间
+  - `strategy_optimization_complete`：记录组合数、耗时、最优评分、最优参数
+- `service.py`（回测）：
+  - `dsl_backtest_complete`：记录 symbol、period、bars、trade_count、score、cache_key
+
+### 6.3 新增/修改文件
+
+| 文件 | 说明 |
+|------|------|
+| `python/services/alert_events.py` | 新增策略告警创建函数 + 常量 |
+| `python/routers/strategies.py` | 回测/优化失败时创建告警事件 |
+| `python/services/backtest/optimization_engine.py` | 新增优化启动/完成结构化日志 |
+| `python/services/backtest/service.py` | 新增回测完成结构化日志 |
+| `python/tests/test_strategy_alerts.py` | 告警事件创建测试（4 个全部通过） |
+
+### 6.4 提交记录
+
+- `8a243a82` feat(alerts): 策略回测/优化失败自动创建告警事件 + 结构化日志（Phase 5-5）
+
+---
+
+## 七、Phase 5-6：全量测试 + 提交到 master（进行中）
 - 修复 `test_strategies.py` 的 SQLite 隔离问题
 - 全量 pytest 回归（目标 400+ 测试全绿）
 - 前端 `tsc --noEmit` + `npm run lint` 通过
@@ -197,4 +232,6 @@
 | 2026-07-04 | 创建文档，完成 5-1 检查 | AI Assistant |
 | 2026-07-04 | 完成 5-2 策略优化引擎（9 测试通过，3 次提交到 master） | AI Assistant |
 | 2026-07-04 | 完成 5-3 策略信号可视化（K 线叠加买卖标记，前后端 5 文件修改） | AI Assistant |
+| 2026-07-04 | 完成 5-4 性能优化（回测 5 分钟 LRU 缓存 + 3 测试通过） | AI Assistant |
+| 2026-07-04 | 完成 5-5 监控告警与日志（告警事件 + 结构化日志，4 测试通过） | AI Assistant |
 | | | |
