@@ -95,7 +95,7 @@ def _load_position_context(db, user_id: int, symbol: str | None) -> dict[str, An
                 text(
                     "SELECT r.current_price FROM realtime_quotes r "
                     "JOIN varieties v ON r.variety_id = v.id "
-                    "WHERE v.symbol = :sym AND v.is_active = 1"
+                    "WHERE v.symbol = :sym AND v.is_active IS TRUE"
                 ),
                 {"sym": sym},
             ).mappings().first()

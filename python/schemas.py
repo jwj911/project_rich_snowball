@@ -203,8 +203,6 @@ class VarietyWithQuoteResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    model_config = ConfigDict(from_attributes=True)
-
 
 class KlineResponse(BaseModel):
     time: str
@@ -940,6 +938,7 @@ class AgentType(StrEnum):
     """Agent 类型枚举。"""
 
     DATA = "data"
+    DATA_QUALITY = "data_quality"
     TECH_ANALYSIS = "tech_analysis"
     RISK_MANAGEMENT = "risk_management"
     ANALYSIS_PIPELINE = "analysis_pipeline"
@@ -971,7 +970,7 @@ class AgentTaskStepRole(StrEnum):
 class AgentTaskCreate(BaseModel):
     """创建 Agent 任务请求。"""
 
-    agent_type: str = Field(..., pattern=r"^(data|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining|strategy_compiler)$")
+    agent_type: str = Field(..., pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining|strategy_compiler)$")
     query: str = Field(..., min_length=1, max_length=4000)
 
 
@@ -1082,7 +1081,7 @@ class AgentChatRequest(BaseModel):
     """
 
     content: str = Field(..., min_length=1, max_length=4000)
-    agent_type: str = Field(default="data", pattern=r"^(data|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining|strategy_compiler)$")
+    agent_type: str = Field(default="data", pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|orchestrator|factor_mining|strategy_compiler)$")
 
 
 class AgentStreamEvent(BaseModel):
@@ -1251,3 +1250,60 @@ class StrategyOptimizationResponse(BaseModel):
     tested_combinations: int
     runtime_seconds: float
     sensitivity_matrix: dict[str, dict[str, float]]
+
+
+class FactorCreate(BaseModel):
+    """创建自定义因子请求。"""
+
+    name: str = Field(..., min_length=1, max_length=100)
+    category: str = Field(..., max_length=50)
+    source_expression: str = Field(..., min_length=1, max_length=4000)
+    fields_json: str | None = Field(None, max_length=1000)
+    metadata_json: str | None = Field(None, max_length=2000)
+
+
+class FactorUpdate(BaseModel):
+    """更新因子请求（Patch 语义）。"""
+
+    name: str | None = Field(None, max_length=100)
+    category: str | None = Field(None, max_length=50)
+    source_expression: str | None = Field(None, max_length=4000)
+    fields_json: str | None = Field(None, max_length=1000)
+    metadata_json: str | None = Field(None, max_length=2000)
+    is_active: bool | None = None
+
+
+class FactorResponse(BaseModel):
+    """因子响应。"""
+
+    id: int
+    package_id: str
+    factor_id: str
+    name: str
+    source: str | None
+    category: str | None
+    q_score: Decimal | None
+    test_rankicir: Decimal | None
+    monotonicity: Decimal | None
+    ls_sharpe: Decimal | None
+    source_expression: str
+    converted_formula: str | None
+    conversion_status: str
+    fields_json: str | None
+    metadata_json: str | None
+    is_builtin: bool
+    is_active: bool
+    user_id: int | None
+    created_at: str
+    updated_at: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def _datetime_to_iso(cls, v: Any) -> str | None:
+        """将 datetime 对象序列化为 ISO 格式字符串，兼容 ORM 直接返回。"""
+        if isinstance(v, dt):
+            return v.isoformat()
+        return v
+

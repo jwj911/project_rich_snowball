@@ -59,6 +59,7 @@ from routers import (  # noqa: E402
     chat,
     comments,
     contracts,
+    factors,
     frontend_logs,
     health,
     kline,
@@ -109,10 +110,6 @@ def _error_response(
     if headers:
         kwargs["headers"] = headers
     return JSONResponse(content=content, status_code=status_code, **kwargs)
-    return JSONResponse(
-        status_code=status_code,
-        content=content,
-    )
 
 
 _delayed_sync_task = None
@@ -219,6 +216,7 @@ app.include_router(price_alerts.router)
 app.include_router(alerts.router)
 app.include_router(agents.router)
 app.include_router(strategies.router)
+app.include_router(factors.router)
 
 
 @app.middleware("http")
