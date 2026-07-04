@@ -1,4 +1,5 @@
 import { ReactNode } from 'react'
+import Card from './Card'
 
 type MetricTone = 'default' | 'muted' | 'up' | 'down' | 'warning'
 type MetricSize = 'sm' | 'md' | 'lg'
@@ -13,11 +14,11 @@ interface MetricCardProps {
 }
 
 const toneClass: Record<MetricTone, string> = {
-  default: 'text-slate-200',
-  muted: 'text-slate-400',
-  up: 'text-red-400',
-  down: 'text-green-400',
-  warning: 'text-amber-300',
+  default: 'text-foreground',
+  muted: 'text-gray-900',
+  up: 'text-up',
+  down: 'text-down',
+  warning: 'text-amber-700',
 }
 
 const sizeClass: Record<MetricSize, string> = {
@@ -35,14 +36,14 @@ export default function MetricCard({
   className = '',
 }: MetricCardProps) {
   return (
-    <div className={`rounded-lg border border-slate-800 bg-black/30 p-3 ${className}`}>
-      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+    <Card padding="sm" className={`border-gray-alpha-400 bg-gray-100 ${className}`}>
+      <div className="flex items-center gap-1.5 text-label-12 text-gray-800">
         {icon}
         <span>{label}</span>
       </div>
       <div className={`mt-2 truncate font-mono font-semibold ${sizeClass[size]} ${toneClass[tone]}`}>
         {value}
       </div>
-    </div>
+    </Card>
   )
 }

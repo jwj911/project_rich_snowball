@@ -2,9 +2,9 @@ import { TrendingDown, TrendingUp } from 'lucide-react'
 import { formatPercent, getChangeTone } from '@/lib/format'
 
 const TONE_CLASS: Record<ReturnType<typeof getChangeTone>, string> = {
-  up: 'text-red-400',
-  down: 'text-green-400',
-  neutral: 'text-slate-400',
+  up: 'text-up',
+  down: 'text-down',
+  neutral: 'text-gray-800',
 }
 
 interface PriceChangeProps {

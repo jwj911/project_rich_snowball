@@ -22,14 +22,14 @@ describe('PriceChange', () => {
     const { container } = render(<PriceChange value={null} />)
     expect(screen.getByText('--')).toBeInTheDocument()
     expect(container.querySelector('svg')).not.toBeInTheDocument()
-    expect(screen.getByText('--').closest('span')).toHaveClass('text-slate-400')
+    expect(screen.getByText('--').closest('span')).toHaveClass('text-gray-800')
   })
 
   it('renders -- with neutral class for undefined', () => {
     const { container } = render(<PriceChange value={undefined} />)
     expect(screen.getByText('--')).toBeInTheDocument()
     expect(container.querySelector('svg')).not.toBeInTheDocument()
-    expect(screen.getByText('--').closest('span')).toHaveClass('text-slate-400')
+    expect(screen.getByText('--').closest('span')).toHaveClass('text-gray-800')
   })
 
   it('hides icon when showIcon is false', () => {

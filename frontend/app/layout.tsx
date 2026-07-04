@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
 import './globals.css'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -18,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="zh-CN">
-      <body>
+    <html lang="zh-CN" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      <body className={`${GeistSans.className} antialiased`}>
         <ErrorBoundary>
           <AuthProvider>
             {children}

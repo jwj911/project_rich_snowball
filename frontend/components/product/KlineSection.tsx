@@ -1,5 +1,7 @@
 import { RefreshCw, Info } from 'lucide-react'
 import KlineChart from '@/components/KlineChart'
+import Button from '@/components/ui/Button'
+import Card from '@/components/ui/Card'
 import { FutContract, KlineData } from '@/lib/api'
 import { KLINE_PERIODS, KLINE_SOURCES, KlinePeriod, KlineSource } from '@/lib/kline'
 
@@ -55,27 +57,24 @@ export default function KlineSection({
   const selectedContract = contracts.find((contract) => contract.id === selectedContractId) ?? null
 
   return (
-    <div className="min-h-[420px] space-y-3">
+    <Card className="min-h-[420px] space-y-3">
       <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           {KLINE_SOURCES.map((source) => {
             const isSelected = selectedSource === source.value
             const isSingleUnavailable = source.value === 'single' && !isContractsLoading && contracts.length === 0
             return (
-              <button
+              <Button
                 key={source.value}
                 type="button"
+                size="sm"
+                variant={isSelected ? 'secondary' : 'tertiary'}
                 disabled={isLoading || isSingleUnavailable}
                 onClick={() => onSelectSource(source.value)}
-                className={`h-8 rounded border px-3 text-sm transition ${
-                  isSelected
-                    ? 'border-amber-500 bg-amber-500/15 text-amber-200'
-                    : 'border-slate-700 bg-black/20 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-                } disabled:cursor-not-allowed disabled:opacity-60`}
                 title={getSourceTitle(source.value)}
               >
                 {source.label}
-              </button>
+              </Button>
             )
           })}
 
@@ -84,7 +83,7 @@ export default function KlineSection({
               value={selectedContractId ?? ''}
               disabled={isLoading || isContractsLoading || contracts.length === 0}
               onChange={(event) => onSelectContract(event.target.value ? Number(event.target.value) : null)}
-              className="h-8 min-w-[180px] rounded border border-slate-700 bg-surface px-2 text-sm text-slate-200 outline-none transition focus:border-amber-500 disabled:cursor-wait disabled:opacity-60"
+              className="h-8 min-w-[180px] rounded border border-gray-alpha-400 bg-background px-2 text-label-14 text-foreground outline-none transition hover:border-gray-alpha-500 focus:border-gray-alpha-500 focus:shadow-[0_0_0_2px_#000000,0_0_0_4px_#47a8ff] disabled:cursor-wait disabled:opacity-60"
               aria-label="选择具体合约"
             >
               {contracts.length === 0 ? (
@@ -99,28 +98,25 @@ export default function KlineSection({
             </select>
           )}
 
-          <div className="mx-1 hidden h-5 w-px bg-slate-700 sm:block" />
+          <div className="mx-1 hidden h-5 w-px bg-gray-alpha-400 sm:block" />
           {KLINE_PERIODS.map((period) => {
             const isSelected = selectedPeriod === period.value
             return (
-              <button
+              <Button
                 key={period.value}
                 type="button"
+                size="sm"
+                variant={isSelected ? 'secondary' : 'tertiary'}
                 disabled={isLoading}
                 onClick={() => onSelectPeriod(period.value)}
-                className={`h-8 rounded border px-3 text-sm transition ${
-                  isSelected
-                    ? 'border-red-500 bg-red-500/15 text-red-200'
-                    : 'border-slate-700 bg-black/20 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-                } disabled:cursor-wait disabled:opacity-60`}
               >
                 {period.label}
-              </button>
+              </Button>
             )
           })}
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          {(isLoading || isContractsLoading) && <RefreshCw size={13} className="animate-spin text-slate-400" />}
+        <div className="flex items-center gap-2 text-label-12 text-gray-700">
+          {(isLoading || isContractsLoading) && <RefreshCw size={13} className="animate-spin text-gray-800" />}
           <span>
             {KLINE_SOURCES.find((source) => source.value === displayedSource)?.label ?? displayedSource}
             {displayedSource === 'single' && selectedContract ? ` · ${formatContractLabel(selectedContract)}` : ''}
@@ -131,11 +127,10 @@ export default function KlineSection({
       </div>
 
       {selectedSource === 'single' && selectedContract && (
-        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded border border-slate-700/60 bg-black/20 px-3 py-2 text-xs text-slate-400"
-        >
+        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded border border-gray-alpha-400 bg-gray-100 px-3 py-2 text-label-12 text-gray-700">
           <span className="flex items-center gap-1.5">
-            <Info size={12} className="text-slate-500" />
-            <span className="font-mono text-slate-300">{selectedContract.ts_code || selectedContract.symbol || `#${selectedContract.id}`}</span>
+            <Info size={12} className="text-gray-600" />
+            <span className="font-mono text-foreground">{selectedContract.ts_code || selectedContract.symbol || `#${selectedContract.id}`}</span>
           </span>
           {selectedContract.exchange && (
             <span>交易所: {selectedContract.exchange}</span>
@@ -146,14 +141,14 @@ export default function KlineSection({
           {selectedContract.delist_date && (
             <span>退市: {selectedContract.delist_date.slice(0, 10)}</span>
           )}
-          <span className={selectedContract.is_active ? 'text-emerald-400' : 'text-slate-500'}>
+          <span className={selectedContract.is_active ? 'text-green-700' : 'text-gray-600'}>
             {selectedContract.is_active ? '交易中' : '已退市'}
           </span>
         </div>
       )}
 
       {notice && (
-        <div className="mb-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+        <div className="mb-3 rounded border border-amber-900/40 bg-amber-100 px-3 py-2 text-copy-14 text-amber-700">
           {notice}
         </div>
       )}
@@ -170,7 +165,7 @@ export default function KlineSection({
         onRemoveSupport={onRemoveSupport}
         onRemoveResistance={onRemoveResistance}
       />
-    </div>
+    </Card>
   )
 }
 

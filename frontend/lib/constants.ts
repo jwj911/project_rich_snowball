@@ -11,16 +11,16 @@ export const MARKET = {
 export const CHART = {
   HEIGHT: 520,
   PRICE_DIGITS: 2,
-  UP_COLOR: '#ff6b6b',
-  DOWN_COLOR: '#4ade80',
-  SUPPORT_COLOR: '#4ade80',
-  RESISTANCE_COLOR: '#ff6b6b',
-  BG_COLOR: '#131722',
-  BORDER_COLOR: '#2a2e39',
-  TEXT_COLOR: '#94a3b8',
-  GRID_COLOR: '#263244',
-  CROSSHAIR_COLOR: '#64748b',
-  TOOLTIP_BG: '#1e222d',
+  UP_COLOR: '#f13242',
+  DOWN_COLOR: '#00ac3a',
+  SUPPORT_COLOR: '#00ac3a',
+  RESISTANCE_COLOR: '#f13242',
+  BG_COLOR: '#000000',
+  BORDER_COLOR: '#ffffff24',
+  TEXT_COLOR: '#a0a0a0',
+  GRID_COLOR: '#1a1a1a',
+  CROSSHAIR_COLOR: '#454545',
+  TOOLTIP_BG: '#1a1a1a',
 } as const
 
 export const KLINE = {

@@ -288,16 +288,16 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
         )
       ) : (
         <div className="space-y-5">
-          <div className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-surface p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-4 rounded border border-gray-alpha-400 bg-background p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
-              <Link href="/products" className="inline-flex items-center gap-2 text-sm text-slate-400 transition hover:text-white">
+              <Link href="/products" className="inline-flex items-center gap-2 text-label-14 text-gray-700 transition hover:text-foreground">
                 <ArrowLeft size={15} />
                 返回行情中心
               </Link>
               <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-2">
-                <h1 className="text-2xl font-bold text-white">{product.name}</h1>
-                <span className="font-mono text-sm text-slate-500">{product.symbol}</span>
-                {product.category && <span className="rounded border border-slate-700 px-2 py-0.5 text-xs text-slate-400">{product.category}</span>}
+                <h1 className="text-heading-24 text-foreground">{product.name}</h1>
+                <span className="font-mono text-label-14 text-gray-700">{product.symbol}</span>
+                {product.category && <span className="rounded border border-gray-alpha-400 px-2 py-0.5 text-label-12 text-gray-800">{product.category}</span>}
                 {varietyId && (
                   <WatchlistButton
                     varietyId={varietyId}
@@ -638,7 +638,7 @@ function PriceAlertPanel({
 
 function StatePanel({ children }: { children: string }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-surface p-8 text-center text-slate-400">
+    <div className="rounded border border-gray-alpha-400 bg-background p-8 text-center text-label-14 text-gray-800">
       {children}
     </div>
   )
@@ -653,10 +653,10 @@ function QuoteMetric({
   value: React.ReactNode
   tone?: 'up' | 'down' | 'neutral'
 }) {
-  const toneClass = tone === 'up' ? 'text-red-400' : tone === 'down' ? 'text-green-400' : 'text-slate-200'
+  const toneClass = tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : 'text-foreground'
   return (
-    <div className="rounded-lg border border-slate-800 bg-black/30 p-3">
-      <div className="text-xs text-slate-500">{label}</div>
+    <div className="rounded border border-gray-alpha-400 bg-gray-100 p-3">
+      <div className="text-label-12 text-gray-700">{label}</div>
       <div className={`mt-2 min-h-6 font-mono text-base font-semibold ${toneClass}`}>{value}</div>
     </div>
   )

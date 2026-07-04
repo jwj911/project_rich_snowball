@@ -12,6 +12,7 @@
     "lighthouse": "node scripts/lighthouse-baseline.js"
   },
   "dependencies": {
+    "geist": "^1.7.2",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^0.312.0",
     "next": "14.2.35",

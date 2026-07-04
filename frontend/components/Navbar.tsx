@@ -33,7 +33,6 @@ export default function Navbar() {
 
   const closeLogin = () => {
     setShowLoginModal(false)
-    // 恢复焦点到触发按钮
     setTimeout(() => triggerRef.current?.focus(), 0)
   }
 
@@ -44,50 +43,50 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="fixed inset-y-0 left-0 z-40 hidden w-48 border-r border-slate-800 bg-surface text-slate-300 md:flex md:flex-col">
-        <div className="flex h-20 items-center gap-2.5 border-b border-slate-800 px-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-900/60 bg-red-950/40 text-red-300">
-            <Bot size={20} />
+      <nav className="fixed inset-y-0 left-0 z-40 hidden w-44 flex-col border-r border-gray-alpha-400 bg-background md:flex">
+        <div className="flex h-16 items-center gap-2.5 border-b border-gray-alpha-400 px-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded border border-gray-alpha-400 bg-gray-100 text-foreground">
+            <Bot size={18} />
           </div>
-          <Link href="/" className="text-base font-semibold text-white">
+          <Link href="/" className="text-heading-14 text-foreground">
             倍增计划
           </Link>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-2 py-5">
-          <div className="space-y-1">
+        <div className="flex-1 overflow-y-auto px-2 py-4">
+          <div className="space-y-0.5">
             {primaryNavItems.map((item) => (
               <NavLink key={item.href} item={item} isActive={isActivePath(pathname, item.href)} />
             ))}
           </div>
 
-          <div className="mt-8 space-y-7">
+          <div className="mt-6 space-y-5">
             {secondaryNavGroups.map((group) => (
               <div key={group.title}>
-                <div className="mb-2 px-2.5 text-xs font-semibold uppercase tracking-wider text-slate-600">
+                <div className="mb-1.5 px-2.5 text-label-12 uppercase tracking-wider text-gray-800">
                   {group.title}
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {group.items.map((item) =>
                     item.href ? (
                       <Link
                         key={item.label}
                         href={item.href}
-                        className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm transition-colors ${
+                        className={`flex items-center gap-2.5 rounded px-2.5 py-2 text-label-14 transition-colors ${
                           isActivePath(pathname, item.href)
-                            ? 'bg-slate-800 text-white'
-                            : 'text-slate-400 hover:bg-slate-900 hover:text-white'
+                            ? 'bg-gray-300 text-foreground'
+                            : 'text-gray-800 hover:bg-gray-alpha-200 hover:text-foreground'
                         }`}
                       >
-                        <item.icon size={17} />
+                        <item.icon size={16} />
                         {item.label}
                       </Link>
                     ) : (
                       <div
                         key={item.label}
-                        className="flex items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm text-slate-500"
+                        className="flex items-center gap-2.5 rounded px-2.5 py-2 text-label-14 text-gray-600"
                       >
-                        <item.icon size={17} />
+                        <item.icon size={16} />
                         {item.label}
                       </div>
                     ),
@@ -98,17 +97,17 @@ export default function Navbar() {
           </div>
         </div>
 
-        <div className="space-y-3 border-t border-slate-800 p-4">
+        <div className="space-y-3 border-t border-gray-alpha-400 p-3">
           {user ? (
             <>
-              <div className="rounded-lg border border-slate-800 bg-black/40 px-3 py-2">
-                <div className="text-xs text-slate-500">当前用户</div>
-                <div className="mt-1 truncate text-sm font-medium text-white">{user.username}</div>
+              <div className="rounded border border-gray-alpha-400 bg-gray-100 px-3 py-2">
+                <div className="text-label-12 text-gray-800">当前用户</div>
+                <div className="mt-1 truncate text-label-14 text-foreground">{user.username}</div>
               </div>
               <button
                 type="button"
                 onClick={logout}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-400 transition-colors hover:bg-slate-900 hover:text-white"
+                className="flex w-full items-center gap-2 rounded px-3 py-2 text-label-14 text-gray-800 transition-colors hover:bg-gray-alpha-200 hover:text-foreground"
               >
                 <LogOut size={16} />
                 退出
@@ -120,52 +119,48 @@ export default function Navbar() {
                 <LogIn size={16} />
                 登录
               </Button>
-              <Button type="button" variant="ghost" onClick={openRegister} className="w-full">
+              <Button type="button" variant="secondary" onClick={openRegister} className="w-full">
                 注册
               </Button>
             </div>
           )}
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          <div className="flex items-center gap-2 text-label-12 text-gray-800">
+            <span className="h-2 w-2 rounded-full bg-green-700" />
             私密工作台
           </div>
         </div>
       </nav>
 
-      <nav className="sticky top-0 z-40 border-b border-slate-800 bg-surface md:hidden">
+      <nav className="sticky top-0 z-40 border-b border-gray-alpha-400 bg-background md:hidden">
         <div className="flex h-14 min-w-0 items-center justify-between gap-3 px-4">
-          <Link href="/" className="font-semibold text-white">
+          <Link href="/" className="text-heading-14 text-foreground">
             倍增计划
           </Link>
           {user ? (
             <button
               type="button"
               onClick={logout}
-              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm text-slate-400 transition hover:bg-slate-900 hover:text-white"
+              className="inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-label-14 text-gray-800 transition hover:bg-gray-alpha-200 hover:text-foreground"
             >
               <LogOut size={14} />
               退出
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={openLogin}
-              className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-red-700"
-            >
+            <Button type="button" size="sm" onClick={openLogin}>
               <LogIn size={14} />
               登录
-            </button>
+            </Button>
           )}
         </div>
-        <div className="grid grid-cols-5 border-t border-slate-800">
+        <div className="grid grid-cols-5 border-t border-gray-alpha-400">
           {primaryNavItems.map((item) => {
             const isActive = isActivePath(pathname, item.href)
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center justify-center gap-1.5 px-2 py-2 text-xs transition-colors ${
-                  isActive ? 'text-red-300' : 'text-slate-500 hover:text-slate-200'
+                className={`flex items-center justify-center gap-1 px-2 py-2 text-label-12 transition-colors ${
+                  isActive ? 'text-foreground' : 'text-gray-800 hover:text-gray-900'
                 }`}
               >
                 <item.icon size={15} />
@@ -207,11 +202,10 @@ function NavLink({
   return (
     <Link
       href={item.href}
-      className={`relative flex items-center gap-2.5 rounded-lg px-2.5 py-3 text-sm font-medium transition-colors ${
-        isActive ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900 hover:text-white'
+      className={`relative flex items-center gap-2.5 rounded px-2.5 py-2.5 text-label-14 transition-colors ${
+        isActive ? 'bg-gray-300 text-foreground' : 'text-gray-800 hover:bg-gray-alpha-200 hover:text-foreground'
       }`}
     >
-      {isActive && <span className="absolute left-0 h-7 w-1 rounded-r bg-red-500" />}
       <item.icon size={18} />
       {item.label}
     </Link>

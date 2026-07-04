@@ -1,5 +1,6 @@
 import { AlertTriangle } from 'lucide-react'
 import Button from './Button'
+import Card from './Card'
 
 interface ErrorStateProps {
   title?: string
@@ -15,16 +16,15 @@ export default function ErrorState({
   className = '',
 }: ErrorStateProps) {
   return (
-    <div className={`rounded-lg border border-red-500/30 bg-red-500/10 p-6 text-center ${className}`}>
-      <AlertTriangle size={34} className="mx-auto mb-3 text-red-400" />
-      <h2 className="mb-2 text-lg font-semibold text-white">{title}</h2>
-      <p className="mx-auto max-w-md text-sm leading-6 text-red-100/80">{message}</p>
+    <Card padding="lg" className={`border-red-900/40 bg-red-100/10 text-center ${className}`}>
+      <AlertTriangle size={34} className="mx-auto mb-3 text-red-700" />
+      <h2 className="mb-2 text-heading-16 text-foreground">{title}</h2>
+      <p className="mx-auto max-w-md text-copy-14 text-red-900">{message}</p>
       {onRetry && (
         <Button type="button" onClick={onRetry} className="mt-4">
           重试
         </Button>
       )}
-    </div>
+    </Card>
   )
 }
-
