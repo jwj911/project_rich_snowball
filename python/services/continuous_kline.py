@@ -455,7 +455,7 @@ def get_continuous_kline(
     start = _ensure_aware(start)
     end = _ensure_aware(end)
 
-    if period == "D":
+    if period in ("D", "1d"):
         return get_fut_daily_main_kline(db, variety_id, start, end, limit)
 
     segments = build_rollover_segments(db, variety_id, start, end)
@@ -543,7 +543,7 @@ def get_main_contract_kline(
     if not variety or not variety.contract_code:
         return []
 
-    if period == "D":
+    if period in ("D", "1d"):
         return get_fut_daily_main_kline(db, variety_id, start, end, limit)
 
     contract = db.query(FutContractDB).filter(FutContractDB.symbol == variety.contract_code).first()

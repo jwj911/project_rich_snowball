@@ -82,7 +82,7 @@ class KlineService:
         variety = self._get_variety(symbol)
         period = self._normalize_period(period)
 
-        if period == "D":
+        if period in ("D", "1d"):
             return get_fut_daily_main_kline(self._db, variety.id, limit=limit)
 
         if contract_id is None:
@@ -223,7 +223,7 @@ class KlineService:
         )
 
         def _fetch():
-            if period == "D":
+            if period in ("D", "1d"):
                 rows = get_fut_daily_contract_kline(self._db, contract_id, start, end, limit)
             else:
                 rows = self._repo.list_klines_with_contract(
@@ -261,7 +261,7 @@ class KlineService:
         )
 
         def _fetch():
-            if period == "D":
+            if period in ("D", "1d"):
                 rows = get_fut_daily_main_kline(self._db, variety.id, limit=limit)
             else:
                 rows = self._repo.list_klines(
@@ -336,7 +336,7 @@ class KlineService:
         def _fetch():
             result: dict[str, list[dict[str, Any]]] = {}
             for period in normalized_periods:
-                if period == "D":
+                if period in ("D", "1d"):
                     rows = get_fut_daily_main_kline(self._db, variety.id, limit=limit)
                 else:
                     rows = self._repo.list_klines_with_contract(
