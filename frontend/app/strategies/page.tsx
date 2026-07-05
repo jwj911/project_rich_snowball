@@ -135,6 +135,7 @@ function StrategyLibrary({
   const [factorSymbol, setFactorSymbol] = useState('')
   const [factorDirection, setFactorDirection] = useState<'long' | 'short'>('long')
   const [factorSavingId, setFactorSavingId] = useState<number | null>(null)
+  const [engineMode, setEngineMode] = useState<'legacy' | 'futures'>('legacy')
 
   const loadFactors = useCallback(async () => {
     setFactorsLoading(true)
@@ -229,7 +230,7 @@ function StrategyLibrary({
   const handleBacktest = useCallback(async (id: number) => {
     setBacktestingId(id)
     try {
-      const run = await api.runStrategyBacktest(id, { initial_cash: 100000, quantity: 1, limit: 500 })
+      const run = await api.runStrategyBacktest(id, { initial_cash: 100000, quantity: 1, limit: 500, engine_mode: engineMode })
       setBacktests((prev) => ({ ...prev, [id]: [run, ...(prev[id] || [])] }))
       toast.success(`回测完成，评分 ${run.metrics_score ?? '-'} / 100`)
     } catch (error) {
@@ -237,7 +238,7 @@ function StrategyLibrary({
     } finally {
       setBacktestingId(null)
     }
-  }, [])
+  }, [engineMode])
 
   const loadBacktests = useCallback(async (id: number) => {
     try {
@@ -280,6 +281,17 @@ function StrategyLibrary({
           <div>
             <h2 className="text-base font-semibold text-white">策略库</h2>
             <p className="mt-1 text-sm text-slate-400">保存自然语言编译后的策略，并用历史数据做基础验证</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 whitespace-nowrap">引擎</span>
+            <select
+              value={engineMode}
+              onChange={(event) => setEngineMode(event.target.value as 'legacy' | 'futures')}
+              className="rounded-lg border border-slate-700 bg-black/30 px-2 py-1.5 text-xs text-white outline-none transition focus:border-amber-500/50 cursor-pointer"
+            >
+              <option value="legacy">单边持仓 (旧)</option>
+              <option value="futures">期货双向 (新)</option>
+            </select>
           </div>
           <button
             type="button"
