@@ -1,7 +1,6 @@
 """Seed the futures variety metadata used by collectors and APIs."""
 from models import SessionLocal, VarietyDB
 
-
 DEFAULT_VARIETIES = [
     {
         "symbol": "AU",
@@ -105,6 +104,9 @@ def init_varieties() -> None:
             variety = db.query(VarietyDB).filter(VarietyDB.symbol == item["symbol"]).first()
             if variety:
                 for key, value in item.items():
+                    # 保留已有的 contract_code，避免覆盖 fut_mapping 更新后的主力合约
+                    if key == "contract_code" and getattr(variety, key, None):
+                        continue
                     setattr(variety, key, value)
                 updated += 1
             else:

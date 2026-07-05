@@ -35,7 +35,25 @@ from __future__ import annotations
 
 import argparse
 
-from common import IngestStats, TushareClient, add_common_args, configure_database, date_window, print_stats, records_from_df
+from common import (
+    IngestStats,
+    TushareClient,
+    add_common_args,
+    configure_database,
+    date_window,
+    print_stats,
+    records_from_df,
+)
+
+
+def _is_valid_contract_month(contract_code: str) -> bool:
+    """校验合约代码中的月份是否有效（非00）。"""
+    if len(contract_code) < 4:
+        return False
+    month_str = contract_code[-2:]
+    if not month_str.isdigit():
+        return False
+    return month_str != "00"
 
 
 def ingest(args: argparse.Namespace) -> IngestStats:
@@ -76,6 +94,10 @@ def ingest(args: argparse.Namespace) -> IngestStats:
             # Derive the base symbol from the full ts_code.
             symbol = ts_code.split(".", 1)[0].upper()
             contract_code = mapping_ts_code.split(".", 1)[0].upper()
+            if not _is_valid_contract_month(contract_code):
+                print(f"[WARN] Invalid contract month in mapping: {contract_code} for {symbol}, skipping")
+                stats.skipped += 1
+                continue
             variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
             if not variety:
                 stats.skipped += 1

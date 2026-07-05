@@ -252,6 +252,7 @@ def get_fut_daily_main_kline(
     获取其 ts_code 后直接查询 fut_main_daily_data（不再 JOIN，避免 ts_code 格式不匹配）。
     """
     from sqlalchemy import func
+
     from models import VarietyDB
 
     variety = db.query(VarietyDB).filter(VarietyDB.id == variety_id).first()
@@ -265,13 +266,12 @@ def get_fut_daily_main_kline(
     ).first()
 
     # 2. 其次：通过 VarietyDB.contract_code 获取当前主力合约
-    if not main_contract:
-        if variety.contract_code:
-            contract = db.query(FutContractDB).filter(
-                FutContractDB.symbol == variety.contract_code,
-            ).first()
-            if contract:
-                main_contract = contract
+    if not main_contract and variety.contract_code:
+        contract = db.query(FutContractDB).filter(
+            FutContractDB.symbol == variety.contract_code,
+        ).first()
+        if contract:
+            main_contract = contract
 
     # 3. 如果找到了主力合约，直接查询 fut_main_daily_data（不 JOIN）
     if main_contract:
@@ -286,7 +286,8 @@ def get_fut_daily_main_kline(
         if end:
             end = _ensure_aware(end)
             q = q.filter(FutMainDailyDataDB.trade_date <= end)
-        rows = q.order_by(FutMainDailyDataDB.trade_date.asc()).limit(limit).all()
+        rows = q.order_by(FutMainDailyDataDB.trade_date.desc()).limit(limit).all()
+        rows.reverse()
         if rows:
             return [
                 {
@@ -326,7 +327,8 @@ def get_fut_daily_main_kline(
         if end:
             end = _ensure_aware(end)
             q = q.filter(FutMainDailyDataDB.trade_date <= end)
-        rows = q.order_by(FutMainDailyDataDB.trade_date.asc()).limit(limit).all()
+        rows = q.order_by(FutMainDailyDataDB.trade_date.desc()).limit(limit).all()
+        rows.reverse()
         if rows:
             # 单独获取 contract_id（不 JOIN）
             contract = db.query(FutContractDB).filter(
@@ -411,7 +413,8 @@ def get_fut_daily_contract_kline(
         end = _ensure_aware(end)
         q = q.filter(FutDailyDataDB.trade_date <= end)
 
-    rows = q.order_by(FutDailyDataDB.trade_date.asc()).limit(limit).all()
+    rows = q.order_by(FutDailyDataDB.trade_date.desc()).limit(limit).all()
+    rows.reverse()
 
     return [
         {

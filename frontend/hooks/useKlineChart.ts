@@ -76,7 +76,11 @@ export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCro
       localization: {
         priceFormatter: (price: number) => price.toFixed(pricePrecision),
         timeFormatter: (time: Time) => {
-          const timestamp = typeof time === 'number' ? time : Date.UTC(time.year, time.month - 1, time.day) / 1000
+          const timestamp = typeof time === 'number'
+            ? time
+            : typeof time === 'string'
+              ? Date.parse(time) / 1000
+              : Date.UTC(time.year, time.month - 1, time.day) / 1000
           const date = new Date(timestamp * 1000)
           const y = date.getUTCFullYear()
           const m = String(date.getUTCMonth() + 1).padStart(2, '0')
@@ -91,7 +95,11 @@ export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCro
         rightOffset: 6,
         barSpacing: 8,
         tickMarkFormatter: (time: Time, tickMarkType: TickMarkType) => {
-          const timestamp = typeof time === 'number' ? time : Date.UTC(time.year, time.month - 1, time.day) / 1000
+          const timestamp = typeof time === 'number'
+            ? time
+            : typeof time === 'string'
+              ? Date.parse(time) / 1000
+              : Date.UTC(time.year, time.month - 1, time.day) / 1000
           const date = new Date(timestamp * 1000)
           const y = date.getUTCFullYear()
           const m = String(date.getUTCMonth() + 1).padStart(2, '0')

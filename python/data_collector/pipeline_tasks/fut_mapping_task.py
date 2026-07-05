@@ -48,6 +48,16 @@ def _preload_maps(db, rows: list[dict]) -> tuple[dict, dict]:
     return variety_map, contract_map
 
 
+def _is_valid_contract_month(contract_code: str) -> bool:
+    """校验合约代码中的月份是否有效（非00）。"""
+    if len(contract_code) < 4:
+        return False
+    month_str = contract_code[-2:]
+    if not month_str.isdigit():
+        return False
+    return month_str != "00"
+
+
 def _detect_rollovers(rows, variety_map, contract_map, trade_date: str | None):
     """遍历 mapping 行，检测合约切换，生成 rollover 记录。"""
     rollovers = []
@@ -68,6 +78,14 @@ def _detect_rollovers(rows, variety_map, contract_map, trade_date: str | None):
             continue
 
         contract_code = mapping_ts_code.split(".")[0]
+        if not _is_valid_contract_month(contract_code):
+            logger.warning(
+                "Invalid contract month in mapping: %s for variety %s, skipping",
+                contract_code, variety.symbol
+            )
+            skipped += 1
+            continue
+
         old_contract_code = variety.contract_code
         if old_contract_code != contract_code:
             old_contract = contract_map.get(old_contract_code) if old_contract_code else None
