@@ -15,6 +15,7 @@ from models import (
     FutContractDB,
     FutDailyDataDB,
     FutHoldingDB,
+    FutMainDailyDataDB,
     FutPriceLimitDB,
     FutSettleDB,
     FutWeeklyDetailDB,
@@ -91,10 +92,20 @@ DATASET_DEFINITIONS: dict[str, DatasetDefinition] = {
         date_field="effective_date",
         agents=("data", "data_quality", "backtest"),
     ),
+    "fut_main_daily_data": DatasetDefinition(
+        "fut_main_daily_data",
+        "Tushare 主力日/周/月线",
+        "从 fut_daily_data 筛选的 43 个核心品种主力合约数据，供前端展示和策略回测。",
+        "variety + period + trade_date",
+        FutMainDailyDataDB,
+        date_field="trade_date",
+        symbol_field="ts_code",
+        agents=("data", "data_quality", "tech_analysis", "backtest", "factor_mining"),
+    ),
     "fut_daily_data": DatasetDefinition(
         "fut_daily_data",
         "Tushare 日/周/月线",
-        "Tushare fut_daily/pro_bar 数据，包含结算价、成交额、持仓等扩展行情。",
+        "Tushare fut_daily/pro_bar 全量数据，包含结算价、成交额、持仓等扩展行情。",
         "variety + period + trade_date",
         FutDailyDataDB,
         date_field="trade_date",
@@ -225,6 +236,7 @@ class DataCatalogService:
                 "varieties": self._variety_coverage(resolved_symbol),
                 "realtime_quotes": self._realtime_symbol_coverage(resolved_symbol),
                 "kline_data": self._kline_symbol_coverage(resolved_symbol, kline_period),
+                "fut_main_daily_data": self._fut_main_daily_symbol_coverage(resolved_symbol),
                 "fut_daily_data": self._fut_daily_symbol_coverage(resolved_symbol),
             },
         }
@@ -328,6 +340,26 @@ class DataCatalogService:
             "first_date": _serialize_date(first_date),
             "last_date": _serialize_date(last_date),
             "contract_count": int(contract_count or 0),
+        }
+
+    def _fut_main_daily_symbol_coverage(self, symbol: str) -> dict[str, Any]:
+        variety = self.db.query(VarietyDB).filter(VarietyDB.symbol == symbol).first()
+        if not variety:
+            return {"available": False, "row_count": 0, "first_date": None, "last_date": None}
+        row_count, first_date, last_date = (
+            self.db.query(
+                func.count(FutMainDailyDataDB.id),
+                func.min(FutMainDailyDataDB.trade_date),
+                func.max(FutMainDailyDataDB.trade_date),
+            )
+            .filter(FutMainDailyDataDB.variety_id == variety.id)
+            .one()
+        )
+        return {
+            "available": int(row_count or 0) > 0,
+            "row_count": int(row_count or 0),
+            "first_date": _serialize_date(first_date),
+            "last_date": _serialize_date(last_date),
         }
 
     def _fut_daily_symbol_coverage(self, symbol: str) -> dict[str, Any]:

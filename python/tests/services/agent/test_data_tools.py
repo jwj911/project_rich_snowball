@@ -10,7 +10,7 @@ from decimal import Decimal
 
 import pytest
 
-from models import FutDailyDataDB, RealtimeQuoteDB, VarietyDB
+from models import FutMainDailyDataDB, RealtimeQuoteDB, VarietyDB
 from services.agent.data_tools import _get_kline_data, _get_realtime_quote, _get_variety_info, _list_active_varieties
 
 
@@ -121,20 +121,20 @@ class TestDataToolSymbolResolution:
         assert data == []
 
 
-class TestDataToolFutDailyFallback:
-    def test_get_kline_data_reads_fut_daily_data_when_kline_table_empty(
+class TestDataToolFutMainDailyFallback:
+    def test_get_kline_data_reads_fut_main_daily_data_when_kline_table_empty(
         self,
         db_session,
         _seed_varieties_and_quotes,
     ):
-        variety = VarietyDB(symbol="FD", contract_code="FD2501", name=" FutDaily 测试", exchange="SHFE", category="测试", is_active=True)
+        variety = VarietyDB(symbol="FD", contract_code="FD2501", name=" FutMainDaily 测试", exchange="SHFE", category="测试", is_active=True)
         db_session.add(variety)
         db_session.commit()
         db_session.refresh(variety)
         start = datetime(2026, 7, 1, tzinfo=UTC)
         for i in range(3):
             db_session.add(
-                FutDailyDataDB(
+                FutMainDailyDataDB(
                     variety_id=variety.id,
                     ts_code="FD.SHF",
                     trade_date=start + timedelta(days=i),

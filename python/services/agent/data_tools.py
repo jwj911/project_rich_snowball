@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from models import (
     FutDailyDataDB,
     FutHoldingDB,
+    FutMainDailyDataDB,
     FutPriceLimitDB,
     FutSettleDB,
     FutWsrDB,
@@ -402,14 +403,14 @@ def _get_kline_data(
         return kline_result
 
     fut_period = fut_daily_period_map[period]
-    daily_query = db.query(FutDailyDataDB).filter(
-        FutDailyDataDB.variety_id == variety.id, FutDailyDataDB.period == fut_period
+    daily_query = db.query(FutMainDailyDataDB).filter(
+        FutMainDailyDataDB.variety_id == variety.id, FutMainDailyDataDB.period == fut_period
     )
     if start_date is not None:
-        daily_query = daily_query.filter(FutDailyDataDB.trade_date >= start_date)
+        daily_query = daily_query.filter(FutMainDailyDataDB.trade_date >= start_date)
     if end_date is not None:
-        daily_query = daily_query.filter(FutDailyDataDB.trade_date <= end_date)
-    daily_rows = daily_query.order_by(FutDailyDataDB.trade_date.desc()).limit(limit).all()
+        daily_query = daily_query.filter(FutMainDailyDataDB.trade_date <= end_date)
+    daily_rows = daily_query.order_by(FutMainDailyDataDB.trade_date.desc()).limit(limit).all()
     daily_result = [
         {
             "time": row.trade_date.isoformat(),

@@ -19,7 +19,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from models import ContractRolloverDB, FutContractDB, FutDailyDataDB, KlineDataDB, VarietyDB
+from models import ContractRolloverDB, FutContractDB, FutDailyDataDB, FutMainDailyDataDB, KlineDataDB, VarietyDB
 from services.kline_period import period_candidates
 
 logger = logging.getLogger(__name__)
@@ -246,10 +246,10 @@ def get_fut_daily_main_kline(
     end: datetime | None = None,
     limit: int = 5000,
 ) -> list[dict]:
-    """从 fut_daily_data 查询品种主力合约日线数据（period='D'）。
+    """从 fut_main_daily_data 查询品种主力合约日线数据（period='D'）。
 
     优先通过 fut_contracts 中 contract_type 识别主力合约，
-    获取其 ts_code 后直接查询 fut_daily_data（不再 JOIN，避免 ts_code 格式不匹配）。
+    获取其 ts_code 后直接查询 fut_main_daily_data（不再 JOIN，避免 ts_code 格式不匹配）。
     """
     from sqlalchemy import func
     from models import VarietyDB
@@ -273,20 +273,20 @@ def get_fut_daily_main_kline(
             if contract:
                 main_contract = contract
 
-    # 3. 如果找到了主力合约，直接查询 fut_daily_data（不 JOIN）
+    # 3. 如果找到了主力合约，直接查询 fut_main_daily_data（不 JOIN）
     if main_contract:
-        q = db.query(FutDailyDataDB).filter(
-            FutDailyDataDB.variety_id == variety_id,
-            FutDailyDataDB.ts_code == main_contract.ts_code,
-            FutDailyDataDB.period == "D",
+        q = db.query(FutMainDailyDataDB).filter(
+            FutMainDailyDataDB.variety_id == variety_id,
+            FutMainDailyDataDB.ts_code == main_contract.ts_code,
+            FutMainDailyDataDB.period == "D",
         )
         if start:
             start = _ensure_aware(start)
-            q = q.filter(FutDailyDataDB.trade_date >= start)
+            q = q.filter(FutMainDailyDataDB.trade_date >= start)
         if end:
             end = _ensure_aware(end)
-            q = q.filter(FutDailyDataDB.trade_date <= end)
-        rows = q.order_by(FutDailyDataDB.trade_date.asc()).limit(limit).all()
+            q = q.filter(FutMainDailyDataDB.trade_date <= end)
+        rows = q.order_by(FutMainDailyDataDB.trade_date.asc()).limit(limit).all()
         if rows:
             return [
                 {
@@ -302,31 +302,31 @@ def get_fut_daily_main_kline(
                 for row in rows
             ]
 
-    # 4. Fallback: 找 fut_daily_data 中记录数最多的 ts_code（兼容原逻辑）
+    # 4. Fallback: 找 fut_main_daily_data 中记录数最多的 ts_code（兼容原逻辑）
     main_ts = db.query(
-        FutDailyDataDB.ts_code, func.count(FutDailyDataDB.id)
+        FutMainDailyDataDB.ts_code, func.count(FutMainDailyDataDB.id)
     ).filter(
-        FutDailyDataDB.variety_id == variety_id
+        FutMainDailyDataDB.variety_id == variety_id
     ).group_by(
-        FutDailyDataDB.ts_code
+        FutMainDailyDataDB.ts_code
     ).order_by(
-        func.count(FutDailyDataDB.id).desc()
+        func.count(FutMainDailyDataDB.id).desc()
     ).first()
 
     if main_ts:
         ts_code = main_ts[0]
-        q = db.query(FutDailyDataDB).filter(
-            FutDailyDataDB.variety_id == variety_id,
-            FutDailyDataDB.ts_code == ts_code,
-            FutDailyDataDB.period == "D",
+        q = db.query(FutMainDailyDataDB).filter(
+            FutMainDailyDataDB.variety_id == variety_id,
+            FutMainDailyDataDB.ts_code == ts_code,
+            FutMainDailyDataDB.period == "D",
         )
         if start:
             start = _ensure_aware(start)
-            q = q.filter(FutDailyDataDB.trade_date >= start)
+            q = q.filter(FutMainDailyDataDB.trade_date >= start)
         if end:
             end = _ensure_aware(end)
-            q = q.filter(FutDailyDataDB.trade_date <= end)
-        rows = q.order_by(FutDailyDataDB.trade_date.asc()).limit(limit).all()
+            q = q.filter(FutMainDailyDataDB.trade_date <= end)
+        rows = q.order_by(FutMainDailyDataDB.trade_date.asc()).limit(limit).all()
         if rows:
             # 单独获取 contract_id（不 JOIN）
             contract = db.query(FutContractDB).filter(

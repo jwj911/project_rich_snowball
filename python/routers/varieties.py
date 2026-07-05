@@ -4,7 +4,7 @@ from sqlalchemy import and_, asc, case, desc, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from dependencies import get_current_user_dependency, get_db
-from models import ContractRolloverDB, FutContractDB, FutDailyDataDB, FutTradeFeeDB, RealtimeQuoteDB, UserDB, VarietyDB
+from models import ContractRolloverDB, FutContractDB, FutDailyDataDB, FutMainDailyDataDB, FutTradeFeeDB, RealtimeQuoteDB, UserDB, VarietyDB
 from schemas import (
     CommentResponse,
     ContractResponse,
@@ -106,30 +106,30 @@ def get_varieties(
         .all()
     )
 
-    # ---- fut_daily_data fallback：RealtimeQuoteDB 缺失/ stale 时兜底 ----
+    # ---- fut_main_daily_data fallback：RealtimeQuoteDB 缺失/ stale 时兜底 ----
     variety_ids = [v.id for v in results]
-    daily_map: dict[int, FutDailyDataDB] = {}
+    daily_map: dict[int, FutMainDailyDataDB] = {}
     if variety_ids:
         from sqlalchemy import and_
         # 子查询：取每个品种最新 trade_date 的 D 周期记录
         latest_daily_subq = (
             db.query(
-                FutDailyDataDB.variety_id,
-                func.max(FutDailyDataDB.trade_date).label("max_date"),
+                FutMainDailyDataDB.variety_id,
+                func.max(FutMainDailyDataDB.trade_date).label("max_date"),
             )
-            .filter(FutDailyDataDB.variety_id.in_(variety_ids))
-            .filter(FutDailyDataDB.period == "D")
-            .group_by(FutDailyDataDB.variety_id)
+            .filter(FutMainDailyDataDB.variety_id.in_(variety_ids))
+            .filter(FutMainDailyDataDB.period == "D")
+            .group_by(FutMainDailyDataDB.variety_id)
             .subquery()
         )
         daily_rows = (
-            db.query(FutDailyDataDB)
+            db.query(FutMainDailyDataDB)
             .join(
                 latest_daily_subq,
                 and_(
-                    FutDailyDataDB.variety_id == latest_daily_subq.c.variety_id,
-                    FutDailyDataDB.trade_date == latest_daily_subq.c.max_date,
-                    FutDailyDataDB.period == "D",
+                    FutMainDailyDataDB.variety_id == latest_daily_subq.c.variety_id,
+                    FutMainDailyDataDB.trade_date == latest_daily_subq.c.max_date,
+                    FutMainDailyDataDB.period == "D",
                 ),
             )
             .all()
@@ -156,7 +156,7 @@ def get_varieties(
             return len(s.split(".")[1])
         return 0
 
-    def _daily_change_percent(d: FutDailyDataDB) -> float | None:
+    def _daily_change_percent(d: FutMainDailyDataDB) -> float | None:
         if d is None:
             return None
         pre = d.pre_settle
@@ -247,9 +247,9 @@ def get_variety_detail(
 
     # 取最新日线数据（period='D'）
     d = (
-        db.query(FutDailyDataDB)
-        .filter(FutDailyDataDB.variety_id == v.id, FutDailyDataDB.period == "D")
-        .order_by(desc(FutDailyDataDB.trade_date))
+        db.query(FutMainDailyDataDB)
+        .filter(FutMainDailyDataDB.variety_id == v.id, FutMainDailyDataDB.period == "D")
+        .order_by(desc(FutMainDailyDataDB.trade_date))
         .first()
     )
 

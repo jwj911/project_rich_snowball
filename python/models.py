@@ -237,6 +237,7 @@ class VarietyDB(Base):
     alert_events = relationship("AlertEventDB", back_populates="related_variety", passive_deletes=True)
     trade_records = relationship("TradeRecordDB", back_populates="variety", passive_deletes=True)
     daily_data = relationship("FutDailyDataDB", back_populates="variety", passive_deletes=True)
+    main_daily_data = relationship("FutMainDailyDataDB", back_populates="variety", passive_deletes=True)
     watchlists = relationship("WatchlistDB", back_populates="variety", passive_deletes=True)
     opinions = relationship("OpinionDB", back_populates="variety", passive_deletes=True)
     price_levels = relationship("PriceLevelDB", back_populates="variety", passive_deletes=True)
@@ -609,6 +610,36 @@ class FutDailyDataDB(Base):
     __table_args__ = (
         UniqueConstraint("variety_id", "ts_code", "period", "trade_date", name="uix_fut_daily"),
         Index("idx_fut_daily_lookup", "variety_id", "period", "trade_date"),
+    )
+
+
+class FutMainDailyDataDB(Base):
+    """期货主力/活跃品种日线/周线/月线行情（筛选后的核心品种池）。"""
+
+    __tablename__ = "fut_main_daily_data"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="CASCADE"), nullable=False)
+    ts_code = Column(String(20), nullable=False)
+    trade_date = Column(DateTime(timezone=True), nullable=False)
+    pre_close = Column(Numeric(19, 4))
+    pre_settle = Column(Numeric(19, 4))
+    open_price = Column(Numeric(19, 4))
+    high_price = Column(Numeric(19, 4))
+    low_price = Column(Numeric(19, 4))
+    close_price = Column(Numeric(19, 4))
+    settle = Column(Numeric(19, 4))
+    change1 = Column(Numeric(19, 4))
+    change2 = Column(Numeric(19, 4))
+    volume = Column(Integer)
+    amount = Column(Numeric(19, 4))
+    open_interest = Column(Integer)
+    oi_chg = Column(Integer)
+    period = Column(String(5), nullable=False)  # D, W, M
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    variety = relationship("VarietyDB", back_populates="main_daily_data")
+    __table_args__ = (
+        UniqueConstraint("variety_id", "ts_code", "period", "trade_date", name="uix_fut_main_daily"),
+        Index("idx_fut_main_daily_lookup", "variety_id", "period", "trade_date"),
     )
 
 
