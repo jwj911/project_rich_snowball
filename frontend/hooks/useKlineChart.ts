@@ -164,7 +164,6 @@ export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCro
       chart.remove()
       instanceRef.current = null
       hasFitInitialContentRef.current = false
-      pendingDataRef.current = null
     }
   }, [containerRef, enabled, onCrosshairMove, pricePrecision])
 
