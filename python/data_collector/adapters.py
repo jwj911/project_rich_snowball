@@ -323,26 +323,32 @@ def _to_int(val: Any) -> int | None:
 
 
 def _parse_datetime(val: Any) -> datetime | None:
-    """解析时间字符串或 datetime 对象，返回东八区 aware datetime。
+    """解析时间字符串或 datetime 对象。
 
-    中国期货市场数据源（Tushare/AkShare）的时间字段均为北京时间，
-    解析后统一附加东八区时区信息，避免 naive/aware 混用导致的问题。
+    - 含时间的字段（trade_time 等）：解析为东八区 aware datetime
+    - 纯日期字段（trade_date YYYYMMDD）：返回 UTC 零点，避免 PG 时区偏移
     """
     if val is None:
         return None
     if isinstance(val, datetime):
-        # 如果已经是 aware，保持原样
         if val.tzinfo is not None:
             return val
-        # naive datetime 假设为东八区
         return val.replace(tzinfo=_CN_TZ)
-    for fmt in [
+
+    # 先尝试纯日期格式（无时间）→ UTC 零点，不加东八区
+    for date_fmt in ("%Y-%m-%d", "%Y%m%d"):
+        try:
+            dt = datetime.strptime(str(val), date_fmt)
+            return dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+
+    # 含时间的字段 → 东八区
+    for fmt in (
         "%Y-%m-%d %H:%M:%S",
         "%Y%m%d %H:%M:%S",
         "%Y%m%d%H%M%S",
-        "%Y-%m-%d",
-        "%Y%m%d",
-    ]:
+    ):
         try:
             dt = datetime.strptime(str(val), fmt)
             return dt.replace(tzinfo=_CN_TZ)
