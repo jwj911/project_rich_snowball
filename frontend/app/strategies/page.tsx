@@ -677,7 +677,7 @@ function StrategyCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold text-white">{strategy.name}</h3>
             <DirectionBadge direction={strategy.direction} />
-            <span className="text-xs text-slate-500">{strategy.symbol}</span>
+            <span className="text-xs text-slate-500">{fmtSymbol(strategy.symbol)}</span>
             {strategy.is_builtin && (
               <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-400">示例</span>
             )}
@@ -715,8 +715,10 @@ function StrategyCard({
 
       {expanded && dsl && (
         <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-          <div className="mb-2 text-xs font-medium text-amber-400">DSL 规则</div>
-          <pre className="max-h-48 overflow-auto text-xs text-slate-300">{JSON.stringify(dsl, null, 2)}</pre>
+          <div className="mb-2 text-xs font-medium text-amber-400">策略规则</div>
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-slate-300">
+            {renderDslSummary(dsl)}
+          </pre>
           <button
             type="button"
             onClick={() => {
@@ -1040,4 +1042,82 @@ function readStrategyDescription(strategy: StrategyResponse): string {
   const dsl = parseStrategyDsl(strategy)
   if (dsl?.description && typeof dsl.description === 'string') return dsl.description
   return strategy.description || '暂无策略描述'
+}
+
+// --- Symbol/indicator humanization (shared with StrategyResultCard) ---
+
+const SYMBOL_NAMES: Record<string, string> = {
+  rb: '螺纹钢', hc: '热卷', i: '铁矿石', j: '焦炭', jm: '焦煤',
+  fg: '玻璃', sa: '纯碱', ma: '甲醇', ta: 'PTA', pp: '聚丙烯',
+  l: '塑料', v: 'PVC', ru: '橡胶', sp: '纸浆', fu: '燃料油', bu: '沥青',
+  sc: '原油', au: '黄金', ag: '白银', cu: '铜', al: '铝', zn: '锌', ni: '镍',
+  si: '工业硅', lc: '碳酸锂', sr: '白糖', cf: '棉花', oi: '菜油',
+  p: '棕榈油', y: '豆油', m: '豆粕', a: '黄豆一号', rm: '菜粕',
+  c: '玉米', cs: '玉米淀粉', jd: '鸡蛋', lh: '生猪', ap: '苹果',
+  eg: '乙二醇', eb: '苯乙烯', pg: '液化气', ur: '尿素',
+}
+
+function fmtSymbol(raw: string): string {
+  return SYMBOL_NAMES[raw] || raw
+}
+
+const INDICATOR_NAMES: Record<string, string> = {
+  sma: '均线', ema: '指数均线', rsi: 'RSI',
+  macd_dif: 'MACD快线', macd_dea: 'MACD慢线', macd: 'MACD', macd_bar: 'MACD柱',
+  boll_upper: '布林上轨', boll_mid: '布林中轨', boll_lower: '布林下轨',
+  atr: 'ATR', kdj_k: 'KDJ-K', kdj_d: 'KDJ-D', kdj_j: 'KDJ-J', cci: 'CCI',
+  close: '收盘价', volume: '成交量',
+}
+
+function fmtIndicator(raw: string): string {
+  if (INDICATOR_NAMES[raw]) return INDICATOR_NAMES[raw]
+  const m = raw.match(/^(sma|ema|rsi|cci)(\d+)$/)
+  if (m) {
+    if (m[1] === 'sma') return `${m[2]}日均线`
+    if (m[1] === 'ema') return `${m[2]}日指数均线`
+    return `${m[1].toUpperCase()}(${m[2]})`
+  }
+  return raw
+}
+
+const OPERATOR_NAMES: Record<string, string> = {
+  cross_above: '上穿', cross_below: '下穿', above: '突破', below: '跌破',
+  greater_than: '大于', less_than: '小于', equal: '等于', between: '介于',
+}
+
+function fmtDslCondition(cond: Record<string, unknown>): string {
+  const ind = fmtIndicator(String(cond.indicator || ''))
+  const op = OPERATOR_NAMES[String(cond.operator || '')] || cond.operator
+  const ind2 = cond.indicator2 ? fmtIndicator(String(cond.indicator2)) : null
+  const val = cond.value
+  if (ind2) return `${ind} ${op} ${ind2}`
+  if (val !== undefined) return `${ind} ${op} ${val}`
+  return `${ind} ${op}`
+}
+
+function renderDslSummary(dsl: Record<string, unknown>): string {
+  const lines: string[] = []
+  const entry = dsl.entry as Record<string, unknown> | undefined
+  const exit = dsl.exit as Record<string, unknown> | undefined
+  const risk = dsl.risk as Record<string, unknown> | undefined
+
+  if (entry?.conditions && Array.isArray(entry.conditions) && entry.conditions.length > 0) {
+    const cs = entry.conditions.map((c) => fmtDslCondition(c as Record<string, unknown>)).join('，')
+    lines.push('入场：' + cs)
+  }
+  if (exit?.conditions && Array.isArray(exit.conditions) && exit.conditions.length > 0) {
+    const cs = exit.conditions.map((c) => fmtDslCondition(c as Record<string, unknown>)).join('，')
+    lines.push('出场：' + cs)
+  }
+  if (risk) {
+    const parts: string[] = []
+    const pos = risk.position_size as Record<string, unknown> | undefined
+    const sl = risk.stop_loss as Record<string, unknown> | undefined
+    const tp = risk.take_profit as Record<string, unknown> | undefined
+    if (pos) parts.push(`仓位：${pos.type}(${pos.value})`)
+    if (sl) parts.push(`止损：${sl.type}(${sl.value})`)
+    if (tp) parts.push(`止盈：${tp.type}(${tp.value})`)
+    if (parts.length) lines.push('风控：' + parts.join('，'))
+  }
+  return lines.join('\n') || JSON.stringify(dsl).substring(0, 120)
 }

@@ -293,14 +293,6 @@ def _eval_conditions(data: pd.DataFrame, conditions: list[dict[str, Any]], logic
             signal = col1 < col2
         elif operator == "equal":
             signal = (col1 - col2).abs() < 1e-9
-        elif operator == "between":
-            # between 要求 value 为 [lower, upper] 列表
-            if isinstance(value, list | tuple) and len(value) == 2:
-                lower, upper = float(value[0]), float(value[1])
-                signal = (col1 > lower) & (col1 < upper)
-            else:
-                signal = pd.Series(False, index=data.index)
-                logger.warning("between 操作符需要 value 为长度 2 的数值列表")
         else:
             signal = pd.Series(False, index=data.index)
 
