@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import json
-from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -47,7 +46,10 @@ def _create_test_strategy(client: TestClient, headers: dict, symbol: str = "RB")
         json={
             "name": f"test-{symbol}",
             "symbol": symbol,
-            "dsl_json": json.dumps({"test": True}),
+            "dsl_json": json.dumps({
+                "entry": {"conditions": [{"indicator": "close", "operator": ">", "indicator2": "sma20"}]},
+                "exit": {"conditions": [{"indicator": "close", "operator": "<", "indicator2": "sma20"}]},
+            }),
             "timeframe": "1d",
             "direction": "long",
             "description": "test strategy",

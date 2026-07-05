@@ -6,9 +6,9 @@
 
 from __future__ import annotations
 
-import random
+import asyncio
 from copy import deepcopy
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,11 @@ from services.agent.evolution.factor_discovery import (
 )
 from services.agent.evolution.fitness import (
     FitnessScore,
-    ParetoFront,
+    _dominates,
+    _return_drawdown_score,
+    _sharpe_score,
+    _simplicity_score,
+    _trade_count_score,
     compute_fitness,
     compute_fitness_with_oos,
     compute_pareto_fitness,
@@ -34,11 +38,6 @@ from services.agent.evolution.fitness import (
     non_dominated_sort,
     pareto_selection,
     split_train_test_dates,
-    _dominates,
-    _sharpe_score,
-    _return_drawdown_score,
-    _simplicity_score,
-    _trade_count_score,
 )
 from services.agent.evolution.genetic_operators import (
     crossover,
@@ -68,7 +67,6 @@ from services.agent.evolution.strategy_population import (
     population_diversity,
 )
 
-
 # ------------------------------------------------------------------
 # 测试数据工具
 # ------------------------------------------------------------------
@@ -85,7 +83,6 @@ def _make_ohlcv_df(n_bars: int = 200, seed: int = 42) -> pd.DataFrame:
     log_close = np.log(100) + trend + noise
     close = np.exp(log_close)
 
-    amplitude = close * 0.01
     high = close + np.abs(rng.normal(0, 0.005, n)) * close
     low = close - np.abs(rng.normal(0, 0.005, n)) * close
     open_price = low + rng.random(n) * (high - low)
@@ -124,8 +121,6 @@ def _make_strong_trend_df(n_bars: int = 200) -> pd.DataFrame:
         "close": close,
         "volume": volume,
     })
-
-    return df
 
 
 def _make_factors(n: int = 10) -> list[FactorCandidate]:
@@ -368,10 +363,11 @@ class TestGeneticOperators:
 
         mutated = mutate_threshold(individual, mutation_strength=0.3)
         # 阈值应该被改变了
-        changed = False
-        for orig, mut in zip(original, mutated.entry_conditions):
+        for orig, mut in zip(original, mutated.entry_conditions, strict=False):
             if orig.get("value") != mut.get("value"):
-                changed = True
+                break
+        else:
+            pass
         # 由于随机性，不一定每次都变，但大概率会
         # 不变也可能是合理的（delta 太小）
 
@@ -499,8 +495,8 @@ class TestStrategyEvolutionAgentIntegration:
     def test_agent_fails_for_unknown_symbol(self, db_session):
         """未知品种应返回错误。"""
         from services.agent.context import AgentContext
-        from services.agent.strategy_evolution_agent import StrategyEvolutionAgent
         from services.agent.core import AgentStatus
+        from services.agent.strategy_evolution_agent import StrategyEvolutionAgent
 
         user = _create_user(db_session)
         context = AgentContext(db=db_session, user_id=user.id)
@@ -515,8 +511,8 @@ class TestStrategyEvolutionAgentIntegration:
         import asyncio
 
         from services.agent.context import AgentContext
-        from services.agent.strategy_evolution_agent import StrategyEvolutionAgent
         from services.agent.core import AgentStatus
+        from services.agent.strategy_evolution_agent import StrategyEvolutionAgent
 
         user = _create_user(db_session)
         variety, contract = _create_test_variety_with_klines(db_session, n_bars=200)
@@ -601,7 +597,6 @@ class TestMultiTypeMutation:
         factors = _make_factors(10)
         pop = initialize_population(factors, symbol="RB", population_size=1)
         ind = pop[0]
-        original = deepcopy(ind.entry_conditions[0].get("indicator"))
         # Apply multiple times to ensure a change (random)
         for _ in range(20):
             mutate_swap_factor(ind, factors)
@@ -649,7 +644,6 @@ class TestMultiTypeMutation:
         factors = _make_factors(5)
         pop = initialize_population(factors, symbol="RB", population_size=1)
         ind = pop[0]
-        original_sl = deepcopy(ind.risk.get("stop_loss", {}).get("value"))
         for _ in range(10):
             mutate_adjust_risk(ind, mutation_strength=0.5)
         # May or may not change due to randomness, but should be valid
@@ -659,7 +653,6 @@ class TestMultiTypeMutation:
         factors = _make_factors(10)
         pop = initialize_population(factors, symbol="RB", population_size=1)
         ind = pop[0]
-        orig_conditions = deepcopy(ind.entry_conditions)
         mutate(ind, mutation_strength=0.3, factor_pool=factors)
         assert ind.fitness is None  # Still unevaluated
 
@@ -821,8 +814,6 @@ class TestDiversityMaintenance:
 # Helpers
 # ------------------------------------------------------------------
 
-import asyncio
-
 
 async def _collect_stream(agent, query):
     """收集流式事件。"""
@@ -938,17 +929,30 @@ def _create_test_variety_with_klines(db_session, symbol="RB", n_bars=200):
         )
         db_session.add(kline)
 
-    # 实时行情
-    quote = RealtimeQuoteDB(
-        variety_id=variety.id,
-        current_price=float(price[-1]),
-        open_price=float(price[-1]) * 0.99,
-        high=float(price[-1]) * 1.02,
-        low=float(price[-1]) * 0.98,
-        change_percent=0.5,
-        volume=10000,
-    )
-    db_session.add(quote)
+    # 实时行情（已存在则更新，避免 UNIQUE constraint failed）
+    existing_quote = db_session.query(RealtimeQuoteDB).filter(
+        RealtimeQuoteDB.variety_id == variety.id
+    ).first()
+    if existing_quote:
+        existing_quote.current_price = float(price[-1])
+        existing_quote.open_price = float(price[-1]) * 0.99
+        existing_quote.high = float(price[-1]) * 1.02
+        existing_quote.low = float(price[-1]) * 0.98
+        existing_quote.change_percent = 0.5
+        existing_quote.volume = 10000
+        existing_quote.updated_at = datetime.now(UTC)
+    else:
+        quote = RealtimeQuoteDB(
+            variety_id=variety.id,
+            current_price=float(price[-1]),
+            open_price=float(price[-1]) * 0.99,
+            high=float(price[-1]) * 1.02,
+            low=float(price[-1]) * 0.98,
+            change_percent=0.5,
+            volume=10000,
+            updated_at=datetime.now(UTC),
+        )
+        db_session.add(quote)
     db_session.commit()
 
     return variety, contract
@@ -1009,7 +1013,7 @@ class TestGPFactorGeneration:
     def test_crossover_factor_formula_same_formulas(self):
         """相同公式交叉应返回 None 或同一公式。"""
         a = "close / ts_delay(close, 5) - 1"
-        child = crossover_factor_formula(a, a)
+        crossover_factor_formula(a, a)
 
     def test_mutate_factor_formula_param(self):
         """参数变异应产生合法公式。"""
@@ -1172,8 +1176,6 @@ class TestBayesianOptimizer:
         from services.agent.evolution.bayesian_optimizer import (
             BayesianOptimizer,
             BOParams,
-            _expected_improvement,
-            optimize_strategy_params_bayesian,
         )
         assert BayesianOptimizer is not None
         assert BOParams is not None
@@ -1269,14 +1271,14 @@ class TestBayesianOptimizer:
 
         bo = BayesianOptimizer(n_dim=2, n_initial=5, n_iterations=1, random_state=42)
 
-        X = np.array([[0.2, 0.3], [0.4, 0.6], [0.5, 0.5], [0.7, 0.2], [0.9, 0.8]])
-        y = np.array([0.5, 0.6, 0.8, 0.4, 0.3])
-        bo.X_observed = [X[i] for i in range(len(X))]
-        bo.y_observed = list(y)
-        bo.gp.fit(X, y)
+        x_obs = np.array([[0.2, 0.3], [0.4, 0.6], [0.5, 0.5], [0.7, 0.2], [0.9, 0.8]])
+        y_obs = np.array([0.5, 0.6, 0.8, 0.4, 0.3])
+        bo.X_observed = [x_obs[i] for i in range(len(x_obs))]
+        bo.y_observed = list(y_obs)
+        bo.gp.fit(x_obs, y_obs)
 
         ei_at_known = _expected_improvement(
-            X[2].reshape(1, -1), bo.gp, y_best=0.8, xi=0.01
+            x_obs[2].reshape(1, -1), bo.gp, y_best=0.8, xi=0.01
         )
         assert ei_at_known < 1.0
 
