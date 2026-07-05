@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from datetime import date
 from typing import Any
 
 import pandas as pd
@@ -32,9 +33,20 @@ def _backtest_cache_key(
     entry_conditions: list[dict[str, Any]],
     exit_conditions: list[dict[str, Any]],
     limit: int,
+    start_date: str = "",
+    end_date: str = "",
 ) -> str:
     """生成回测缓存 key（基于条件参数哈希，排除资金/手数等不影信号的逻辑）。"""
-    cond_str = json.dumps({"entry": entry_conditions, "exit": exit_conditions, "limit": limit}, sort_keys=True)
+    cond_str = json.dumps(
+        {
+            "entry": entry_conditions,
+            "exit": exit_conditions,
+            "limit": limit,
+            "start_date": start_date,
+            "end_date": end_date,
+        },
+        sort_keys=True,
+    )
     cond_hash = hashlib.md5(cond_str.encode()).hexdigest()[:12]
     return f"backtest:v1:{symbol}:{period}:{direction}:{cond_hash}"
 
@@ -173,6 +185,8 @@ def _run_dsl_backtest_inner(
     quantity: int,
     limit: int,
     custom_columns: dict[str, pd.Series] | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> dict[str, Any]:
     """无缓存版本的 DSL 回测执行（供 get_cached 调用）。"""
     variety_info = _get_variety_info(db, symbol)
@@ -183,7 +197,7 @@ def _run_dsl_backtest_inner(
     multiplier = float(variety.multiplier) if variety and variety.multiplier else 1.0
     commission = float(variety.commission) if variety and variety.commission else 0.0001
 
-    klines = _get_kline_data(db, symbol, period=period, limit=limit)
+    klines = _get_kline_data(db, symbol, period=period, limit=limit, start_date=start_date, end_date=end_date)
     if len(klines) < 30:
         raise ValueError(f"{symbol} 可用 K 线不足，至少需要 30 根")
 
@@ -244,9 +258,20 @@ def run_dsl_backtest(
     quantity: int = 1,
     limit: int = 500,
     custom_columns: dict[str, pd.Series] | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> dict[str, Any]:
-    """根据 DSL 条件执行回测（带 5 分钟 LRU 缓存）。"""
-    cache_key = _backtest_cache_key(symbol, period, direction, entry_conditions, exit_conditions, limit)
+    """根据 DSL 条件执行回测（带 5 分钟 LRU 缓存）。
+
+    Args:
+        start_date: 可选，K 线起始日期（含），用于 OOS 验证。
+        end_date: 可选，K 线结束日期（含），用于 OOS 验证。
+    """
+    start_str = start_date.isoformat() if start_date else ""
+    end_str = end_date.isoformat() if end_date else ""
+    cache_key = _backtest_cache_key(
+        symbol, period, direction, entry_conditions, exit_conditions, limit, start_date=start_str, end_date=end_str
+    )
     result = get_cached(
         cache_key,
         lambda: _run_dsl_backtest_inner(
@@ -260,6 +285,8 @@ def run_dsl_backtest(
             quantity,
             limit,
             custom_columns=custom_columns,
+            start_date=start_date,
+            end_date=end_date,
         ),
         ttl=300,  # 5 分钟缓存
     )

@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -337,8 +337,10 @@ def _get_kline_data(
     symbol: str,
     period: str = "1d",
     limit: int = 100,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> list[dict[str, Any]]:
-    """获取 K 线数据，支持品种代码或中文别名。"""
+    """获取 K 线数据，支持品种代码或中文别名，可选日期区间过滤。"""
     symbol = symbol.upper().strip()
     variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol, VarietyDB.is_active == True).first()  # noqa: E712
     if not variety:
@@ -378,13 +380,12 @@ def _get_kline_data(
     }
     mapped = kline_period_map.get(period, period)
 
-    klines = (
-        db.query(KlineDataDB)
-        .filter(KlineDataDB.variety_id == variety.id, KlineDataDB.period == mapped)
-        .order_by(KlineDataDB.trading_time.desc())
-        .limit(limit)
-        .all()
-    )
+    klines_query = db.query(KlineDataDB).filter(KlineDataDB.variety_id == variety.id, KlineDataDB.period == mapped)
+    if start_date is not None:
+        klines_query = klines_query.filter(KlineDataDB.trading_time >= start_date)
+    if end_date is not None:
+        klines_query = klines_query.filter(KlineDataDB.trading_time <= end_date)
+    klines = klines_query.order_by(KlineDataDB.trading_time.desc()).limit(limit).all()
 
     kline_result = [
         {
@@ -401,13 +402,14 @@ def _get_kline_data(
         return kline_result
 
     fut_period = fut_daily_period_map[period]
-    daily_rows = (
-        db.query(FutDailyDataDB)
-        .filter(FutDailyDataDB.variety_id == variety.id, FutDailyDataDB.period == fut_period)
-        .order_by(FutDailyDataDB.trade_date.desc())
-        .limit(limit)
-        .all()
+    daily_query = db.query(FutDailyDataDB).filter(
+        FutDailyDataDB.variety_id == variety.id, FutDailyDataDB.period == fut_period
     )
+    if start_date is not None:
+        daily_query = daily_query.filter(FutDailyDataDB.trade_date >= start_date)
+    if end_date is not None:
+        daily_query = daily_query.filter(FutDailyDataDB.trade_date <= end_date)
+    daily_rows = daily_query.order_by(FutDailyDataDB.trade_date.desc()).limit(limit).all()
     daily_result = [
         {
             "time": row.trade_date.isoformat(),

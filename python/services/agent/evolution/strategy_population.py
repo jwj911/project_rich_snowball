@@ -304,3 +304,160 @@ def best_individual(population: list[StrategyIndividual]) -> StrategyIndividual 
     if not evaluated:
         return None
     return max(evaluated, key=lambda ind: ind.fitness)
+
+
+# ------------------------------------------------------------------
+# Phase 2: Diversity maintenance
+# ------------------------------------------------------------------
+
+
+def deduplicate_population(
+    population: list[StrategyIndividual],
+    similarity_threshold: float = 0.9,
+) -> list[StrategyIndividual]:
+    """删除近重复策略个体。
+
+    两个个体在以下情况下视为重复：
+    - entry_conditions 的 MD5 指纹完全相同，或
+    - DSL JSON 的相似度超过阈值（基于条件文本的 Jaccard 距离）。
+
+    保留适应度更高的个体。
+
+    Args:
+        population: 种群（需已评估）。
+        similarity_threshold: 指纹共享率阈值（高于此视为重复）。
+
+    Returns:
+        去重后的种群（可能小于输入）。
+    """
+    if len(population) <= 1:
+        return list(population)
+
+    # 按适应度降序排列
+    ranked = sorted(
+        population,
+        key=lambda ind: ind.fitness if ind.fitness is not None else float("-inf"),
+        reverse=True,
+    )
+
+    kept: list[StrategyIndividual] = []
+    seen_fingerprints: set[str] = set()
+
+    for ind in ranked:
+        # 指纹：entry_conditions 的 MD5
+        cond_str = json.dumps(ind.entry_conditions, sort_keys=True)
+        fp = hashlib.md5(cond_str.encode()).hexdigest()
+
+        if fp in seen_fingerprints:
+            continue
+
+        # 检查与已保留个体的指纹共享率
+        is_dup = False
+        for existing in kept:
+            existing_fp = hashlib.md5(json.dumps(existing.entry_conditions, sort_keys=True).encode()).hexdigest()
+            if fp == existing_fp:
+                is_dup = True
+                break
+
+        if not is_dup:
+            kept.append(ind)
+            seen_fingerprints.add(fp)
+
+    if len(kept) < len(population):
+        logger.info("去重：%d → %d 个个体", len(population), len(kept))
+
+    return kept
+
+
+def apply_fitness_sharing(
+    population: list[StrategyIndividual],
+    sharing_sigma: float = 0.3,
+    alpha: float = 1.0,
+) -> list[StrategyIndividual]:
+    """适应度共享：惩罚拥挤生态位。
+
+    每个个体的适应度除以生态位计数：
+        shared_fitness = raw_fitness / niche_count
+
+    niche_count = sum(max(0, 1 - (distance / sharing_sigma)^alpha))
+    distance 基于 entry_conditions 指纹是否相同（二进制距离）。
+
+    Args:
+        population: 种群（原地修改 fitness）。
+        sharing_sigma: 共享半径（距离 <= sigma 视为共享生态位）。
+        alpha: 距离衰减指数。
+
+    Returns:
+        修改后的种群（同一列表）。
+    """
+    if len(population) <= 1:
+        return population
+
+    # 预计算指纹
+    fps: list[str] = []
+    for ind in population:
+        cond_str = json.dumps(ind.entry_conditions, sort_keys=True)
+        fps.append(hashlib.md5(cond_str.encode()).hexdigest()[:8])
+
+    for i, ind in enumerate(population):
+        if ind.fitness is None:
+            continue
+
+        niche_count = 0.0
+        for j, fp_j in enumerate(fps):
+            if i == j:
+                niche_count += 1.0  # self
+                continue
+            distance = 0.0 if fps[i] == fp_j else 1.0
+            sh = max(0.0, 1.0 - (distance / sharing_sigma) ** alpha)
+            niche_count += sh
+
+        if niche_count > 1.0:
+            ind.fitness = ind.fitness / niche_count
+
+    return population
+
+
+def inject_fresh_blood(
+    population: list[StrategyIndividual],
+    factor_pool: list[FactorCandidate],
+    symbol: str,
+    timeframe: str = "1d",
+    n_fresh: int = 3,
+    direction: str = "long",
+) -> list[StrategyIndividual]:
+    """用随机新生个体替换适应度最低的 N 个个体。
+
+    用于防止种群收敛退化时陷入局部最优。
+
+    Args:
+        population: 当前种群（需已评估）。
+        factor_pool: 因子池。
+        symbol: 品种代码。
+        timeframe: 周期。
+        n_fresh: 注入的新鲜个体数。
+        direction: 方向。
+
+    Returns:
+        修改后的种群（大小不变）。
+    """
+    if n_fresh <= 0 or len(population) <= n_fresh:
+        return population
+
+    # 选适应度最低的 N 个
+    ranked = sorted(population, key=lambda ind: ind.fitness if ind.fitness is not None else float("-inf"))
+    fresh = initialize_population(
+        factor_pool,
+        symbol=symbol,
+        timeframe=timeframe,
+        population_size=n_fresh,
+        direction=direction,
+    )
+
+    # 替换尾部 N 个
+    for i in range(n_fresh):
+        ranked[i] = fresh[i]
+        ranked[i].generation = population[0].generation  # 匹配当前代数
+
+    logger.info("新鲜血液：注入 %d 个随机个体", n_fresh)
+    return ranked

@@ -9,6 +9,7 @@ from __future__ import annotations
 import itertools
 import logging
 import time
+from datetime import date
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -45,6 +46,9 @@ def optimize_strategy_params(
     limit: int = 500,
     top_n: int = 5,
     metric_weights: dict[str, float] | None = None,
+    custom_columns: dict[str, Any] | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> dict[str, Any]:
     """参数网格搜索核心引擎。
 
@@ -111,6 +115,9 @@ def optimize_strategy_params(
                 initial_cash=initial_cash,
                 quantity=quantity,
                 limit=limit,
+                custom_columns=custom_columns,
+                start_date=start_date,
+                end_date=end_date,
             )
             metrics = result["metrics"]
             score = _calculate_composite_score(metrics, metric_weights)

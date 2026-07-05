@@ -1,6 +1,6 @@
 # 自进化策略 Agent — 架构设计文档
 
-> **状态**：设计阶段 | **日期**：2026-07-04 | **作者**：AI Agent
+> **状态**：开发中 — Phase 2B 完成 | **日期**：2026-07-05 | **作者**：AI Agent
 
 ---
 
@@ -81,11 +81,12 @@ python/services/agent/
 ├── evolution/
 │   ├── __init__.py
 │   ├── market_regime.py           # 市场状态识别
-│   ├── factor_discovery.py        # 因子自动发现（遗传编程 + 模板）
+│   ├── factor_discovery.py        # 因子自动发现（模板 + 遗传编程）
 │   ├── strategy_population.py     # 策略种群管理
 │   ├── genetic_operators.py       # 选择/交叉/变异算子
-│   ├── fitness.py                 # 多维适应度评分
-│   └── strategy_lifecycle.py      # 策略生命周期跟踪
+│   ├── fitness.py                 # 多维适应度评分（标量 + NSGA-II Pareto）
+│   ├── bayesian_optimizer.py      # 贝叶斯优化参数精调（sklearn GP + EI）
+│   └── strategy_lifecycle.py      # 策略生命周期跟踪（⏳ Phase 3）
 ```
 
 ### 3.2 数据模型（新增 Alembic 迁移）
@@ -159,8 +160,8 @@ StrategyEvolutionAgent.run(query)
     │
     ├─[4] 因子自动发现
     │      └─ evolution/factor_discovery.py
-    │         ├─ 模板生成：预设因子模板 + 参数采样 → 100-200 个
-    │         ├─ 遗传编程：随机组合 DSL 算子 → 50-100 个
+    │         ├─ 模板生成：预设因子模板 + 参数采样 → 约 80 个
+    │         ├─ 遗传编程（可选）：随机表达式树 + 交叉/变异进化 → 50-100 个
     │         └─ 评估过滤：IC + Rank IC → 保留 Top-20
     │
     ├─[5] 策略种群初始化
@@ -176,7 +177,7 @@ StrategyEvolutionAgent.run(query)
     │    │
     │    ├─[6b] 适应度计算
     │    │   └─ evolution/fitness.py
-    │    │      multi_objective_fitness(backtest_result, regime)
+    │    │      compute_fitness() (标量加权) 或 compute_pareto_fitness() (NSGA-II)
     │    │
     │    ├─[6c] 选择
     │    │   └─ tournament_selection(population, k=3)
@@ -191,8 +192,8 @@ StrategyEvolutionAgent.run(query)
     │
     ├─[7] 最终评估
     │    ├─ 样本外 (out-of-sample) 验证
-    │    ├─  Walk-forward 分析
-    │    └─ 跨品种鲁棒性检验
+    │    ├─ 贝叶斯优化参数精调（可选）
+    │    └─ Walk-forward 分析（⏳ Phase 3）
     │
     ├─[8] 策略生命周期更新
     │    └─ evolution/strategy_lifecycle.py
@@ -306,34 +307,72 @@ FACTOR_TEMPLATES = [
 
 ```python
 # 算子分为终结符和函数
-TERMINALS = ['open', 'high', 'low', 'close', 'volume']
+GP_TERMINALS = ['open', 'high', 'low', 'close', 'volume']
 
-FUNCTIONS = {
-    # 一元函数
-    'unary': ['ts_delay', 'ts_delta', 'ts_mean', 'ts_std', 'ts_rank', 
-              'ts_zscore', 'ts_max', 'ts_min', 'rank', 'zscore', 
-              'abs', 'log', 'sqrt', 'sign', 'ts_skew', 'ts_kurt'],
-    # 二元函数
-    'binary': ['ts_corr', 'ts_cov', 'ts_regression_beta'],
-    # 算术运算
-    'arithmetic': ['+', '-', '*', '/'],
-}
+GP_UNARY_TS = [
+    # (函数名, 候选窗口参数) — 14 个一元时间序列函数
+    ("ts_delay",  [1, 3, 5, 10, 20, 60]),
+    ("ts_delta",  [3, 5, 10, 20, 60]),
+    ("ts_mean",   [3, 5, 10, 20, 60, 120]),
+    ("ts_std",    [5, 10, 20, 60]),
+    ("ts_rank",   [5, 10, 20, 60]),
+    ("ts_zscore", [5, 10, 20, 60]),
+    ("ts_max",    [5, 10, 20, 60, 120]),
+    ("ts_min",    [5, 10, 20, 60, 120]),
+    ("ts_skew",   [10, 20, 60]),
+    ("ts_kurt",   [10, 20, 60]),
+    ("ts_rank_pct", [5, 10, 20, 60]),
+    ("ts_mad",    [5, 10, 20, 60]),
+    ("ts_sum",    [5, 10, 20]),
+    ("ts_median", [5, 10, 20, 60]),
+]
 
-def generate_random_factor(depth: int = 3) -> str:
-    """随机生成一棵表达式树，返回合法因子公式"""
-    ...
+GP_UNARY_NOPARAM = ["abs", "log", "sqrt", "sign", "rank", "zscore"]
 
-def mutate_factor(formula: str) -> str:
-    """对因子公式进行变异：替换算子/参数/子树"""
-    ...
+GP_BINARY_TS = [
+    ("ts_corr", [10, 20, 60]),
+    ("ts_cov",  [10, 20, 60]),
+    ("ts_regression_beta", [20, 60]),
+]
+
+GP_ARITHMETIC = ["+", "-", "*", "/"]
+
+def generate_random_factor(max_depth: int = 3) -> str:
+    """随机生成一棵表达式树，返回合法因子公式。
+    
+    depth=1: 终结符 或 简单一元函数调用
+    depth=2: 一元嵌套 或 二元运算
+    depth=3: 复杂嵌套表达式
+    """
+
+def crossover_factor_formula(formula_a: str, formula_b: str) -> str | None:
+    """因子公式交叉：交换两个公式中的数值参数。"""
+
+def mutate_factor_formula(formula: str, mutation_strength: float = 0.3) -> str | None:
+    """因子公式变异，四种类型：
+    - param: 窗口参数微调（±比例步长）
+    - function: 一元函数名替换
+    - terminal: 终结符替换
+    - wrap_unary: 添加/移除一元包装
+    """
+
+def evolve_factor_pool(
+    template_factors, n_gp=80, gp_generations=3,
+    population_size=40, crossover_rate=0.7, mutation_rate=0.3,
+) -> list[FactorCandidate]:
+    """GP 进化合并：随机生成 → 选择 → 交叉 → 变异 × N 代 → 与模板因子去重合并"""
 ```
 
 **因子筛选流水线**：
 
 ```
-生成 200-300 个候选因子
+模板生成：14 个模板 × 参数组合 → 约 80 个候选因子
     ↓
-validate_factor_formula() 安全校验（排除 5-10% 非法公式）
+[可选] GP 生成：随机表达式树 + 交叉/变异进化 × 3 代 → 50-100 个
+    ↓
+模板 + GP 合并去重
+    ↓
+validate_factor_formula() 安全校验（在生成阶段已校验）
     ↓
 load_panel_data() 加载面板数据
     ↓
@@ -341,7 +380,7 @@ evaluate_factor() 求值
     ↓
 evaluate_factor_performance() — IC / Rank IC
     ↓
-过滤：|Rank IC| > 0.02 且 ICIR > 0.3
+过滤：|Rank IC| > 0.02（多品种模式）
     ↓
 去重：因子间相关性 < 0.7
     ↓
@@ -358,13 +397,20 @@ Top-20 因子进入策略构建池
 @dataclass
 class StrategyIndividual:
     """种群中的一个策略个体"""
-    id: str                          # 唯一标识
-    dsl: dict                        # StrategyDSL.to_dict()
+    uid: str                         # 唯一标识
+    entry_conditions: list[dict]     # 入场条件（DSL format）
+    entry_logic: str                 # and | or
+    exit_conditions: list[dict]      # 出场条件
+    exit_logic: str                  # and | or
+    risk: dict                       # 风控参数
+    direction: str                   # long | short
+    timeframe: str                   # 周期
+    source_factors: list[str]        # 来源因子公式列表
+    generation: int = 0              # 所属代数
+    parent_uids: list[str] = []      # 谱系追踪
     fitness: float | None = None     # 适应度评分
+    fitness_components: dict = {}    # 各维度得分
     backtest_result: dict | None = None
-    generation: int = 0
-    parent_ids: list[str] = []       # 谱系追踪
-    mutation_history: list[str] = [] # 变异历史
 
 def initialize_population(
     factors: list[FactorCandidate],
@@ -379,26 +425,16 @@ def initialize_population(
     """
 ```
 
-**策略编码**（基因型 → 表现型）：
+**策略编码**（基因型，直接存储在 StrategyIndividual 字段中）：
 
 ```
-Gene (编码):
-{
-  "entry_signals": [
-    {"factor": "ts_rank(close, 20)", "threshold": 0.8, "direction": "above"},
-    {"factor": "volume / ts_mean(volume, 20)", "threshold": 1.5, "direction": "above"}
-  ],
-  "entry_logic": "and",          # and | or
-  "exit_signals": [
-    {"factor": "close / ts_mean(close, 10)", "threshold": 0.95, "direction": "below"}
-  ],
-  "exit_logic": "and",
-  "stop_loss_atr_mult": 2.0,
-  "take_profit_rr_ratio": 2.0,
-  "position_size_pct": 0.2
-}
+Entry Conditions (DSL-compatible):
+[
+  {"indicator": "factor_custom:<md5hash>", "operator": "greater_than", "value": 0.5},
+  {"indicator": "factor_custom:<md5hash>", "operator": "less_than", "value": -0.3}
+]
 
-↓ StrategyCompilerAgent.transpile() ↓
+↓ StrategyIndividual.to_dsl() ↓
 
 Phenotype (Strategy DSL):
 {
@@ -407,16 +443,21 @@ Phenotype (Strategy DSL):
   "timeframe": "1d",
   "direction": "long",
   "entry": {
-    "conditions": [...],  # 从因子转换的标准 DSL 条件
+    "conditions": [
+      {"indicator": "factor_custom:abc123def456", "operator": "greater_than", "value": 0.5}
+    ],
     "logic": "and"
   },
   "exit": {
-    "conditions": [...],
+    "conditions": [
+      {"indicator": "close", "operator": "cross_below", "indicator2": "sma10"}
+    ],
     "logic": "and"
   },
   "risk": {
     "stop_loss": {"type": "atr_multiple", "value": 2.0},
-    "take_profit": {"type": "risk_reward_ratio", "value": 2.0}
+    "take_profit": {"type": "risk_reward_ratio", "value": 2.0},
+    "position_size": {"type": "fixed_lots", "value": 1}
   }
 }
 ```
@@ -440,22 +481,14 @@ def run_dsl_backtest(
 #### 选择算子
 
 ```python
-def tournament_selection(
+def tournament_select(
     population: list[StrategyIndividual],
     tournament_size: int = 3,
 ) -> StrategyIndividual:
     """锦标赛选择：随机选 k 个，返回适应度最高的"""
-    tournament = random.sample(population, min(tournament_size, len(population)))
-    return max(tournament, key=lambda x: x.fitness or -float('inf'))
-
-def roulette_selection(
-    population: list[StrategyIndividual],
-) -> StrategyIndividual:
-    """轮盘赌选择（适应度比例）"""
-    fitnesses = [max(ind.fitness or 0, 0.001) for ind in population]
-    total = sum(fitnesses)
-    probs = [f / total for f in fitnesses]
-    return random.choices(population, weights=probs, k=1)[0]
+    k = min(tournament_size, len(population))
+    contestants = random.sample(population, k)
+    return max(contestants, key=lambda ind: ind.fitness or -float('inf'))
 ```
 
 #### 交叉算子
@@ -465,57 +498,56 @@ def crossover(
     parent_a: StrategyIndividual,
     parent_b: StrategyIndividual,
 ) -> tuple[StrategyIndividual, StrategyIndividual]:
-    """策略交叉：交换入场/出场条件或风控参数"""
-    child_a_dsl = copy.deepcopy(parent_a.dsl)
-    child_b_dsl = copy.deepcopy(parent_b.dsl)
+    """策略交叉：随机选择交叉点交换基因。
     
-    # 随机选择交叉点
-    crossover_point = random.choice([
-        'entry_conditions',   # 交换入场条件
-        'exit_conditions',    # 交换出场条件
-        'risk_params',        # 交换风控参数
-        'entry_logic',        # 交换逻辑门
-    ])
-    
-    if crossover_point == 'entry_conditions':
-        # 交换部分入场条件
-        ...
-    elif crossover_point == 'exit_conditions':
-        # 交换出场条件
-        ...
-    elif crossover_point == 'risk_params':
-        # 交换止损/止盈/仓位设置
-        ...
-    
-    return (StrategyIndividual(dsl=child_a_dsl, parent_ids=[parent_a.id, parent_b.id]),
-            StrategyIndividual(dsl=child_b_dsl, parent_ids=[parent_a.id, parent_b.id]))
+    四种交叉点（等概率）：
+    - entry: 交换一个入场条件
+    - exit: 交换一个出场条件
+    - risk: 交换全部风控参数
+    - logic: 交换逻辑门 (AND ↔ OR)
+    """
 ```
 
 #### 变异算子
 
 ```python
-MUTATION_TYPES = [
-    'change_threshold',     # 因子阈值微调 ±10-30%
-    'swap_factor',          # 替换一个因子（从因子池中取）
-    'add_condition',        # 添加一个入场/出场条件
-    'remove_condition',     # 移除一个条件（若 >1 个）
-    'change_logic',         # AND ↔ OR 切换
-    'adjust_stop_loss',     # 止损倍数微调
-    'adjust_take_profit',   # 止盈倍数微调
-    'change_timeframe',     # 周期切换
-    'simplify',             # 删除冗余条件
-]
+# 复合变异：按概率随机选择一种变异类型
+# 有 factor_pool 时的概率分布：
+#   35% — mutate_threshold (阈值微调)
+#   25% — mutate_swap_factor (替换因子)
+#   10% — mutate_add_condition (新增条件)
+#   10% — mutate_remove_condition (删除条件)
+#   10% — mutate_logic_switch (AND ↔ OR)
+#   10% — mutate_adjust_risk (风控参数调整)
+# 无 factor_pool 时：仅 threshold + logic_switch（Phase 1 兼容）
 
 def mutate(
     individual: StrategyIndividual,
-    factor_pool: list[FactorCandidate],
-    mutation_rate: float = 0.3,
-    mutation_strength: float = 0.1,
+    mutation_strength: float = 0.15,
+    factor_pool: list[FactorCandidate] | None = None,
 ) -> StrategyIndividual:
-    """对策略个体进行变异。
+    """复合变异：随机选择一种变异类型执行。"""
+```
+
+#### 世代推进
+
+```python
+def next_generation(
+    population: list[StrategyIndividual],
+    elite_count: int = 5,
+    mutation_rate: float = 0.3,
+    mutation_strength: float = 0.15,
+    crossover_rate: float = 0.7,
+    factor_pool: list[FactorCandidate] | None = None,
+    diversity_threshold: float = 0.35,
+    fresh_blood_count: int = 3,
+) -> list[StrategyIndividual]:
+    """产生下一代种群。
     
-    mutation_rate: 每个变异操作的发生概率
-    mutation_strength: 参数变异的幅度（如阈值的 ±10% 调整）
+    流程：
+    1. 精英保留（Top-N 直接进入下一代）
+    2. 剩余填充：选择两个父本 → 交叉(70%概率) → 变异(30%概率)
+    3. 去重检查 + 多样性不足时注入新鲜血液
     """
 ```
 
@@ -523,7 +555,9 @@ def mutate(
 
 **文件**：`python/services/agent/evolution/fitness.py`
 
-**目的**：防止单指标（如总收益）导致的过拟合。综合多维度评估策略质量。
+**目的**：防止单指标（如总收益）导致的过拟合。综合多维度评估策略质量。支持两种模式：标量加权（默认）和 NSGA-II Pareto 多目标排序（可选）。
+
+#### A. 标量加权模式（`compute_fitness`）
 
 ```python
 @dataclass
@@ -532,73 +566,143 @@ class FitnessScore:
     components: dict[str, float]    # 各维度得分
     weights: dict[str, float]       # 各维度权重
 
-def multi_objective_fitness(
+_DEFAULT_WEIGHTS = {
+    "sharpe":           0.30,  # Sharpe 比率
+    "return_drawdown":  0.25,  # 收益回撤比（Calmar-like）
+    "win_rate":         0.10,  # 胜率
+    "profit_factor":    0.10,  # 盈亏比
+    "trade_quality":    0.10,  # 交易数量合理性
+    "simplicity":       0.15,  # 简洁性（条件数惩罚）
+}
+
+def compute_fitness(
     backtest_result: dict,
-    out_of_sample_result: dict | None = None,
-    regime: MarketRegime | None = None,
-    complexity: int = 1,  # DSL 条件数量
-    config: dict | None = None,
+    condition_count: int = 1,
+    weights: dict | None = None,
 ) -> FitnessScore:
-    """多维适应度评分
+    """标量加权适应度。
     
-    维度：
-    1. 风险调整收益 (30%) — Sharpe, Calmar
-    2. 稳定性 (25%) — 样本内外一致性, 逐年收益标准差
-    3. 交易质量 (20%) — 胜率, 盈亏比, 交易频率合理性
-    4. 鲁棒性 (15%) — 跨品种/跨参数敏感性
-    5. 简洁性 (10%) — 条件数惩罚（奥卡姆剃刀）
+    各维度映射函数：
+    - _sharpe_score(): 0→25, 1.5→75, 2.0→90, 3.0→100
+    - _return_drawdown_score(): Calmar > 3 → 100
+    - _win_rate_score(): 30%→30, 55%→80, 70%+→100
+    - _profit_factor_score(): 1.0→20, 2.0→75, 3.0+→100
+    - _trade_count_score(): <3→20, 5-30→100, >60→~50
+    - _simplicity_score(): 1-2→100, 4→65, 6+→~15
     """
-    components = {}
-    
-    # 1. 风险调整收益
-    sharpe = backtest_result['metrics']['sharpe']
-    calmar = backtest_result['metrics']['annualized_return_pct'] / max(
-        backtest_result['metrics']['max_drawdown_pct'], 0.1)
-    components['risk_adj_return'] = min(max(sharpe * 10 + calmar * 0.5, 0), 100)
-    
-    # 2. 稳定性
-    if out_of_sample_result:
-        oos_return = out_of_sample_result['metrics']['total_return_pct']
-        is_return = backtest_result['metrics']['total_return_pct']
-        # 样本内外收益比值（OOS/IS），越接近 1 越好
-        consistency = 1.0 - abs(oos_return - is_return) / max(abs(is_return), 1.0)
-        components['stability'] = max(min(consistency * 100, 100), 0)
-    else:
-        components['stability'] = 50  # 无 OOS 数据时中性
-    
-    # 3. 交易质量
-    win_rate = backtest_result['metrics']['win_rate_pct']
-    profit_factor = backtest_result['metrics']['profit_factor']
-    trade_count = backtest_result['metrics']['trade_count']
-    # 交易太少 = 过拟合嫌疑；太多 = 噪音交易
-    trade_count_score = 30 if trade_count < 3 else (
-        100 if 5 <= trade_count <= 100 else max(100 - (trade_count - 100) * 0.5, 20))
-    components['trade_quality'] = (
-        win_rate * 0.3 + min(profit_factor * 15, 40) + trade_count_score * 0.3)
-    
-    # 4. 鲁棒性（参数敏感性）
-    # 通过小幅参数扰动后回测结果的方差来衡量
-    components['robustness'] = ...  # 需要在进化结束后计算
-    
-    # 5. 简洁性（条件数量惩罚）
-    complexity_penalty = max(0, (complexity - 3) * 5)
-    components['simplicity'] = max(100 - complexity_penalty, 0)
-    
-    # 加权总和
-    weights = config.get('fitness_weights', {
-        'risk_adj_return': 0.30,
-        'stability': 0.25,
-        'trade_quality': 0.20,
-        'robustness': 0.15,
-        'simplicity': 0.10,
-    })
-    
-    total = sum(components[k] * weights[k] for k in weights)
-    
-    return FitnessScore(total=round(total, 2), components=components, weights=weights)
 ```
 
-### 4.6 Strategy Lifecycle（策略生命周期）
+#### B. OOS 一致性模式（`compute_fitness_with_oos`）
+
+```python
+def compute_fitness_with_oos(
+    is_backtest_result: dict,
+    oos_backtest_result: dict | None,
+    condition_count: int = 1,
+    weights: dict | None = None,
+    oos_consistency_weight: float = 0.25,
+) -> FitnessScore:
+    """在 IS 标量适应度的基础上，用 OOS Sharpe 一致性调整 stability 维度。
+    
+    stability = max(0, min(100, (oos_sharpe / is_sharpe) × 100))
+    当 OOS 表现严重退化时，stability 分数被大幅压低。
+    """
+```
+
+#### C. NSGA-II Pareto 模式（`compute_pareto_fitness`）— Phase 2B
+
+```python
+@dataclass
+class ParetoFront:
+    rank: int               # Pareto 层级（0=前沿）
+    crowding_distance: float  # 拥挤距离
+
+def _extract_multi_objectives(backtest_result: dict, condition_count: int) -> np.ndarray:
+    """提取 6 维目标向量（均最大化）：
+    [Sharpe, Calmar, WinRate, ProfitFactor, Simplicity, TradeQuality]
+    """
+
+def non_dominated_sort(objectives: list[np.ndarray]) -> list[int]:
+    """NSGA-II 非支配排序。O(n²) 支配关系计算 → 迭代前沿构建。
+    返回每个个体的 Pareto 层级（0=第1前沿，1=第2前沿，...）。
+    """
+
+def crowding_distance(
+    objectives: list[np.ndarray], front_indices: list[int],
+) -> dict[int, float]:
+    """拥挤距离：各维度上相邻个体距离之和，边界点 = ∞。
+    距离越大 → 个体越稀疏 → 被选中的概率越高。
+    """
+
+def pareto_selection(
+    population, objectives: list[np.ndarray], n_select: int,
+) -> list[int]:
+    """NSGA-II 选择：按 Pareto 层级 → 拥挤距离选出 n_select 个个体。"""
+
+def compute_pareto_fitness(
+    backtest_results: list[dict], condition_counts: list[int],
+) -> list[FitnessScore]:
+    """基于 Pareto 排名的适应度：
+    total = 100 - rank×20 + min(crowding_distance×5, 10)
+    - 前沿个体（rank=0）: 100-110
+    - 第二前沿（rank=1）: 80-90
+    """
+```
+
+### 4.6 Bayesian Optimization（贝叶斯优化参数精调）— Phase 2B
+
+**文件**：`python/services/agent/evolution/bayesian_optimizer.py`
+
+**目的**：在 GA 产出最优策略后，对其连续参数（止损倍数、止盈倍数、仓位、因子阈值）进行贝叶斯优化精调，用更少的评估次数找到更优的参数组合。
+
+**与网格搜索的区别**：网格搜索暴力枚举离散参数空间；贝叶斯优化使用 GP 建模目标函数，通过 Expected Improvement 智能采样，30-50 次迭代即可收敛。
+
+```python
+@dataclass
+class BOParams:
+    """贝叶斯优化参数向量，支持归一化编码。"""
+    stop_loss_atr: float = 2.0
+    take_profit_rr: float = 2.0
+    position_size_pct: float = 0.2
+    thresholds: list[float] = [0.5]
+
+    def to_normalized(self) -> np.ndarray:
+        """转换为 [0,1]^5 归一化向量。"""
+
+class BayesianOptimizer:
+    """贝叶斯优化器。
+    
+    GP 核 = ConstantKernel × RBF + Matern(nu=2.5) + WhiteKernel
+    采集函数 = Expected Improvement (EI)
+    """
+    
+    def __init__(
+        self, n_dim=5, n_initial=10, n_iterations=30,
+        exploration_xi=0.01, random_state=42,
+    ):
+        ...
+    
+    def optimize(self, objective_fn) -> tuple[np.ndarray, float, list[dict]]:
+        """运行 BO：初始 LHS 采样 → 迭代 GP 拟合 + EI 最大化。"""
+
+def _expected_improvement(x, gp, y_best, xi=0.01) -> float:
+    """EI(x) = (μ - y_best - ξ)·Φ(Z) + σ·φ(Z), Z = (μ - y_best - ξ)/σ"""
+
+def optimize_strategy_params_bayesian(
+    backtest_fn,          # callable(params: dict) -> float
+    initial_params: dict, # 初始参数字典
+    n_iterations: int = 30,
+    n_initial: int = 10,
+) -> tuple[dict, float, list[dict]]:
+    """策略参数贝叶斯优化高级封装。
+    
+    Returns: (最优参数字典, 最优适应度, 优化历史)
+    """
+```
+
+**Agent 集成**：在进化完成 + OOS 验证后，如果 `use_bayesian_optimization=True`，自动对最优个体执行 BO 精调，优化完成后用新参数重新回测并更新报告。
+
+### 4.7 Strategy Lifecycle（策略生命周期）— ⏳ Phase 3
 
 **文件**：`python/services/agent/evolution/strategy_lifecycle.py`
 
@@ -688,6 +792,9 @@ class StrategyEvolutionAgent(Agent):
         - "分析 AU 近一年的价格特征，找出最优均线策略"
         - "批量优化黑色系所有品种的策略参数"
         """
+    
+    async def run_stream(self, query: str) -> AsyncIterator[dict]:
+        """流式执行进化过程，SSE 推送每代进度。"""
 ```
 
 ### 5.2 用户交互示例
@@ -756,49 +863,85 @@ async def weekly_strategy_evolution():
 
 ## 6. 实现路线图
 
-### Phase 1：基础进化循环（预计 2 周）
+### Phase 1：基础进化循环 ✅ 已完成
 
 **目标**：跑通 generate → backtest → evaluate → evolve 的最小闭环。
 
-| 任务 | 文件 | 工作量 |
-|------|------|--------|
-| Market Regime Detection | `evolution/market_regime.py` | 2 天 |
-| Factor Auto-Discovery（仅模板生成） | `evolution/factor_discovery.py` | 2 天 |
-| Strategy Population | `evolution/strategy_population.py` | 1 天 |
-| 扩展 `run_dsl_backtest` 支持 custom_columns | `services/backtest/service.py` | 1 天 |
-| 简单 GA（tournament + threshold mutate） | `evolution/genetic_operators.py` | 1 天 |
-| 单目标适应度 | `evolution/fitness.py` | 1 天 |
-| StrategyEvolutionAgent 主流程 + 集成 | `strategy_evolution_agent.py` | 2 天 |
-| Alembic 迁移 | `alembic/versions/` | 0.5 天 |
-| pytest | `tests/test_strategy_evolution_agent.py` | 2 天 |
+| 任务 | 文件 | 状态 |
+|------|------|------|
+| Market Regime Detection | `evolution/market_regime.py` | ✅ 完成 |
+| Factor Auto-Discovery（仅模板生成） | `evolution/factor_discovery.py` | ✅ 完成 |
+| Strategy Population | `evolution/strategy_population.py` | ✅ 完成 |
+| 扩展 `run_dsl_backtest` 支持 custom_columns | `services/backtest/service.py` | ✅ 完成 |
+| 简单 GA（tournament + threshold mutate） | `evolution/genetic_operators.py` | ✅ 完成 |
+| 单目标适应度 | `evolution/fitness.py` | ✅ 完成 |
+| StrategyEvolutionAgent 主流程 + 集成 | `strategy_evolution_agent.py` | ✅ 完成 |
+| Alembic 迁移 | `alembic/versions/` | ⏳ 延后至 Phase 2/3（当前使用 AgentTaskDB.result_json） |
+| pytest | `tests/test_strategy_evolution_agent.py` | ✅ 39 个测试全部通过 |
 
-**Phase 1 交付物**：
-- 从命令行/API 触发 `POST /api/agents/tasks` with `agent_type=strategy_evolution`
-- 最小进化：10 代 × 30 种群 = 300 次回测，约 30 秒完成
-- SSE 流式展示每代最优适应度
-- 生成最优策略 DSL 并自动创建 `StrategyDB` 记录
+**Phase 1 交付物**（全部已完成）：
+- ✅ 从命令行/API 触发 `POST /api/agents/tasks` with `agent_type=strategy_evolution`
+- ✅ 最小进化：10 代 × 40 种群 = 400 次回测，约 30 秒完成
+- ✅ SSE 流式展示每代最优适应度
+- ✅ 生成最优策略 DSL 并自动创建 `StrategyDB` 记录
+- ✅ `routers/agents.py` 已注册 `strategy_evolution` agent_type
 
-### Phase 2：进化引擎增强（预计 2 周）
+### Phase 2A：进化引擎增强（Sprint 2A） ✅ 已完成
 
-**目标**：完整遗传算法 + 多维适应度 + 样本外验证。
+**目标**：完整遗传算法（交叉 + 多类型变异）+ 样本外验证 + 多样性维护。
 
-| 任务 | 文件 | 工作量 |
-|------|------|--------|
-| 遗传编程因子生成 | `evolution/factor_discovery.py`（GP 部分） | 3 天 |
-| 完整遗传算子（交叉 + 多类型变异） | `evolution/genetic_operators.py` | 2 天 |
-| 多维适应度评分 | `evolution/fitness.py` | 2 天 |
-| 样本外 + Walk-forward 验证 | `evolution/fitness.py` | 2 天 |
-| 精英保留 + 多样性维护 | `evolution/strategy_population.py` | 1 天 |
-| 贝叶斯优化参数精调 | `evolution/genetic_operators.py` | 2 天 |
-| pytest | 持续 | 2 天 |
+| 任务 | 文件 | 状态 |
+|------|------|------|
+| 日期区间 K 线数据访问（OOS 基础依赖） | `services/agent/data_tools.py`, `services/backtest/service.py`, `services/backtest/optimization_engine.py` | ✅ 完成 |
+| 交叉算子 | `evolution/genetic_operators.py` — `crossover()` | ✅ 完成 |
+| 多类型变异（swap/add/remove/risk） | `evolution/genetic_operators.py` — `mutate_swap_factor()`, `mutate_add_condition()`, `mutate_remove_condition()`, `mutate_adjust_risk()` | ✅ 完成 |
+| 样本外 (OOS) 验证 | `evolution/fitness.py` — `compute_fitness_with_oos()`, `split_train_test_dates()` | ✅ 完成 |
+| 去重 + 适应度共享 + 新鲜血液注入 | `evolution/strategy_population.py` — `deduplicate_population()`, `apply_fitness_sharing()`, `inject_fresh_blood()` | ✅ 完成 |
+| 更新 `next_generation()` 集成交叉 + 多样性维护 | `evolution/genetic_operators.py` | ✅ 完成 |
+| pytest（新增 22 个测试） | `tests/test_strategy_evolution_agent.py` | ✅ 61 个测试全部通过 |
 
-**Phase 2 交付物**：
-- 完整的遗传算法：选择/交叉/变异/精英保留
-- 遗传编程因子生成
-- 样本内外分离验证
-- 参数敏感性分析
+**Phase 2A 交付物**：
+- ✅ `_get_kline_data()` / `run_dsl_backtest()` / `optimize_strategy_params()` 支持 `start_date` / `end_date`，完全向后兼容
+- ✅ 交叉算子支持 4 种交叉点（入场条件 / 出场条件 / 风控参数 / 逻辑门）
+- ✅ 6 种变异类型（threshold / swap_factor / add_condition / remove_condition / logic_switch / adjust_risk）
+- ✅ OOS 验证：进化完成后自动在 OOS 数据上评估最佳策略，报告展示 IS/OOS 对比
+- ✅ 多样性维护：去重 + 适应度共享 + 多样性不足时自动注入新鲜个体
+- ✅ 61 个测试（Phase 1 的 39 个 + 新增 22 个），全部通过
 
-### Phase 3：生命周期与前端（预计 1 周）
+**关键实现细节**：
+- `mutate()` 接受 `factor_pool` 参数 — 有因子池时使用丰富变异类型，无因子池时回退到 Phase 1 行为
+- `next_generation()` 新增 `crossover_rate`（默认 0.7）和 `diversity_threshold`（默认 0.35）参数
+- OOS 通过 `_DEFAULT_EVOLUTION_CONFIG["oos_split_ratio"]`（默认 0.3）配置；设为 0 可禁用
+- 多样性维护仅在提供 `factor_pool` 时激活（无因子池时静默跳过，保持种群大小不变）
+
+### Phase 2B：GP 因子生成 + Pareto 适应度 + 贝叶斯优化 ✅ 已完成
+
+**目标**：遗传编程因子生成 + 多目标 Pareto 优化 + 参数精调。
+
+| 任务 | 文件 | 状态 |
+|------|------|------|
+| 遗传编程因子生成（随机生成 + 交叉/变异 + 进化合并） | `evolution/factor_discovery.py` | ✅ 完成 |
+| Pareto 多目标适应度（NSGA-II 风格非支配排序 + 拥挤距离选择） | `evolution/fitness.py` | ✅ 完成 |
+| 贝叶斯优化参数精调（sklearn GP + Expected Improvement） | `evolution/bayesian_optimizer.py`（新文件） | ✅ 完成 |
+| Agent 主流程集成（配置开关 + 报告） | `strategy_evolution_agent.py` | ✅ 完成 |
+| pytest（新增 26 个测试） | `tests/test_strategy_evolution_agent.py` | ✅ 87 个测试全部通过 |
+
+**Phase 2B 交付物**：
+- ✅ 遗传编程因子生成：`generate_random_factor()` 表达式树随机生成（3 层深度）、`crossover_factor_formula()` 参数交换交叉、`mutate_factor_formula()` 4 种变异（param/function/terminal/wrap_unary）、`evolve_factor_pool()` GP 种群进化与模板合并
+- ✅ NSGA-II Pareto 多目标适应度：`non_dominated_sort()` 非支配排序、`crowding_distance()` 拥挤距离、`pareto_selection()` 层级+距离选择、`compute_pareto_fitness()` 6 维目标评分（Sharpe/Calmar/WinRate/ProfitFactor/Simplicity/TradeQuality）
+- ✅ 贝叶斯优化：`BayesianOptimizer` 类（sklearn GP + RBF×Matern×WhiteKernel + EI 采集函数）、`optimize_strategy_params_bayesian()` 高级封装
+- ✅ Agent 主流程集成：`_evaluate_population()` 支持 `use_pareto_fitness` 调度、OOS 验证后可选 BO 精调、报告含 BO 结果
+- ✅ 所有 Phase 2B 功能默认关闭（`use_gp_factors`/`use_pareto_fitness`/`use_bayesian_optimization`），完全向后兼容
+- ✅ 87 个测试（Phase 2A 的 61 个 + 新增 26 个），全部通过
+
+**关键实现细节**：
+- GP 因子生成通过 `use_gp_factors=True` 启用，`gp_n_generate`（默认 80）控制初始生成量，`gp_generations`（默认 3）控制进化代数
+- `non_dominated_sort()` 使用 O(n²) 支配关系比较 + 迭代前沿构建；`pareto_selection()` 按 rank → crowding_distance 优先级选择
+- BO 的 GP 核 = ConstantKernel × RBF + Matern(nu=2.5) + WhiteKernel，采集函数 = Expected Improvement；默认 30 次迭代
+- `optimize_strategy_params_bayesian()` 封装为高阶函数，接受 `backtest_fn(params) -> float` 签名，与现有回测引擎解耦
+- Phase 2B 所有配置默认关闭，启用后对 Agent 主流程的性能影响：GP 增加 ~30% 因子发现时间，Pareto 适应度基本无额外开销，BO 增加 30-50 次额外回测
+
+### Phase 3：生命周期与前端（预计 1 周）⏳ 待实施
 
 **目标**：策略持续跟踪 + 前端可视化。
 
@@ -810,6 +953,43 @@ async def weekly_strategy_evolution():
 | 前端进化仪表盘 | `frontend/app/strategies/evolution/` | 2 天 |
 | 前端进化报告组件 | `frontend/components/agent/EvolutionReportCard.tsx` | 1 天 |
 | E2E 测试 | `tests/` | 1 天 |
+
+---
+
+## 6.1 实际完成进度
+
+| 阶段 | 状态 | 测试数 | 日期 |
+|------|------|--------|------|
+| Phase 1 | ✅ 完成 | 39 | 2026-07-04 |
+| Phase 2A | ✅ 完成 | 61 (+22) | 2026-07-05 |
+| Phase 2B | ✅ 完成 | 87 (+26) | 2026-07-05 |
+| Phase 3 | ⏳ 待实施 | — | — |
+
+### 配置参数速查（当前版本）
+
+```python
+_DEFAULT_EVOLUTION_CONFIG = {
+    # Phase 1 基础配置
+    "population_size": 40,
+    "generations": 10,
+    "elite_count": 5,
+    "mutation_rate": 0.3,
+    "mutation_strength": 0.15,
+    "factor_top_n": 15,
+    "factor_min_abs_rank_ic": 0.02,
+    # Phase 2A 新增
+    "crossover_rate": 0.7,       # 交叉概率
+    "oos_split_ratio": 0.3,      # OOS 验证数据占比（0=禁用）
+    # Phase 2B 新增
+    "use_gp_factors": False,     # 启用 GP 因子生成
+    "gp_n_generate": 80,         # GP 初始因子数量
+    "gp_generations": 3,         # GP 进化代数
+    "use_pareto_fitness": False, # 启用 NSGA-II Pareto 适应度
+    "use_bayesian_optimization": False,  # 启用贝叶斯优化
+    "bo_iterations": 30,         # BO 迭代次数
+    "bo_initial_samples": 10,    # BO 初始采样数
+}
+```
 
 ---
 
@@ -838,7 +1018,8 @@ async def weekly_strategy_evolution():
 | `factor_engine/data_loader.py` | `load_panel_data()` 用于因子计算 |
 | `services/backtest/engine.py` | `run_backtest()` + `_eval_conditions()` 用于策略回测 |
 | `services/backtest/service.py` | `run_dsl_backtest()` 作为回测入口 |
-| `services/backtest/optimization_engine.py` | `optimize_strategy_params()` 用于进化后的参数精调 |
+| `services/backtest/optimization_engine.py` | `optimize_strategy_params()`（网格搜索）+ 贝叶斯优化作为补充 |
+| `evolution/bayesian_optimizer.py` | `optimize_strategy_params_bayesian()` — sklearn GP + EI 贝叶斯优化 |
 | `strategy_compiler_agent.py` | `StrategyValidator.validate()` 用于校验进化生成的 DSL |
 | `lib/technical_indicators.py` | 现有指标库用于 Market Regime Detection |
 | `StrategyDB` / `BacktestRunDB` | 持久化进化产物 |

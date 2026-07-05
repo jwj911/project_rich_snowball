@@ -1,6 +1,8 @@
 """自进化策略 Agent。
 
 Phase 1：最小闭环 —— 市场状态识别 → 因子发现 → 种群初始化 → 进化迭代 → 适应度评估 → 策略产出。
+Phase 2A：完整 GA (交叉+多类型变异) + OOS 验证 + 多样性维护。
+Phase 2B：GP 因子生成 + Pareto 多目标适应度 + 贝叶斯优化参数精调。
 
 从价格数据中自动发现和进化交易策略。支持 SSE 流式展示进化过程。
 """
@@ -19,7 +21,12 @@ import pandas as pd
 from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
 from services.agent.data_tools import _get_kline_data
 from services.agent.evolution.factor_discovery import FactorCandidate, discover_factors
-from services.agent.evolution.fitness import compute_fitness
+from services.agent.evolution.fitness import (
+    compute_fitness,
+    compute_fitness_with_oos,
+    compute_pareto_fitness,
+    split_train_test_dates,
+)
 from services.agent.evolution.genetic_operators import next_generation
 from services.agent.evolution.market_regime import detect_regime
 from services.agent.evolution.strategy_population import (
@@ -54,6 +61,16 @@ _DEFAULT_EVOLUTION_CONFIG: dict[str, Any] = {
     "limit": 500,
     "min_kline_bars": 60,
     "early_stop_generations": 5,  # 连续 N 代无提升后提前终止
+    "oos_split_ratio": 0.3,  # OOS 验证的数据占比（0=禁用）
+    "crossover_rate": 0.7,  # 交叉概率
+    # Phase 2B: GP + Pareto + Bayesian Optimization
+    "use_gp_factors": False,  # 启用 GP 因子生成
+    "gp_n_generate": 80,  # GP 初始因子数量
+    "gp_generations": 3,  # GP 进化代数
+    "use_pareto_fitness": False,  # 启用 NSGA-II Pareto 适应度
+    "use_bayesian_optimization": False,  # 启用贝叶斯优化参数精调
+    "bo_iterations": 30,  # BO 迭代次数
+    "bo_initial_samples": 10,  # BO 初始采样数
 }
 
 
@@ -133,11 +150,17 @@ def _evaluate_population(
     initial_cash = float(config.get("initial_cash", 100_000))
     quantity = int(config.get("quantity", 1))
     limit_val = int(config.get("limit", 500))
+    use_pareto = config.get("use_pareto_fitness", False)
 
-    for individual in population:
-        if individual.fitness is not None:
-            continue  # 已评估（精英保留后可能已有值）
+    # 收集本轮需要评估的个体
+    unevaluated = [ind for ind in population if ind.fitness is None]
+    if not unevaluated:
+        return
 
+    backtest_results: list[dict[str, Any] | None] = []
+    condition_counts: list[int] = []
+
+    for individual in unevaluated:
         entry_conditions = deepcopy(individual.entry_conditions)
         exit_conditions = deepcopy(individual.exit_conditions)
 
@@ -155,16 +178,44 @@ def _evaluate_population(
                 custom_columns=factor_columns,
             )
             individual.backtest_result = result
-
-            condition_count = len(entry_conditions) + len(exit_conditions)
-            fitness = compute_fitness(result, condition_count=condition_count)
-            individual.fitness = fitness.total
-            individual.fitness_components = fitness.components
-
+            backtest_results.append(result)
+            condition_counts.append(len(entry_conditions) + len(exit_conditions))
         except Exception as exc:
             logger.warning("个体 %s 回测失败：%s", individual.uid, exc)
             individual.fitness = 0.0
             individual.backtest_result = None
+            backtest_results.append(None)
+            condition_counts.append(0)
+
+    # 适应度计算
+    if use_pareto and backtest_results:
+        # Pareto 多目标适应度
+        valid_indices = [i for i, bt in enumerate(backtest_results) if bt is not None]
+        valid_results = [backtest_results[i] for i in valid_indices]
+        valid_counts = [condition_counts[i] for i in valid_indices]
+        valid_individuals = [unevaluated[i] for i in valid_indices]
+
+        pareto_scores = compute_pareto_fitness(valid_results, valid_counts)
+        for ind, score in zip(valid_individuals, pareto_scores, strict=False):
+            ind.fitness = score.total
+            ind.fitness_components = score.components
+
+        # 回测失败的个体设为最低适应度
+        for i, bt in enumerate(backtest_results):
+            if bt is None:
+                unevaluated[i].fitness = 0.0
+                unevaluated[i].fitness_components = {}
+    else:
+        # 标量加权适应度
+        for individual, bt, cc in zip(unevaluated, backtest_results, condition_counts, strict=False):
+            if individual.fitness is not None:
+                continue
+            if bt is None:
+                individual.fitness = 0.0
+                continue
+            fitness = compute_fitness(bt, condition_count=cc)
+            individual.fitness = fitness.total
+            individual.fitness_components = fitness.components
 
 
 class StrategyEvolutionAgent(Agent):
@@ -260,6 +311,9 @@ class StrategyEvolutionAgent(Agent):
             min_bars=config["min_kline_bars"],
             min_abs_rank_ic=config["factor_min_abs_rank_ic"],
             top_n=config["factor_top_n"],
+            use_gp=config.get("use_gp_factors", False),
+            n_gp=config.get("gp_n_generate", 80),
+            gp_generations=config.get("gp_generations", 3),
         )
         if not factors:
             return AgentResult(
@@ -338,9 +392,179 @@ class StrategyEvolutionAgent(Agent):
                     elite_count=config["elite_count"],
                     mutation_rate=config["mutation_rate"],
                     mutation_strength=config["mutation_strength"],
+                    crossover_rate=config.get("crossover_rate", 0.7),
+                    factor_pool=factors,
                 )
 
-        # ─── 8. 生成报告 ───
+        # ─── 8. OOS 验证 ───
+        oos_result = None
+        oos_fitness = None
+        bo_result = None
+        df_dates = pd.to_datetime(df["time"], format="mixed")
+        data_start = df_dates.iloc[0].date()
+        data_end = df_dates.iloc[-1].date()
+
+        if config.get("oos_split_ratio", 0) > 0:
+            split = split_train_test_dates(
+                data_start,
+                data_end,
+                test_ratio=config["oos_split_ratio"],
+                min_train_bars=config["min_kline_bars"],
+            )
+            if split:
+                (train_start, train_end), (test_start, test_end) = split
+                self._add_step(
+                    "action",
+                    f"样本外验证：IS {train_start} ~ {train_end} / OOS {test_start} ~ {test_end}",
+                )
+                try:
+                    oos_klines = _get_kline_data(
+                        db,
+                        symbol,
+                        period=config["period"],
+                        limit=config["limit"],
+                        start_date=test_start,
+                        end_date=test_end,
+                    )
+                    if len(oos_klines) >= 10:
+                        oos_result = run_dsl_backtest(
+                            db,
+                            symbol=symbol,
+                            period=config["period"],
+                            direction=config["direction"],
+                            entry_conditions=best_individual_overall.entry_conditions,
+                            exit_conditions=best_individual_overall.exit_conditions,
+                            initial_cash=float(config.get("initial_cash", 100_000)),
+                            quantity=int(config.get("quantity", 1)),
+                            limit=config["limit"],
+                            custom_columns=factor_columns,
+                            start_date=test_start,
+                            end_date=test_end,
+                        )
+                        condition_count = len(best_individual_overall.entry_conditions) + len(
+                            best_individual_overall.exit_conditions
+                        )
+                        oos_fitness = compute_fitness_with_oos(
+                            best_individual_overall.backtest_result or {},
+                            oos_result,
+                            condition_count=condition_count,
+                            oos_consistency_weight=0.25,
+                        )
+                        self._add_step(
+                            "observation",
+                            f"OOS 验证完成 — IS Sharpe: {best_individual_overall.backtest_result.get('metrics', {}).get('sharpe', '—')} | OOS Sharpe: {oos_result.get('metrics', {}).get('sharpe', '—')} | 一致性评分: {oos_fitness.total:.1f}",
+                        )
+                    else:
+                        self._add_step("observation", "OOS 数据不足（<10 根 K 线），跳过验证")
+                except Exception as exc:
+                    logger.warning("OOS 验证失败：%s", exc)
+                    self._add_step("observation", f"OOS 验证失败：{exc}")
+            else:
+                self._add_step("observation", "数据不足以进行 OOS 切分，跳过验证")
+
+        # ─── 8b. 贝叶斯优化参数精调（可选） ───
+        if (
+            config.get("use_bayesian_optimization", False)
+            and best_individual_overall is not None
+            and best_individual_overall.backtest_result is not None
+        ):
+            self._add_step("thought", "开始贝叶斯优化参数精调...")
+            try:
+                from services.agent.evolution.bayesian_optimizer import optimize_strategy_params_bayesian
+
+                n_conditions = len(best_individual_overall.entry_conditions)
+                init_params = {
+                    "stop_loss_atr": float(best_individual_overall.risk.get("stop_loss", {}).get("value", 2.0)),
+                    "take_profit_rr": float(best_individual_overall.risk.get("take_profit", {}).get("value", 2.0)),
+                    "position_size_pct": float(
+                        best_individual_overall.risk.get("position_size", {}).get("value", 20) / 100
+                    ),
+                    "thresholds": [
+                        best_individual_overall.entry_conditions[i].get("value", 0.5)
+                        for i in range(min(n_conditions, 3))
+                    ],
+                }
+
+                def bo_objective(param_dict: dict[str, Any]) -> float:
+                    """BO 目标函数：根据参数调整策略后回测，返回适应度。"""
+                    test_ind = deepcopy(best_individual_overall)
+
+                    # 应用参数
+                    test_ind.risk["stop_loss"]["value"] = param_dict["stop_loss_atr"]
+                    test_ind.risk["take_profit"]["value"] = param_dict["take_profit_rr"]
+                    test_ind.risk["position_size"]["value"] = int(param_dict["position_size_pct"] * 100)
+
+                    for i, thresh in enumerate(param_dict.get("thresholds", [])):
+                        if i < len(test_ind.entry_conditions):
+                            test_ind.entry_conditions[i]["value"] = thresh
+
+                    try:
+                        result = run_dsl_backtest(
+                            db,
+                            symbol=symbol,
+                            period=config["period"],
+                            direction=config["direction"],
+                            entry_conditions=test_ind.entry_conditions,
+                            exit_conditions=test_ind.exit_conditions,
+                            initial_cash=float(config.get("initial_cash", 100_000)),
+                            quantity=int(config.get("quantity", 1)),
+                            limit=config["limit"],
+                            custom_columns=factor_columns,
+                        )
+                        cc = len(test_ind.entry_conditions) + len(test_ind.exit_conditions)
+                        return compute_fitness(result, condition_count=cc).total
+                    except Exception:
+                        return 0.0
+
+                bo_best_params, bo_best_fitness, bo_history = optimize_strategy_params_bayesian(
+                    backtest_fn=bo_objective,
+                    initial_params=init_params,
+                    n_iterations=config.get("bo_iterations", 30),
+                    n_initial=config.get("bo_initial_samples", 10),
+                )
+                bo_result = {
+                    "params": bo_best_params,
+                    "fitness": bo_best_fitness,
+                    "history": bo_history,
+                }
+
+                # 将 BO 最优参数应用到最优个体
+                best_individual_overall.risk["stop_loss"]["value"] = bo_best_params["stop_loss_atr"]
+                best_individual_overall.risk["take_profit"]["value"] = bo_best_params["take_profit_rr"]
+                best_individual_overall.risk["position_size"]["value"] = int(bo_best_params["position_size_pct"] * 100)
+                for i, thresh in enumerate(bo_best_params.get("thresholds", [])):
+                    if i < len(best_individual_overall.entry_conditions):
+                        best_individual_overall.entry_conditions[i]["value"] = thresh
+
+                # 用优化后的参数重新回测
+                final_result = run_dsl_backtest(
+                    db,
+                    symbol=symbol,
+                    period=config["period"],
+                    direction=config["direction"],
+                    entry_conditions=best_individual_overall.entry_conditions,
+                    exit_conditions=best_individual_overall.exit_conditions,
+                    initial_cash=float(config.get("initial_cash", 100_000)),
+                    quantity=int(config.get("quantity", 1)),
+                    limit=config["limit"],
+                    custom_columns=factor_columns,
+                )
+                best_individual_overall.backtest_result = final_result
+                cc = len(best_individual_overall.entry_conditions) + len(best_individual_overall.exit_conditions)
+                best_fitness = compute_fitness(final_result, condition_count=cc)
+                best_individual_overall.fitness = best_fitness.total
+                best_individual_overall.fitness_components = best_fitness.components
+
+                self._add_step(
+                    "observation",
+                    f"贝叶斯优化完成：最优适应度 {bo_best_fitness:.1f}（{len(bo_history)} 次评估）",
+                )
+            except Exception as exc:
+                logger.warning("贝叶斯优化失败：%s", exc)
+                self._add_step("observation", f"贝叶斯优化跳过：{exc}")
+                bo_result = None
+
+        # ─── 9. 生成报告 ───
         if best_individual_overall is None:
             return AgentResult(
                 status=AgentStatus.FAILED,
@@ -352,7 +576,8 @@ class StrategyEvolutionAgent(Agent):
             name=f"{symbol} 自进化策略 v{best_individual_overall.generation}",
             symbol=symbol,
         )
-        # 注入因子来源信息
+        # 注入因子来源信息 + OOS 验证结果 + BO 优化结果
+        oos_metrics = oos_result.get("metrics", {}) if oos_result else None
         dsl["_evolution_meta"] = {
             "best_fitness": best_individual_overall.fitness,
             "fitness_components": best_individual_overall.fitness_components,
@@ -361,6 +586,13 @@ class StrategyEvolutionAgent(Agent):
             "regime": regime.regime if regime else None,
             "regime_confidence": regime.confidence if regime else None,
             "evolution_log": evolution_log,
+            "oos_result": oos_metrics,
+            "oos_fitness": oos_fitness.total if oos_fitness else None,
+            "is_oos_validated": oos_result is not None,
+            "bo_result": bo_result,
+            "is_bo_optimized": bo_result is not None,
+            "use_pareto": config.get("use_pareto_fitness", False),
+            "use_gp": config.get("use_gp_factors", False),
         }
 
         explanation = _build_evolution_report(
@@ -371,6 +603,9 @@ class StrategyEvolutionAgent(Agent):
             best_individual=best_individual_overall,
             evolution_log=evolution_log,
             dsl=dsl,
+            oos_result=oos_result,
+            oos_fitness=oos_fitness,
+            bo_result=bo_result,
         )
 
         self._add_step("system", "进化完成，报告已生成")
@@ -439,6 +674,9 @@ def _build_evolution_report(
     best_individual: StrategyIndividual,
     evolution_log: list[dict[str, Any]],
     dsl: dict[str, Any],
+    oos_result: dict[str, Any] | None = None,
+    oos_fitness: Any = None,
+    bo_result: dict[str, Any] | None = None,
 ) -> str:
     """生成 Markdown 进化报告。"""
     direction_label = "做多" if config["direction"] == "long" else "做空"
@@ -525,16 +763,47 @@ def _build_evolution_report(
     )
     if best_individual.backtest_result:
         metrics = best_individual.backtest_result.get("metrics", {})
+        is_sharpe = metrics.get("sharpe", "—")
         lines.extend(
             [
                 f"- 年化收益：{metrics.get('annualized_return_pct', '—')}% | 最大回撤：{metrics.get('max_drawdown_pct', '—')}%",
-                f"- Sharpe：{metrics.get('sharpe', '—')} | 胜率：{metrics.get('win_rate_pct', '—')}%",
+                f"- Sharpe：{is_sharpe} | 胜率：{metrics.get('win_rate_pct', '—')}%",
                 f"- 盈亏比：{metrics.get('profit_factor', '—')} | 交易次数：{metrics.get('trade_count', '—')}",
                 f"- 综合评分：{metrics.get('score', '—')}/100",
             ]
         )
     else:
         lines.append("- 回测未完成")
+
+    # OOS 验证结果
+    if oos_result:
+        oos_metrics = oos_result.get("metrics", {})
+        oos_sharpe = oos_metrics.get("sharpe", "—")
+        lines.extend(
+            [
+                "",
+                "### 样本外 (OOS) 验证",
+                f"- OOS Sharpe：{oos_sharpe} | OOS 年化收益：{oos_metrics.get('annualized_return_pct', '—')}%",
+                f"- OOS 最大回撤：{oos_metrics.get('max_drawdown_pct', '—')}% | OOS 交易次数：{oos_metrics.get('trade_count', '—')}",
+            ]
+        )
+        if oos_fitness:
+            lines.append(f"- IS/OOS 一致性评分：{oos_fitness.total:.1f}")
+            stability = oos_fitness.components.get("stability", "—")
+            stability_str = f"{stability:.0f}/100" if isinstance(stability, int | float) else str(stability)
+            lines.append(f"- 稳定性：{stability_str}")
+
+    # BO 优化结果
+    if bo_result:
+        lines.extend(
+            [
+                "",
+                "### 贝叶斯优化 (Bayesian Optimization)",
+                f"- BO 最优适应度：{bo_result.get('fitness', '—')}",
+                f"- 优化参数：SL={bo_result['params'].get('stop_loss_atr', '—')}x ATR，TP={bo_result['params'].get('take_profit_rr', '—')}x RR，仓位={bo_result['params'].get('position_size_pct', '—')}",
+                f"- 评估次数：{len(bo_result.get('history', []))} 次",
+            ]
+        )
 
     lines.extend(
         [
