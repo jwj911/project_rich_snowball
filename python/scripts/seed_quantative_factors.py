@@ -76,31 +76,79 @@ FACTORS = [
 
 SAMPLE_STRATEGIES = [
     {
-        "name": "螺纹钢 MtmHcm20 动量策略",
+        "name": "螺纹钢 5日20日均线金叉",
         "symbol": "RB",
-        "description": "基于 MtmHcm20 因子的时序动量策略，因子大于 0 做多，小于 0 平仓",
+        "description": "5日均线上穿20日均线做多，下穿平仓",
         "timeframe": "1d",
         "direction": "long",
-        "entry": {"conditions": [{"indicator": "factor:mtm_hcm_20", "operator": "greater_than", "value": 0.0}], "logic": "and"},
-        "exit": {"conditions": [{"indicator": "factor:mtm_hcm_20", "operator": "less_than", "value": 0.0}], "logic": "and"},
+        "entry": {
+            "conditions": [{"indicator": "sma5", "operator": "cross_above", "indicator2": "sma20"}],
+            "logic": "and",
+        },
+        "exit": {
+            "conditions": [{"indicator": "sma5", "operator": "cross_below", "indicator2": "sma20"}],
+            "logic": "and",
+        },
     },
     {
-        "name": "黄金 G161 波动策略",
+        "name": "黄金 10日30日均线交叉",
         "symbol": "AU",
-        "description": "基于 G161 波动因子的策略，因子大于 0 做多，小于 0 平仓",
+        "description": "10日均线上穿30日均线做多，下穿平仓",
         "timeframe": "1d",
         "direction": "long",
-        "entry": {"conditions": [{"indicator": "factor:g_161", "operator": "greater_than", "value": 0.0}], "logic": "and"},
-        "exit": {"conditions": [{"indicator": "factor:g_161", "operator": "less_than", "value": 0.0}], "logic": "and"},
+        "entry": {
+            "conditions": [{"indicator": "sma10", "operator": "cross_above", "indicator2": "sma30"}],
+            "logic": "and",
+        },
+        "exit": {
+            "conditions": [{"indicator": "sma10", "operator": "cross_below", "indicator2": "sma30"}],
+            "logic": "and",
+        },
     },
     {
-        "name": "原油 PriceVol20 波动策略",
+        "name": "原油 RSI超买卖出",
         "symbol": "SC",
-        "description": "基于 PriceVol20 波动因子的策略，波动大于 50 做多，小于 20 平仓",
+        "description": "RSI低于30超卖做多，RSI高于70超买平仓",
         "timeframe": "1d",
         "direction": "long",
-        "entry": {"conditions": [{"indicator": "factor:price_vol_20", "operator": "greater_than", "value": 50.0}], "logic": "and"},
-        "exit": {"conditions": [{"indicator": "factor:price_vol_20", "operator": "less_than", "value": 20.0}], "logic": "and"},
+        "entry": {
+            "conditions": [{"indicator": "rsi14", "operator": "less_than", "value": 30.0}],
+            "logic": "and",
+        },
+        "exit": {
+            "conditions": [{"indicator": "rsi14", "operator": "greater_than", "value": 70.0}],
+            "logic": "and",
+        },
+    },
+    {
+        "name": "螺纹钢 MACD金叉买入",
+        "symbol": "RB",
+        "description": "MACD快线上穿慢线做多，快线下穿慢线平仓",
+        "timeframe": "1d",
+        "direction": "long",
+        "entry": {
+            "conditions": [{"indicator": "macd_dif", "operator": "cross_above", "indicator2": "macd_dea"}],
+            "logic": "and",
+        },
+        "exit": {
+            "conditions": [{"indicator": "macd_dif", "operator": "cross_below", "indicator2": "macd_dea"}],
+            "logic": "and",
+        },
+    },
+    {
+        "name": "热卷 布林带下轨反弹",
+        "symbol": "HC",
+        "description": "价格跌破布林带下轨做多，突破中轨平仓",
+        "timeframe": "1d",
+        "direction": "long",
+        "entry": {
+            "conditions": [{"indicator": "close", "operator": "cross_above", "indicator2": "boll_lower"}],
+            "logic": "and",
+        },
+        "exit": {
+            "conditions": [{"indicator": "close", "operator": "cross_below", "indicator2": "boll_mid"}],
+            "logic": "and",
+        },
     },
 ]
 

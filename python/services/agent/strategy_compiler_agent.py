@@ -924,7 +924,7 @@ def _extract_timeframe(query: str) -> str:
     return "1d"
 
 
-def _default_risk(query: str) -> dict[str, Any]:
+def _default_risk(query: str, direction: str = "long") -> dict[str, Any]:
     """生成默认风控参数。"""
     # 提取止损：排除「跌破20日均线/周期/根」等技术指标表达
     stop_match = re.search(r"跌破\s*(\d+(?:\.\d+)?)(?!\d)(?!\s*(?:日|天|周期|根|ma|MA|均线))", query)
@@ -938,7 +938,7 @@ def _default_risk(query: str) -> dict[str, Any]:
     lots_match = re.search(r"(\d+)\s*手", query)
     lots = int(lots_match.group(1)) if lots_match else 1
 
-    risk = {
+    risk: dict[str, Any] = {
         "position_size": {"type": "fixed_lots", "value": lots},
         "stop_loss": {"type": "atr_multiple", "value": 2.0},
         "take_profit": {"type": "risk_reward_ratio", "value": 2.0},

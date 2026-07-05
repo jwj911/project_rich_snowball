@@ -12,7 +12,6 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from models import (
-    FutDailyDataDB,
     FutHoldingDB,
     FutMainDailyDataDB,
     FutPriceLimitDB,
@@ -341,7 +340,11 @@ def _get_kline_data(
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> list[dict[str, Any]]:
-    """获取 K 线数据，支持品种代码或中文别名，可选日期区间过滤。"""
+    """获取 K 线数据，支持品种代码或中文别名，可选日期区间过滤。
+
+    日线（1d/D）优先从 fut_main_daily_data 读取 Tushare 回填数据（覆盖全、数据量大），
+    日线以下的日内周期（1h/5m/15m 等）从 kline_data 读取。
+    """
     symbol = symbol.upper().strip()
     variety = db.query(VarietyDB).filter(VarietyDB.symbol == symbol, VarietyDB.is_active == True).first()  # noqa: E712
     if not variety:
@@ -381,6 +384,57 @@ def _get_kline_data(
     }
     mapped = kline_period_map.get(period, period)
 
+    # 日线优先从 fut_main_daily_data 获取，指定优先级：主力连续 > 下季度合约 > 所有。
+    # 避免多种 ts_code 混入 K 线数据导致价格不连贯。
+    if period in fut_daily_period_map:
+        fut_period = fut_daily_period_map[period]
+        ts_code_priority = [f"{symbol}.SHF", f"{symbol}.DCE", f"{symbol}.CZC", f"{symbol}.INE", f"{symbol}.GFE"]
+
+        daily_rows: list[FutMainDailyDataDB] = []
+        for preferred_ts in ts_code_priority:
+            q = db.query(FutMainDailyDataDB).filter(
+                FutMainDailyDataDB.variety_id == variety.id,
+                FutMainDailyDataDB.period == fut_period,
+                FutMainDailyDataDB.ts_code == preferred_ts,
+            )
+            if start_date is not None:
+                q = q.filter(FutMainDailyDataDB.trade_date >= start_date)
+            if end_date is not None:
+                q = q.filter(FutMainDailyDataDB.trade_date <= end_date)
+            daily_rows = q.order_by(FutMainDailyDataDB.trade_date.desc()).limit(limit).all()
+            if daily_rows:
+                break
+
+        if not daily_rows:
+            # Fallback: no ts_code filter (backward-compatible for other exchanges)
+            daily_fallback = db.query(FutMainDailyDataDB).filter(
+                FutMainDailyDataDB.variety_id == variety.id, FutMainDailyDataDB.period == fut_period
+            )
+            if start_date is not None:
+                daily_fallback = daily_fallback.filter(FutMainDailyDataDB.trade_date >= start_date)
+            if end_date is not None:
+                daily_fallback = daily_fallback.filter(FutMainDailyDataDB.trade_date <= end_date)
+            daily_rows = daily_fallback.order_by(FutMainDailyDataDB.trade_date.desc()).limit(limit).all()
+
+        daily_result = [
+            {
+                "time": row.trade_date.isoformat(),
+                "open": float(row.open_price),
+                "high": float(row.high_price),
+                "low": float(row.low_price),
+                "close": float(row.close_price),
+                "volume": row.volume,
+            }
+            for row in reversed(daily_rows)
+            if row.open_price is not None
+            and row.high_price is not None
+            and row.low_price is not None
+            and row.close_price is not None
+        ]
+        if daily_result:
+            return daily_result
+
+    # 日内周期或无日线数据时的 fallback
     klines_query = db.query(KlineDataDB).filter(KlineDataDB.variety_id == variety.id, KlineDataDB.period == mapped)
     if start_date is not None:
         klines_query = klines_query.filter(KlineDataDB.trading_time >= start_date)
@@ -388,7 +442,7 @@ def _get_kline_data(
         klines_query = klines_query.filter(KlineDataDB.trading_time <= end_date)
     klines = klines_query.order_by(KlineDataDB.trading_time.desc()).limit(limit).all()
 
-    kline_result = [
+    return [
         {
             "time": k.trading_time.isoformat(),
             "open": float(k.open_price),
@@ -399,43 +453,6 @@ def _get_kline_data(
         }
         for k in reversed(klines)
     ]
-    if period not in fut_daily_period_map:
-        return kline_result
-
-    fut_period = fut_daily_period_map[period]
-    daily_query = db.query(FutMainDailyDataDB).filter(
-        FutMainDailyDataDB.variety_id == variety.id, FutMainDailyDataDB.period == fut_period
-    )
-    if start_date is not None:
-        daily_query = daily_query.filter(FutMainDailyDataDB.trade_date >= start_date)
-    if end_date is not None:
-        daily_query = daily_query.filter(FutMainDailyDataDB.trade_date <= end_date)
-    daily_rows = daily_query.order_by(FutMainDailyDataDB.trade_date.desc()).limit(limit).all()
-    daily_result = [
-        {
-            "time": row.trade_date.isoformat(),
-            "open": float(row.open_price),
-            "high": float(row.high_price),
-            "low": float(row.low_price),
-            "close": float(row.close_price),
-            "volume": row.volume,
-        }
-        for row in reversed(daily_rows)
-        if row.open_price is not None
-        and row.high_price is not None
-        and row.low_price is not None
-        and row.close_price is not None
-    ]
-    if not daily_result:
-        return kline_result
-    if not kline_result:
-        return daily_result
-
-    latest_kline_time = klines[0].trading_time if klines else None
-    latest_daily_time = daily_rows[0].trade_date if daily_rows else None
-    if latest_daily_time and latest_kline_time and latest_daily_time >= latest_kline_time:
-        return daily_result
-    return kline_result
 
 
 def _list_active_varieties(
