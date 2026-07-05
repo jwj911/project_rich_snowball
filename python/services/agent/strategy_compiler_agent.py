@@ -173,7 +173,7 @@ class StrategyParser:
         ("ATR", "_parse_atr_breakout"),
         ("突破", "_parse_breakout"),
         ("均线", "_parse_ma_cross"),  # 兜底：宽泛关键词
-        ("RSI", "_parse_rsi"),        # 兜底：最宽泛的放最后
+        ("RSI", "_parse_rsi"),  # 兜底：最宽泛的放最后
     ]
 
     def __init__(self, db) -> None:
@@ -195,11 +195,10 @@ class StrategyParser:
         # 4. 检测逻辑连接词（AND / OR）
         logic = _detect_logic(query)
 
-            # 5. 匹配策略模板（支持简单正则，更容忍空格/大小写/中间修饰词）
+        # 5. 匹配策略模板（支持简单正则，更容忍空格/大小写/中间修饰词）
         for keyword, method_name in self._TEMPLATES:
             pattern = (
-                keyword
-                .replace("MACD放量", r"MACD.*放量")
+                keyword.replace("MACD放量", r"MACD.*放量")
                 .replace("MACD成交量", r"MACD.*成交量")
                 .replace("MACD量能", r"MACD.*量能")
                 .replace("MACD", r"MACD\s*")
@@ -257,17 +256,34 @@ class StrategyParser:
         entry_conditions = []
         exit_conditions = []
 
-        if "金叉" in query or "dif上穿dea" in query:
-            entry_conditions.append({"indicator": "macd_dif", "operator": "cross_above", "indicator2": "macd_dea"})
-        elif "dif大于dea" in query or "dif在dea上方" in query:
-            entry_conditions.append({"indicator": "macd_dif", "operator": "above", "indicator2": "macd_dea"})
-        else:
-            entry_conditions.append({"indicator": "macd_dif", "operator": "cross_above", "indicator2": "macd_dea"})
+        has_golden_cross = "金叉" in query or "dif上穿dea" in query
+        has_death_cross = "死叉" in query or "dif下穿dea" in query
+        has_above = "dif大于dea" in query or "dif在dea上方" in query
 
-        if "死叉" in query or "dif下穿dea" in query:
-            exit_conditions.append({"indicator": "macd_dif", "operator": "cross_below", "indicator2": "macd_dea"})
+        if has_golden_cross:
+            entry_op = "cross_above"
+            default_exit_op = "cross_below"
+        elif has_death_cross:
+            entry_op = "cross_below"
+            default_exit_op = "cross_above"
+        elif has_above:
+            entry_op = "above"
+            default_exit_op = "below"
         else:
-            exit_conditions.append({"indicator": "macd_dif", "operator": "cross_below", "indicator2": "macd_dea"})
+            # 无显式信号时根据多空方向默认
+            entry_op = "cross_above" if direction == "long" else "cross_below"
+            default_exit_op = "cross_below" if direction == "long" else "cross_above"
+
+        entry_conditions.append({"indicator": "macd_dif", "operator": entry_op, "indicator2": "macd_dea"})
+
+        if has_golden_cross and not has_death_cross:
+            exit_op = "cross_below"
+        elif has_death_cross and not has_golden_cross:
+            exit_op = "cross_above"
+        else:
+            exit_op = default_exit_op
+
+        exit_conditions.append({"indicator": "macd_dif", "operator": exit_op, "indicator2": "macd_dea"})
 
         # Multi-condition: parse additional conditions from the query
         extra_entry = _parse_extra_conditions(query)
@@ -418,7 +434,9 @@ class StrategyParser:
 
         # RSI 过滤：做多时 RSI 不能太低（排除极弱趋势），做空时 RSI 不能太高
         if has_rsi_filter:
-            rsi_threshold_match = re.search(r"RSI\s*(?:高于|大于|above|>|低于|小于|below|<)?\s*(\d+)", query, re.IGNORECASE)
+            rsi_threshold_match = re.search(
+                r"RSI\s*(?:高于|大于|above|>|低于|小于|below|<)?\s*(\d+)", query, re.IGNORECASE
+            )
             if direction == "long":
                 rsi_threshold = int(rsi_threshold_match.group(1)) if rsi_threshold_match else 40
                 entry_conditions.append({"indicator": "rsi24", "operator": "greater_than", "value": rsi_threshold})
@@ -509,9 +527,7 @@ class StrategyParser:
             risk=_default_risk(query),
         )
 
-    def _parse_kdj(
-        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
-    ) -> StrategyDSL:
+    def _parse_kdj(self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str) -> StrategyDSL:
         """解析 KDJ 信号策略：金叉且超卖做多，死叉且超买平仓。"""
         # 提取 K/D/J 周期
         period_match = re.search(r"KDJ\s*(?:周期|参数)?\s*(\d+)", query, re.IGNORECASE)
@@ -560,9 +576,7 @@ class StrategyParser:
             risk=_default_risk(query),
         )
 
-    def _parse_cci(
-        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
-    ) -> StrategyDSL:
+    def _parse_cci(self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str) -> StrategyDSL:
         """解析 CCI 信号策略：简化版 CCI < -100 做多，CCI > 100 平仓。"""
         period_match = re.search(r"CCI\s*(?:周期|参数)?\s*(\d+)", query, re.IGNORECASE)
         period = int(period_match.group(1)) if period_match else 20
@@ -594,9 +608,7 @@ class StrategyParser:
             risk=_default_risk(query),
         )
 
-    def _parse_rsv(
-        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
-    ) -> StrategyDSL:
+    def _parse_rsv(self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str) -> StrategyDSL:
         """解析 RSV 信号策略：RSV < 10 做多，RSV > 90 平仓。"""
         # 使用 KDJ 的 J 值近似 RSV 极端位置
         period_match = re.search(r"RSV\s*(?:周期|参数)?\s*(\d+)", query, re.IGNORECASE)
@@ -628,9 +640,7 @@ class StrategyParser:
             risk=_default_risk(query),
         )
 
-    def _parse_ma_bias(
-        self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str
-    ) -> StrategyDSL:
+    def _parse_ma_bias(self, query: str, symbols: list[str], timeframe: str, direction: str, logic: str) -> StrategyDSL:
         """解析均线偏离策略：价格偏离均线超过阈值时入场。"""
         ma_match = re.search(r"(\d+)\s*(?:日|天|周期|根)?(?:均线|ma|MA)", query)
         ma_period = int(ma_match.group(1)) if ma_match else 20
@@ -682,8 +692,8 @@ class StrategyParser:
         extra_entry = _parse_extra_conditions(query)
 
         return StrategyDSL(
-            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} SMA{ma_period} 偏离{threshold*100:.1f}%策略",
-            description=f"价格相对 SMA{ma_period} {'上偏' if direction == 'long' else '下偏'} {threshold*100:.1f}% 入场",
+            name=f"{symbols[0] if len(symbols) == 1 else '多品种'} SMA{ma_period} 偏离{threshold * 100:.1f}%策略",
+            description=f"价格相对 SMA{ma_period} {'上偏' if direction == 'long' else '下偏'} {threshold * 100:.1f}% 入场",
             universe=symbols,
             timeframe=timeframe,
             direction=direction,
@@ -727,10 +737,20 @@ class StrategyParser:
         """解析高低点突破策略：突破前 n 根 K 线高点/低点。"""
         # 优先匹配 "昨日/前日/前 n 周期/高点" 等写法
         window_match = re.search(
-            r"(?:昨日|前日|前\s*(\d+)\s*(?:日|天|周期|根)|(\d+)\s*(?:日|天|周期|根)?)(?:高低点|高低|高点|低点)",
+            r"(?:(昨日)|(?:前日)|前\s*(\d+)\s*(?:日|天|周期|根)|(\d+)\s*(?:日|天|周期|根)?)(?:高低点|高低|高点|低点)",
             query,
         )
-        window = int(window_match.group(1) or window_match.group(2) or "1") if window_match else 1
+        if window_match:
+            if window_match.group(1):  # 昨日
+                window = 1
+            elif window_match.group(2):  # 前 n 日
+                window = int(window_match.group(2))
+            elif window_match.group(3):  # n 日
+                window = int(window_match.group(3))
+            else:  # 前日
+                window = 2
+        else:
+            window = 20
         high_indicator = f"high_{window}"
         low_indicator = f"low_{window}"
 
@@ -814,8 +834,13 @@ class StrategyValidator:
                 errors.append(f"{prefix} 不支持的指标2：{indicator2}")
 
             # 数值操作符需要 value
-            if operator in ("greater_than", "less_than", "equal", "between") and value is None:
+            if operator in ("greater_than", "less_than", "equal") and value is None:
                 errors.append(f"{prefix} {operator} 需要 value")
+            if operator == "between":
+                if value is None:
+                    errors.append(f"{prefix} between 需要 value")
+                elif not isinstance(value, list | tuple) or len(value) != 2:
+                    errors.append(f"{prefix} between 需要 value 为长度 2 的数值列表")
 
         return errors
 
@@ -850,9 +875,9 @@ def _is_valid_indicator(name: str) -> bool:
         return True
     # 支持 factor:<factor_id> 引用用户自定义因子
     if name.startswith("factor:"):
-        return bool(name[len("factor:"):].strip())
+        return bool(name[len("factor:") :].strip())
     # 支持 volume_sma20
-    if name.startswith("volume_sma") and name[len("volume_sma"):].strip("_").isdigit():
+    if name.startswith("volume_sma") and name[len("volume_sma") :].strip("_").isdigit():
         return True
     # 支持 atr_upper_20_2 / atr_lower_20_2
     if name.startswith("atr_upper_") or name.startswith("atr_lower_"):
@@ -972,15 +997,31 @@ def _parse_extra_conditions(query: str) -> list[dict[str, Any]]:
     elif rsi_above:
         conditions.append({"indicator": "rsi24", "operator": "greater_than", "value": int(rsi_above.group(1))})
 
-    # 成交量放大
+    # 成交量放大：volume > volume_sma20 * mult
     if re.search(r"成交量\s*(?:放大|增加|扩张|放量)", query):
         vol_mult_match = re.search(r"(\d+(?:\.\d+)?)\s*倍", query)
         vol_mult = float(vol_mult_match.group(1)) if vol_mult_match else 1.5
-        conditions.append({"indicator": "volume", "operator": "greater_than", "value": vol_mult})
+        conditions.append(
+            {
+                "indicator": "volume",
+                "operator": "greater_than",
+                "indicator2": "volume_sma20",
+                "value": vol_mult,
+                "transform": "multiply_value",
+            }
+        )
 
-    # 成交量缩小
+    # 成交量缩小：volume < volume_sma20 * 0.5
     if re.search(r"成交量\s*(?:缩小|萎缩|缩量|减少)", query):
-        conditions.append({"indicator": "volume", "operator": "less_than", "value": 0.5})
+        conditions.append(
+            {
+                "indicator": "volume",
+                "operator": "less_than",
+                "indicator2": "volume_sma20",
+                "value": 0.5,
+                "transform": "multiply_value",
+            }
+        )
 
     # 价格在均线上方/下方
     ma_above = re.search(

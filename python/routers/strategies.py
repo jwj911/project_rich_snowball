@@ -168,6 +168,7 @@ def run_strategy_backtest_api(
             initial_cash=params.initial_cash,
             quantity=params.quantity,
             limit=params.limit,
+            risk=dsl.get("risk"),
         )
         metrics = result["metrics"]
         run_record.result_json = json.dumps(result, ensure_ascii=False)

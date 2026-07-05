@@ -59,6 +59,8 @@ def dsl_to_backtest_config(
         multiplier=1.0,
         fee_rate=0.0001,
         direction=direction,
+        stop_loss=dsl.risk.get("stop_loss") if dsl.risk else None,
+        take_profit=dsl.risk.get("take_profit") if dsl.risk else None,
     )
 
 

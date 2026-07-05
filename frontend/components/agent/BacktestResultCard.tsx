@@ -11,8 +11,110 @@ import {
   Target,
   ArrowRight,
   DollarSign,
+  AlertTriangle,
 } from 'lucide-react'
 import type { BacktestResultData } from './backtest-types'
+
+const OPERATOR_LABELS: Record<string, string> = {
+  cross_above: '上穿',
+  cross_below: '下穿',
+  above: '突破',
+  below: '跌破',
+  greater_than: '大于',
+  less_than: '小于',
+  equal: '等于',
+  between: '介于',
+}
+
+const INDICATOR_SHORT_LABELS: Record<string, string> = {
+  sma: '均线',
+  ema: '指数均线',
+  rsi: 'RSI',
+  macd_dif: 'MACD DIF',
+  macd_dea: 'MACD DEA',
+  macd: 'MACD',
+  boll_upper: '布林上轨',
+  boll_mid: '布林中轨',
+  boll_lower: '布林下轨',
+  atr: 'ATR',
+  kdj_k: 'KDJ-K',
+  kdj_d: 'KDJ-D',
+  kdj_j: 'KDJ-J',
+  cci: 'CCI',
+  close: '收盘价',
+  volume: '成交量',
+  high: '最高价',
+  low: '最低价',
+}
+
+function fmtIndicator(raw: string): string {
+  // Handle patterns like sma5, ema20, rsi14, cci20, boll_upper_20_2, atr_upper_14_2, volume_sma20
+  const known = INDICATOR_SHORT_LABELS[raw]
+  if (known) return known
+
+  // volume_sma<N>
+  const vsma = raw.match(/^volume_sma(\d+)$/)
+  if (vsma) return `成交量均线(${vsma[1]})`
+
+  // sma<N>
+  const s = raw.match(/^sma(\d+)$/)
+  if (s) return `${s[1]}日均线`
+
+  // ema<N>
+  const e = raw.match(/^ema(\d+)$/)
+  if (e) return `${e[1]}日指数均线`
+
+  // rsi<N>
+  const r = raw.match(/^rsi(\d+)$/)
+  if (r) return `RSI(${r[1]})`
+
+  // cci<N>
+  const c = raw.match(/^cci(\d+)$/)
+  if (c) return `CCI(${c[1]})`
+
+  // kdj_k<N>, kdj_d<N>, kdj_j<N>
+  const k = raw.match(/^kdj_([kdj])(\d+)$/)
+  if (k) return `KDJ-${k[1].toUpperCase()}(${k[2]})`
+
+  // boll_upper_N_M etc
+  const boll = raw.match(/^boll_(upper|lower|mid)_(\d+)_(\d+)$/)
+  if (boll) {
+    const part = boll[1] === 'upper' ? '布林上轨' : boll[1] === 'lower' ? '布林下轨' : '布林中轨'
+    return `${part}(${boll[2]},${boll[3]})`
+  }
+
+  // atr_upper_N_M etc
+  const atr = raw.match(/^atr_(upper|lower)_(\d+)_(\d+)$/)
+  if (atr) {
+    const part = atr[1] === 'upper' ? 'ATR上轨' : 'ATR下轨'
+    return `${part}(${atr[2]},${atr[3]})`
+  }
+
+  // high_N, low_N
+  const hl = raw.match(/^(high|low)_(\d+)$/)
+  if (hl) return `${hl[1] === 'high' ? '最高价' : '最低价'}(${hl[2]})`
+
+  return raw
+}
+
+function buildStrategyDescription(data: BacktestResultData): string {
+  const parts: string[] = []
+  const variety = data.variety as Record<string, string> | undefined
+  const config = data.config
+
+  // 品种名
+  parts.push(variety?.name || config.symbol)
+
+  // 方向
+  parts.push(config.direction === 'short' ? '做空' : '做多')
+
+  // 入场条件（从 signals 推断或从 config 提取）
+  if (config.strategy_type && config.strategy_type !== 'dsl' && config.strategy_type !== 'ma_cross') {
+    parts.push(config.strategy_type)
+  }
+
+  return parts.join(' · ')
+}
 
 export default function BacktestResultCard({
   result,
@@ -32,8 +134,12 @@ export default function BacktestResultCard({
   const window = data.data_window
 
   const score = metrics.score || 0
-  const scoreColor = score >= 70 ? 'text-green-400' : score >= 40 ? 'text-amber-400' : 'text-red-400'
-  const scoreBg = score >= 70 ? 'bg-green-500/10' : score >= 40 ? 'bg-amber-500/10' : 'bg-red-500/10'
+  const noTrades = (metrics.trade_count || 0) === 0
+  const scoreColor = noTrades ? 'text-slate-500' : score >= 70 ? 'text-green-400' : score >= 40 ? 'text-amber-400' : 'text-red-400'
+  const scoreBg = noTrades ? 'bg-slate-500/10' : score >= 70 ? 'bg-green-500/10' : score >= 40 ? 'bg-amber-500/10' : 'bg-red-500/10'
+
+  // Build human-readable strategy description from conditions
+  const strategyDesc = buildStrategyDescription(data)
 
   return (
     <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900/50 p-3">
@@ -47,15 +153,28 @@ export default function BacktestResultCard({
         </div>
       </div>
 
-      {/* 品种与参数 */}
+      {/* 策略描述 */}
       <div className="mb-3 text-xs text-slate-400">
-        {variety?.name || config.symbol} · {config.short_window}/{config.long_window} 均线 · {config.direction === 'short' ? '做空' : '做多'} · {config.period}
+        {strategyDesc}
         {window && (
           <span className="ml-2 text-slate-500">
-            {window.start?.slice(0, 10)} ~ {window.end?.slice(0, 10)} · {window.bars} 根
+            {window.start?.slice(0, 10)} ~ {window.end?.slice(0, 10)} · {window.bars} 根K线
           </span>
         )}
       </div>
+
+      {/* 未产生交易时的提示 */}
+      {noTrades && (
+        <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertTriangle size={14} />
+            未产生交易信号
+          </div>
+          <p className="mt-1 text-amber-200/80">
+            策略条件在所选回测区间内未触发任何买卖信号。可能是参数过于严格、指标组合不匹配当前行情，或需要更长的回测区间。
+          </p>
+        </div>
+      )}
 
       {/* 核心指标网格 */}
       <div className="mb-3 grid grid-cols-4 gap-2">
@@ -89,12 +208,7 @@ export default function BacktestResultCard({
         <MetricBox label="盈亏比" value={metrics.profit_factor?.toFixed(2) || '0'} color="text-slate-300" icon={ArrowRight} />
         <MetricBox label="夏普" value={metrics.sharpe?.toFixed(2) || '0'} color="text-slate-300" icon={Activity} />
         <MetricBox label="交易次数" value={String(metrics.trade_count || 0)} color="text-slate-300" icon={BarChart3} />
-        <MetricBox
-          label="初始资金"
-          value={`${(config.initial_cash / 10000).toFixed(1)}万`}
-          color="text-slate-300"
-          icon={DollarSign}
-        />
+        <MetricBox label="总手续费" value={metrics.total_fee?.toFixed(0) || '0'} color="text-slate-300" icon={DollarSign} />
       </div>
 
       {/* 交易记录 */}

@@ -365,3 +365,33 @@ class TestSignalTemplates:
         assert dsl["entry"]["conditions"][0]["indicator"] == "close"
         assert dsl["entry"]["conditions"][0]["operator"] == "cross_above"
         assert dsl["entry"]["conditions"][0]["indicator2"] == "high_1"
+
+    def test_hl_breakout_default_window(self, db_session):
+        """未指定窗口时，高低点突破默认使用 20 周期。"""
+        user = _create_user(db_session)
+        _create_test_variety(db_session)
+        executor = AgentExecutor(db_session, user.id)
+        task_id = executor.create_task("strategy_compiler", "螺纹钢突破高点做多")
+        agent = StrategyCompilerAgent(AgentContext(db_session, user.id, task_id))
+
+        result = asyncio.run(executor.execute(agent, "螺纹钢突破高点做多", task_id=task_id))
+
+        assert result.success is True
+        dsl = result.data["dsl"]
+        assert dsl["entry"]["conditions"][0]["indicator2"] == "high_20"
+
+    def test_macd_short_default_direction(self, db_session):
+        """MACD 未显式指定金叉/死叉时，空头默认死叉入、金叉出。"""
+        user = _create_user(db_session)
+        _create_test_variety(db_session)
+        executor = AgentExecutor(db_session, user.id)
+        task_id = executor.create_task("strategy_compiler", "螺纹钢MACD做空")
+        agent = StrategyCompilerAgent(AgentContext(db_session, user.id, task_id))
+
+        result = asyncio.run(executor.execute(agent, "螺纹钢MACD做空", task_id=task_id))
+
+        assert result.success is True
+        dsl = result.data["dsl"]
+        assert dsl["direction"] == "short"
+        assert dsl["entry"]["conditions"][0]["operator"] == "cross_below"
+        assert dsl["exit"]["conditions"][0]["operator"] == "cross_above"

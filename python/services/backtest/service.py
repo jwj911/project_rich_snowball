@@ -187,6 +187,7 @@ def _run_dsl_backtest_inner(
     custom_columns: dict[str, pd.Series] | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
+    risk: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """无缓存版本的 DSL 回测执行（供 get_cached 调用）。"""
     variety_info = _get_variety_info(db, symbol)
@@ -232,6 +233,8 @@ def _run_dsl_backtest_inner(
         multiplier=multiplier,
         fee_rate=commission if commission < 0.05 else 0.0001,
         direction=direction,
+        stop_loss=risk.get("stop_loss") if risk else None,
+        take_profit=risk.get("take_profit") if risk else None,
     )
     result = run_backtest(df, config, entry_conditions=entry_conditions, exit_conditions=exit_conditions).to_dict()
     result["variety"] = variety_info
@@ -260,6 +263,7 @@ def run_dsl_backtest(
     custom_columns: dict[str, pd.Series] | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
+    risk: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """根据 DSL 条件执行回测（带 5 分钟 LRU 缓存）。
 
@@ -287,6 +291,7 @@ def run_dsl_backtest(
             custom_columns=custom_columns,
             start_date=start_date,
             end_date=end_date,
+            risk=risk,
         ),
         ttl=300,  # 5 分钟缓存
     )

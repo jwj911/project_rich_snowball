@@ -168,6 +168,12 @@
 - [x] `.gitignore` — 添加日志文件、.playwright-mcp/ 等规则
 - [x] `AGENTS.md` — 更新文档导航引用
 
+### Git 提交记录
+
+| # | Commit | 说明 |
+|---|--------|------|
+| 1 | `df4f09e8` | `chore: 项目文件审计与清理 Phase 1+2` — 80 files changed, +331/-5036, pre-commit 全部通过 |
+
 ---
 
 ## 四、目录对比（清理前 → 清理后）

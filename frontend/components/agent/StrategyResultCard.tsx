@@ -81,12 +81,46 @@ function ConditionBlock({ title, conditions }: { title: string; conditions: Arra
   const operatorMap: Record<string, string> = {
     cross_above: '上穿',
     cross_below: '下穿',
-    above: '大于',
-    below: '小于',
+    above: '突破',
+    below: '跌破',
     greater_than: '大于',
     less_than: '小于',
     equal: '等于',
     between: '介于',
+  }
+
+  // Human-readable indicator labels
+  const indicatorMap: Record<string, string> = {
+    sma: '均线',
+    ema: '指数均线',
+    rsi: 'RSI',
+    macd_dif: 'MACD快线',
+    macd_dea: 'MACD慢线',
+    macd: 'MACD',
+    macd_bar: 'MACD柱',
+    boll_upper: '布林上轨',
+    boll_mid: '布林中轨',
+    boll_lower: '布林下轨',
+    atr: 'ATR',
+    kdj_k: 'KDJ-K',
+    kdj_d: 'KDJ-D',
+    kdj_j: 'KDJ-J',
+    cci: 'CCI',
+    close: '收盘价',
+    volume: '成交量',
+  }
+
+  function fmtInd(raw: string): string {
+    if (indicatorMap[raw]) return indicatorMap[raw]
+    const s = raw.match(/^sma(\d+)$/)
+    if (s) return `${s[1]}日均线`
+    const e = raw.match(/^ema(\d+)$/)
+    if (e) return `${e[1]}日指数均线`
+    const r = raw.match(/^rsi(\d+)$/)
+    if (r) return `RSI(${r[1]})`
+    const c = raw.match(/^cci(\d+)$/)
+    if (c) return `CCI(${c[1]})`
+    return raw
   }
 
   return (
@@ -98,12 +132,12 @@ function ConditionBlock({ title, conditions }: { title: string; conditions: Arra
       <div className="space-y-1">
         {conditions.map((cond, i) => (
           <div key={i} className="text-xs text-slate-300">
-            <span className="font-medium text-white">{cond.indicator}</span>
+            <span className="font-medium text-white">{fmtInd(cond.indicator)}</span>
             {' '}
             <span className="text-slate-400">{operatorMap[cond.operator] || cond.operator}</span>
             {' '}
             {cond.indicator2 ? (
-              <span className="font-medium text-white">{cond.indicator2}</span>
+              <span className="font-medium text-white">{fmtInd(cond.indicator2)}</span>
             ) : cond.value !== undefined ? (
               <span className="font-medium text-white">{cond.value}</span>
             ) : null}
@@ -115,6 +149,19 @@ function ConditionBlock({ title, conditions }: { title: string; conditions: Arra
 }
 
 function RiskBlock({ risk }: { risk: StrategyDSL['risk'] }) {
+  const typeMap: Record<string, string> = {
+    fixed: '固定',
+    pct: '百分比',
+    atr: 'ATR',
+    trailing: '移动',
+  }
+
+  function fmtRisk(t: string, v: number): string {
+    const label = typeMap[t] || t
+    if (t === 'pct') return `${label} (${v}%)`
+    return `${label} (${v})`
+  }
+
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900/30 p-2">
       <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-red-400">
@@ -124,15 +171,15 @@ function RiskBlock({ risk }: { risk: StrategyDSL['risk'] }) {
       <div className="space-y-1 text-xs text-slate-300">
         <div className="flex items-center justify-between">
           <span className="text-slate-400">仓位</span>
-          <span>{risk.position_size.type} ({risk.position_size.value})</span>
+          <span>{fmtRisk(risk.position_size.type, risk.position_size.value)}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-slate-400">止损</span>
-          <span>{risk.stop_loss.type} ({risk.stop_loss.value})</span>
+          <span>{fmtRisk(risk.stop_loss.type, risk.stop_loss.value)}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-slate-400">止盈</span>
-          <span>{risk.take_profit.type} ({risk.take_profit.value})</span>
+          <span>{fmtRisk(risk.take_profit.type, risk.take_profit.value)}</span>
         </div>
       </div>
     </div>

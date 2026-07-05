@@ -799,16 +799,13 @@ function BacktestMetricsPanel({ metrics }: { metrics: BacktestResult['metrics'] 
     { label: '年化收益率', value: `${Number(metrics.annualized_return_pct ?? 0).toFixed(2)}%` },
     { label: '最大回撤', value: `${Number(metrics.max_drawdown_pct ?? 0).toFixed(2)}%`, color: 'text-red-400' },
     { label: '胜率', value: `${Number(metrics.win_rate_pct ?? 0).toFixed(2)}%` },
-    { label: '败率', value: `${Number(metrics.loss_rate_pct ?? 0).toFixed(2)}%` },
     { label: '盈亏比', value: Number(metrics.profit_loss_ratio ?? 0).toFixed(2) },
     { label: '夏普比率', value: Number(metrics.sharpe ?? 0).toFixed(2) },
     { label: '交易次数', value: Number(metrics.trade_count ?? 0) },
-    { label: '总手续费', value: Number(metrics.total_fee ?? 0).toFixed(2) },
-    { label: '均笔手续费', value: Number(metrics.avg_fee_per_trade ?? 0).toFixed(2) },
     { label: '评分', value: `${Number(metrics.score ?? 0)}/100` },
   ]
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {items.map((item) => (
         <div key={item.label} className="rounded bg-slate-900/60 p-2">
           <div className="text-[10px] text-slate-500">{item.label}</div>

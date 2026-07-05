@@ -28,6 +28,8 @@ class BacktestConfig:
     fee_rate: float = 0.0001
     direction: str = "long"
     filter_list: list[FilterCondition] = field(default_factory=list)
+    stop_loss: dict[str, Any] | None = None
+    take_profit: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)
@@ -67,6 +69,8 @@ class BacktestResult:
                 "filter_list": [
                     {"field": f.field, "expression": f.expression, "is_and": f.is_and} for f in self.config.filter_list
                 ],
+                "stop_loss": self.config.stop_loss,
+                "take_profit": self.config.take_profit,
             },
             "metrics": self.metrics,
             "trades": [asdict(trade) for trade in self.trades],
@@ -124,6 +128,10 @@ def run_backtest(
         entry_signal = long_exit if config.direction == "short" else long_entry
         exit_signal = long_entry if config.direction == "short" else long_exit
 
+    # 预计算 ATR，供止损/止盈（atr_multiple）使用
+    if "atr" not in data.columns:
+        data["atr"] = _atr(data["high"], data["low"], data["close"])
+
     cash = float(config.initial_cash)
     position_entry_price: float | None = None
     position_entry_time: str | None = None
@@ -137,20 +145,46 @@ def run_backtest(
         execution_price = float(row["open"])
         current_close = float(row["close"])
         time_value = str(row["time"])
+        high = float(row["high"])
+        low = float(row["low"])
+
+        exit_reason: str | None = None
+        exit_trigger_price: float | None = None
+
+        # 优先检查止损/止盈（基于当前 bar 的高低点）
+        if position_entry_price is not None:
+            sl_price, tp_price = _resolve_stop_levels(config, position_entry_price, data, i)
+            if sl_price is not None and (
+                config.direction == "long" and low <= sl_price or config.direction == "short" and high >= sl_price
+            ):
+                exit_reason = "stop_loss"
+                exit_trigger_price = sl_price
+            if (
+                exit_reason is None
+                and tp_price is not None
+                and (config.direction == "long" and high >= tp_price or config.direction == "short" and low <= tp_price)
+            ):
+                exit_reason = "take_profit"
+                exit_trigger_price = tp_price
 
         if position_entry_price is None and bool(entry_signal.iloc[i - 1]):
             position_entry_price = execution_price
             position_entry_time = time_value
             signals.append({"time": time_value, "type": "entry", "price": execution_price})
-        elif position_entry_price is not None and bool(exit_signal.iloc[i - 1]):
+        elif position_entry_price is not None and (exit_reason or bool(exit_signal.iloc[i - 1])):
+            exit_price = (
+                _calculate_exit_price(config.direction, execution_price, exit_trigger_price, high, low, exit_reason)
+                if exit_reason
+                else execution_price
+            )
             gross = _position_pnl(
                 config.direction,
                 position_entry_price,
-                execution_price,
+                exit_price,
                 config.quantity,
                 config.multiplier,
             )
-            fee = (position_entry_price + execution_price) * config.quantity * config.multiplier * config.fee_rate
+            fee = (position_entry_price + exit_price) * config.quantity * config.multiplier * config.fee_rate
             pnl = gross - fee
             cash += pnl
             base = position_entry_price * config.quantity * config.multiplier
@@ -160,14 +194,14 @@ def run_backtest(
                     exit_time=time_value,
                     direction=config.direction,
                     entry_price=round(position_entry_price, 4),
-                    exit_price=round(execution_price, 4),
+                    exit_price=round(exit_price, 4),
                     quantity=config.quantity,
                     pnl=round(pnl, 4),
                     return_pct=round(pnl / base * 100, 4) if base else 0.0,
                     fee=round(fee, 4),
                 )
             )
-            signals.append({"time": time_value, "type": "exit", "price": execution_price})
+            signals.append({"time": time_value, "type": "exit", "price": exit_price, "reason": exit_reason or "signal"})
             position_entry_price = None
             position_entry_time = None
 
@@ -217,6 +251,17 @@ def _eval_conditions(data: pd.DataFrame, conditions: list[dict[str, Any]], logic
         col1 = _compute_indicator(data, indicator)
         prev_col1 = col1.shift(1)
 
+        # between 单独处理：value 为 [lower, upper]
+        if operator == "between":
+            if isinstance(value, list | tuple) and len(value) == 2:
+                lower, upper = float(value[0]), float(value[1])
+                signal = (col1 > lower) & (col1 < upper)
+            else:
+                signal = pd.Series(False, index=data.index)
+                logger.warning("between 操作符需要 value 为长度 2 的数值列表")
+            results.append(signal.fillna(False))
+            continue
+
         if indicator2:
             col2 = _compute_indicator(data, indicator2)
             # 支持对 indicator2 进行变换，例如 volume > volume_sma * 1.5
@@ -249,9 +294,13 @@ def _eval_conditions(data: pd.DataFrame, conditions: list[dict[str, Any]], logic
         elif operator == "equal":
             signal = (col1 - col2).abs() < 1e-9
         elif operator == "between":
-            # between 需要 value 和 indicator2 同时提供，这里简化处理
-            signal = (col1 > col2) & (col1 < col2.shift(1))  # 不太常见，先占位
-            logger.warning("between 操作符在回测中简化处理")
+            # between 要求 value 为 [lower, upper] 列表
+            if isinstance(value, list | tuple) and len(value) == 2:
+                lower, upper = float(value[0]), float(value[1])
+                signal = (col1 > lower) & (col1 < upper)
+            else:
+                signal = pd.Series(False, index=data.index)
+                logger.warning("between 操作符需要 value 为长度 2 的数值列表")
         else:
             signal = pd.Series(False, index=data.index)
 
@@ -275,6 +324,73 @@ def _position_pnl(direction: str, entry: float, exit_price: float, quantity: int
     return (exit_price - entry) * quantity * multiplier
 
 
+def _resolve_stop_levels(
+    config: BacktestConfig, entry_price: float, data: pd.DataFrame, i: int
+) -> tuple[float | None, float | None]:
+    """根据 DSL risk 配置和当前数据解析止损/止盈触发价。"""
+    sl_price: float | None = None
+    tp_price: float | None = None
+
+    sl = config.stop_loss
+    if sl and entry_price is not None:
+        sl_type = sl.get("type")
+        sl_value = sl.get("value")
+        if sl_type == "fixed_price" and sl_value is not None:
+            sl_price = float(sl_value)
+        elif sl_type == "percent_below":
+            sl_price = entry_price * (1 - float(sl_value or 0))
+        elif sl_type == "percent_above":
+            sl_price = entry_price * (1 + float(sl_value or 0))
+        elif sl_type == "atr_multiple":
+            atr_value = float(data["atr"].iloc[i]) if i < len(data) and not pd.isna(data["atr"].iloc[i]) else 0.0
+            if config.direction == "long":
+                sl_price = entry_price - atr_value * float(sl_value or 0)
+            else:
+                sl_price = entry_price + atr_value * float(sl_value or 0)
+
+    tp = config.take_profit
+    if tp and entry_price is not None:
+        tp_type = tp.get("type")
+        tp_value = tp.get("value")
+        if tp_type == "target_price" and tp_value is not None:
+            tp_price = float(tp_value)
+        elif tp_type == "percent_below":
+            tp_price = entry_price * (1 - float(tp_value or 0))
+        elif tp_type == "percent_above":
+            tp_price = entry_price * (1 + float(tp_value or 0))
+        elif tp_type == "risk_reward_ratio" and sl_price is not None:
+            risk = abs(entry_price - sl_price)
+            if config.direction == "long":
+                tp_price = entry_price + risk * float(tp_value or 0)
+            else:
+                tp_price = entry_price - risk * float(tp_value or 0)
+
+    return sl_price, tp_price
+
+
+def _calculate_exit_price(
+    direction: str,
+    open_price: float,
+    trigger_price: float,
+    high: float,
+    low: float,
+    reason: str,
+) -> float:
+    """根据止损/止盈触发价和当前 bar 的高低开，确定实际出场价。"""
+    if direction == "long":
+        if reason == "stop_loss":
+            # 开盘跳空低于止损，按开盘出；否则按止损价
+            return min(open_price, trigger_price)
+        # take_profit
+        return max(open_price, trigger_price)
+    else:
+        if reason == "stop_loss":
+            # 开盘跳空高于止损，按开盘出；否则按止损价
+            return max(open_price, trigger_price)
+        # take_profit
+        return min(open_price, trigger_price)
+
+
 def _calculate_metrics(
     equity_curve: list[dict[str, Any]],
     trades: list[BacktestTrade],
@@ -296,7 +412,8 @@ def _calculate_metrics(
     total_return = (equity[-1] / initial_cash - 1) * 100
     returns = pd.Series(equity).pct_change().dropna()
     periods = max(len(equity), 1)
-    annualized = ((equity[-1] / initial_cash) ** (252 / periods) - 1) * 100 if equity[-1] > 0 else -100.0
+    total_multiplier = equity[-1] / initial_cash
+    annualized = -100.0 if total_multiplier <= 0 else (total_multiplier ** (252 / periods) - 1) * 100
     rolling_peak = np.maximum.accumulate(equity)
     drawdown = (equity / rolling_peak - 1) * 100
     max_drawdown = abs(float(drawdown.min())) if len(drawdown) else 0.0
@@ -336,13 +453,22 @@ def _score_strategy(
     profit_factor: float,
     trade_count: int,
 ) -> int:
+    if trade_count == 0:
+        return 0  # 无交易：回测无意义，0 分明确告知用户
     score = 50
+    # 收益贡献：-30%~50% 映射到 -15~25 分
     score += min(max(total_return, -30), 50) * 0.5
+    # 回撤惩罚：0~40% 映射到 0~28 分
     score -= min(max_drawdown, 40) * 0.7
-    score += (win_rate - 50) * 0.2
-    score += min(profit_factor, 3) * 5
+    # 盈亏比贡献：0~3 映射到 0~12 分
+    score += min(profit_factor, 3) * 4
+    # 胜率温和奖励：仅在 30%~70% 区间微调，避免低胜率过度惩罚
+    score += (min(max(win_rate, 30), 70) - 50) * 0.1
+    # 交易次数惩罚：过少样本不可靠
     if trade_count < 3:
         score -= 15
+    elif trade_count < 5:
+        score -= 5
     return int(max(0, min(100, round(score))))
 
 
@@ -367,6 +493,12 @@ def _compute_indicator(df: pd.DataFrame, indicator: str) -> pd.Series:
     # 1. 直接列（如 close, high, low, volume）
     if indicator in df.columns:
         return df[indicator]
+
+    # 1.5 volume_sma<N>：成交量均线
+    if indicator.startswith("volume_sma"):
+        period_match = re.search(r"(\d+)", indicator)
+        period = int(period_match.group(1)) if period_match else 20
+        return volume.rolling(period, min_periods=period).mean()
 
     # 2. 基础指标（不带后缀）
     if indicator == "sma":
@@ -439,6 +571,18 @@ def _compute_indicator(df: pd.DataFrame, indicator: str) -> pd.Series:
             return lower
         if band == "mid":
             return mid
+
+    # ATR 通道：atr_upper_<p>_<m> / atr_lower_<p>_<m>
+    atr_parts = indicator.split("_")
+    if len(atr_parts) >= 4 and atr_parts[0] == "atr" and atr_parts[2].isdigit() and atr_parts[3].isdigit():
+        band = atr_parts[1]
+        atr_period = int(atr_parts[2])
+        atr_mult = int(atr_parts[3])
+        atr_value = _atr(high, low, close, atr_period)
+        if band == "upper":
+            return close + atr_value * atr_mult
+        if band == "lower":
+            return close - atr_value * atr_mult
 
     # 默认返回 close
     logger.warning("未知指标 %s，回退到 close", indicator)

@@ -131,6 +131,27 @@ class TestMultiConditionAnd:
         has_volume = any(c.get("indicator") == "volume" for c in dsl["entry"]["conditions"])
         assert has_volume, "Should include volume condition"
 
+    def test_volume_expansion_condition(self, db_session):
+        """成交量放大应解析为与成交量均量比较，而非绝对数值。"""
+        user = _create_user(db_session)
+        _create_variety(db_session, "RB", "螺纹钢")
+        executor = AgentExecutor(db_session, user.id)
+        task_id = executor.create_task("strategy_compiler", "螺纹钢成交量放大至2倍做多")
+        agent = StrategyCompilerAgent(AgentContext(db_session, user.id, task_id))
+
+        result = asyncio.run(executor.execute(agent, "螺纹钢成交量放大至2倍做多", task_id=task_id))
+
+        assert result.success is True, result.error_message
+        dsl = result.data["dsl"]
+        vol_cond = next(
+            (c for c in dsl["entry"]["conditions"] if c.get("indicator") == "volume"), None
+        )
+        assert vol_cond is not None
+        assert vol_cond["operator"] == "greater_than"
+        assert vol_cond.get("indicator2") == "volume_sma20"
+        assert vol_cond.get("value") == 2.0
+        assert vol_cond.get("transform") == "multiply_value"
+
     def test_ma_cross_with_price_above_ma_filter(self, db_session):
         """均线交叉 且 价格在20日均线上方."""
         user = _create_user(db_session)
