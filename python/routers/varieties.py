@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import and_, asc, case, desc, func, or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, aliased, joinedload
 
 from dependencies import get_current_user_dependency, get_db
 from models import ContractRolloverDB, FutContractDB, FutDailyDataDB, FutMainDailyDataDB, FutTradeFeeDB, RealtimeQuoteDB, UserDB, VarietyDB
@@ -33,34 +33,35 @@ def get_varieties(
 ):
     """品种列表（基于 fut_main_daily_data 主力日线）。
 
-    只返回 fut_main_daily_data 中有最新日线数据的品种。
+    只返回 fut_main_daily_data 中有最新主力合约日线数据的品种。
+    通过 ts_code 排序（主力合约如 AG.SHF 排在具体合约 AG2608.SHF 前面），
+    配合 row_number() 确保每个品种仅返回一条主力记录。
     支持搜索/分类/涨跌筛选/排序/分页。
     """
     from urllib.parse import quote
 
-    # 子查询：取每个品种最新 trade_date 的 D 周期记录
-    latest_daily_subq = (
+    # 子查询：用 row_number() 取每个品种最新的一条主力 D 周期记录
+    # 排序：trade_date desc 确保最新日期；ts_code asc 确保主力合约（如 AG.SHF）排在具体合约（AG2608.SHF）前面
+    ranked = (
         db.query(
-            FutMainDailyDataDB.variety_id,
-            func.max(FutMainDailyDataDB.trade_date).label("max_date"),
+            FutMainDailyDataDB,
+            func.row_number().over(
+                partition_by=FutMainDailyDataDB.variety_id,
+                order_by=[desc(FutMainDailyDataDB.trade_date), asc(FutMainDailyDataDB.ts_code)],
+            ).label("rn"),
         )
         .filter(FutMainDailyDataDB.period == "D")
-        .group_by(FutMainDailyDataDB.variety_id)
         .subquery()
     )
 
-    # 主查询：最新日数据 join 品种信息
+    # 创建别名，让后续查询可以像操作原模型一样操作子查询结果
+    D = aliased(FutMainDailyDataDB, ranked)
+
+    # 主查询：取 rn=1 的记录 join 品种信息
     q = (
-        db.query(FutMainDailyDataDB, VarietyDB)
-        .join(VarietyDB, FutMainDailyDataDB.variety_id == VarietyDB.id)
-        .join(
-            latest_daily_subq,
-            and_(
-                FutMainDailyDataDB.variety_id == latest_daily_subq.c.variety_id,
-                FutMainDailyDataDB.trade_date == latest_daily_subq.c.max_date,
-                FutMainDailyDataDB.period == "D",
-            ),
-        )
+        db.query(D, VarietyDB)
+        .join(VarietyDB, D.variety_id == VarietyDB.id)
+        .filter(ranked.c.rn == 1)
         .filter(VarietyDB.is_active.is_(True))
     )
 
@@ -82,10 +83,10 @@ def get_varieties(
 
     # 涨跌百分比 SQL 表达式（settle 优先，close_price 兜底）
     _change_pct = case(
-        (and_(FutMainDailyDataDB.pre_settle.isnot(None), FutMainDailyDataDB.pre_settle != 0, FutMainDailyDataDB.settle.isnot(None)),
-            (FutMainDailyDataDB.settle - FutMainDailyDataDB.pre_settle) / FutMainDailyDataDB.pre_settle),
-        (and_(FutMainDailyDataDB.pre_settle.isnot(None), FutMainDailyDataDB.pre_settle != 0, FutMainDailyDataDB.close_price.isnot(None)),
-            (FutMainDailyDataDB.close_price - FutMainDailyDataDB.pre_settle) / FutMainDailyDataDB.pre_settle),
+        (and_(D.pre_settle.isnot(None), D.pre_settle != 0, D.settle.isnot(None)),
+            (D.settle - D.pre_settle) / D.pre_settle),
+        (and_(D.pre_settle.isnot(None), D.pre_settle != 0, D.close_price.isnot(None)),
+            (D.close_price - D.pre_settle) / D.pre_settle),
         else_=0,
     )
 
@@ -97,7 +98,7 @@ def get_varieties(
     # 统计
     stats_query = q.with_entities(
         func.count(VarietyDB.id),
-        func.coalesce(func.sum(FutMainDailyDataDB.volume), 0),
+        func.coalesce(func.sum(D.volume), 0),
         func.sum(case((_change_pct >= 0, 1), else_=0)),
         func.sum(case((_change_pct < 0, 1), else_=0)),
     )
@@ -114,12 +115,12 @@ def get_varieties(
 
     # 排序
     _price_col = case(
-        (FutMainDailyDataDB.settle.isnot(None), FutMainDailyDataDB.settle),
-        else_=FutMainDailyDataDB.close_price,
+        (D.settle.isnot(None), D.settle),
+        else_=D.close_price,
     )
     sort_column_map = {
         "change_percent": _change_pct,
-        "volume": FutMainDailyDataDB.volume,
+        "volume": D.volume,
         "current_price": _price_col,
     }
     sort_col = sort_column_map[sort_by]
@@ -154,7 +155,7 @@ def get_varieties(
             return len(s.split(".")[1])
         return 0
 
-    def _daily_change_percent(d: FutMainDailyDataDB) -> float | None:
+    def _daily_change_percent(d) -> float | None:
         if d is None:
             return None
         pre = d.pre_settle
