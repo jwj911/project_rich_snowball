@@ -32,6 +32,7 @@ from services.agent.strategy_evolution_agent import StrategyEvolutionAgent
 from services.agent.intent_router import IntentRouter
 from services.agent.parameter_optimizer_agent import ParameterOptimizerAgent
 from services.agent.tech_analysis_agent import TechAnalysisAgent
+from services.agent.trader_agent import TraderAgent
 from services.domain.exceptions import NotFoundError, ServiceError
 from services.llm_config import resolve_llm_config
 
@@ -48,6 +49,7 @@ _AGENT_CAPABILITIES: dict[str, dict[str, Any]] = {
     "strategy_compiler": {"label": "策略编译", "requires_llm": False},
     "parameter_optimizer": {"label": "参数优化", "requires_llm": False},
     "strategy_evolution": {"label": "策略进化", "requires_llm": False},
+    "trader": {"label": "交易员", "requires_llm": False},
 }
 
 
@@ -141,6 +143,8 @@ def _build_agent(agent_type: str, context: AgentContext) -> Agent:
         return ParameterOptimizerAgent(context)
     if agent_type == "strategy_evolution":
         return StrategyEvolutionAgent(context)
+    if agent_type == "trader":
+        return TraderAgent(context)
     raise ServiceError(
         code=ErrorCode.AGENT_INVALID_MODE,
         message=f"暂不支持 Agent 类型：{agent_type}",

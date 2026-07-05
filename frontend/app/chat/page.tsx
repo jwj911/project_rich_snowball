@@ -22,6 +22,7 @@ import {
   BarChart3,
   Search,
   Square,
+  Target,
 } from 'lucide-react'
 import FactorResultCard from '@/components/agent/FactorResultCard'
 import TechAnalysisReportCard from '@/components/agent/TechAnalysisReportCard'
@@ -29,7 +30,7 @@ import StrategyResultCard from '@/components/agent/StrategyResultCard'
 import BacktestResultCard from '@/components/agent/BacktestResultCard'
 import { toast } from 'sonner'
 
-type AgentModeKey = 'auto' | 'data' | 'backtest' | 'tech_analysis' | 'factor_mining' | 'risk_management'
+type AgentModeKey = 'auto' | 'data' | 'backtest' | 'tech_analysis' | 'factor_mining' | 'risk_management' | 'trader'
 
 interface AgentModeMeta {
   label: string
@@ -85,6 +86,12 @@ const quickPrompts: Record<AgentModeKey, string[]> = {
     '原油 5000 元做空风控',
     '铜的止损止盈怎么设',
   ],
+  trader: [
+    '帮我看看 RB2501 今天的日内波段机会',
+    'CU2501 现在适合剥头皮吗？',
+    '给出 P2501 未来两周的趋势交易计划',
+    '帮我制定一个豆粕的交易系统',
+  ],
 }
 
 const agentModes: Record<AgentModeKey, AgentModeMeta> = {
@@ -94,6 +101,7 @@ const agentModes: Record<AgentModeKey, AgentModeMeta> = {
   tech_analysis: { label: '技术', icon: TrendingUp, desc: '经典指标综合技术面分析' },
   factor_mining: { label: '因子', icon: Search, desc: '因子 IC、分层回测、多空收益' },
   risk_management: { label: '风控', icon: Shield, desc: '仓位管理、止损止盈、回撤控制' },
+  trader: { label: '交易', icon: Target, desc: '多周期图表研判，输出具体交易计划' },
 }
 
 export default function ChatPage() {

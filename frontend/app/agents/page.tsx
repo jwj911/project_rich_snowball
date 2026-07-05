@@ -44,6 +44,8 @@ const agentTypeLabels: Record<string, string> = {
   backtest: '策略回测',
   strategy_compiler: '策略编译',
   parameter_optimizer: '参数优化',
+  strategy_evolution: '策略进化',
+  trader: '交易员',
   auto: '智能模式',
 }
 

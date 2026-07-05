@@ -991,6 +991,8 @@ class AgentType(StrEnum):
     ORCHESTRATOR = "orchestrator"
     STRATEGY_COMPILER = "strategy_compiler"
     PARAMETER_OPTIMIZER = "parameter_optimizer"
+    STRATEGY_EVOLUTION = "strategy_evolution"
+    TRADER = "trader"
     AUTO = "auto"
 
 
@@ -1018,7 +1020,7 @@ class AgentTaskCreate(BaseModel):
 
     agent_type: str = Field(
         ...,
-        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|factor_mining|strategy_compiler|parameter_optimizer|strategy_evolution|auto)$",
+        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|factor_mining|strategy_compiler|parameter_optimizer|strategy_evolution|trader|auto)$",
     )
     query: str = Field(..., min_length=1, max_length=4000)
 
@@ -1132,7 +1134,7 @@ class AgentChatRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=4000)
     agent_type: str = Field(
         default="data",
-        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|factor_mining|strategy_compiler|parameter_optimizer|strategy_evolution|auto)$",
+        pattern=r"^(data|data_quality|tech_analysis|risk_management|analysis_pipeline|backtest|factor_mining|strategy_compiler|parameter_optimizer|strategy_evolution|trader|auto)$",
     )
 
 

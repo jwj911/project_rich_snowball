@@ -22,6 +22,7 @@ from services.agent.parameter_optimizer_agent import ParameterOptimizerAgent
 from services.agent.risk_management_agent import RiskManagementAgent
 from services.agent.strategy_compiler_agent import StrategyCompilerAgent
 from services.agent.tech_analysis_agent import TechAnalysisAgent
+from services.agent.trader_agent import TraderAgent
 
 __all__ = [
     "Agent",
@@ -40,4 +41,5 @@ __all__ = [
     "StrategyCompilerAgent",
     "TechAnalysisAgent",
     "RiskManagementAgent",
+    "TraderAgent",
 ]

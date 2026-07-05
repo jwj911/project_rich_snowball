@@ -487,3 +487,82 @@ SSE 流式返回交易研判过程与最终结果。
 2. 是否需要与 `backtest` Agent 联动，自动验证生成的交易计划？
 3. 是否需要支持用户自定义风险偏好参数（如单笔风险 1% vs 2%）？
 4. 是否需要保存历史交易计划并追踪后续表现（类似模拟交易记录）？
+
+
+---
+
+## 12. 迭代进展记录
+
+### 2026-07-05 第一次迭代：核心功能开发与接入完成
+
+**状态**：已完成 ✅  
+**提交目标**：本地 master 分支
+
+#### 本迭代完成内容
+
+1. **Phase 1：核心子模块实现**
+   - `python/services/agent/trader/market_structure.py`：趋势识别（上涨/下跌/横盘/震荡）、支撑阻力、突破/假突破判断
+   - `python/services/agent/trader/multi_timeframe.py`：多周期共振分析、主导趋势识别、入场周期推荐
+   - `python/services/agent/trader/candlestick.py`：吞没、Pin Bar、十字星、Inside Bar、锤子线/上吊线、早晨之星/黄昏之星识别；多空力量评分
+   - `python/services/agent/trader/trade_plan.py`：交易计划生成（方向/入场/止损/止盈/仓位/盈亏比/置信度）
+   - `python/services/agent/trader/risk_check.py`：风控校验（单笔风险、盈亏比、仓位、回撤提示）
+
+2. **Phase 2：Agent 主类与后端接入**
+   - `python/services/agent/trader_agent.py`：TraderAgent 主类实现，支持日内剥头皮、日内波段、中短趋势、中期趋势四种风格
+   - 注册到 `python/routers/agents.py`：`_AGENT_CAPABILITIES` 与 `_build_agent()`
+   - 更新 `python/schemas.py`：`AgentType` 增加 `TRADER`，`AgentTaskCreate` / `AgentChatRequest` pattern 增加 `trader`
+   - 更新 `python/services/agent/intent_router.py`：交易相关关键词路由到 `trader`
+   - 更新 `python/services/agent/__init__.py`：导出 `TraderAgent`
+
+3. **Phase 3：前端接入**
+   - `frontend/app/chat/page.tsx`：增加 `trader` 模式、快捷提示、图标与描述
+   - `frontend/app/agents/page.tsx`：`agentTypeLabels` 增加 `trader: '交易员'`
+
+4. **Phase 4：测试与质量保障**
+   - `python/tests/test_trader_modules.py`：12 个单元测试，覆盖趋势、支撑阻力、形态、多空力量、交易计划、风控校验
+   - `python/tests/test_trader_agent.py`：6 个集成测试，覆盖 Agent 完整执行链路、数据不足降级、无品种失败、路由注册
+   - 后端测试：`18 passed`（trader 专项）
+   - 前端检查：`npx tsc --noEmit` 通过，`npm run lint` 无警告错误
+
+#### 验证结果
+
+- [x] 能正确解析用户输入中的品种、风格、周期偏好
+- [x] 能输出多周期趋势分析
+- [x] 能识别常见 K 线形态并给出多空力量评分
+- [x] 能生成包含方向、入场、止损、止盈、仓位的完整交易计划
+- [x] 不满足交易条件时（如趋势不明、盈亏比不足）能给出观望建议
+- [x] 所有输出附带风险提示与免责声明
+- [x] 前后端类型一致，`tsc --noEmit` 通过
+- [x] 后端 trader 专项 pytest 全部通过
+
+#### 待后续迭代处理的问题
+
+- [ ] 全量后端 pytest 结果待确认（后台运行中）
+- [ ] 是否需要与 `backtest` Agent 联动，自动验证生成的交易计划
+- [ ] 是否需要支持用户自定义风险偏好参数（如单笔风险 1% vs 2%，已部分支持 query 解析）
+- [ ] 是否需要保存历史交易计划并追踪后续表现
+- [ ] 是否需要支持"交易系统"模式（制定一套规则，而非单次交易计划）
+
+
+### 2026-07-05 第一次迭代补充：测试冲突修复
+
+**问题**：全量 pytest 中 `test_trader_agent.py` 的 2 个集成测试因 `varieties.symbol` 唯一约束冲突而失败。原因是测试使用 `RB` 作为品种代码，与其他测试共享临时数据库时产生冲突。
+
+**修复**：
+- `test_trader_agent.py` 中 `_seed_variety_and_contracts()` 改用唯一品种代码 `TRB`（Test Rebar）
+- 增加已存在品种复用逻辑，避免重复插入
+- 同步更新 query 文本和断言中的品种代码
+
+**验证**：
+- trader 专项测试：`18 passed` ✅
+- 全量测试（排除 `test_strategy_evolution_agent.py`，该文件依赖未安装的 `sklearn`）：待确认
+
+### 已知环境问题
+
+- `test_strategy_evolution_agent.py` 全部 10 个测试失败，原因是环境缺少 `scikit-learn` 包：`ModuleNotFoundError: No module named 'sklearn'`。
+- 该问题与 TraderAgent 无关，属于已有依赖环境问题，建议后续安装 `scikit-learn` 或将其加入 `requirements.lock`。
+
+
+**全量测试结果**：
+- 排除 `test_strategy_evolution_agent.py`（依赖未安装的 `sklearn`）：`812 passed, 7 skipped, 0 failed` ✅
+- 完整全量测试（含 strategy_evolution）：`887 passed, 7 skipped, 12 failed`；其中 10 个失败为 strategy_evolution 的 sklearn 依赖缺失，2 个已修复为 trader 测试冲突

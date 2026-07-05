@@ -28,6 +28,7 @@ class IntentRouter:
         (r"技术分析|技术指标|MACD|RSI|KDJ|布林带|均线|技术研判", "tech_analysis"),
         (r"数据质量|数据检查|数据质检|数据完整性|数据缺口", "data_quality"),
         (r"K线|行情|价格|品种|实时|数据查询|数据获取", "data"),
+        (r"交易计划|交易员|做多|做空|开仓|平仓|止损|止盈|剥头皮|波段|趋势交易|日内交易", "trader"),
     ]
 
     _VALID_AGENTS = frozenset(
@@ -41,6 +42,8 @@ class IntentRouter:
             "factor_mining",
             "strategy_compiler",
             "parameter_optimizer",
+            "strategy_evolution",
+            "trader",
         }
     )
 
@@ -82,6 +85,8 @@ class IntentRouter:
             "- factor_mining: 因子评估（IC、rank IC、分层回测）\n"
             "- strategy_compiler: 策略编译（将自然语言转为策略DSL）\n"
             "- parameter_optimizer: 参数优化（网格搜索、参数调优）\n"
+            "- strategy_evolution: 策略进化（市场状态识别、因子发现、遗传进化）\n"
+            "- trader: 交易员（多周期图表研判、交易计划、风控）\n"
             '请直接返回 JSON，格式：{"agent_type": "xxx"}'
         )
 

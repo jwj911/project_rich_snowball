@@ -198,6 +198,39 @@
 - **前端 SSE 治理**：`agents.ts` 支持 `AbortSignal`、`event:` 标签解析、malformed 行提示；`chat/page.tsx` 增加 `AbortController` 与停止按钮。
 - **测试补强**：新增 `tests/test_agent_streaming.py`、`tests/test_agent_data_preflight.py`；Agent 相关 pytest 65 个全部通过，后端全量 `669 passed, 7 skipped, 0 failed`。
 
+### TraderAgent 新增上线（2026-07-05）
+
+**目标**：新增交易员 Agent，模拟经验丰富的期货交易员，基于多周期图表研判输出具体交易计划。
+
+**后端**
+
+- 新增 `services/agent/trader_agent.py`：交易员 Agent 主类，支持四种交易风格（scalping / intraday_swing / short_term_trend / medium_term_trend）
+- 新增 `services/agent/trader/` 子模块：
+  - `market_structure.py`：趋势识别、支撑阻力、突破/假突破判断
+  - `multi_timeframe.py`：多周期共振分析与入场周期推荐
+  - `candlestick.py`：K线形态识别与多空力量评分
+  - `trade_plan.py`：交易计划生成（方向/入场/止损/止盈/仓位/盈亏比/置信度）
+  - `risk_check.py`：风控校验（单笔风险、盈亏比、仓位、回撤提示）
+- 接入 `routers/agents.py`：`_AGENT_CAPABILITIES` 与 `_build_agent()` 增加 `trader`
+- 更新 `schemas.py`：`AgentType.TRADER` + task/chat 请求 pattern
+- 更新 `services/agent/intent_router.py`：交易相关关键词路由到 `trader`
+- 更新 `services/agent/__init__.py`：导出 `TraderAgent`
+
+**前端**
+
+- `frontend/app/chat/page.tsx`：Chat 页增加 `trader` 模式、快捷提示、图标与描述
+- `frontend/app/agents/page.tsx`：`agentTypeLabels` 增加 `trader: '交易员'`
+
+**测试**
+
+- `tests/test_trader_modules.py`：12 个单元测试
+- `tests/test_trader_agent.py`：6 个集成测试
+- trader 专项测试 18 个全部通过；前端 `tsc --noEmit` + `lint` 通过
+
+**设计文档**
+
+- `docs/trader_agent_design.md`：完整设计文档 + 迭代进展记录
+
 ### 策略/回测/预警新模块 — 持续迭代中
 
 - `strategies` / `backtest_runs` / `alert_events` / `alert_event_user_states` 等表已加入模型
