@@ -45,7 +45,9 @@ export function formatPercent(value: number | null | undefined) {
 
 export function formatDateOnly(value: string | null | undefined) {
   if (!value) return '--'
-  const date = new Date(value + 'T00:00:00+08:00')
+  // 后端 trade_date 是 DateTime 序列化的 ISO 字符串（如 "2026-07-03T00:00:00Z"），
+  // 也可能是纯日期字符串。统一解析后按东八区格式化。
+  const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '--'
   return new Intl.DateTimeFormat('zh-CN', {
     timeZone: 'Asia/Shanghai',
