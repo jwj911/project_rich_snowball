@@ -150,6 +150,8 @@ rich==15.0.0
     # via curl-cffi
 sgmllib3k==1.0.0
     # via feedparser
+scipy==1.13.1
+    # via -r requirements.txt
 simplejson==4.1.1
     # via tushare
 six==1.17.0
