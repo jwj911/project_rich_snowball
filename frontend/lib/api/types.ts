@@ -449,6 +449,17 @@ export interface StrategyCreate {
   direction?: string
 }
 
+export interface FactorStrategyCreate {
+  symbol: string
+  name?: string | null
+  timeframe?: string
+  direction?: 'long' | 'short'
+  entry_operator?: 'greater_than' | 'less_than' | null
+  entry_value?: number
+  exit_operator?: 'greater_than' | 'less_than' | null
+  exit_value?: number
+}
+
 export interface BacktestSignal {
   time: string
   type: 'entry' | 'exit' | 'flip' | 'rebalance'

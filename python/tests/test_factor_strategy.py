@@ -8,6 +8,8 @@ from models import (
     FactorDefinitionDB,
     FutContractDB,
     KlineDataDB,
+    StrategyDB,
+    UserDB,
     VarietyDB,
 )
 from services.agent.strategy_compiler_agent import (
@@ -93,6 +95,10 @@ def _create_factor(db_session, user_id: int, name: str, fid: str, expr: str):
     db_session.commit()
     db_session.refresh(factor)
     return factor
+
+
+def _get_auth_user(db_session):
+    return db_session.query(UserDB).filter(UserDB.username == "integration_tester").first()
 
 
 class TestFactorIndicatorSupport:
@@ -194,3 +200,36 @@ class TestFactorBacktestIntegration:
         assert "metrics" in result
         assert "trades" in result
         assert result["metrics"]["trade_count"] >= 0
+
+
+class TestFactorToStrategyApi:
+    def test_create_strategy_from_factor(self, client, auth_headers, db_session):
+        user = _get_auth_user(db_session)
+        factor = _create_factor(db_session, user.id, "Momentum20", "momentum_20", "close / ts_delay(close, 20) - 1")
+
+        resp = client.post(
+            f"/api/strategies/from-factor/{factor.id}",
+            json={"symbol": "rb", "direction": "long", "entry_value": 0.0, "exit_value": 0.0},
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["symbol"] == "RB"
+        assert data["direction"] == "long"
+
+        strategy = db_session.query(StrategyDB).filter(StrategyDB.id == data["id"]).first()
+        assert strategy is not None
+        assert "factor:momentum_20" in strategy.dsl_json
+        assert "factor_definition" in strategy.dsl_json
+
+    def test_create_strategy_from_other_user_factor_forbidden(self, client, auth_headers, db_session, seed_user):
+        factor = _create_factor(db_session, seed_user.id, "PrivateFactor", "private_factor", "close - open")
+
+        resp = client.post(
+            f"/api/strategies/from-factor/{factor.id}",
+            json={"symbol": "RB"},
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 403

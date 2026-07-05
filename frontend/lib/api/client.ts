@@ -72,6 +72,7 @@ import {
 import { createNewsSource, deleteNewsSource, getNewsArticles, getNewsSources, summarizeArticle } from './news'
 import {
   createStrategy,
+  createStrategyFromFactor,
   deleteStrategy,
   generateStrategyPortfolioPlan,
   getStrategies,
@@ -148,6 +149,7 @@ import type {
   VarietyFees,
   Watchlist,
   WorkspaceSummary,
+  FactorStrategyCreate,
   StrategyResponse,
   StrategyCreate,
   BacktestRunResponse,
@@ -545,6 +547,10 @@ class ApiService extends AuthCore {
 
   createStrategy(data: StrategyCreate): Promise<StrategyResponse> {
     return createStrategy(this, data)
+  }
+
+  createStrategyFromFactor(factorId: number, data: FactorStrategyCreate): Promise<StrategyResponse> {
+    return createStrategyFromFactor(this, factorId, data)
   }
 
   deleteStrategy(strategyId: number): Promise<{ message: string }> {

@@ -188,6 +188,28 @@ class TestFactorList:
         assert all(not f["is_builtin"] for f in data)
         assert any(f["name"] == "用户因子" for f in data)
 
+    def test_list_factors_hides_other_user_private_factors(self, client, auth_headers, db_session):
+        """普通用户列表只包含系统因子和自己的因子。"""
+        user = _get_auth_user(db_session)
+        other_user = UserDB(
+            username="factor_list_other",
+            email="factor_list_other@test.com",
+            password_hash=hash_password("password123"),
+        )
+        db_session.add(other_user)
+        db_session.flush()
+
+        _create_user_factor(db_session, user.id, name="自己的因子")
+        _create_user_factor(db_session, other_user.id, name="别人的私有因子")
+        _create_builtin_factor(db_session, name="系统因子")
+
+        resp = client.get("/api/factors", headers=auth_headers)
+        assert resp.status_code == 200
+        names = {item["name"] for item in resp.json()}
+        assert "自己的因子" in names
+        assert "系统因子" in names
+        assert "别人的私有因子" not in names
+
     def test_list_factors_sorted_by_q_score_desc(self, client, auth_headers, db_session):
         """默认按 q_score 降序排列。"""
         _get_auth_user(db_session)
@@ -325,6 +347,21 @@ class TestFactorDetail:
 
         resp = client.get(f"/api/factors/{factor.id}", headers=auth_headers)
         assert resp.status_code == 404
+
+    def test_get_factor_other_user_private_forbidden(self, client, auth_headers, db_session):
+        """普通用户不能访问其他用户的私有因子详情。"""
+        other_user = UserDB(
+            username="factor_detail_other",
+            email="factor_detail_other@test.com",
+            password_hash=hash_password("password123"),
+        )
+        db_session.add(other_user)
+        db_session.flush()
+        factor = _create_user_factor(db_session, other_user.id, name="别人的详情因子")
+
+        resp = client.get(f"/api/factors/{factor.id}", headers=auth_headers)
+        assert resp.status_code == 403
+        assert resp.json()["code"] == "FORBIDDEN"
 
     def test_get_factor_requires_auth(self, client):
         """未登录返回 401。"""

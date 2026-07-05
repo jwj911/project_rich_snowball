@@ -90,6 +90,13 @@ def list_factors(
     支持通过 ``q`` 对 ``name`` 和 ``factor_id`` 进行模糊搜索。
     """
     query = db.query(FactorDefinitionDB).filter(FactorDefinitionDB.is_active.is_(True))
+    if not _is_admin(current_user):
+        query = query.filter(
+            or_(
+                FactorDefinitionDB.is_builtin.is_(True),
+                FactorDefinitionDB.user_id == current_user.id,
+            )
+        )
 
     if q:
         like_pat = f"%{q}%"
@@ -172,6 +179,8 @@ def get_factor(
     )
     if not row:
         raise NotFoundError("因子不存在或已删除", code=ErrorCode.NOT_FOUND)
+    if not row.is_builtin and row.user_id != current_user.id and not _is_admin(current_user):
+        raise ForbiddenError("无权访问该因子")
     return row
 
 

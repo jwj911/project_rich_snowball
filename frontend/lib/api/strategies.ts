@@ -3,6 +3,7 @@ import type { RequestCore } from './request'
 import type {
   StrategyResponse,
   StrategyCreate,
+  FactorStrategyCreate,
   BacktestRunResponse,
   StrategyBacktestRequest,
   StrategyPortfolioPlanRequest,
@@ -15,6 +16,18 @@ export async function getStrategies(core: RequestCore): Promise<StrategyResponse
 
 export async function createStrategy(core: RequestCore, data: StrategyCreate): Promise<StrategyResponse> {
   return core.request<StrategyResponse>('/api/strategies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function createStrategyFromFactor(
+  core: RequestCore,
+  factorId: number,
+  data: FactorStrategyCreate,
+): Promise<StrategyResponse> {
+  return core.request<StrategyResponse>(`/api/strategies/from-factor/${factorId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
