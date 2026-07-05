@@ -10,6 +10,7 @@ import {
   ISeriesApi,
   ISeriesMarkersPluginApi,
   LineStyle,
+  TickMarkType,
   Time,
   createChart,
   createSeriesMarkers,
@@ -72,15 +73,37 @@ export function useKlineChart({ containerRef, enabled, pricePrecision = 2, onCro
         borderColor: CHART.GRID_COLOR,
         scaleMargins: { top: 0.08, bottom: 0.25 },
       },
+      localization: {
+        priceFormatter: (price: number) => price.toFixed(pricePrecision),
+        timeFormatter: (time: Time) => {
+          const timestamp = typeof time === 'number' ? time : Date.UTC(time.year, time.month - 1, time.day) / 1000
+          const date = new Date(timestamp * 1000)
+          const y = date.getUTCFullYear()
+          const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+          const d = String(date.getUTCDate()).padStart(2, '0')
+          return `${y}-${m}-${d}`
+        },
+      },
       timeScale: {
         borderColor: CHART.GRID_COLOR,
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 6,
         barSpacing: 8,
-      },
-      localization: {
-        priceFormatter: (price: number) => price.toFixed(pricePrecision),
+        tickMarkFormatter: (time: Time, tickMarkType: TickMarkType) => {
+          const timestamp = typeof time === 'number' ? time : Date.UTC(time.year, time.month - 1, time.day) / 1000
+          const date = new Date(timestamp * 1000)
+          const y = date.getUTCFullYear()
+          const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+          const d = String(date.getUTCDate()).padStart(2, '0')
+          if (tickMarkType === TickMarkType.Year) {
+            return `${y}`
+          }
+          if (tickMarkType === TickMarkType.Month) {
+            return `${y}-${m}`
+          }
+          return `${y}-${m}-${d}`
+        },
       },
       handleScale: {
         axisPressedMouseMove: true,

@@ -36,6 +36,51 @@ type AgentMessage = {
   created_at: string
 }
 
+interface AgentModeHint {
+  placeholder: string
+  warning?: string
+}
+
+const AGENT_MODE_HINTS: Partial<Record<AgentTypeKey, AgentModeHint>> = {
+  auto: {
+    placeholder: '输入任何问题，AI 自动匹配最佳 Agent...',
+  },
+  strategy_evolution: {
+    placeholder: '输入品种和周期，如"进化一个白银日线策略"...',
+    warning: '⚠️ 进化是用遗传算法自动挖策略，不回答"做多还是做空"类问题。想要交易方向+点位+止损，请切到「交易员」模式。',
+  },
+  trader: {
+    placeholder: '输入品种和需求，如"白银目前适合做多还是做空？止损怎么设？"...',
+  },
+  tech_analysis: {
+    placeholder: '输入品种和周期，如"白银日线技术面分析"...',
+  },
+  backtest: {
+    placeholder: '描述交易规则和品种，如"白银5日均线上穿20日均线做多回测"...',
+  },
+  risk_management: {
+    placeholder: '输入品种和账户资金，如"白银做多风控方案，账户10万"...',
+  },
+  data: {
+    placeholder: '输入数据查询需求，如"白银主力合约最新价格"...',
+  },
+  factor_mining: {
+    placeholder: '输入因子表达式或品种，如"评估白银动量因子"...',
+  },
+  strategy_compiler: {
+    placeholder: '输入策略描述，如"把5日上穿20日做多编译成策略"...',
+  },
+  parameter_optimizer: {
+    placeholder: '输入策略名和优化目标，如"优化白银均线策略参数"...',
+  },
+  analysis_pipeline: {
+    placeholder: '输入品种名称，如"对白银做完整分析"...',
+  },
+  data_quality: {
+    placeholder: '输入品种和范围，如"检查白银近30日数据完整性"...',
+  },
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [input, setInput] = useState('')
@@ -324,39 +369,55 @@ export default function ChatPage() {
 
         {/* Input */}
         <div className="border-t border-slate-800 px-4 py-3">
-          <div className="flex items-end gap-2 rounded-xl border border-slate-700 bg-surface p-2">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              rows={1}
-              placeholder={`输入问题，Shift+Enter 换行...`}
-              className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm text-white placeholder-slate-500 outline-none"
-            />
-            {isLoading ? (
-              <button
-                type="button"
-                onClick={handleStop}
-                className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white transition hover:bg-red-500"
-                title="停止生成"
-              >
-                <Square size={14} fill="currentColor" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleSend(input)}
-                disabled={!input.trim()}
-                className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-600 text-white transition hover:bg-amber-500 disabled:opacity-40"
-              >
-                <Send size={14} />
-              </button>
-            )}
-          </div>
+          {(() => {
+            const hint = AGENT_MODE_HINTS[agentMode]
+            const warning = hint?.warning
+            const placeholder = hint?.placeholder || '输入问题，Shift+Enter 换行...'
+            return (
+              <>
+                {warning && (
+                  <div className="mb-2 rounded-md border border-amber-700/50 bg-amber-950/30 px-3 py-1.5 text-xs text-amber-300">
+                    {warning}
+                  </div>
+                )}
+                <div className="flex items-end gap-2 rounded-xl border border-slate-700 bg-surface p-2">
+                  <textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    rows={1}
+                    placeholder={placeholder}
+                    className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm text-white placeholder-slate-500 outline-none"
+                  />
+                  {isLoading ? (
+                    <button
+                      type="button"
+                      onClick={handleStop}
+                      className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white transition hover:bg-red-500"
+                      title="停止生成"
+                    >
+                      <Square size={14} fill="currentColor" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleSend(input)}
+                      disabled={!input.trim()}
+                      className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-600 text-white transition hover:bg-amber-500 disabled:opacity-40"
+                    >
+                      <Send size={14} />
+                    </button>
+                  )}
+                </div>
+              </>
+            )
+          })()}
           <p className="mt-1.5 text-center text-[10px] text-slate-600">
             AI 回答仅供参考，不构成投资建议
             {agentMode === 'data' && ' · 数据查询会调用实时行情、品种数据库和K线数据'}
             {agentMode === 'backtest' && ' · 策略回测基于历史K线数据计算收益与评分，不构成投资建议'}
+            {agentMode === 'strategy_evolution' && ' · 策略进化用遗传算法自动挖掘策略，历史表现不代表未来，存在过拟合风险'}
+            {agentMode === 'trader' && ' · 交易计划基于多周期图表演判生成，请结合自身风险承受能力独立决策'}
           </p>
         </div>
       </div>

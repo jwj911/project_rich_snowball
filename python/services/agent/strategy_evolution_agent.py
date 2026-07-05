@@ -786,19 +786,47 @@ def _build_evolution_report(
         "low_volatility": "低波动",
     }
 
+    # 术语解释说明
+    glossary = (
+        "### 📖 术语说明\n"
+        "- **Sharpe（夏普比率）**：衡量每单位风险的超额回报，值越高策略性价比越好（>1 良好，>2 优秀）\n"
+        "- **ADX（平均趋向指数）**：衡量趋势强度，>25 表示趋势明显，>50 表示极强趋势\n"
+        "- **Hurst（赫斯特指数）**：H>0.5 表示趋势有持续性（适合顺势策略），H≈0.5 为随机游走（观望），H<0.5 表示均值回归（适合反转策略）\n"
+        "- **Rank IC（排名信息系数）**：因子值与未来收益排名的相关性，|IC|>0.03 有预测力，|IC|>0.05 预测力强\n"
+        "- **ICIR（IC 信息比率）**：IC 均值÷IC 标准差，衡量因子预测稳定性，>0.3 较稳定，>0.5 很稳定\n"
+        "- **OOS（样本外）验证**：用未参与训练的独立数据检测策略，防止过拟合（OOS 与 IS 表现相近才算通过）\n"
+        "- **IS（样本内）**：用于训练/进化的历史数据段\n"
+        "- **夏普比率**：衡量每单位风险的超额回报，值越高策略风险调整后收益越好\n"
+        "- **最大回撤**：策略净值从峰值到谷底的最大跌幅，反映最坏情况下的亏损幅度\n"
+        "- **胜率**：盈利交易占总交易次数的百分比\n"
+        "- **盈亏比**：总盈利÷总亏损，>1 表示整体盈利\n"
+        "- **适应度（Fitness）**：遗传算法中衡量策略好坏的综合打分，越高越好\n"
+        "- **种群/代数/精英保留**：遗传算法术语——每代从策略种群中淘汰弱者，精英直接保留到下一代\n"
+        "- **贝叶斯优化（BO）**：对已进化的最优策略做参数精调，用更少的回测次数找到更好的参数组合\n"
+    )
+
     lines = [
         f"## 策略进化报告 — {symbol}",
         "",
-        f"**方向**：{direction_label} | **周期**：{config['period']} | **进化代数**：{len(evolution_log)}",
+        "> ⚠️ 本报告由遗传算法自动生成，不是交易建议！你需要的是**交易计划**？请切换到「交易员」模式——那里会直接告诉你做多还是做空、什么点位入场、止损怎么设。",
         "",
-        "### 市场状态",
+        f"**进化方向**：{direction_label} | **K线周期**：{config['period']} | **进化代数**：{len(evolution_log)}代",
+        "",
+        glossary,
+        "",
+        "### 市场状态（进化运行时的快照）",
     ]
 
     if regime:
-        lines.append(f"- 状态：{regime_label.get(regime.regime, regime.regime)}（置信度 {regime.confidence:.0%}）")
-        lines.append(
-            f"- ADX：{regime.metrics.get('adx', '—')} | Hurst：{regime.metrics.get('hurst', '—')} | 波动率百分位：{regime.metrics.get('vol_percentile', '—')}"
-        )
+        regime_cn = regime_label.get(regime.regime, regime.regime)
+        adx_val = regime.metrics.get("adx", "—")
+        adx_tip = _adx_interpretation(adx_val)
+        hurst_val = regime.metrics.get("hurst", "—")
+        hurst_tip = _hurst_interpretation(hurst_val)
+        lines.append(f"- 当前市场状态：**{regime_cn}**（置信度 {regime.confidence:.0%}）")
+        lines.append(f"- ADX趋势强度：{adx_val}（{adx_tip}）")
+        lines.append(f"- Hurst指数：{hurst_val}（{hurst_tip}）")
+        lines.append(f"- 波动率水位：{regime.metrics.get('vol_percentile', '—')}（历史分位）")
     else:
         lines.append("- 无法识别（数据不足）")
 
@@ -806,7 +834,7 @@ def _build_evolution_report(
         [
             "",
             "### 进化过程",
-            f"- 种群大小：{config['population_size']} | 代数：{len(evolution_log)} | 精英保留：{config['elite_count']}",
+            f"- 种群大小：{config['population_size']} 个策略个体 | 进化代数：{len(evolution_log)} 代 | 精英保留：{config['elite_count']} 个",
         ]
     )
 
@@ -815,26 +843,33 @@ def _build_evolution_report(
         last_best = evolution_log[-1]["best_fitness"]
         if first_best > 0:
             improvement = (last_best - first_best) / first_best * 100
-            lines.append(f"- 初始最优适应度：{first_best:.1f} → 最终：{last_best:.1f}（+{improvement:.0f}%）")
+            lines.append(
+                f"- 初始最优适应度：{first_best:.1f} → 最终最优适应度：{last_best:.1f}（进化提升 +{improvement:.0f}%）"
+            )
 
-    lines.append(f"- 种群多样性：{evolution_log[-1]['diversity']:.2f}" if evolution_log else "- 无进化记录")
+    diversity_val = evolution_log[-1]["diversity"] if evolution_log else 0
+    diversity_tip = _diversity_tip(diversity_val)
+    lines.append(f"- 种群多样性：{diversity_val:.2f}（{diversity_tip}）")
 
     lines.extend(
         [
             "",
-            "### 发现的关键因子",
+            "### 发现的关键因子（进化使用的预测信号）",
         ]
     )
     for i, f in enumerate(factors[:5], start=1):
         rank_ic_str = f"{f.rank_ic_mean:.4f}" if f.rank_ic_mean is not None else "—"
         icir_str = f"{f.rank_icir:.2f}" if f.rank_icir is not None else "—"
-        lines.append(f"{i}. `{f.formula}` — Rank IC: {rank_ic_str}，ICIR: {icir_str}")
+        ic_quality = _rank_ic_quality(f.rank_ic_mean) if f.rank_ic_mean is not None else ""
+        lines.append(f"{i}. `{f.formula}`")
+        lines.append(f"   - Rank IC（预测力）：{rank_ic_str} {ic_quality}")
+        lines.append(f"   - ICIR（稳定性）：{icir_str}")
 
     lines.extend(
         [
             "",
             "### 最优策略",
-            f"**入场条件**（{best_individual.entry_logic.upper()}）：",
+            f"**入场条件**（逻辑关系：{_logic_cn(best_individual.entry_logic)}）：",
         ]
     )
     for cond in best_individual.entry_conditions:
@@ -842,7 +877,7 @@ def _build_evolution_report(
             f"- {cond.get('indicator', '?')} {cond.get('operator', '?')} {cond.get('value') or cond.get('indicator2', '')}"
         )
 
-    lines.append(f"**出场条件**（{best_individual.exit_logic.upper()}）：")
+    lines.append(f"**出场条件**（逻辑关系：{_logic_cn(best_individual.exit_logic)}）：")
     for cond in best_individual.exit_conditions:
         lines.append(
             f"- {cond.get('indicator', '?')} {cond.get('operator', '?')} {cond.get('value') or cond.get('indicator2', '')}"
@@ -852,22 +887,25 @@ def _build_evolution_report(
     sl = risk.get("stop_loss", {})
     tp = risk.get("take_profit", {})
     pos = risk.get("position_size", {})
+    sl_type_cn = _stop_type_cn(sl.get("type", "—"))
+    tp_type_cn = _stop_type_cn(tp.get("type", "—"))
     lines.extend(
         [
-            f"**风控**：止损 {sl.get('type', '—')} {sl.get('value', '')} | 止盈 {tp.get('type', '—')} {tp.get('value', '')} | 仓位 {pos.get('type', '—')} {pos.get('value', '')}",
+            f"**风控设置**：止损方式 {sl_type_cn}，止损值 {sl.get('value', '')} | 止盈方式 {tp_type_cn}，止盈值 {tp.get('value', '')} | 仓位方式 {pos.get('type', '—')}，仓位值 {pos.get('value', '')}",
             "",
-            "### 回测表现",
+            "### 样本内回测表现（在训练数据上的结果）",
         ]
     )
     if best_individual.backtest_result:
         metrics = best_individual.backtest_result.get("metrics", {})
-        is_sharpe = metrics.get("sharpe", "—")
+        sharpe_val = metrics.get("sharpe", "—")
+        sharpe_str = f"{sharpe_val:.2f}" if isinstance(sharpe_val, int | float) else str(sharpe_val)
         lines.extend(
             [
-                f"- 年化收益：{metrics.get('annualized_return_pct', '—')}% | 最大回撤：{metrics.get('max_drawdown_pct', '—')}%",
-                f"- Sharpe：{is_sharpe} | 胜率：{metrics.get('win_rate_pct', '—')}%",
-                f"- 盈亏比：{metrics.get('profit_factor', '—')} | 交易次数：{metrics.get('trade_count', '—')}",
-                f"- 综合评分：{metrics.get('score', '—')}/100",
+                f"- 年化收益率：{_fmt(metrics.get('annualized_return_pct'))}%（年化回报） | 最大回撤：{_fmt(metrics.get('max_drawdown_pct'))}%（最坏亏损幅度）",
+                f"- Sharpe（夏普比率）：{sharpe_str}（>1良好，>2优秀，衡量风险调整后收益）",
+                f"- 胜率：{_fmt(metrics.get('win_rate_pct'))}%（盈利交易占比） | 盈亏比（Profit Factor）：{_fmt(metrics.get('profit_factor'))}（>1整体盈利）",
+                f"- 交易次数：{_fmt(metrics.get('trade_count'))} 次 | 综合评分：{_fmt(metrics.get('score'))}/100",
             ]
         )
     else:
@@ -877,37 +915,51 @@ def _build_evolution_report(
     if oos_result:
         oos_metrics = oos_result.get("metrics", {})
         oos_sharpe = oos_metrics.get("sharpe", "—")
+        oos_sharpe_str = f"{oos_sharpe:.2f}" if isinstance(oos_sharpe, int | float) else str(oos_sharpe)
+        is_sharpe = (
+            best_individual.backtest_result.get("metrics", {}).get("sharpe", "—")
+            if best_individual.backtest_result
+            else "—"
+        )
+        is_sharpe_str = f"{is_sharpe:.2f}" if isinstance(is_sharpe, int | float) else str(is_sharpe)
+        oos_pass = _oos_pass_judgment(oos_sharpe) if isinstance(oos_sharpe, int | float) else ""
         lines.extend(
             [
                 "",
-                "### 样本外 (OOS) 验证",
-                f"- OOS Sharpe：{oos_sharpe} | OOS 年化收益：{oos_metrics.get('annualized_return_pct', '—')}%",
-                f"- OOS 最大回撤：{oos_metrics.get('max_drawdown_pct', '—')}% | OOS 交易次数：{oos_metrics.get('trade_count', '—')}",
+                "### 样本外（OOS）验证——防过拟合的关键测试",
+                "用策略没见过的数据段做独立回测，检验策略是否真的有效：",
+                f"- IS（训练）夏普比率：{is_sharpe_str} → OOS（验证）夏普比率：{oos_sharpe_str} {oos_pass}",
+                f"- OOS 年化收益：{_fmt(oos_metrics.get('annualized_return_pct'))}% | OOS 最大回撤：{_fmt(oos_metrics.get('max_drawdown_pct'))}%",
+                f"- OOS 交易次数：{_fmt(oos_metrics.get('trade_count'))} 次",
             ]
         )
         if oos_fitness:
-            lines.append(f"- IS/OOS 一致性评分：{oos_fitness.total:.1f}")
             stability = oos_fitness.components.get("stability", "—")
             stability_str = f"{stability:.0f}/100" if isinstance(stability, int | float) else str(stability)
-            lines.append(f"- 稳定性：{stability_str}")
+            consistency = oos_fitness.total
+            consistency_tip = _consistency_tip(consistency)
+            lines.append(f"- IS/OOS 一致性评分：{consistency:.1f}（{consistency_tip}）")
+            lines.append(f"- 策略稳定性：{stability_str}")
 
     # BO 优化结果
     if bo_result:
+        bo_fitness = bo_result.get("fitness", "—")
+        bo_fitness_str = f"{bo_fitness:.1f}" if isinstance(bo_fitness, int | float) else str(bo_fitness)
         lines.extend(
             [
                 "",
-                "### 贝叶斯优化 (Bayesian Optimization)",
-                f"- BO 最优适应度：{bo_result.get('fitness', '—')}",
-                f"- 优化参数：SL={bo_result['params'].get('stop_loss_atr', '—')}x ATR，TP={bo_result['params'].get('take_profit_rr', '—')}x RR，仓位={bo_result['params'].get('position_size_pct', '—')}",
-                f"- 评估次数：{len(bo_result.get('history', []))} 次",
+                "### 贝叶斯优化（参数精调）",
+                f"- 优化后适应度提升至：{bo_fitness_str}",
+                f"- 优化参数：止损 {bo_result['params'].get('stop_loss_atr', '—')} 倍ATR，止盈 {bo_result['params'].get('take_profit_rr', '—')} 倍风险回报比，仓位 {bo_result['params'].get('position_size_pct', '—')}",
+                f"- 总评估次数：{len(bo_result.get('history', []))} 次（远少于网格搜索）",
             ]
         )
 
     lines.extend(
         [
             "",
-            "### 适应度分解",
-            f"- 总分：{best_individual.fitness}",
+            "### 适应度分解（各项得分明细）",
+            f"- 综合适应度总分：{best_individual.fitness:.1f}",
         ]
     )
     for k, v in best_individual.fitness_components.items():
@@ -917,8 +969,108 @@ def _build_evolution_report(
     lines.extend(
         [
             "",
-            "> ⚠️ 以上策略由遗传算法自动生成，存在过拟合风险。建议先在模拟环境验证 2-4 周。所有分析不构成投资建议。",
+            "---",
+            "> ⚠️ **重要提醒**：此策略由遗传算法自动生成，未经人工验证。存在过拟合风险，建议：",
+            "> 1. 先在模拟环境中跟踪 2-4 周，确认实盘有效性后再小仓位试单",
+            "> 2. 如需具体交易计划（方向、点位、止损），请切换到「交易员」模式问：如「白银目前适合做多还是做空？」",
+            "> 3. 所有分析不构成投资建议，期货交易风险极高，请独立判断",
         ]
     )
 
     return "\n".join(str(line) for line in lines)
+
+
+def _adx_interpretation(adx_val) -> str:
+    """ADX 中文解释。"""
+    try:
+        v = float(adx_val)
+    except (TypeError, ValueError):
+        return "数据不可用"
+    if v > 50:
+        return "极强趋势，顺势而为"
+    if v > 35:
+        return "趋势明显，适合趋势策略"
+    if v > 25:
+        return "趋势温和，可参与但需警惕反转"
+    if v > 20:
+        return "趋势偏弱，可能进入震荡"
+    return "无明显趋势，市场方向不明"
+
+
+def _hurst_interpretation(hurst_val) -> str:
+    """Hurst 指数中文解释。"""
+    try:
+        v = float(hurst_val)
+    except (TypeError, ValueError):
+        return "数据不可用"
+    if v > 0.6:
+        return "趋势具有强持续性，顺势策略有利"
+    if v > 0.55:
+        return "趋势有一定持续性，偏向顺势"
+    if v > 0.45:
+        return "近似随机游走，无明显记忆性"
+    return "均值回归特征明显，适合反转策略"
+
+
+def _diversity_tip(diversity_val: float) -> str:
+    """种群多样性中文解释。"""
+    if diversity_val > 0.6:
+        return "多样性高，种群覆盖了不同类型策略"
+    if diversity_val > 0.3:
+        return "多样性适中，策略间有一定差异"
+    return "多样性偏低，策略趋同，可能陷入局部最优"
+
+
+def _rank_ic_quality(ic: float | None) -> str:
+    """Rank IC 质量中文解释。"""
+    if ic is None:
+        return ""
+    abs_ic = abs(ic)
+    if abs_ic > 0.07:
+        return "★ 预测力强"
+    if abs_ic > 0.04:
+        return "◆ 有一定预测力"
+    if abs_ic > 0.02:
+        return "△ 预测力偏弱"
+    return "× 几乎无预测力"
+
+
+def _logic_cn(logic: str) -> str:
+    """逻辑关系中文。"""
+    mapping = {"and": "所有条件同时满足", "or": "任一条件满足即可", "and/or": "条件组合"}
+    return mapping.get(logic.lower(), logic)
+
+
+def _stop_type_cn(stop_type: str) -> str:
+    """止损/止盈类型中文。"""
+    mapping = {"atr": "ATR倍数", "percent": "价格百分比", "fixed": "固定点位", "rr": "风险回报比"}
+    return mapping.get(stop_type.lower(), stop_type)
+
+
+def _oos_pass_judgment(oos_sharpe: float) -> str:
+    """OOS 验证通过判断。"""
+    if oos_sharpe > 1.0:
+        return "✅ 通过验证，OOS表现良好"
+    if oos_sharpe > 0.5:
+        return "⚠️ 勉强通过，OOS有衰减"
+    return "❌ 未通过，样本外明显衰退，策略可能过拟合"
+
+
+def _consistency_tip(score: float) -> str:
+    """一致性评分解释。"""
+    if score > 80:
+        return "IS与OOS高度一致，策略稳定"
+    if score > 60:
+        return "基本一致，可接受范围内的衰减"
+    if score > 40:
+        return "存在明显衰减，需谨慎对待"
+    return "严重不一致，策略可能严重过拟合"
+
+
+def _fmt(val: Any) -> str:
+    """安全格式化数值。"""
+    if val is None:
+        return "—"
+    if isinstance(val, float):
+        return f"{val:.2f}"
+    return str(val)
