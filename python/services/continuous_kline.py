@@ -370,7 +370,7 @@ def get_fut_daily_main_kline(
                     "low": float(row.low_price),
                     "close": float(row.close_price),
                     "volume": row.volume,
-                    "contract_code": row.contract_code,
+                    "contract_code": row.contract.symbol if row.contract else None,
                     "contract_id": row.contract_id,
                 }
                 for row in rows

@@ -11,7 +11,7 @@ class TestBacktestCacheKey:
         key1 = _backtest_cache_key("AU", "1d", "long", [{"indicator": "sma5", "operator": ">", "indicator2": "sma20"}], [{"indicator": "sma5", "operator": "<", "indicator2": "sma20"}], 500)
         key2 = _backtest_cache_key("AU", "1d", "long", [{"indicator": "sma5", "operator": ">", "indicator2": "sma20"}], [{"indicator": "sma5", "operator": "<", "indicator2": "sma20"}], 500)
         assert key1 == key2
-        assert key1.startswith("backtest:v1:AU:1d:long:")
+        assert key1.startswith("backtest:v2:AU:1d:long:")
 
     def test_different_params_different_key(self):
         """不同参数生成不同缓存 key。"""
