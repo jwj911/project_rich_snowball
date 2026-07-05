@@ -212,6 +212,39 @@ class TestStopLossAndTakeProfit:
         assert trade["exit_price"] == 105.0
 
 
+class TestFuturesEngineMode:
+    """Tests for DSL backtests routed to the futures broker simulator."""
+
+    def test_dsl_backtest_can_use_futures_engine_mode(self, db_session):
+        variety, contract = _create_variety_and_contract(db_session, symbol="FE", name="期货引擎测试品种")
+        rows = _baseline_rows(29)
+        rows.append({"open": 100, "high": 102, "low": 99, "close": 101, "volume": 1000})
+        rows.append({"open": 101, "high": 107, "low": 100, "close": 106, "volume": 1000})
+        rows.append({"open": 106, "high": 111, "low": 105, "close": 110, "volume": 1000})
+        rows.append({"open": 110, "high": 111, "low": 104, "close": 105, "volume": 1000})
+        _seed_klines(db_session, variety, contract, rows=rows)
+
+        result = run_dsl_backtest(
+            db_session,
+            symbol=variety.symbol,
+            period="1d",
+            direction="long",
+            entry_conditions=[{"indicator": "close", "operator": "greater_than", "value": 100}],
+            exit_conditions=[{"indicator": "close", "operator": "greater_than", "value": 109}],
+            initial_cash=100_000,
+            quantity=2,
+            limit=80,
+            engine_mode="futures",
+        )
+
+        assert result["config"]["engine_mode"] == "futures"
+        assert result["config"]["multiplier"] == 10
+        assert result["orders"]
+        assert result["trades"]
+        assert result["equity_curve"][0]["margin"] >= 0
+        assert "contract" in result
+
+
 class TestBetweenOperator:
     """Tests for the between operator."""
 
@@ -254,8 +287,6 @@ class TestScoringEdgeCases:
         """Low win rate should not over-penalize the score."""
         from services.backtest.engine import _score_strategy
 
-        score = _score_strategy(
-            total_return=20, max_drawdown=10, win_rate=0, profit_factor=1.5, trade_count=10
-        )
+        score = _score_strategy(total_return=20, max_drawdown=10, win_rate=0, profit_factor=1.5, trade_count=10)
         # With the old formula this would be heavily penalized; ensure it stays reasonable.
         assert 20 <= score <= 80

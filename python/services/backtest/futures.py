@@ -435,6 +435,7 @@ def _calculate_futures_metrics(
     if not curve:
         return {
             "total_return_pct": 0.0,
+            "annualized_return_pct": 0.0,
             "max_drawdown_pct": 0.0,
             "sharpe": 0.0,
             "trade_count": 0,
@@ -442,25 +443,56 @@ def _calculate_futures_metrics(
             "profit_factor": 0.0,
             "total_fee": 0.0,
             "total_realized_pnl": 0.0,
+            "score": 0,
         }
 
     equity = np.array([point.equity for point in curve], dtype=float)
     returns = pd.Series(equity).pct_change().replace([np.inf, -np.inf], np.nan).dropna()
+    periods = max(len(equity), 1)
+    total_multiplier = equity[-1] / initial_cash if initial_cash else 0.0
+    total_return = (total_multiplier - 1) * 100 if initial_cash else 0.0
+    annualized = -100.0 if total_multiplier <= 0 else (total_multiplier ** (252 / periods) - 1) * 100
     rolling_peak = np.maximum.accumulate(equity)
     drawdown = equity / np.where(rolling_peak == 0, np.nan, rolling_peak) - 1
+    max_drawdown = abs(float(np.nanmin(drawdown))) * 100 if len(drawdown) else 0.0
     wins = [trade.pnl for trade in trades if trade.pnl > 0]
     losses = [trade.pnl for trade in trades if trade.pnl < 0]
     profit_factor = sum(wins) / abs(sum(losses)) if losses else (float(len(wins)) if wins else 0.0)
+    win_rate = len(wins) / len(trades) * 100 if trades else 0.0
     sharpe = (returns.mean() / (returns.std(ddof=0) + 1e-12)) * np.sqrt(252) if not returns.empty else 0.0
+    score = _score_futures_strategy(total_return, max_drawdown, win_rate, profit_factor, len(trades))
 
     return {
-        "total_return_pct": round((equity[-1] / initial_cash - 1) * 100, 4) if initial_cash else 0.0,
-        "max_drawdown_pct": round(abs(float(np.nanmin(drawdown))) * 100, 4) if len(drawdown) else 0.0,
+        "total_return_pct": round(float(total_return), 4),
+        "annualized_return_pct": round(float(annualized), 4),
+        "max_drawdown_pct": round(max_drawdown, 4),
         "sharpe": round(float(sharpe), 4),
         "trade_count": len(trades),
-        "win_rate_pct": round(len(wins) / len(trades) * 100, 4) if trades else 0.0,
+        "win_rate_pct": round(float(win_rate), 4),
         "profit_factor": round(float(profit_factor), 4),
         "total_fee": round(float(total_fee), 6),
         "total_realized_pnl": round(float(total_realized_pnl), 6),
         "final_equity": round(float(equity[-1]), 6),
+        "score": score,
     }
+
+
+def _score_futures_strategy(
+    total_return: float,
+    max_drawdown: float,
+    win_rate: float,
+    profit_factor: float,
+    trade_count: int,
+) -> int:
+    if trade_count == 0:
+        return 0
+    score = 50
+    score += min(max(total_return, -30), 50) * 0.5
+    score -= min(max_drawdown, 40) * 0.7
+    score += min(profit_factor, 3) * 4
+    score += (min(max(win_rate, 30), 70) - 50) * 0.1
+    if trade_count < 3:
+        score -= 15
+    elif trade_count < 5:
+        score -= 5
+    return int(max(0, min(100, round(score))))

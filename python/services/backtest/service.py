@@ -19,7 +19,14 @@ from sqlalchemy.orm import Session
 from models import FactorDefinitionDB, VarietyDB
 from services.agent.data_tools import _get_kline_data, _get_variety_info
 from services.agent.factor_engine.dsl import PanelData, evaluate_factor
-from services.backtest.engine import BacktestConfig, run_backtest
+from services.backtest.engine import BacktestConfig, _eval_conditions, run_backtest
+from services.backtest.futures import (
+    FuturesBacktestConfig,
+    FuturesContractSpec,
+    FuturesOrder,
+    run_futures_backtest,
+    signals_to_target_lots,
+)
 from services.backtest.parser import StrategyIntent
 from services.cache import get_cached
 
@@ -35,8 +42,12 @@ def _backtest_cache_key(
     limit: int,
     start_date: str = "",
     end_date: str = "",
+    engine_mode: str = "legacy",
+    initial_cash: float | None = None,
+    quantity: int | None = None,
+    risk: dict[str, Any] | None = None,
 ) -> str:
-    """生成回测缓存 key（基于条件参数哈希，排除资金/手数等不影信号的逻辑）。"""
+    """生成回测缓存 key。"""
     cond_str = json.dumps(
         {
             "entry": entry_conditions,
@@ -44,11 +55,15 @@ def _backtest_cache_key(
             "limit": limit,
             "start_date": start_date,
             "end_date": end_date,
+            "engine_mode": engine_mode,
+            "initial_cash": initial_cash,
+            "quantity": quantity,
+            "risk": risk,
         },
         sort_keys=True,
     )
     cond_hash = hashlib.md5(cond_str.encode()).hexdigest()[:12]
-    return f"backtest:v1:{symbol}:{period}:{direction}:{cond_hash}"
+    return f"backtest:v2:{symbol}:{period}:{direction}:{cond_hash}"
 
 
 def _prepare_dataframe(db: Session, intent: StrategyIntent) -> tuple[pd.DataFrame, dict[str, Any], VarietyDB | None]:
@@ -174,6 +189,89 @@ def _inject_factor_columns(
     return df_indexed.reset_index()
 
 
+def _run_futures_dsl_backtest(
+    *,
+    df: pd.DataFrame,
+    symbol: str,
+    period: str,
+    direction: str,
+    entry_conditions: list[dict[str, Any]],
+    exit_conditions: list[dict[str, Any]],
+    initial_cash: float,
+    quantity: int,
+    variety: VarietyDB | None,
+) -> dict[str, Any]:
+    """Run DSL signals through the futures broker simulator."""
+    entry_signal = _eval_conditions(df, entry_conditions, logic="and")
+    exit_signal = _eval_conditions(df, exit_conditions, logic="and")
+    target_lots = signals_to_target_lots(entry_signal, exit_signal, direction=direction, quantity=quantity)
+
+    multiplier = float(variety.multiplier) if variety and variety.multiplier else 1.0
+    commission = float(variety.commission) if variety and variety.commission else 0.0001
+    margin_rate = float(variety.margin_rate) if variety and variety.margin_rate else 0.1
+    tick_size = float(variety.tick_size) if variety and variety.tick_size else 1.0
+
+    contract = FuturesContractSpec(
+        symbol=symbol,
+        multiplier=multiplier,
+        tick_size=tick_size,
+        margin_rate=margin_rate,
+        commission_rate=commission if commission < 0.05 else 0.0001,
+    )
+    futures_config = FuturesBacktestConfig(initial_cash=initial_cash)
+    result = run_futures_backtest(df, target_lots, contract, futures_config).to_dict()
+    result["config"] = {
+        "symbol": symbol,
+        "period": period,
+        "strategy_type": "dsl",
+        "engine_mode": "futures",
+        "initial_cash": initial_cash,
+        "quantity": quantity,
+        "multiplier": multiplier,
+        "fee_rate": contract.commission_rate,
+        "direction": direction,
+        "margin_rate": margin_rate,
+        "tick_size": tick_size,
+    }
+    result["signals"] = _orders_to_signals(result.get("orders", []))
+    return result
+
+
+def _orders_to_signals(orders: list[dict[str, Any]] | list[FuturesOrder]) -> list[dict[str, Any]]:
+    signals: list[dict[str, Any]] = []
+    for order in orders:
+        if isinstance(order, FuturesOrder):
+            current = order.target_lots
+            previous = order.previous_lots
+            payload = {"time": order.time, "price": order.fill_price, "reason": order.reason}
+        else:
+            current = int(order.get("target_lots", 0))
+            previous = int(order.get("previous_lots", 0))
+            payload = {"time": order.get("time"), "price": order.get("fill_price"), "reason": order.get("reason")}
+
+        if previous == 0 and current != 0:
+            signals.append({**payload, "type": "entry"})
+        elif previous != 0 and current == 0:
+            signals.append({**payload, "type": "exit"})
+        elif previous != 0 and current != 0 and (previous > 0) != (current > 0):
+            signals.append({**payload, "type": "flip"})
+        else:
+            signals.append({**payload, "type": "rebalance"})
+    return signals
+
+
+def _data_window(df: pd.DataFrame) -> dict[str, Any]:
+    return {
+        "start": df["time"].iloc[0].isoformat()
+        if hasattr(df["time"].iloc[0], "isoformat")
+        else str(df["time"].iloc[0]),
+        "end": df["time"].iloc[-1].isoformat()
+        if hasattr(df["time"].iloc[-1], "isoformat")
+        else str(df["time"].iloc[-1]),
+        "bars": len(df),
+    }
+
+
 def _run_dsl_backtest_inner(
     db: Session,
     symbol: str,
@@ -188,6 +286,7 @@ def _run_dsl_backtest_inner(
     start_date: date | None = None,
     end_date: date | None = None,
     risk: dict[str, Any] | None = None,
+    engine_mode: str = "legacy",
 ) -> dict[str, Any]:
     """无缓存版本的 DSL 回测执行（供 get_cached 调用）。"""
     variety_info = _get_variety_info(db, symbol)
@@ -222,6 +321,22 @@ def _run_dsl_backtest_inner(
             long_window = max(v1, v2)
             break
 
+    if engine_mode == "futures":
+        result = _run_futures_dsl_backtest(
+            df=df,
+            symbol=symbol,
+            period=period,
+            direction=direction,
+            entry_conditions=entry_conditions,
+            exit_conditions=exit_conditions,
+            initial_cash=initial_cash,
+            quantity=quantity,
+            variety=variety,
+        )
+        result["variety"] = variety_info
+        result["data_window"] = _data_window(df)
+        return result
+
     config = BacktestConfig(
         symbol=symbol,
         period=period,
@@ -238,15 +353,7 @@ def _run_dsl_backtest_inner(
     )
     result = run_backtest(df, config, entry_conditions=entry_conditions, exit_conditions=exit_conditions).to_dict()
     result["variety"] = variety_info
-    result["data_window"] = {
-        "start": df["time"].iloc[0].isoformat()
-        if hasattr(df["time"].iloc[0], "isoformat")
-        else str(df["time"].iloc[0]),
-        "end": df["time"].iloc[-1].isoformat()
-        if hasattr(df["time"].iloc[-1], "isoformat")
-        else str(df["time"].iloc[-1]),
-        "bars": len(df),
-    }
+    result["data_window"] = _data_window(df)
     return result
 
 
@@ -264,6 +371,7 @@ def run_dsl_backtest(
     start_date: date | None = None,
     end_date: date | None = None,
     risk: dict[str, Any] | None = None,
+    engine_mode: str = "legacy",
 ) -> dict[str, Any]:
     """根据 DSL 条件执行回测（带 5 分钟 LRU 缓存）。
 
@@ -274,7 +382,18 @@ def run_dsl_backtest(
     start_str = start_date.isoformat() if start_date else ""
     end_str = end_date.isoformat() if end_date else ""
     cache_key = _backtest_cache_key(
-        symbol, period, direction, entry_conditions, exit_conditions, limit, start_date=start_str, end_date=end_str
+        symbol,
+        period,
+        direction,
+        entry_conditions,
+        exit_conditions,
+        limit,
+        start_date=start_str,
+        end_date=end_str,
+        engine_mode=engine_mode,
+        initial_cash=initial_cash,
+        quantity=quantity,
+        risk=risk,
     )
     result = get_cached(
         cache_key,
@@ -292,6 +411,7 @@ def run_dsl_backtest(
             start_date=start_date,
             end_date=end_date,
             risk=risk,
+            engine_mode=engine_mode,
         ),
         ttl=300,  # 5 分钟缓存
     )
@@ -301,6 +421,7 @@ def run_dsl_backtest(
             "symbol": symbol,
             "period": period,
             "direction": direction,
+            "engine_mode": engine_mode,
             "cache_key": cache_key,
             "bars": result.get("data_window", {}).get("bars"),
             "trade_count": result.get("metrics", {}).get("trade_count"),

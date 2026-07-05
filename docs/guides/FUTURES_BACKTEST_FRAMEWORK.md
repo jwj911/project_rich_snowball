@@ -40,14 +40,35 @@ and financial factors are optional and should not leak into the futures engine.
 The module is intentionally independent from the existing lightweight
 `services.backtest.engine` so current BacktestAgent behavior remains stable.
 
+## DSL Service Integration
+
+`services.backtest.service.run_dsl_backtest()` now accepts an explicit
+`engine_mode` argument:
+
+- `engine_mode="legacy"`: default behavior, uses the original lightweight
+  single-position engine.
+- `engine_mode="futures"`: evaluates the same DSL entry/exit conditions, converts
+  them into signed target lots, and runs the futures broker simulator.
+
+The futures path reads contract settings from `VarietyDB`:
+
+- `multiplier` -> contract multiplier;
+- `tick_size` -> minimum price tick;
+- `margin_rate` -> initial margin ratio;
+- `commission` -> proportional commission rate when below `0.05`.
+
+The returned payload keeps the familiar top-level fields (`config`, `metrics`,
+`trades`, `equity_curve`, `signals`) and adds `contract` plus `orders` for
+broker-level inspection.
+
 ## Next Integration Steps
 
-1. Wire Strategy DSL conditions into `signals_to_target_lots()`, then run
-   `run_futures_backtest()` in `services.backtest.service`.
-2. Feed `FuturesContractSpec` from `VarietyDB` and extended contract margin
-   fields, preferring contract-specific long/short margin rates when available.
-3. Add rollover-aware data loading for main/continuous contracts.
-4. Add execution models for close-price execution, VWAP-like execution, and
+1. Feed `FuturesContractSpec` from extended contract settlement fields,
+   preferring contract-specific long/short margin rates when available.
+2. Add rollover-aware data loading for main/continuous contracts.
+3. Add execution models for close-price execution, VWAP-like execution, and
    intraday order delay.
-5. Persist or expose order/equity details in BacktestAgent responses and the
+4. Persist or expose order/equity details in BacktestAgent responses and the
    frontend result card.
+5. Decide where the product should expose `engine_mode="futures"` by default:
+   Strategy APIs, BacktestAgent, or a dedicated advanced backtest endpoint.
