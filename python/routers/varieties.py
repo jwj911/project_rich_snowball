@@ -31,15 +31,40 @@ def get_varieties(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
-    """品种列表（含实时行情），用于替代 /api/products。
+    """品种列表（基于 fut_main_daily_data 主力日线）。
 
-    联合查询 VarietyDB + RealtimeQuoteDB，支持搜索/分类/涨跌筛选/排序/分页。
+    只返回 fut_main_daily_data 中有最新日线数据的品种。
+    支持搜索/分类/涨跌筛选/排序/分页。
     """
     from urllib.parse import quote
 
-    # 基础查询：只查活跃品种
-    q = db.query(VarietyDB).filter(VarietyDB.is_active.is_(True))
+    # 子查询：取每个品种最新 trade_date 的 D 周期记录
+    latest_daily_subq = (
+        db.query(
+            FutMainDailyDataDB.variety_id,
+            func.max(FutMainDailyDataDB.trade_date).label("max_date"),
+        )
+        .filter(FutMainDailyDataDB.period == "D")
+        .group_by(FutMainDailyDataDB.variety_id)
+        .subquery()
+    )
 
+    # 主查询：最新日数据 join 品种信息
+    q = (
+        db.query(FutMainDailyDataDB, VarietyDB)
+        .join(VarietyDB, FutMainDailyDataDB.variety_id == VarietyDB.id)
+        .join(
+            latest_daily_subq,
+            and_(
+                FutMainDailyDataDB.variety_id == latest_daily_subq.c.variety_id,
+                FutMainDailyDataDB.trade_date == latest_daily_subq.c.max_date,
+                FutMainDailyDataDB.period == "D",
+            ),
+        )
+        .filter(VarietyDB.is_active.is_(True))
+    )
+
+    # 搜索
     keyword = search.strip() if search else ""
     if keyword:
         pattern = f"%{keyword}%"
@@ -51,27 +76,30 @@ def get_varieties(
             )
         )
 
+    # 分类筛选
     if category and category != "all":
         q = q.filter(VarietyDB.category == category)
 
-    # 涨跌筛选需要在 RealtimeQuoteDB 上过滤
-    if direction == "up":
-        q = q.join(RealtimeQuoteDB).filter(
-            func.coalesce(RealtimeQuoteDB.change_percent, 0) >= 0
-        )
-    elif direction == "down":
-        q = q.join(RealtimeQuoteDB).filter(
-            func.coalesce(RealtimeQuoteDB.change_percent, 0) < 0
-        )
-    else:
-        q = q.outerjoin(RealtimeQuoteDB)
+    # 涨跌百分比 SQL 表达式（settle 优先，close_price 兜底）
+    _change_pct = case(
+        (and_(FutMainDailyDataDB.pre_settle.isnot(None), FutMainDailyDataDB.pre_settle != 0, FutMainDailyDataDB.settle.isnot(None)),
+            (FutMainDailyDataDB.settle - FutMainDailyDataDB.pre_settle) / FutMainDailyDataDB.pre_settle),
+        (and_(FutMainDailyDataDB.pre_settle.isnot(None), FutMainDailyDataDB.pre_settle != 0, FutMainDailyDataDB.close_price.isnot(None)),
+            (FutMainDailyDataDB.close_price - FutMainDailyDataDB.pre_settle) / FutMainDailyDataDB.pre_settle),
+        else_=0,
+    )
 
-    # 统计（基于当前过滤条件）
+    if direction == "up":
+        q = q.filter(_change_pct >= 0)
+    elif direction == "down":
+        q = q.filter(_change_pct < 0)
+
+    # 统计
     stats_query = q.with_entities(
         func.count(VarietyDB.id),
-        func.sum(func.coalesce(RealtimeQuoteDB.volume, 0)),
-        func.sum(case((func.coalesce(RealtimeQuoteDB.change_percent, 0) >= 0, 1), else_=0)),
-        func.sum(case((func.coalesce(RealtimeQuoteDB.change_percent, 0) < 0, 1), else_=0)),
+        func.coalesce(func.sum(FutMainDailyDataDB.volume), 0),
+        func.sum(case((_change_pct >= 0, 1), else_=0)),
+        func.sum(case((_change_pct < 0, 1), else_=0)),
     )
     total_count, total_volume, up_count, down_count = stats_query.one()
 
@@ -85,10 +113,14 @@ def get_varieties(
     ]
 
     # 排序
+    _price_col = case(
+        (FutMainDailyDataDB.settle.isnot(None), FutMainDailyDataDB.settle),
+        else_=FutMainDailyDataDB.close_price,
+    )
     sort_column_map = {
-        "change_percent": RealtimeQuoteDB.change_percent,
-        "volume": RealtimeQuoteDB.volume,
-        "current_price": RealtimeQuoteDB.current_price,
+        "change_percent": _change_pct,
+        "volume": FutMainDailyDataDB.volume,
+        "current_price": _price_col,
     }
     sort_col = sort_column_map[sort_by]
     sort_expr = (
@@ -97,53 +129,19 @@ def get_varieties(
         else asc(func.coalesce(sort_col, 0))
     )
 
-    # 分页取结果，并预加载 realtime
     results = (
-        q.options(joinedload(VarietyDB.realtime))
-        .order_by(sort_expr, VarietyDB.id.asc())
+        q.order_by(sort_expr, VarietyDB.id.asc())
         .offset(skip)
         .limit(limit)
         .all()
     )
 
-    # ---- fut_main_daily_data fallback：RealtimeQuoteDB 缺失/ stale 时兜底 ----
-    variety_ids = [v.id for v in results]
-    daily_map: dict[int, FutMainDailyDataDB] = {}
-    if variety_ids:
-        from sqlalchemy import and_
-        # 子查询：取每个品种最新 trade_date 的 D 周期记录
-        latest_daily_subq = (
-            db.query(
-                FutMainDailyDataDB.variety_id,
-                func.max(FutMainDailyDataDB.trade_date).label("max_date"),
-            )
-            .filter(FutMainDailyDataDB.variety_id.in_(variety_ids))
-            .filter(FutMainDailyDataDB.period == "D")
-            .group_by(FutMainDailyDataDB.variety_id)
-            .subquery()
-        )
-        daily_rows = (
-            db.query(FutMainDailyDataDB)
-            .join(
-                latest_daily_subq,
-                and_(
-                    FutMainDailyDataDB.variety_id == latest_daily_subq.c.variety_id,
-                    FutMainDailyDataDB.trade_date == latest_daily_subq.c.max_date,
-                    FutMainDailyDataDB.period == "D",
-                ),
-            )
-            .all()
-        )
-        daily_map = {d.variety_id: d for d in daily_rows}
-    # ---- fallback end ----
-
     response.headers["X-Total-Count"] = str(total_count or 0)
-    response.headers["X-Total-Volume"] = str(total_volume or 0)
+    response.headers["X-Total-Volume"] = str(int(total_volume or 0))
     response.headers["X-Up-Count"] = str(up_count or 0)
     response.headers["X-Down-Count"] = str(down_count or 0)
     response.headers["X-Categories"] = ",".join(quote(c) for c in categories)
 
-    # 构造响应（手动映射，因为 VarietyDB 字段名与 VarietyWithQuoteResponse 不完全一致）
     def _to_float(v):
         return float(v) if v is not None else None
 
@@ -171,32 +169,20 @@ def get_varieties(
             symbol=v.symbol,
             name=v.name,
             category=v.category,
-            current_price=_to_float(v.realtime.current_price) if v.realtime else (
-                _to_float(daily_map[v.id].close_price) if v.id in daily_map else None
-            ),
-            change_percent=_to_float(v.realtime.change_percent) if v.realtime else _daily_change_percent(daily_map.get(v.id)),
-            open_price=_to_float(v.realtime.open_price) if v.realtime else (
-                _to_float(daily_map[v.id].open_price) if v.id in daily_map else None
-            ),
-            high=_to_float(v.realtime.high) if v.realtime else (
-                _to_float(daily_map[v.id].high_price) if v.id in daily_map else None
-            ),
-            low=_to_float(v.realtime.low) if v.realtime else (
-                _to_float(daily_map[v.id].low_price) if v.id in daily_map else None
-            ),
-            volume=v.realtime.volume if v.realtime else (
-                daily_map[v.id].volume if v.id in daily_map else None
-            ),
-            limit_up=_to_float(v.realtime.limit_up) if v.realtime else None,
-            limit_down=_to_float(v.realtime.limit_down) if v.realtime else None,
+            current_price=_to_float(d.close_price),
+            change_percent=_daily_change_percent(d),
+            open_price=_to_float(d.open_price),
+            high=_to_float(d.high_price),
+            low=_to_float(d.low_price),
+            volume=d.volume,
+            limit_up=None,
+            limit_down=None,
             price_precision=_price_precision(v.tick_size),
             margin_rate=_to_float(v.margin_rate),
             commission=_to_float(v.commission),
-            updated_at=str(v.realtime.updated_at) if v.realtime and v.realtime.updated_at else (
-                str(daily_map[v.id].trade_date) if v.id in daily_map else None
-            ),
+            updated_at=str(d.trade_date) if d.trade_date else None,
         )
-        for v in results
+        for d, v in results
     ]
 
 
