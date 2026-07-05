@@ -148,9 +148,8 @@ def init_db():
     并在 CI 中通过 PostgreSQL 执行所有迁移来验证兼容性。
     """
     if ENV == "production":
-        from alembic.config import Config as AlembicConfig
-
         from alembic import command
+        from alembic.config import Config as AlembicConfig
 
         alembic_cfg = AlembicConfig(os.path.join(os.path.dirname(__file__), "alembic.ini"))
         command.upgrade(alembic_cfg, "head")
@@ -194,6 +193,7 @@ class UserDB(Base):
     alert_event_states = relationship("AlertEventUserStateDB", back_populates="user", passive_deletes=True)
     strategies = relationship("StrategyDB", back_populates="user", passive_deletes=True)
     backtest_runs = relationship("BacktestRunDB", back_populates="user", passive_deletes=True)
+    evolution_runs = relationship("StrategyEvolutionRunDB", back_populates="user", passive_deletes=True)
     llm_configs = relationship("UserLLMConfigDB", back_populates="user", passive_deletes=True)
 
 
@@ -1088,4 +1088,103 @@ class BacktestRunDB(Base):
     __table_args__ = (
         Index("idx_backtest_runs_strategy", "strategy_id", "created_at"),
         Index("idx_backtest_runs_user_status", "user_id", "status"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Strategy Evolution — 自进化策略 Agent 持久化模型
+# ---------------------------------------------------------------------------
+
+
+class StrategyEvolutionRunDB(Base):
+    """策略进化运行记录。
+
+    每次触发自进化策略 Agent 运行（手动或定时），生成一条记录。
+    包含进化配置冻结快照、状态追踪和结果摘要。
+    """
+
+    __tablename__ = "strategy_evolution_runs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    config_json = Column(Text, nullable=False)  # 进化配置快照
+    status = Column(String(20), nullable=False, default="pending")  # pending | running | completed | failed
+    generations = Column(Integer, nullable=True)
+    population_size = Column(Integer, nullable=True)
+    best_strategy_id = Column(Integer, ForeignKey("strategies.id", ondelete="SET NULL"), nullable=True, index=True)
+    summary_json = Column(Text, nullable=True)  # 进化摘要（最优适应度、总评估次数等）
+    error_message = Column(Text, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+
+    user = relationship("UserDB", back_populates="evolution_runs")
+    generations_list = relationship("StrategyGenerationDB", back_populates="evolution_run", passive_deletes=True)
+    best_strategy = relationship("StrategyDB")
+    lifecycle = relationship("StrategyLifecycleDB", back_populates="evolution_run", uselist=False)
+
+    __table_args__ = (
+        Index("idx_evo_runs_user_status", "user_id", "status"),
+        Index("idx_evo_runs_symbol", "symbol", "created_at"),
+    )
+
+
+class StrategyGenerationDB(Base):
+    """策略进化代际快照。
+
+    记录每一代的种群状态、适应度和多样性，用于回溯进化轨迹。
+    """
+
+    __tablename__ = "strategy_generations"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    evolution_run_id = Column(
+        Integer, ForeignKey("strategy_evolution_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    generation_number = Column(Integer, nullable=False)
+    population_json = Column(Text, nullable=True)  # 种群个体序列化快照
+    best_fitness = Column(Numeric(12, 4), nullable=True)
+    avg_fitness = Column(Numeric(12, 4), nullable=True)
+    diversity_score = Column(Numeric(6, 4), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+
+    evolution_run = relationship("StrategyEvolutionRunDB", back_populates="generations_list")
+
+    __table_args__ = (
+        UniqueConstraint("evolution_run_id", "generation_number", name="uix_evo_gen_number"),
+        Index("idx_evo_gen_fitness", "evolution_run_id", "generation_number"),
+    )
+
+
+class StrategyLifecycleDB(Base):
+    """策略生命周期追踪。
+
+    每个策略（不管来源）最多一条记录，跟踪其在生产环境中的持续表现。
+    支持退化检测、状态转换和行动推荐。
+    """
+
+    __tablename__ = "strategy_lifecycle"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    strategy_id = Column(
+        Integer, ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
+    source = Column(String(20), nullable=False, default="manual")  # manual | evolved
+    evolution_run_id = Column(
+        Integer, ForeignKey("strategy_evolution_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    status = Column(String(20), nullable=False, default="active")  # active | paper_trading | degraded | retired
+    in_sample_metrics = Column(Text, nullable=True)  # IS 回测指标 JSON
+    out_of_sample_metrics = Column(Text, nullable=True)  # OOS 回测指标 JSON
+    walk_forward_metrics = Column(Text, nullable=True)  # Walk-forward 指标 JSON
+    last_evaluated_at = Column(DateTime(timezone=True), nullable=True)
+    performance_trend = Column(Numeric(10, 4), nullable=True)  # 滚动趋势斜率
+    decay_score = Column(Numeric(10, 4), nullable=True)  # 0=健康, 100=完全失效
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
+
+    strategy = relationship("StrategyDB")
+    evolution_run = relationship("StrategyEvolutionRunDB", back_populates="lifecycle")
+
+    __table_args__ = (
+        Index("idx_lifecycle_status", "status", "last_evaluated_at"),
+        Index("idx_lifecycle_decay", "decay_score", "updated_at"),
     )

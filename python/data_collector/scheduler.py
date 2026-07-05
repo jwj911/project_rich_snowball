@@ -13,7 +13,7 @@ from data_collector.collector_registry import (
     build_collector_entries,
     build_pipelines,
 )
-from data_collector.job_registry import build_job_configs, register_jobs
+from data_collector.job_registry import build_job_configs, build_weekly_evolution_job, register_jobs
 from models import NewsArticleDB, NewsSourceDB, PriceAlertDB, RealtimeQuoteDB, SessionLocal, VarietyDB
 from services.alert_events import create_market_alert_for_price_alert
 from services.domain.kline_service import KlineService
@@ -505,6 +505,56 @@ def sync_news():
         db.close()
 
 
+def weekly_strategy_evolution():
+    """周度策略自动进化任务。
+
+    周六凌晨运行，遍历所有活跃品种，对每个品种执行一次轻量级进化
+    （种群 20、代数 5），发现新的潜在策略。
+    """
+    from models import SessionLocal
+    from services.agent.context import AgentContext
+    from services.agent.strategy_evolution_agent import StrategyEvolutionAgent
+
+    db = SessionLocal()
+    try:
+        varieties = db.query(VarietyDB).filter(VarietyDB.is_active.is_(True)).all()
+        if not varieties:
+            logger.info("周度策略进化：无活跃品种，跳过")
+            return
+
+        logger.info("周度策略进化：开始处理 %d 个品种", len(varieties))
+        results = []
+        for variety in varieties[:10]:  # 限制 Top-10 避免超时
+            try:
+                ctx = AgentContext(db=db, user_id=None, task_id=None)
+                agent = StrategyEvolutionAgent(ctx)
+                # 使用轻量配置
+                import asyncio
+                result = asyncio.get_event_loop().run_until_complete(
+                    agent.run(f"为 {variety.symbol} 自动进化策略：世代数=5 种群=20")
+                )
+                results.append({
+                    "symbol": variety.symbol,
+                    "status": result.status,
+                    "best_fitness": result.data.get("best_fitness") if result.data else None,
+                })
+                logger.info(
+                    "周度策略进化 %s: status=%s fitness=%s",
+                    variety.symbol, result.status,
+                    result.data.get("best_fitness") if result.data else "N/A",
+                )
+            except Exception as exc:
+                logger.error("周度策略进化 %s 失败: %s", variety.symbol, exc)
+                results.append({"symbol": variety.symbol, "status": "failed", "error": str(exc)})
+
+        logger.info("周度策略进化完成：%d 品种，%d 成功", len(varieties[:10]), sum(1 for r in results if r["status"] == "completed"))
+
+    except Exception as exc:
+        logger.error("周度策略进化任务异常：%s", exc)
+    finally:
+        db.close()
+
+
 # ------------------------------------------------------------------
 # Scheduler 生命周期
 # ------------------------------------------------------------------
@@ -529,6 +579,15 @@ def start_scheduler():
         sync_fut_price_limit_func=sync_fut_price_limit if _pipeline("fut_price_limit") else None,
     )
     register_jobs(scheduler, jobs)
+
+    # 周度策略自动进化任务（通过 ENABLE_WEEKLY_EVOLUTION 环境变量控制）
+    evolution_enabled = os.getenv("ENABLE_WEEKLY_EVOLUTION", "1") == "1"
+    if evolution_enabled:
+        evo_job = build_weekly_evolution_job(weekly_evolution_func=weekly_strategy_evolution)
+        if evo_job:
+            register_jobs(scheduler, [evo_job])
+            logger.info("Weekly strategy evolution job registered (Saturday 03:07 CST)")
+
     scheduler.start()
     logger.info("Scheduler started")
 

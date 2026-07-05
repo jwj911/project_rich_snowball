@@ -583,6 +583,92 @@ export interface FactorDeleteResponse {
   message: string
 }
 
+// ---------------------------------------------------------------------------
+// Evolution API types
+// ---------------------------------------------------------------------------
+
+export interface EvolutionRunResponse {
+  id: number
+  user_id: number
+  symbol: string
+  config_json: string
+  status: string
+  generations: number | null
+  population_size: number | null
+  best_strategy_id: number | null
+  summary_json: string | null
+  error_message: string | null
+  started_at: string | null
+  finished_at: string | null
+  created_at: string | null
+}
+
+export interface EvolutionRunListResponse {
+  items: EvolutionRunResponse[]
+  total: number
+}
+
+export interface GenerationSnapshotResponse {
+  id: number
+  generation_number: number
+  best_fitness: number | null
+  avg_fitness: number | null
+  diversity_score: number | null
+  created_at: string | null
+}
+
+export interface EvolutionRunDetailResponse extends EvolutionRunResponse {
+  generations_snapshots: GenerationSnapshotResponse[]
+}
+
+export interface StrategyLifecycleResponse {
+  id: number
+  strategy_id: number
+  source: string
+  status: string
+  evolution_run_id: number | null
+  in_sample_metrics: Record<string, unknown> | null
+  out_of_sample_metrics: Record<string, unknown> | null
+  walk_forward_metrics: Record<string, unknown> | null
+  decay_score: number | null
+  performance_trend: number | null
+  last_evaluated_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface DecayEvaluationRequest {
+  strategy_id: number
+  recent_metrics?: Record<string, unknown> | null
+}
+
+export interface DecayEvaluationResponse {
+  strategy_id: number
+  decay_score: number
+  status: string
+  recommended_action: string
+  details: Record<string, unknown>
+}
+
+export interface LifecycleComparisonRequest {
+  strategy_ids: number[]
+}
+
+export interface LifecycleComparisonItem {
+  strategy_id: number
+  strategy_name: string
+  symbol: string
+  has_lifecycle: boolean
+  status: string
+  decay_score: number | null
+  source: string
+  recommended_action: string
+}
+
+export interface LifecycleComparisonResponse {
+  items: LifecycleComparisonItem[]
+}
+
 export interface TradeRecord {
   id: number
   user_id: number

@@ -94,6 +94,14 @@ import {
   updateWatchlist,
   type PriceLevelBatchItem,
 } from './workspace'
+import {
+  getEvolutionRuns,
+  getEvolutionRun,
+  getStrategyLifecycle,
+  listLifecycles,
+  evaluateDecay,
+  compareLifecycles,
+} from './evolution'
 import type {
   Comment,
   DashboardActivity,
@@ -151,6 +159,14 @@ import type {
   FactorUpdate,
   FactorListParams,
   FactorDeleteResponse,
+  EvolutionRunResponse,
+  EvolutionRunListResponse,
+  EvolutionRunDetailResponse,
+  StrategyLifecycleResponse,
+  DecayEvaluationRequest,
+  DecayEvaluationResponse,
+  LifecycleComparisonRequest,
+  LifecycleComparisonResponse,
 } from './types'
 
 class ApiService extends AuthCore {
@@ -570,6 +586,32 @@ class ApiService extends AuthCore {
 
   deleteFactor(id: number): Promise<FactorDeleteResponse> {
     return deleteFactor(this, id)
+  }
+
+  // ========== Evolution ==========
+
+  getEvolutionRuns(params?: { symbol?: string; status?: string; skip?: number; limit?: number }): Promise<EvolutionRunListResponse> {
+    return getEvolutionRuns(this, params)
+  }
+
+  getEvolutionRun(runId: number): Promise<EvolutionRunDetailResponse> {
+    return getEvolutionRun(this, runId)
+  }
+
+  getStrategyLifecycle(strategyId: number): Promise<StrategyLifecycleResponse> {
+    return getStrategyLifecycle(this, strategyId)
+  }
+
+  listLifecycles(status?: string): Promise<StrategyLifecycleResponse[]> {
+    return listLifecycles(this, status)
+  }
+
+  evaluateDecay(data: DecayEvaluationRequest): Promise<DecayEvaluationResponse> {
+    return evaluateDecay(this, data)
+  }
+
+  compareLifecycles(data: LifecycleComparisonRequest): Promise<LifecycleComparisonResponse> {
+    return compareLifecycles(this, data)
   }
 }
 

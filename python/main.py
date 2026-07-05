@@ -59,6 +59,7 @@ from routers import (  # noqa: E402
     chat,
     comments,
     contracts,
+    evolution,
     factors,
     frontend_logs,
     health,
@@ -224,6 +225,7 @@ app.include_router(price_alerts.router)
 app.include_router(alerts.router)
 app.include_router(agents.router)
 app.include_router(strategies.router)
+app.include_router(evolution.router)
 app.include_router(factors.router)
 
 

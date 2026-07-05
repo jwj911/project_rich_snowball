@@ -1374,3 +1374,158 @@ class FactorResponse(BaseModel):
         if isinstance(v, dt):
             return v.isoformat()
         return v
+
+
+# ---------------------------------------------------------------------------
+# Strategy Evolution — 自进化策略 Agent API schemas
+# ---------------------------------------------------------------------------
+
+
+class EvolutionRunResponse(BaseModel):
+    """进化运行记录响应。"""
+
+    id: int
+    user_id: int
+    symbol: str
+    config_json: str
+    status: str
+    generations: int | None = None
+    population_size: int | None = None
+    best_strategy_id: int | None = None
+    summary_json: str | None = None
+    error_message: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    created_at: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("started_at", "finished_at", "created_at", mode="before")
+    @classmethod
+    def _datetime_to_iso(cls, v: Any) -> str | None:
+        if isinstance(v, dt):
+            return v.isoformat()
+        return v
+
+
+class EvolutionRunListResponse(BaseModel):
+    """进化运行列表。"""
+
+    items: list[EvolutionRunResponse]
+    total: int
+
+
+class EvolutionRunDetailResponse(EvolutionRunResponse):
+    """进化运行详情（含代际快照）。"""
+
+    generations_snapshots: list["GenerationSnapshotResponse"] = []
+
+
+class GenerationSnapshotResponse(BaseModel):
+    """代际快照响应。"""
+
+    id: int
+    generation_number: int
+    best_fitness: float | None = None
+    avg_fitness: float | None = None
+    diversity_score: float | None = None
+    created_at: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def _datetime_to_iso(cls, v: Any) -> str | None:
+        if isinstance(v, dt):
+            return v.isoformat()
+        return v
+
+
+class StrategyLifecycleResponse(BaseModel):
+    """策略生命周期响应。"""
+
+    id: int
+    strategy_id: int
+    source: str
+    status: str
+    evolution_run_id: int | None = None
+    in_sample_metrics: dict[str, Any] | None = None
+    out_of_sample_metrics: dict[str, Any] | None = None
+    walk_forward_metrics: dict[str, Any] | None = None
+    decay_score: float | None = None
+    performance_trend: float | None = None
+    last_evaluated_at: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("last_evaluated_at", "created_at", "updated_at", mode="before")
+    @classmethod
+    def _datetime_to_iso(cls, v: Any) -> str | None:
+        if isinstance(v, dt):
+            return v.isoformat()
+        return v
+
+    @field_validator("in_sample_metrics", "out_of_sample_metrics", "walk_forward_metrics", mode="before")
+    @classmethod
+    def _json_text_to_dict(cls, v: Any) -> dict[str, Any] | None:
+        if isinstance(v, str):
+            import json
+
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return v
+
+
+class DecayEvaluationRequest(BaseModel):
+    """退化评估请求。"""
+
+    strategy_id: int
+    recent_metrics: dict[str, Any] | None = None
+
+
+class DecayEvaluationResponse(BaseModel):
+    """退化评估响应。"""
+
+    strategy_id: int
+    decay_score: float
+    status: str
+    recommended_action: str
+    details: dict[str, Any]
+
+
+class LifecycleComparisonRequest(BaseModel):
+    """生命周期对比请求。"""
+
+    strategy_ids: list[int]
+
+
+class LifecycleComparisonItem(BaseModel):
+    """对比结果单项。"""
+
+    strategy_id: int
+    strategy_name: str
+    symbol: str
+    has_lifecycle: bool
+    status: str
+    decay_score: float | None = None
+    source: str
+    recommended_action: str
+
+
+class LifecycleComparisonResponse(BaseModel):
+    """生命周期对比结果。"""
+
+    items: list[LifecycleComparisonItem]
+
+
+class WeeklyEvolutionStatusResponse(BaseModel):
+    """周度自动进化状态。"""
+
+    enabled: bool
+    next_run_at: str | None = None
+    last_run_at: str | None = None
+    last_run_result: dict[str, Any] | None = None

@@ -71,6 +71,8 @@ _DEFAULT_EVOLUTION_CONFIG: dict[str, Any] = {
     "use_bayesian_optimization": False,  # 启用贝叶斯优化参数精调
     "bo_iterations": 30,  # BO 迭代次数
     "bo_initial_samples": 10,  # BO 初始采样数
+    # Phase 3: 持久化
+    "persist_to_db": True,  # 将进化结果持久化到数据库
 }
 
 
@@ -609,6 +611,102 @@ class StrategyEvolutionAgent(Agent):
         )
 
         self._add_step("system", "进化完成，报告已生成")
+
+        # ─── 10. 持久化进化运行记录与生命周期 ───
+        best_strategy_id = None
+
+        if config.get("persist_to_db", True) and self.context.user_id and self.context.task_id:
+            try:
+                from datetime import UTC, datetime
+
+                from models import StrategyDB, StrategyEvolutionRunDB, StrategyGenerationDB
+                from services.agent.evolution.strategy_lifecycle import StrategyLifecycleManager
+
+                now = datetime.now(UTC)
+
+                # 保存最优策略到 StrategyDB
+                strategy_name = dsl.get("name", f"{symbol} 自进化策略")
+                strategy_record = StrategyDB(
+                    user_id=self.context.user_id,
+                    name=strategy_name,
+                    description=f"自进化策略 Agent 自动生成（品种={symbol} 周期={config['period']}）",
+                    symbol=symbol,
+                    dsl_json=json.dumps(dsl, ensure_ascii=False, default=str),
+                    timeframe=config["period"],
+                    direction=config["direction"],
+                    is_active=True,
+                    is_builtin=False,
+                )
+                db.add(strategy_record)
+                db.flush()
+                best_strategy_id = strategy_record.id
+                logger.info("最优策略已保存到 StrategyDB（id=%d）", best_strategy_id)
+
+                # 保存进化运行记录
+                actual_generations = len(evolution_log)
+                summary = {
+                    "initial_best_fitness": evolution_log[0]["best_fitness"] if evolution_log else None,
+                    "final_best_fitness": evolution_log[-1]["best_fitness"] if evolution_log else None,
+                    "total_evaluations": len(evolution_log) * config["population_size"],
+                    "early_stopped": actual_generations < config["generations"],
+                    "oos_validated": oos_result is not None,
+                    "bo_optimized": bo_result is not None,
+                }
+                run_record = StrategyEvolutionRunDB(
+                    user_id=self.context.user_id,
+                    symbol=symbol,
+                    config_json=json.dumps(config, ensure_ascii=False, default=str),
+                    status="completed",
+                    generations=actual_generations,
+                    population_size=config["population_size"],
+                    best_strategy_id=best_strategy_id,
+                    summary_json=json.dumps(summary, ensure_ascii=False),
+                    started_at=now,
+                    finished_at=now,
+                )
+                db.add(run_record)
+                db.flush()
+
+                # 保存每代快照
+                for gen_entry in evolution_log:
+                    gen = StrategyGenerationDB(
+                        evolution_run_id=run_record.id,
+                        generation_number=gen_entry["generation"],
+                        best_fitness=gen_entry.get("best_fitness"),
+                        avg_fitness=gen_entry.get("avg_fitness"),
+                        diversity_score=gen_entry.get("diversity"),
+                    )
+                    db.add(gen)
+
+                # 注册策略生命周期
+                is_metrics = (
+                    best_individual_overall.backtest_result.get("metrics", {})
+                    if best_individual_overall.backtest_result
+                    else {}
+                )
+                StrategyLifecycleManager.register_strategy(
+                    db,
+                    strategy_id=best_strategy_id,
+                    source="evolved",
+                    evolution_run_id=run_record.id,
+                    is_metrics=is_metrics,
+                    oos_metrics=oos_metrics,
+                )
+
+                db.commit()
+                self._add_step(
+                    "observation",
+                    f"进化结果已持久化：运行 #{run_record.id}，策略 #{best_strategy_id}",
+                )
+                logger.info("进化运行 #%d + 策略生命周期已保存", run_record.id)
+
+            except Exception as exc:
+                logger.exception("持久化进化结果失败：%s", exc)
+                self._add_step("observation", f"持久化失败（进化结果不受影响）：{exc}")
+                from contextlib import suppress
+
+                with suppress(Exception):
+                    db.rollback()
 
         return AgentResult(
             status=AgentStatus.COMPLETED,

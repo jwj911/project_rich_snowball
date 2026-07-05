@@ -153,3 +153,23 @@ def build_job_configs(
         )
 
     return jobs
+
+
+def build_weekly_evolution_job(
+    weekly_evolution_func: Callable | None = None,
+) -> JobConfig | None:
+    """构建周度策略自动进化任务配置（独立于 build_job_configs，便于按需启用）。
+
+    周六凌晨 3:00（Asia/Shanghai）运行，遍历活跃品种自动执行策略进化。
+    misfire_grace_time 设为 2 小时，因为进化可能耗时较长。
+    """
+    if weekly_evolution_func is None:
+        return None
+    return JobConfig(
+        id="weekly_strategy_evolution",
+        func=weekly_evolution_func,
+        trigger=CronTrigger(day_of_week="sat", hour=3, minute=7, timezone="Asia/Shanghai"),
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=7200,
+    )
