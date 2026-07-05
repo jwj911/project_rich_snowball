@@ -5,16 +5,19 @@ import type { ElementType, ReactNode } from 'react'
 import useSWR from 'swr'
 import AppShell from '@/components/layout/AppShell'
 import { api } from '@/lib/api'
-import type { AgentTaskResponse, BacktestResult, BacktestRunResponse, StrategyPortfolioPlanResponse, StrategyResponse, TradeRecord } from '@/lib/api'
+import type { AgentTaskResponse, BacktestResult, BacktestRunResponse, FactorResponse, StrategyPortfolioPlanResponse, StrategyResponse, TradeRecord } from '@/lib/api'
 import { formatPrice } from '@/lib/format'
 import {
   BarChart3,
   Briefcase,
   Code,
+  Database,
   Loader2,
   Play,
   Plus,
+  Search,
   ShieldCheck,
+  Sparkles,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -126,6 +129,40 @@ function StrategyLibrary({
   const [symbol, setSymbol] = useState('')
   const [backtestingId, setBacktestingId] = useState<number | null>(null)
   const [backtests, setBacktests] = useState<Record<number, BacktestRunResponse[]>>({})
+  const [factors, setFactors] = useState<FactorResponse[]>([])
+  const [factorsLoading, setFactorsLoading] = useState(true)
+  const [factorSearch, setFactorSearch] = useState('')
+  const [factorSymbol, setFactorSymbol] = useState('')
+  const [factorDirection, setFactorDirection] = useState<'long' | 'short'>('long')
+  const [factorSavingId, setFactorSavingId] = useState<number | null>(null)
+
+  const loadFactors = useCallback(async () => {
+    setFactorsLoading(true)
+    try {
+      const rows = await api.listFactors({ limit: 60 })
+      setFactors(rows)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '加载因子列表失败')
+    } finally {
+      setFactorsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadFactors()
+  }, [loadFactors])
+
+  const visibleFactors = useMemo(() => {
+    const keyword = factorSearch.trim().toLowerCase()
+    if (!keyword) return factors.slice(0, 12)
+    return factors
+      .filter((factor) =>
+        [factor.name, factor.factor_id, factor.category, factor.source]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(keyword)),
+      )
+      .slice(0, 12)
+  }, [factorSearch, factors])
 
   const pollAgentTask = useCallback(async (taskId: number, maxAttempts = 30): Promise<AgentTaskResponse> => {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -211,6 +248,31 @@ function StrategyLibrary({
     }
   }, [])
 
+  const handleCreateFromFactor = useCallback(
+    async (factor: FactorResponse) => {
+      if (!factorSymbol.trim()) {
+        toast.error('请先填写要应用的品种代码')
+        return
+      }
+      setFactorSavingId(factor.id)
+      try {
+        await api.createStrategyFromFactor(factor.id, {
+          symbol: factorSymbol.trim().toUpperCase(),
+          direction: factorDirection,
+          entry_value: 0,
+          exit_value: 0,
+        })
+        await onChanged()
+        toast.success('因子策略已加入策略库')
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : '创建因子策略失败')
+      } finally {
+        setFactorSavingId(null)
+      }
+    },
+    [factorDirection, factorSymbol, onChanged],
+  )
+
   return (
     <section className="space-y-4">
       <div className="rounded-lg border border-slate-800 bg-surface p-5">
@@ -275,6 +337,85 @@ function StrategyLibrary({
                 取消
               </button>
             </div>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-slate-800 bg-surface p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-semibold text-white">
+              <Database size={16} className="text-amber-400" />
+              因子策略
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">从 factor_definitions 选择因子，一键保存为可回测策略</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[140px_120px_minmax(180px,1fr)]">
+            <input
+              value={factorSymbol}
+              onChange={(event) => setFactorSymbol(event.target.value)}
+              placeholder="品种，如 RB"
+              className={inputClass}
+            />
+            <select
+              value={factorDirection}
+              onChange={(event) => setFactorDirection(event.target.value as 'long' | 'short')}
+              className={inputClass}
+            >
+              <option value="long">做多</option>
+              <option value="short">做空</option>
+            </select>
+            <div className="relative">
+              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                value={factorSearch}
+                onChange={(event) => setFactorSearch(event.target.value)}
+                placeholder="搜索因子名称、ID、分类"
+                className={`${inputClass} pl-8`}
+              />
+            </div>
+          </div>
+        </div>
+
+        {factorsLoading ? (
+          <div className="mt-4 flex h-24 items-center justify-center rounded-lg border border-slate-800 bg-slate-950/40">
+            <Loader2 size={18} className="animate-spin text-slate-500" />
+          </div>
+        ) : visibleFactors.length === 0 ? (
+          <div className="mt-4">
+            <EmptyBlock icon={Database} title="暂无可用因子" description="factor_definitions 中没有匹配的活跃因子。" />
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {visibleFactors.map((factor) => (
+              <div key={factor.id} className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate text-sm font-semibold text-white">{factor.name}</h3>
+                      <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">
+                        {factor.factor_id}
+                      </span>
+                      {factor.category && <span className="text-[10px] text-slate-500">{factor.category}</span>}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-slate-500">
+                      <span>Q {formatFactorMetric(factor.q_score)}</span>
+                      <span>RankICIR {formatFactorMetric(factor.test_rankicir)}</span>
+                      <span>Sharpe {formatFactorMetric(factor.ls_sharpe)}</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCreateFromFactor(factor)}
+                    disabled={factorSavingId === factor.id}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-amber-500 disabled:opacity-50"
+                  >
+                    {factorSavingId === factor.id ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                    实现策略
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -1042,6 +1183,11 @@ function readStrategyDescription(strategy: StrategyResponse): string {
   const dsl = parseStrategyDsl(strategy)
   if (dsl?.description && typeof dsl.description === 'string') return dsl.description
   return strategy.description || '暂无策略描述'
+}
+
+function formatFactorMetric(value: number | null): string {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
+  return Number(value).toFixed(3)
 }
 
 // --- Symbol/indicator humanization (shared with StrategyResultCard) ---
