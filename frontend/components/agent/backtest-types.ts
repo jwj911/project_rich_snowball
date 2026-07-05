@@ -25,6 +25,7 @@ export interface BacktestMetrics {
   profit_factor: number
   sharpe: number
   trade_count: number
+  total_fee?: number
 }
 
 export interface BacktestConfig {
@@ -38,6 +39,9 @@ export interface BacktestConfig {
   multiplier: number
   fee_rate: number
   direction: string
+  engine_mode?: string
+  margin_rate?: number
+  tick_size?: number
 }
 
 export interface BacktestResultData {
@@ -46,6 +50,8 @@ export interface BacktestResultData {
   trades: BacktestTrade[]
   equity_curve: BacktestEquityPoint[]
   signals: Array<Record<string, unknown>>
+  orders?: Array<Record<string, unknown>>
+  contract?: Record<string, unknown>
   variety: Record<string, unknown>
   data_window: { start: string; end: string; bars: number }
 }

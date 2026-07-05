@@ -451,8 +451,9 @@ export interface StrategyCreate {
 
 export interface BacktestSignal {
   time: string
-  type: 'entry' | 'exit'
+  type: 'entry' | 'exit' | 'flip' | 'rebalance'
   price: number
+  reason?: string | null
 }
 
 export interface BacktestTrade {
@@ -472,6 +473,8 @@ export interface BacktestResult {
   trades: BacktestTrade[]
   equity_curve: Array<{ time: string; equity: number; close: number }>
   signals: BacktestSignal[]
+  orders?: Array<Record<string, unknown>>
+  contract?: Record<string, unknown>
 }
 
 export interface BacktestRunResponse {
@@ -495,6 +498,7 @@ export interface StrategyBacktestRequest {
   initial_cash?: number
   quantity?: number
   limit?: number
+  engine_mode?: 'legacy' | 'futures'
 }
 
 export interface StrategyPortfolioPlanRequest {

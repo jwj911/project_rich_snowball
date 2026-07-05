@@ -3,6 +3,8 @@
 提供策略 CRUD 和回测触发入口，打通 StrategyCompilerAgent -> StrategyDB -> BacktestAgent 链路。
 """
 
+# ruff: noqa: B008, B904
+
 from __future__ import annotations
 
 import json
@@ -169,6 +171,7 @@ def run_strategy_backtest_api(
             quantity=params.quantity,
             limit=params.limit,
             risk=dsl.get("risk"),
+            engine_mode=params.engine_mode,
         )
         metrics = result["metrics"]
         run_record.result_json = json.dumps(result, ensure_ascii=False)

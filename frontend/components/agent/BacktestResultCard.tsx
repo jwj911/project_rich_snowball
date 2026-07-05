@@ -100,6 +100,7 @@ function fmtIndicator(raw: string): string {
 function buildStrategyDescription(data: BacktestResultData): string {
   const parts: string[] = []
   const variety = data.variety as Record<string, string> | undefined
+  const config = data.config
 
   // 品种名
   parts.push(variety?.name || config.symbol)

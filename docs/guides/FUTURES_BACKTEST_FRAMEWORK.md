@@ -61,6 +61,9 @@ The returned payload keeps the familiar top-level fields (`config`, `metrics`,
 `trades`, `equity_curve`, `signals`) and adds `contract` plus `orders` for
 broker-level inspection.
 
+Saved strategy backtests can pass the same mode through
+`StrategyBacktestRequest.engine_mode`, currently typed as `"legacy" | "futures"`.
+
 ## Next Integration Steps
 
 1. Feed `FuturesContractSpec` from extended contract settlement fields,
@@ -70,5 +73,5 @@ broker-level inspection.
    intraday order delay.
 4. Persist or expose order/equity details in BacktestAgent responses and the
    frontend result card.
-5. Decide where the product should expose `engine_mode="futures"` by default:
-   Strategy APIs, BacktestAgent, or a dedicated advanced backtest endpoint.
+5. Decide whether BacktestAgent should default to `engine_mode="futures"` for all
+   futures strategies after frontend display and metric wording are upgraded.

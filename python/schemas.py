@@ -1244,6 +1244,7 @@ class StrategyBacktestRequest(BaseModel):
     initial_cash: float = Field(default=100_000.0, ge=1000)
     quantity: int = Field(default=1, ge=1)
     limit: int = Field(default=500, ge=30, le=5000)
+    engine_mode: str = Field(default="legacy", pattern=r"^(legacy|futures)$")
 
 
 class StrategyPortfolioPlanRequest(BaseModel):
