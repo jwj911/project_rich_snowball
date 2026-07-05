@@ -100,7 +100,6 @@ function fmtIndicator(raw: string): string {
 function buildStrategyDescription(data: BacktestResultData): string {
   const parts: string[] = []
   const variety = data.variety as Record<string, string> | undefined
-  const config = data.config
 
   // 品种名
   parts.push(variety?.name || config.symbol)
@@ -108,9 +107,10 @@ function buildStrategyDescription(data: BacktestResultData): string {
   // 方向
   parts.push(config.direction === 'short' ? '做空' : '做多')
 
-  // 入场条件（从 signals 推断或从 config 提取）
-  if (config.strategy_type && config.strategy_type !== 'dsl' && config.strategy_type !== 'ma_cross') {
-    parts.push(config.strategy_type)
+  // 周期
+  const periodLabel: Record<string, string> = { '1d': '日线', '1h': '小时线', '15m': '15分钟' }
+  if (config.period) {
+    parts.push(periodLabel[config.period] || config.period)
   }
 
   return parts.join(' · ')

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import AppShell from '@/components/layout/AppShell'
 import { api } from '@/lib/api'
 import type { AgentPermissionHeartbeat, AgentStatusSummary, AgentTaskResponse } from '@/lib/api'
+import { AGENT_TYPE_MAP, type AgentTypeKey } from '@/lib/agents'
 import {
   Activity,
   AlertTriangle,
@@ -32,21 +33,6 @@ const statusColors: Record<TaskStatus, string> = {
   running: 'bg-blue-600 text-white',
   completed: 'bg-green-600 text-white',
   failed: 'bg-red-600 text-white',
-}
-
-const agentTypeLabels: Record<string, string> = {
-  data: '数据助手',
-  data_quality: '数据质检',
-  tech_analysis: '技术分析',
-  risk_management: '风控管理',
-  analysis_pipeline: '完整分析',
-  factor_mining: '因子评估',
-  backtest: '策略回测',
-  strategy_compiler: '策略编译',
-  parameter_optimizer: '参数优化',
-  strategy_evolution: '策略进化',
-  trader: '交易员',
-  auto: '智能模式',
 }
 
 export default function AgentsPage() {
@@ -180,6 +166,9 @@ export default function AgentsPage() {
                       <div className="mt-2 text-xs text-slate-400">
                         {item.enabled ? '可用' : item.reason || '暂不可用'}
                       </div>
+                      <div className="mt-1.5 text-xs text-slate-500 leading-relaxed">
+                        {AGENT_TYPE_MAP[item.agent_type as AgentTypeKey]?.description}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -262,7 +251,7 @@ export default function AgentsPage() {
                       {statusLabels[task.status as TaskStatus] || task.status}
                     </span>
                     <span className="text-xs text-slate-400">
-                      {agentTypeLabels[task.agent_type] || task.agent_type}
+                      {AGENT_TYPE_MAP[task.agent_type as AgentTypeKey]?.label || task.agent_type}
                     </span>
                   </div>
                   <div className="mt-1 text-sm text-white">{task.query}</div>

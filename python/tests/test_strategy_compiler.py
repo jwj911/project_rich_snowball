@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
-from models import AgentTaskDB, FutContractDB, KlineDataDB, RealtimeQuoteDB, VarietyDB
+from models import AgentTaskDB, FutContractDB, RealtimeQuoteDB, VarietyDB
 from services.agent.context import AgentContext
-from services.agent.core import AgentStatus
 from services.agent.executor import AgentExecutor
 from services.agent.strategy_compiler_agent import StrategyCompilerAgent, StrategyDSL, StrategyValidator
 

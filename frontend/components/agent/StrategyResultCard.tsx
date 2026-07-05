@@ -1,15 +1,65 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronDown, ChevronUp, Code, FileText, TrendingUp, AlertTriangle, BarChart3 } from 'lucide-react'
+import { FileText, TrendingUp, AlertTriangle, BarChart3 } from 'lucide-react'
 import type { StrategyCompilerData, StrategyDSL } from './backtest-types'
 
 export default function StrategyResultCard({ result }: { result: Record<string, unknown> | null | undefined }) {
-  const [showJson, setShowJson] = useState(false)
   const data = result as StrategyCompilerData | null
   if (!data || !data.dsl) return null
 
   const dsl = data.dsl
+
+  // Map raw symbol codes to human-readable names
+  const symbolNameMap: Record<string, string> = {
+    rb: '螺纹钢',
+    rb50: '螺纹钢(50)',
+    rbX2: '螺纹钢(2倍)',
+    hc: '热卷',
+    i: '铁矿石',
+    j: '焦炭',
+    jm: '焦煤',
+    fg: '玻璃',
+    sa: '纯碱',
+    ma: '甲醇',
+    ta: 'PTA',
+    pp: '聚丙烯',
+    l: '塑料',
+    v: 'PVC',
+    ru: '橡胶',
+    sp: '纸浆',
+    fu: '燃料油',
+    bu: '沥青',
+    sc: '原油',
+    au: '黄金',
+    ag: '白银',
+    cu: '铜',
+    al: '铝',
+    zn: '锌',
+    ni: '镍',
+    si: '工业硅',
+    lc: '碳酸锂',
+    sr: '白糖',
+    cf: '棉花',
+    oi: '菜油',
+    p: '棕榈油',
+    y: '豆油',
+    m: '豆粕',
+    a: '黄豆一号',
+    rm: '菜粕',
+    c: '玉米',
+    cs: '玉米淀粉',
+    jd: '鸡蛋',
+    lh: '生猪',
+    ap: '苹果',
+    eg: '乙二醇',
+    eb: '苯乙烯',
+    pg: '液化气',
+    ur: '尿素',
+  }
+
+  function mapSymbol(raw: string): string {
+    return symbolNameMap[raw] || raw
+  }
 
   return (
     <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900/50 p-3">
@@ -25,7 +75,7 @@ export default function StrategyResultCard({ result }: { result: Record<string, 
         </div>
         <div className="flex items-center justify-between">
           <span className="text-slate-400">品种</span>
-          <span className="text-white">{dsl.universe.join(', ')}</span>
+          <span className="text-white">{dsl.universe.map(mapSymbol).join(', ')}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-slate-400">方向</span>
@@ -35,7 +85,7 @@ export default function StrategyResultCard({ result }: { result: Record<string, 
         </div>
         <div className="flex items-center justify-between">
           <span className="text-slate-400">周期</span>
-          <span className="text-white">{dsl.timeframe}</span>
+          <span className="text-white">{dsl.timeframe === '1d' ? '日线' : dsl.timeframe === '1h' ? '小时线' : dsl.timeframe === '15m' ? '15分钟' : dsl.timeframe}</span>
         </div>
       </div>
 
@@ -45,32 +95,8 @@ export default function StrategyResultCard({ result }: { result: Record<string, 
         <RiskBlock risk={dsl.risk} />
       </div>
 
-      <div className="mt-3">
-        <button
-          type="button"
-          onClick={() => setShowJson(!showJson)}
-          className="inline-flex items-center gap-1 text-xs text-slate-500 transition hover:text-amber-400"
-        >
-          <Code size={10} />
-          {showJson ? '隐藏 JSON' : '查看 JSON'}
-          {showJson ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-        </button>
-        {showJson && (
-          <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-slate-950 p-2 text-xs text-slate-300">
-            {data.json || JSON.stringify(dsl, null, 2)}
-          </pre>
-        )}
-      </div>
+      {/* 查看 JSON 按钮已移除 — 用户不需要看到内部数据结构 */}
 
-      <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-2 text-xs text-amber-200">
-        <BarChart3 size={14} className="mt-0.5 shrink-0" />
-        <div>
-          <div className="font-medium">去回测</div>
-          <div className="mt-0.5 text-amber-200/80">
-            切换到「策略回测」模式并输入相同策略描述，即可运行历史回测并查看收益、回撤、胜率等指标。
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

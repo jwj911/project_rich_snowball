@@ -9,7 +9,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+import pandas as pd
+
 from models import FutContractDB, KlineDataDB, RealtimeQuoteDB, VarietyDB
+from services.agent.data_tools import _get_kline_data
+from services.backtest.engine import _compute_indicator
 from services.backtest.service import run_dsl_backtest
 
 
@@ -139,10 +143,6 @@ class TestIndicatorComputation:
         rows.append({"open": 105, "high": 115, "low": 104, "close": 114, "volume": 5000})
         rows.append({"open": 114, "high": 116, "low": 113, "close": 115, "volume": 5000})
         _seed_klines(db_session, variety, contract, rows=rows)
-
-        import pandas as pd
-        from services.agent.data_tools import _get_kline_data
-        from services.backtest.engine import _compute_indicator
 
         klines = _get_kline_data(db_session, variety.symbol, period="1d", limit=50)
         df = pd.DataFrame(klines)

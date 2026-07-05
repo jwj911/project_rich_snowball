@@ -14,94 +14,26 @@ import {
   Zap,
   Wrench,
   Brain,
-  Database,
   ChevronDown,
   ChevronUp,
-  TrendingUp,
-  Shield,
-  BarChart3,
-  Search,
   Square,
-  Target,
 } from 'lucide-react'
 import FactorResultCard from '@/components/agent/FactorResultCard'
 import TechAnalysisReportCard from '@/components/agent/TechAnalysisReportCard'
 import StrategyResultCard from '@/components/agent/StrategyResultCard'
 import BacktestResultCard from '@/components/agent/BacktestResultCard'
 import { toast } from 'sonner'
-
-type AgentModeKey = 'auto' | 'data' | 'backtest' | 'tech_analysis' | 'factor_mining' | 'risk_management' | 'trader'
-
-interface AgentModeMeta {
-  label: string
-  icon: typeof Database
-  desc: string
-}
+import { AgentTypeKey, AGENT_TYPES, AGENT_TYPE_MAP } from '@/lib/agents'
 
 type AgentMessage = {
   id: number
   role: 'user' | 'assistant' | 'system'
   content: string
-  agentMode?: AgentModeKey
+  agentMode?: AgentTypeKey
   result?: Record<string, unknown>
   steps?: AgentTaskStepResponse[]
   isStreaming?: boolean
   created_at: string
-}
-
-const quickPrompts: Record<AgentModeKey, string[]> = {
-  auto: [
-    '帮我分析一下螺纹钢',
-    '黄金目前适合做多还是做空',
-    '螺纹钢5日上穿20日均线策略回测一下',
-    '评估一下动量因子',
-  ],
-  data: [
-    '螺纹钢最新价格是多少',
-    '列出所有有色金属品种',
-    '黄金近 20 日 K 线数据',
-    '当前市场状态如何',
-  ],
-  backtest: [
-    '螺纹钢 5 日上穿 20 日均线回测',
-    '黄金 10 和 30 日均线策略回测',
-    '铜 20 万资金 2 手均线回测',
-    '原油做空 5/20 均线回测',
-  ],
-  tech_analysis: [
-    '分析螺纹钢日线技术面',
-    '黄金技术面如何？',
-    '铜的走势技术判断',
-    '原油期货技术分析',
-  ],
-  factor_mining: [
-    '评估 "close / ts_delay(close, 5) - 1" 在黑色系的表现',
-    '评估 "ts_rank(close, 20)" 在有色的表现',
-    '评估螺纹钢动量因子',
-    '评估 "ts_corr(close, volume, 10)" 在能源化工的表现',
-  ],
-  risk_management: [
-    '螺纹钢做多风控方案',
-    '黄金做空仓位怎么控制',
-    '原油 5000 元做空风控',
-    '铜的止损止盈怎么设',
-  ],
-  trader: [
-    '帮我看看 RB2501 今天的日内波段机会',
-    'CU2501 现在适合剥头皮吗？',
-    '给出 P2501 未来两周的趋势交易计划',
-    '帮我制定一个豆粕的交易系统',
-  ],
-}
-
-const agentModes: Record<AgentModeKey, AgentModeMeta> = {
-  auto: { label: '智能', icon: Sparkles, desc: '自动识别意图并路由到最佳 Agent' },
-  data: { label: '数据', icon: Database, desc: '实时行情、品种信息、K 线查询' },
-  backtest: { label: '回测', icon: BarChart3, desc: '口头策略解析、历史回测与评分' },
-  tech_analysis: { label: '技术', icon: TrendingUp, desc: '经典指标综合技术面分析' },
-  factor_mining: { label: '因子', icon: Search, desc: '因子 IC、分层回测、多空收益' },
-  risk_management: { label: '风控', icon: Shield, desc: '仓位管理、止损止盈、回撤控制' },
-  trader: { label: '交易', icon: Target, desc: '多周期图表研判，输出具体交易计划' },
 }
 
 export default function ChatPage() {
@@ -109,7 +41,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
-  const [agentMode, setAgentMode] = useState<AgentModeKey>('auto')
+  const [agentMode, setAgentMode] = useState<AgentTypeKey>('auto')
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -308,20 +240,17 @@ export default function ChatPage() {
     }
   }
 
-  const currentMode = agentModes[agentMode]
-
   return (
     <AppShell>
       <div className="mx-auto flex h-[calc(100vh-4rem)] max-w-3xl flex-col">
         {/* Header — horizontal mode bar */}
-        <div className="flex items-center gap-2 border-b border-slate-800 px-4 py-2.5 overflow-x-auto">
-          {(Object.keys(agentModes) as AgentModeKey[]).map((mode) => {
-            const meta = agentModes[mode]
+        <div className="flex items-center gap-2 border-b border-slate-800 px-4 py-2.5 flex-wrap">
+          {AGENT_TYPES.map((meta) => {
             const Icon = meta.icon
-            const active = agentMode === mode
+            const active = agentMode === meta.key
             return (
               <button
-                key={mode}
+                key={meta.key}
                 type="button"
                 onClick={() => {
                   if (abortControllerRef.current) {
@@ -329,9 +258,9 @@ export default function ChatPage() {
                     abortControllerRef.current = null
                     setIsLoading(false)
                   }
-                  setAgentMode(mode)
+                  setAgentMode(meta.key)
                 }}
-                title={meta.desc}
+                title={meta.description}
                 className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
                   active
                     ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
@@ -339,7 +268,7 @@ export default function ChatPage() {
                 }`}
               >
                 <Icon size={13} />
-                {meta.label}
+                {meta.shortLabel}
               </button>
             )
           })}
@@ -367,11 +296,11 @@ export default function ChatPage() {
                 <Sparkles size={24} className="text-amber-400" />
               </div>
               <div className="text-center">
-                <h2 className="text-lg font-semibold text-white">{currentMode.label} · Agent</h2>
-                <p className="mt-1 text-sm text-slate-400">{currentMode.desc}</p>
+                <h2 className="text-lg font-semibold text-white">{AGENT_TYPE_MAP[agentMode].label} · Agent</h2>
+                <p className="mt-1 text-sm text-slate-400">{AGENT_TYPE_MAP[agentMode].description}</p>
               </div>
               <div className="flex flex-wrap justify-center gap-2">
-                {quickPrompts[agentMode].map((prompt) => (
+                {AGENT_TYPE_MAP[agentMode].quickPrompts.map((prompt) => (
                   <button
                     key={prompt}
                     type="button"
