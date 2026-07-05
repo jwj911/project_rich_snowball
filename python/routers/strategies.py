@@ -18,11 +18,12 @@ from sqlalchemy.orm import Session
 
 from dependencies import get_current_user_dependency, get_db
 from errors import ErrorCode
-from models import BacktestRunDB, RealtimeQuoteDB, StrategyDB, UserDB, VarietyDB
+from models import BacktestRunDB, FactorDefinitionDB, RealtimeQuoteDB, StrategyDB, UserDB, VarietyDB
 from schemas import (
     BacktestRunResponse,
     BacktestSignal,
     BacktestSignalsResponse,
+    FactorStrategyCreate,
     OptimizationRunItem,
     StrategyBacktestRequest,
     StrategyCreate,
@@ -88,6 +89,82 @@ def create_strategy(
         dsl_json=data.dsl_json,
         timeframe=data.timeframe,
         direction=data.direction,
+        is_active=True,
+    )
+    db.add(strategy)
+    db.commit()
+    db.refresh(strategy)
+    return strategy
+
+
+@router.post("/from-factor/{factor_id}", response_model=StrategyResponse)
+def create_strategy_from_factor(
+    factor_id: int,
+    data: FactorStrategyCreate,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user_dependency),
+):
+    """将 factor_definitions 中的因子转换为标准 Strategy DSL 并保存。"""
+    factor = (
+        db.query(FactorDefinitionDB)
+        .filter(FactorDefinitionDB.id == factor_id, FactorDefinitionDB.is_active.is_(True))
+        .first()
+    )
+    if not factor:
+        raise NotFoundError("因子不存在或已停用", code=ErrorCode.NOT_FOUND)
+    if not factor.is_builtin and factor.user_id != current_user.id and current_user.role != "admin":
+        raise ForbiddenError("无权使用该因子创建策略")
+
+    direction = data.direction
+    entry_operator = data.entry_operator or ("greater_than" if direction == "long" else "less_than")
+    exit_operator = data.exit_operator or ("less_than" if direction == "long" else "greater_than")
+    symbol = data.symbol.strip().upper()
+    factor_indicator = f"factor:{factor.factor_id}"
+    strategy_name = data.name or f"{symbol} {factor.name} 因子策略"
+    description = (
+        f"基于 factor_definitions 因子 {factor.factor_id} 自动生成；"
+        f"入场 {factor_indicator} {entry_operator} {data.entry_value}，"
+        f"离场 {factor_indicator} {exit_operator} {data.exit_value}。"
+    )
+    dsl = {
+        "name": strategy_name,
+        "description": description,
+        "universe": [symbol],
+        "timeframe": data.timeframe,
+        "direction": direction,
+        "entry": {
+            "conditions": [
+                {"indicator": factor_indicator, "operator": entry_operator, "value": data.entry_value},
+            ],
+            "logic": "and",
+        },
+        "exit": {
+            "conditions": [
+                {"indicator": factor_indicator, "operator": exit_operator, "value": data.exit_value},
+            ],
+            "logic": "and",
+        },
+        "risk": {
+            "position_size": {"type": "fixed_lots", "value": 1},
+            "stop_loss": {"type": "atr_multiple", "value": 2.0},
+            "take_profit": {"type": "risk_reward_ratio", "value": 2.0},
+        },
+        "source": {
+            "type": "factor_definition",
+            "factor_definition_id": factor.id,
+            "factor_id": factor.factor_id,
+            "package_id": factor.package_id,
+        },
+    }
+
+    strategy = StrategyDB(
+        user_id=current_user.id,
+        name=strategy_name,
+        description=description,
+        symbol=symbol,
+        dsl_json=json.dumps(dsl, ensure_ascii=False),
+        timeframe=data.timeframe,
+        direction=direction,
         is_active=True,
     )
     db.add(strategy)

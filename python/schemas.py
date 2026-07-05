@@ -1172,6 +1172,19 @@ class StrategyCreate(BaseModel):
     direction: str = Field(default="long", pattern=r"^(long|short)$")
 
 
+class FactorStrategyCreate(BaseModel):
+    """将 factor_definitions 中的因子保存为可回测策略的请求。"""
+
+    symbol: str = Field(..., min_length=1, max_length=20)
+    name: str | None = Field(default=None, max_length=200)
+    timeframe: str = Field(default="1d", pattern=r"^(1m|5m|15m|30m|1h|4h|1d|1w|1mo)$")
+    direction: str = Field(default="long", pattern=r"^(long|short)$")
+    entry_operator: str | None = Field(default=None, pattern=r"^(greater_than|less_than)$")
+    entry_value: float = 0.0
+    exit_operator: str | None = Field(default=None, pattern=r"^(greater_than|less_than)$")
+    exit_value: float = 0.0
+
+
 class StrategyResponse(BaseModel):
     """策略响应。"""
 
