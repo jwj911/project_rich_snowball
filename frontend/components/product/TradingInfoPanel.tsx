@@ -1,6 +1,6 @@
 import { CircleDollarSign } from 'lucide-react'
 import { Product } from '@/lib/api'
-import { formatDateTime, formatInteger, formatNumber, formatPrice } from '@/lib/format'
+import { formatDateOnly, formatInteger, formatNumber, formatPrice } from '@/lib/format'
 
 interface TradingInfoPanelProps {
   product: Product
@@ -40,7 +40,7 @@ export default function TradingInfoPanel({ product, displayPrice, marginCost }: 
           <InfoRow label="昨结" value={formatPrice(product.pre_settlement, product.price_precision)} />
         )}
         {product.trade_date && (
-          <InfoRow label="交易日期" value={product.trade_date} />
+          <InfoRow label="交易日期" value={formatDateOnly(product.trade_date)} />
         )}
       </div>
     </section>

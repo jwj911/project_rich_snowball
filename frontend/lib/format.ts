@@ -43,6 +43,18 @@ export function formatPercent(value: number | null | undefined) {
   return `${sign}${numericValue.toFixed(2)}%`
 }
 
+export function formatDateOnly(value: string | null | undefined) {
+  if (!value) return '--'
+  const date = new Date(value + 'T00:00:00+08:00')
+  if (Number.isNaN(date.getTime())) return '--'
+  return new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date).replace(/\//g, '-')
+}
+
 export function formatDateTime(value: string | null | undefined) {
   if (!value) return '--'
   const date = new Date(value)
