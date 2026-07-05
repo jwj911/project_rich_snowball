@@ -99,3 +99,16 @@ python/data/commission/
 frontend/playwright/
 backend-e2e.log
 backend-e2e.err
+
+# Playwright MCP cache
+.playwright-mcp/
+
+# Trae IDE documents
+.trae/
+
+# Stale worktrees
+.claude/worktrees/
+
+# Root-level temporary data exports
+/factor_screening_top100.json
+/backfill_report.csv

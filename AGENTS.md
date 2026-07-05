@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-07-04（Agent 系统体验修复计划 P0/P1 完成；新增因子 CRUD API 与测试，routers/factors.py 已上线；AGENTS.md 拆分为总-分结构）
+> **最后更新**：2026-07-05（项目文件审计 Phase 1/2 完成；目录结构重整；根目录清理至 7 个文件；文档移至 docs/guides/ 和 docs/archive/）
 
 ---
 
@@ -15,6 +15,7 @@
 - **Agent 系统体验修复计划 P0/P1 已完成**（2026-07-04）：流式事件升级为真实进度推送、风控使用品种真实合约参数、策略 DSL 成交量语义修正、LLM 客户端连接池与重试、执行器批量提交消除 SQLite 锁、SSE 取消与 malformed 行治理、移除悬空 `orchestrator` 能力。
 - 近期新增：策略工作台、策略参数优化、回测信号可视化、预警中心、Agent 工作台。
 - **已知测试问题**：无。`test_strategies.py` 事务隔离问题已修复，当前全量测试全绿。
+- **文件审计**：2026-07-05 完成，详见 [docs/audit_cleanup_20260705.md](docs/audit_cleanup_20260705.md)。
 
 ---
 
@@ -32,6 +33,16 @@
 | [.agents/security.md](.agents/security.md) | 生产环境强制要求、CSRF/XSS/SSRF、部署安全 |
 | [.agents/agents.md](.agents/agents.md) | Agent 系统架构、Agent 划分、开发约束 |
 | [.agents/roadmap.md](.agents/roadmap.md) | 模块演进状态、待处理 P1/P2 事项 |
+
+技术参考文档位于 [docs/guides/](docs/guides/)：
+| 文档 | 说明 |
+|------|------|
+| [docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md](docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md) | 数据管道与 PostgreSQL 配置 |
+| [docs/guides/TUSHARE_POSTGRES_VERIFICATION.md](docs/guides/TUSHARE_POSTGRES_VERIFICATION.md) | Tushare 数据验证 |
+| [docs/guides/BACKEND_API_REFERENCE_FOR_FRONTEND.md](docs/guides/BACKEND_API_REFERENCE_FOR_FRONTEND.md) | 后端 API 参考（前端用） |
+| [docs/guides/BACKEND_API_VERSIONING_GUIDE.md](docs/guides/BACKEND_API_VERSIONING_GUIDE.md) | API 版本迁移指南 |
+
+历史审计与路线图归档在 [docs/archive/](docs/archive/)，因子分析报告在 [quantative_tools/reports/](quantative_tools/reports/)。
 
 ---
 
