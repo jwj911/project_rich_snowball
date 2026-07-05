@@ -26,7 +26,7 @@ export const CHART = {
 export const KLINE = {
   SHORT_PERIOD_LIMIT: 120,   // 1m/5m/15m/30m
   MEDIUM_PERIOD_LIMIT: 100,  // 1h
-  LONG_PERIOD_LIMIT: 90,     // 1d/1w
+  LONG_PERIOD_LIMIT: 500,     // 1d/1w
 } as const
 
 export const API = {

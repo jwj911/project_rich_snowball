@@ -26,7 +26,7 @@ def map_akshare_realtime(row: dict[str, Any], symbol: str) -> dict[str, Any]:
         "ask1": _to_float(_first(row, "\u5356\u4e00\u4ef7", "ask1")),
         "change_percent": change_percent,
         "data_source": row.get("data_source"),
-        "updated_at": _parse_datetime(_first(row, "\u66f4\u65b0\u65f6\u95f4", "time", "updated_at", "date"))
+        "updated_at": _parse_datetime(_first(row, "\u66f4\u65b0\u65f6\u95f4", "time", "updated_at"))
         or datetime.now(timezone.utc),
     }
 
@@ -67,7 +67,7 @@ def map_tushare_realtime(raw: dict[str, Any], symbol: str = None) -> dict[str, A
         "open_interest": _to_int(raw.get("oi")),
         "change_percent": change_percent,
         "data_source": raw.get("data_source"),
-        "updated_at": _parse_datetime(raw.get("trade_time") or raw.get("trade_date")) or datetime.now(timezone.utc),
+        "updated_at": _parse_datetime(raw.get("trade_time")) or datetime.now(timezone.utc),
     }
 
 

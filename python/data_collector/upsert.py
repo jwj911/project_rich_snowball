@@ -1,5 +1,6 @@
 """批量写入。本模块不执行 commit，commit 由 Pipeline/Scheduler 控制。"""
 import logging
+from datetime import datetime, timezone
 
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -42,6 +43,8 @@ def upsert_realtime(db: Session, data: dict) -> None:
             return
         variety_id = variety.id
 
+    _updated_at = data.get("updated_at") or datetime.now(timezone.utc)
+
     stmt = _dialect_insert(RealtimeQuoteDB).values(
         variety_id=variety_id,
         current_price=data["current_price"],
@@ -57,7 +60,7 @@ def upsert_realtime(db: Session, data: dict) -> None:
         data_source=data.get("data_source"),
         limit_up=data.get("limit_up"),
         limit_down=data.get("limit_down"),
-        updated_at=data["updated_at"],
+        updated_at=_updated_at,
     )
     stmt = stmt.on_conflict_do_update(
         index_elements=["variety_id"],
@@ -75,7 +78,7 @@ def upsert_realtime(db: Session, data: dict) -> None:
             "data_source": data.get("data_source"),
             "limit_up": data.get("limit_up"),
             "limit_down": data.get("limit_down"),
-            "updated_at": data["updated_at"],
+            "updated_at": _updated_at,
         },
     )
     db.execute(stmt)

@@ -1,6 +1,6 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import asc, case, desc, func, or_
+from sqlalchemy import and_, asc, case, desc, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from dependencies import get_current_user_dependency, get_db
@@ -106,6 +106,37 @@ def get_varieties(
         .all()
     )
 
+    # ---- fut_daily_data fallback：RealtimeQuoteDB 缺失/ stale 时兜底 ----
+    variety_ids = [v.id for v in results]
+    daily_map: dict[int, FutDailyDataDB] = {}
+    if variety_ids:
+        from sqlalchemy import and_
+        # 子查询：取每个品种最新 trade_date 的 D 周期记录
+        latest_daily_subq = (
+            db.query(
+                FutDailyDataDB.variety_id,
+                func.max(FutDailyDataDB.trade_date).label("max_date"),
+            )
+            .filter(FutDailyDataDB.variety_id.in_(variety_ids))
+            .filter(FutDailyDataDB.period == "D")
+            .group_by(FutDailyDataDB.variety_id)
+            .subquery()
+        )
+        daily_rows = (
+            db.query(FutDailyDataDB)
+            .join(
+                latest_daily_subq,
+                and_(
+                    FutDailyDataDB.variety_id == latest_daily_subq.c.variety_id,
+                    FutDailyDataDB.trade_date == latest_daily_subq.c.max_date,
+                    FutDailyDataDB.period == "D",
+                ),
+            )
+            .all()
+        )
+        daily_map = {d.variety_id: d for d in daily_rows}
+    # ---- fallback end ----
+
     response.headers["X-Total-Count"] = str(total_count or 0)
     response.headers["X-Total-Volume"] = str(total_volume or 0)
     response.headers["X-Up-Count"] = str(up_count or 0)
@@ -125,24 +156,45 @@ def get_varieties(
             return len(s.split(".")[1])
         return 0
 
+    def _daily_change_percent(d: FutDailyDataDB) -> float | None:
+        if d is None:
+            return None
+        pre = d.pre_settle
+        cur = d.settle if d.settle is not None else d.close_price
+        if pre is not None and float(pre) != 0 and cur is not None:
+            return round((float(cur) - float(pre)) / float(pre) * 100, 2)
+        return None
+
     return [
         VarietyWithQuoteResponse(
             id=v.id,
             symbol=v.symbol,
             name=v.name,
             category=v.category,
-            current_price=_to_float(v.realtime.current_price) if v.realtime else None,
-            change_percent=_to_float(v.realtime.change_percent) if v.realtime else None,
-            open_price=_to_float(v.realtime.open_price) if v.realtime else None,
-            high=_to_float(v.realtime.high) if v.realtime else None,
-            low=_to_float(v.realtime.low) if v.realtime else None,
-            volume=v.realtime.volume if v.realtime else None,
+            current_price=_to_float(v.realtime.current_price) if v.realtime else (
+                _to_float(daily_map[v.id].close_price) if v.id in daily_map else None
+            ),
+            change_percent=_to_float(v.realtime.change_percent) if v.realtime else _daily_change_percent(daily_map.get(v.id)),
+            open_price=_to_float(v.realtime.open_price) if v.realtime else (
+                _to_float(daily_map[v.id].open_price) if v.id in daily_map else None
+            ),
+            high=_to_float(v.realtime.high) if v.realtime else (
+                _to_float(daily_map[v.id].high_price) if v.id in daily_map else None
+            ),
+            low=_to_float(v.realtime.low) if v.realtime else (
+                _to_float(daily_map[v.id].low_price) if v.id in daily_map else None
+            ),
+            volume=v.realtime.volume if v.realtime else (
+                daily_map[v.id].volume if v.id in daily_map else None
+            ),
             limit_up=_to_float(v.realtime.limit_up) if v.realtime else None,
             limit_down=_to_float(v.realtime.limit_down) if v.realtime else None,
             price_precision=_price_precision(v.tick_size),
             margin_rate=_to_float(v.margin_rate),
             commission=_to_float(v.commission),
-            updated_at=str(v.realtime.updated_at) if v.realtime and v.realtime.updated_at else None,
+            updated_at=str(v.realtime.updated_at) if v.realtime and v.realtime.updated_at else (
+                str(daily_map[v.id].trade_date) if v.id in daily_map else None
+            ),
         )
         for v in results
     ]

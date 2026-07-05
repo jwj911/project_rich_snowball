@@ -39,12 +39,10 @@ export async function loadKlineBySource(
   options: KlineLoadOptions = {},
 ): Promise<KlineLoadResult> {
   const limit = KLINE_PERIOD_LIMITS[period]
-  const defaultStart = '2025-01-01'
-  const defaultEnd = '2026-07-02'
   try {
     let rows: KlineData[]
     if (source === 'main') {
-      rows = await api.getMainContractKline(symbol, period, defaultStart, defaultEnd, limit, { signal: options.signal })
+      rows = await api.getMainContractKline(symbol, period, undefined, undefined, limit, { signal: options.signal })
     } else {
       rows = []
     }

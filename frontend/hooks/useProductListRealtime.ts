@@ -61,8 +61,20 @@ export function useProductListRealtime(
   const heartbeat: MarketHeartbeat = useMemo(() => {
     if (isLoading) return { status: 'refreshing', failureCount: 0 }
     if (error) return { status: 'error', failureCount: 1, message: error }
-    return { status: 'idle', failureCount: 0 }
-  }, [isLoading, error])
+    // 从已加载的产品列表中推断最后更新时间
+    const lastUpdatedAt = resolvedResponse.items.length > 0
+      ? resolvedResponse.items
+          .map((p) => p.updated_at)
+          .filter(Boolean)
+          .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0]
+      : undefined
+    return {
+      status: 'healthy',
+      lastUpdatedAt,
+      nextRefreshAt: new Date(Date.now() + 30_000).toISOString(),
+      failureCount: 0,
+    }
+  }, [isLoading, error, resolvedResponse.items])
 
   return {
     products: resolvedResponse.items,
