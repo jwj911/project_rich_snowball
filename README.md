@@ -237,7 +237,7 @@ $env:ENABLE_SCHEDULER="0"
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-前端已配置 Vitest + Playwright 自动化测试（33 个 Vitest 文件 / 192 个测试，6 个 Playwright spec），并配有 `.github/workflows/frontend-ci.yml` 在 PR 时自动执行 lint + build + test + Lighthouse。修改前端后至少运行：
+前端已配置 Vitest + Playwright 自动化测试（33 个 Vitest 文件 / 192 个测试，6 个 Playwright spec）。`.github/workflows/frontend-ci.yml` 在 PR 时执行 lint + type-check + build + Vitest + Lighthouse，并由独立 job 执行 PostgreSQL + Alembic + backend + Chromium Playwright smoke。修改前端后至少运行：
 
 ```powershell
 cd D:\Code\project_rich_snowball\frontend

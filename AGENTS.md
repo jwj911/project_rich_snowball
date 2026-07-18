@@ -16,8 +16,8 @@
 - **Agent 系统 Phase 0~2 已完成**并接入真实 SSE 进度流：DataAgent、DataQualityAgent、TechAnalysisAgent、RiskManagementAgent、AnalysisPipelineAgent、StrategyCompilerAgent、BacktestAgent、FactorMiningAgent、TraderAgent 已上线。
 - **策略进化（Strategy Evolution）已落地**：GA 进化循环、GP 因子生成、Pareto 适应度、贝叶斯优化、策略生命周期追踪。
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
-- **测试状态**：最近一次全量后端测试为 `961 passed, 6 skipped, 0 failed`；前端 Vitest 为 `192 passed, 0 failed`。Python `ruff check .`、前端 TypeScript、ESLint 和 production build 均通过。
-- **当前迭代**：Phase 0 可运行性收口、Phase 1 行情读模型收敛已完成；下一阶段为 Agent 执行事务与 API/worker scheduler 拓扑收口。
+- **测试状态**：最近一次全量后端测试为 `965 passed, 7 skipped, 0 failed`，覆盖率为 `71.97%`；前端 Vitest 为 `192 passed, 0 failed`。Python `ruff check .`、前端 TypeScript、ESLint 和 production build 均通过。
+- **当前迭代**：Phase 0、Phase 1 和 Phase 2 代码实现已完成；Phase 2 的 PostgreSQL/Playwright CI smoke 尚待 GitHub Actions 远程结果，下一阶段为 Phase 3 文档与发布治理。
 - **文件审计**：2026-07-05 完成 Phase 1/2 清理，根目录精简至 7 个文件，文档迁入 `docs/guides/`、`docs/archive/` 与 `quantative_tools/reports/`，详见 [docs/audit_cleanup_20260705.md](docs/audit_cleanup_20260705.md)。
 
 ### 主要功能模块
@@ -397,8 +397,8 @@ npm run lighthouse
 
 | Workflow | 触发条件 | 内容 |
 |----------|----------|------|
-| `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，安装 `requirements.lock`，Alembic `upgrade head`，pytest + coverage（阈值 30%），ruff lint，pip-audit 安全扫描 |
-| `.github/workflows/frontend-ci.yml` | `frontend/**`、workflow 本身变更 | Node 20，`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test` → Lighthouse 基线 |
+| `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，安装 `requirements.lock`，依赖锁漂移检查，Alembic `upgrade head`，pytest + coverage（阈值 40%），PostgreSQL API smoke，ruff lint，pip-audit 安全扫描 |
+| `.github/workflows/frontend-ci.yml` | `frontend/**`、workflow 本身变更 | Node 20，`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test` → Lighthouse 基线；独立 job 执行 PostgreSQL + Alembic + backend + Playwright Chromium smoke |
 | `.github/workflows/update-calendar.yml` | 每年 1 月 1 日 cron + manual | 更新交易日历 `python/data/trading_calendar.json` 并提交 |
 
 ### Docker

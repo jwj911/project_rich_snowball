@@ -17,7 +17,18 @@
 - 主力日线优先、实时快照 fallback、无数据状态和来源字段统一
 - 新增 `upsert_fut_main_daily_bulk`、主力日线 pipeline 和 scheduler job
 - 增加 SQLite/PG 读写回归与 `data_source` / `data_freshness` 测试
-- 下一阶段：Agent 执行事务与 API/worker scheduler 拓扑收口
+
+### Phase 2：执行可靠性与生产拓扑 — 代码已完成（2026-07-18）
+
+- Agent 步骤持久化改为任务级事务，避免步骤级 `commit()` 带来的 SQLite 锁竞争
+- `docker-compose.yml` 中 backend 关闭 scheduler，新增独立 worker 作为唯一 scheduler owner
+- backend CI 增加 direct dependency/lock 漂移检查、PostgreSQL API smoke，coverage 门槛提升到 `40%`
+- frontend CI 增加 PostgreSQL + Alembic + backend 启动和 Playwright Chromium smoke
+- 本地后端全量：`965 passed, 7 skipped, 0 failed`；覆盖率 `71.97%`
+- 本地 Playwright 受机器高负载影响未完成，需以 GitHub Actions 运行结果作为远程浏览器验收依据
+- 详细记录：[docs/iteration_plan_20260718_project_audit.md](../docs/iteration_plan_20260718_project_audit.md)
+
+下一阶段：Phase 3「文档与发布治理」，先回收 GitHub Actions 的 PostgreSQL/Playwright/lock/coverage 结果。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 

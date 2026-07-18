@@ -101,10 +101,10 @@ npm.cmd run build
 | P1 | 行情列表尚未虚拟滚动 | 桌面/移动重复 DOM 已消除，合约数量继续扩大后仍需虚拟滚动 |
 | P2 | 认证状态仍是单一 Context | 后续偏好、实时连接、交易态增加后重渲染粒度偏粗 |
 | P2 | 可访问性不完整 | K 线、表单、颜色表达仍需继续加强 |
-| P2 | 页面级测试与 Playwright 尚未纳入 CI | 关键登录、行情和工作区流程缺少发布门禁 |
-| P2 | CI coverage 与性能门禁仍需提高 | 当前后端 coverage 阈值为 30%，前端 Lighthouse 尚未形成趋势比较 |
+| P2 | 本地 Playwright 受机器负载影响可能启动超时 | CI 已加入 PostgreSQL + Chromium smoke；本地需要确认 3200 端口已返回 HTTP，而不只是监听 |
+| P2 | 前端 Lighthouse 尚未形成趋势比较 | backend coverage 门槛已提升到 40%，Lighthouse 仍需建立跨提交趋势 |
 
-Phase 0「可运行性收口」已完成：`npm run test` 为 `192 passed`，`npx tsc --noEmit`、`npm run lint`、`npm run build` 均通过。后续前端工作与全栈路线同步，优先进入行情读模型和 E2E 门禁建设。
+Phase 0「可运行性收口」、Phase 1「行情读模型收敛」和 Phase 2「执行可靠性与生产拓扑」代码已完成：`npm run test` 为 `192 passed`，`npx tsc --noEmit`、`npm run lint`、`npm run build` 均通过，Playwright smoke 已加入 CI。后续前端工作与全栈路线同步，进入文档发布治理和页面级覆盖扩展。
 
 ## 下一步迭代规划
 
@@ -144,8 +144,8 @@ Phase 0「可运行性收口」已完成：`npm run test` 为 `192 passed`，`np
 - 补 `QuoteTable` 筛选排序测试。
 - 补登录/注册弹窗测试。
 - 补评论提交、价位标注、自选切换测试。
-- 引入 Playwright smoke：登录、行情中心、详情页、工作区。
-- 建立 GitHub Actions：lint、type-check、test、build。
+- 引入 Playwright smoke：登录、行情中心、详情页、工作区。已加入 CI，远程 PostgreSQL/Chromium 结果待首次运行确认。
+- 建立 GitHub Actions：lint、type-check、test、build、Lighthouse 和 Playwright smoke。已完成。
 
 验收标准：每个前端 PR 自动跑基础质量门禁；关键页面至少有 smoke 覆盖。
 

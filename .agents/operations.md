@@ -42,8 +42,15 @@ npm run build
 ```powershell
 cd frontend
 npm run test        # Vitest 单元测试
-npx playwright test # E2E 测试
+npx playwright test # E2E 测试；需要后端 8401 和前端 3200
 ```
+
+Playwright 运行说明：
+
+- `frontend/playwright.config.ts` 在本地复用 `127.0.0.1:3200`，CI 中由 `webServer` 启动前端；
+- `auth.setup.ts` 使用开发账号 `trader001/password123`，后端应先完成 SQLite Mock 初始化或 PostgreSQL migration；
+- 本地若 Next dev 首次编译超过 120 秒，应先单独访问 `http://127.0.0.1:3200/` 确认 HTTP 已返回，再复跑测试；不要把端口监听但不返回 HTTP 的进程视为服务就绪；
+- CI 额外执行 PostgreSQL + Alembic + backend + Chromium smoke，结果以 GitHub Actions 为准。
 
 性能基线：
 
