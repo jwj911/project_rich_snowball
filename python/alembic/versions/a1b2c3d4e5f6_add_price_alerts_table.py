@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column("variety_id", sa.Integer(), sa.ForeignKey("varieties.id", ondelete="CASCADE"), nullable=False),
         sa.Column("alert_type", sa.String(length=10), nullable=False),
         sa.Column("target_price", sa.Numeric(precision=15, scale=4), nullable=False),
-        sa.Column("is_triggered", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("is_triggered", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("triggered_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.PrimaryKeyConstraint("id"),
