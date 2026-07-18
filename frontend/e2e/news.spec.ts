@@ -5,15 +5,17 @@ const AUTH_STATE = 'playwright/.auth/user.json'
 test.describe('新闻资讯页面', () => {
   test('未登录访问 /news 应显示登录门禁', async ({ page }) => {
     await page.goto('/news')
-    await expect(page.getByText('倍增计划是私密交流社区')).toBeVisible()
-    await expect(page.getByRole('button', { name: '登录' })).toBeVisible()
+    const main = page.getByRole('main')
+    await expect(main.getByText('倍增计划是私密交流社区')).toBeVisible()
+    await expect(main.getByRole('button', { name: '登录' })).toBeVisible()
   })
 
   test('未登录访问 /news 不应加载新闻列表', async ({ page }) => {
     await page.goto('/news')
+    const main = page.getByRole('main')
     // 不应显示新闻相关的特有内容
-    await expect(page.getByText('新闻资讯')).not.toBeVisible()
-    await expect(page.getByText('聚合市场新闻与行业动态')).not.toBeVisible()
+    await expect(main.getByText('新闻资讯')).not.toBeVisible()
+    await expect(main.getByText('聚合市场新闻与行业动态')).not.toBeVisible()
   })
 
   test.describe('已登录', () => {

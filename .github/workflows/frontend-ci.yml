@@ -119,6 +119,24 @@ jobs:
           cat ../backend-e2e.err
           exit 1
 
+      - name: Prepare E2E admin user
+        working-directory: ./python
+        env:
+          SECRET_KEY: e2e-secret-key-for-ci-local-development-42
+          DATABASE_URL: postgresql://futures:futures123@localhost:15432/futures_community
+        run: |
+          python - <<'PY'
+          from models import SessionLocal, UserDB
+
+          db = SessionLocal()
+          try:
+              user = db.query(UserDB).filter(UserDB.username == "trader001").one()
+              user.role = "admin"
+              db.commit()
+          finally:
+              db.close()
+          PY
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

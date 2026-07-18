@@ -15,30 +15,17 @@ test.describe.serial('品种详情页', () => {
   test('详情页应显示品种信息与 K 线图', async ({ page }) => {
     await enterFirstProductDetail(page)
 
-    await expect(page.getByRole('button', { name: '连续 K 线' })).toBeVisible()
     await expect(page.getByRole('button', { name: '主力合约' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '具体合约' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '日线' })).toBeVisible()
     // lightweight-charts 渲染为 canvas，不是 img
     await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15000 })
   })
 
-  test('K 线源切换应更新图表状态', async ({ page }) => {
+  test('K 线工具栏应使用当前主力日线契约', async ({ page }) => {
     await enterFirstProductDetail(page)
 
-    await page.getByRole('button', { name: '主力合约' }).click()
-    await expect(page.getByRole('button', { name: '主力合约' })).toHaveClass(/border-amber-500/)
-
-    await page.getByRole('button', { name: '具体合约' }).click()
-    const contractSelect = page.getByLabel('选择具体合约')
-    if (await contractSelect.isVisible().catch(() => false)) {
-      const options = await contractSelect.locator('option').count()
-      if (options > 1) {
-        await contractSelect.selectOption({ index: 1 })
-      }
-    }
-
-    await page.getByRole('button', { name: '连续 K 线' }).click()
-    await expect(page.getByRole('button', { name: '连续 K 线' })).toHaveClass(/border-amber-500/)
+    await expect(page.getByRole('button', { name: '主力合约' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: '日线' })).toBeEnabled()
   })
 
   test('加入自选与取消自选应可正常工作', async ({ page }) => {
@@ -66,10 +53,14 @@ test.describe.serial('品种详情页', () => {
     await input.fill(supportPrice)
     await supportSection.getByRole('button', { name: '添加' }).click()
 
-    await expect(supportSection.getByText(supportPrice)).toBeVisible()
+    const formattedSupportPrice = Number(supportPrice).toLocaleString('zh-CN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+    await expect(supportSection.getByText(formattedSupportPrice)).toBeVisible()
 
-    await supportSection.locator('button', { hasText: supportPrice }).click()
-    await expect(supportSection.getByText(supportPrice)).not.toBeVisible()
+    await supportSection.locator('button', { hasText: formattedSupportPrice }).click()
+    await expect(supportSection.getByText(formattedSupportPrice)).not.toBeVisible()
   })
 
   test('添加与删除阻力位应可正常工作', async ({ page }) => {
@@ -81,10 +72,14 @@ test.describe.serial('品种详情页', () => {
     await input.fill(resistancePrice)
     await resistanceSection.getByRole('button', { name: '添加' }).click()
 
-    await expect(resistanceSection.getByText(resistancePrice)).toBeVisible()
+    const formattedResistancePrice = Number(resistancePrice).toLocaleString('zh-CN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+    await expect(resistanceSection.getByText(formattedResistancePrice)).toBeVisible()
 
-    await resistanceSection.locator('button', { hasText: resistancePrice }).click()
-    await expect(resistanceSection.getByText(resistancePrice)).not.toBeVisible()
+    await resistanceSection.locator('button', { hasText: formattedResistancePrice }).click()
+    await expect(resistanceSection.getByText(formattedResistancePrice)).not.toBeVisible()
   })
 
   test('发表评论应可正常工作', async ({ page }) => {

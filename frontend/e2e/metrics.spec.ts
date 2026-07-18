@@ -30,9 +30,8 @@ test.describe('运营指标面板', () => {
       await page.goto('/metrics')
       await expect(page.getByRole('heading', { name: '运营指标' })).toBeVisible({ timeout: 10000 })
 
-      // 至少应有一个指标区块可见
-      const sections = page.locator('section')
-      await expect(sections.first()).toBeVisible()
+      // 至少应有一个关键指标卡片可见
+      await expect(page.getByRole('main').getByText(/用户数/)).toBeVisible()
     })
   })
 })
