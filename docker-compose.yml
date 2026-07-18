@@ -48,7 +48,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - ENV=production
-      - ENABLE_SCHEDULER=1
+      - ENABLE_SCHEDULER=0
       - HOST=0.0.0.0
       - PORT=8401
     ports:
@@ -59,6 +59,28 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  # 独立数据采集调度器，避免 API 多副本重复执行定时任务
+  worker:
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: futures_worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - DATABASE_URL=postgresql://futures:futures123@postgres:5432/futures_community
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - ENV=production
+      - ENABLE_SCHEDULER=1
+      - HOST=0.0.0.0
+      - PORT=8401
+    command: ["python", "worker.py"]
 
 volumes:
   postgres_data:

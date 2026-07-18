@@ -404,7 +404,7 @@ npm run lighthouse
 ### Docker
 
 - **`python/Dockerfile`**：基于 `python:3.11-slim`，非 root `app` 用户，健康检查 `curl -f http://localhost:8401/health`，默认 `uvicorn main:app --host 0.0.0.0 --port 8401`。
-- **`docker-compose.yml`**：PG + Redis + backend，backend 带健康检查与依赖条件。
+- **`docker-compose.yml`**：PG + Redis + backend + worker；backend 关闭 scheduler，worker 独占定时采集，backend 带健康检查与依赖条件。
 
 ---
 
