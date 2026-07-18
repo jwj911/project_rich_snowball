@@ -20,6 +20,7 @@ import os
 import sys
 
 import pytest
+from sqlalchemy import inspect
 
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-local-development")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -117,6 +118,25 @@ def pg_db():
     finally:
         _cleanup(session)
         session.close()
+
+
+def test_postgres_fut_main_daily_schema_matches_upsert_contract(pg_db):
+    inspector = inspect(_pg_engine)
+
+    assert "fut_main_daily_data" in inspector.get_table_names()
+    unique_constraints = inspector.get_unique_constraints("fut_main_daily_data")
+    assert any(
+        constraint["name"] == "uix_fut_main_daily"
+        and constraint["column_names"] == ["variety_id", "ts_code", "period", "trade_date"]
+        for constraint in unique_constraints
+    )
+
+    indexes = inspector.get_indexes("fut_main_daily_data")
+    assert any(
+        index["name"] == "idx_fut_main_daily_lookup"
+        and index["column_names"] == ["variety_id", "period", "trade_date"]
+        for index in indexes
+    )
 
 
 def test_postgres_realtime_upsert_updates_existing_row(pg_db):
