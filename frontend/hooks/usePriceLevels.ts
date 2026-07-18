@@ -270,6 +270,7 @@ export function usePriceLevels({
   const removeSupport = async (price: number) => {
     const promise = queueRef.current.then(async () => {
       const mutationVersion = ++mutationVersionRef.current
+      setSupportLevels((levels) => levels.filter((level) => level !== price))
       if (varietyId) {
         try {
           const knownId = levelIdsRef.current.get(`support:${price}`)
@@ -296,6 +297,9 @@ export function usePriceLevels({
           return
         } catch (err) {
           captureMessage(`删除支撑位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
+          setSupportLevels((levels) => (
+            levels.includes(price) ? levels : [...levels, price].sort((a, b) => a - b)
+          ))
           setLevelError(`删除失败：${err instanceof Error ? err.message : '未知错误'}`)
           return
         }
@@ -309,6 +313,7 @@ export function usePriceLevels({
   const removeResistance = async (price: number) => {
     const promise = queueRef.current.then(async () => {
       const mutationVersion = ++mutationVersionRef.current
+      setResistanceLevels((levels) => levels.filter((level) => level !== price))
       if (varietyId) {
         try {
           const knownId = levelIdsRef.current.get(`resistance:${price}`)
@@ -335,6 +340,9 @@ export function usePriceLevels({
           return
         } catch (err) {
           captureMessage(`删除阻力位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
+          setResistanceLevels((levels) => (
+            levels.includes(price) ? levels : [...levels, price].sort((a, b) => b - a)
+          ))
           setLevelError(`删除失败：${err instanceof Error ? err.message : '未知错误'}`)
           return
         }
