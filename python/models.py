@@ -148,8 +148,9 @@ def init_db():
     并在 CI 中通过 PostgreSQL 执行所有迁移来验证兼容性。
     """
     if ENV == "production":
-        from alembic import command
         from alembic.config import Config as AlembicConfig
+
+        from alembic import command
 
         alembic_cfg = AlembicConfig(os.path.join(os.path.dirname(__file__), "alembic.ini"))
         command.upgrade(alembic_cfg, "head")
