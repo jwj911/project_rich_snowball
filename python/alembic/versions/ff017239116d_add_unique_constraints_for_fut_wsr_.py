@@ -5,25 +5,15 @@ Revises: 8027809b23b3
 Create Date: 2026-05-06 15:01:33.914707
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy import inspect
-
 
 # revision identifiers, used by Alembic.
 revision: str = 'ff017239116d'
-down_revision: Union[str, None] = '8027809b23b3'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
-
-
-def _column_exists(table_name: str, column_name: str) -> bool:
-    bind = op.get_bind()
-    insp = inspect(bind)
-    columns = [c["name"] for c in insp.get_columns(table_name)]
-    return column_name in columns
+down_revision: str | None = '8027809b23b3'
+branch_labels: Sequence[str] | None = None
+depends_on: Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -32,14 +22,8 @@ def upgrade() -> None:
         batch_op.create_index('idx_fut_holding_lookup', ['trade_date', 'symbol', 'broker'], unique=False)
         batch_op.create_unique_constraint('uix_fut_holding', ['trade_date', 'symbol', 'broker'])
 
-    with op.batch_alter_table('fut_price_limits', schema=None) as batch_op:
-        if not _column_exists('fut_price_limits', 'name'):
-            batch_op.add_column(sa.Column('name', sa.String(length=50), nullable=True))
-        if not _column_exists('fut_price_limits', 'm_ratio'):
-            batch_op.add_column(sa.Column('m_ratio', sa.Float(), nullable=True))
-        if not _column_exists('fut_price_limits', 'cont'):
-            batch_op.add_column(sa.Column('cont', sa.String(length=20), nullable=True))
-
+    # fut_price_limits.name/m_ratio/cont are owned by a3af320d7bcd.
+    # Do not re-inspect or re-add them here during a clean PostgreSQL upgrade.
     with op.batch_alter_table('fut_weekly_detail', schema=None) as batch_op:
         batch_op.create_index('idx_fut_weekly_lookup', ['week', 'prd', 'exchange'], unique=False)
         batch_op.create_unique_constraint('uix_fut_weekly_detail', ['week', 'prd', 'exchange'])
@@ -60,14 +44,6 @@ def downgrade() -> None:
     with op.batch_alter_table('fut_weekly_detail', schema=None) as batch_op:
         batch_op.drop_constraint('uix_fut_weekly_detail', type_='unique')
         batch_op.drop_index('idx_fut_weekly_lookup')
-
-    with op.batch_alter_table('fut_price_limits', schema=None) as batch_op:
-        if _column_exists('fut_price_limits', 'cont'):
-            batch_op.drop_column('cont')
-        if _column_exists('fut_price_limits', 'm_ratio'):
-            batch_op.drop_column('m_ratio')
-        if _column_exists('fut_price_limits', 'name'):
-            batch_op.drop_column('name')
 
     with op.batch_alter_table('fut_holding', schema=None) as batch_op:
         batch_op.drop_constraint('uix_fut_holding', type_='unique')
