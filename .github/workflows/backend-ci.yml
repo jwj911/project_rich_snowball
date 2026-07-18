@@ -101,7 +101,21 @@ jobs:
           ENABLE_SCHEDULER: "0"
           SSE_TEST_MODE: "1"
           DATABASE_URL: postgresql://futures:futures123@localhost:15432/futures_community
-        run: pytest tests -q --tb=short --cov=. --cov-report=term-missing --cov-fail-under=40
+        run: |
+          set -o pipefail
+          if ! pytest tests -q --tb=short --cov=. --cov-report=term-missing --cov-fail-under=40 2>&1 | tee pytest-ci.log; then
+            summary="$(tail -n 40 pytest-ci.log | tr '\n' ' ' | cut -c1-3000)"
+            echo "::error title=PostgreSQL pytest failed::${summary}"
+            exit 1
+          fi
+
+      - name: Upload pytest failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-pytest-failure-log
+          path: python/pytest-ci.log
+          if-no-files-found: ignore
 
       - name: PostgreSQL API smoke
         env:
