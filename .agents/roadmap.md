@@ -11,6 +11,14 @@
 - 当前基线：后端 `961 passed, 6 skipped, 0 failed`；前端 `192 passed, 0 failed`
 - 详细记录：[docs/iteration_plan_20260718_project_audit.md](../docs/iteration_plan_20260718_project_audit.md)
 
+### Phase 1：行情读模型收敛 — 已完成（2026-07-18）
+
+- `/api/varieties` 查询收敛到 `MarketDataService`
+- 主力日线优先、实时快照 fallback、无数据状态和来源字段统一
+- 新增 `upsert_fut_main_daily_bulk`、主力日线 pipeline 和 scheduler job
+- 增加 SQLite/PG 读写回归与 `data_source` / `data_freshness` 测试
+- 下一阶段：Agent 执行事务与 API/worker scheduler 拓扑收口
+
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 
 - `price_levels` / `watchlists` / `workspace` 云端同步闭环

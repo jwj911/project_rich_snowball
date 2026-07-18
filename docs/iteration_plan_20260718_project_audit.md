@@ -250,4 +250,21 @@ flowchart TD
 
 `5e9f81be`、`29517ba4`、`401940c5`、`739908d3`、`ddd622fc`、`15cf91e6`。
 
-下一项：Phase 1「行情读模型收敛」。
+### Phase 1：行情读模型收敛（2026-07-18）— 已完成
+
+已完成事项：
+
+- `/api/varieties` 路由收敛为参数、鉴权、响应头转换，查询逻辑统一进入 `MarketDataService`；
+- 主力日线优先、实时快照 fallback、无数据 `unavailable` 状态统一为一套读模型；
+- 响应增加 `data_source` 与 `data_freshness`，前端 `Product` 类型同步；
+- 新增 `upsert_fut_main_daily_bulk`，复用日线数据幂等键并支持 PostgreSQL/SQLite 方言；
+- 新增 `run_fut_main_daily`、scheduler job `fut_main_daily` 和 PostgreSQL 主力日线 upsert 回归测试。
+
+验收结果：
+
+- 行情服务、品种 API、scheduler health、pipeline rollover、PG upsert 测试专项：`52 passed, 6 skipped`；
+- Python `ruff check .`、前端 TypeScript、ESLint 和相关 Vitest 全部通过。
+
+对应提交：`9b44678c feat(data): unify varieties market read model`。
+
+下一项：Phase 2「执行可靠性与生产拓扑」。

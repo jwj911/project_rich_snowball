@@ -18,7 +18,7 @@
 - **Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 8 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理 / 分析流水线 / 回测 / 策略编排 / 因子挖掘），执行过程通过 SSE 流式展示。
 - 近期新增：策略工作台（`/strategies`）、策略参数优化（`/strategies/{id}/optimize`）、回测信号可视化（K 线叠加标记）、预警中心（`/alerts`）、Agent 工作台（`/agents`）。
 - **当前质量基线（2026-07-18）**：后端 `961 passed, 6 skipped, 0 failed`；前端 Vitest `192 passed, 0 failed`；Python Ruff、TypeScript、ESLint 和 production build 均通过。
-- **当前迭代**：Phase 0 可运行性收口已完成，下一阶段为行情读模型收敛。
+- **当前迭代**：Phase 0 可运行性收口、Phase 1 行情读模型收敛已完成，下一阶段为 Agent 执行事务与 API/worker scheduler 拓扑收口。
 
 ## 主要功能模块
 
