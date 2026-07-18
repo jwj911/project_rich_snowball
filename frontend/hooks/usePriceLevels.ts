@@ -34,6 +34,8 @@ export function usePriceLevels({
   const queueRef = useRef(Promise.resolve())
   const mutationVersionRef = useRef(0)
   const levelIdsRef = useRef(new Map<string, number>())
+  const optimisticLevelsRef = useRef(new Map<number, PriceLevel>())
+  const deletedLevelIdsRef = useRef(new Set<number>())
 
   useEffect(() => { supportRef.current = supportLevels }, [supportLevels])
   useEffect(() => { resistanceRef.current = resistanceLevels }, [resistanceLevels])
@@ -56,7 +58,12 @@ export function usePriceLevels({
     const support: number[] = []
     const resistance: number[] = []
     const levelIds = new Map<string, number>()
-    for (const pl of levels) {
+    const mergedLevels = levels.filter((level) => !deletedLevelIdsRef.current.has(level.id))
+    const serverLevelIds = new Set(mergedLevels.map((level) => level.id))
+    optimisticLevelsRef.current.forEach((optimisticLevel) => {
+      if (!serverLevelIds.has(optimisticLevel.id)) mergedLevels.push(optimisticLevel)
+    })
+    for (const pl of mergedLevels) {
       const price = Number(pl.price)
       if (!Number.isFinite(price)) continue
       if (pl.type === 'support') support.push(price)
@@ -188,6 +195,8 @@ export function usePriceLevels({
             scope,
             effectiveContractId,
           )
+          deletedLevelIdsRef.current.delete(created.id)
+          optimisticLevelsRef.current.set(created.id, created)
           const levels = await api.getPriceLevels(varietyId, undefined, scope, effectiveContractId)
           if (mutationVersion === mutationVersionRef.current) {
             const mergedLevels = levels.some((level) => level.id === created.id) ? levels : [...levels, created]
@@ -235,6 +244,8 @@ export function usePriceLevels({
             scope,
             effectiveContractId,
           )
+          deletedLevelIdsRef.current.delete(created.id)
+          optimisticLevelsRef.current.set(created.id, created)
           const levels = await api.getPriceLevels(varietyId, undefined, scope, effectiveContractId)
           if (mutationVersion === mutationVersionRef.current) {
             const mergedLevels = levels.some((level) => level.id === created.id) ? levels : [...levels, created]
@@ -272,6 +283,8 @@ export function usePriceLevels({
       const mutationVersion = ++mutationVersionRef.current
       setSupportLevels((levels) => levels.filter((level) => level !== price))
       if (varietyId) {
+        let deletedId: number | null = null
+        let deletedOptimistic: PriceLevel | undefined
         try {
           const knownId = levelIdsRef.current.get(`support:${price}`)
           const levels = knownId == null
@@ -281,6 +294,10 @@ export function usePriceLevels({
             ? { id: knownId }
             : levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
           if (pl) {
+            deletedId = pl.id
+            deletedOptimistic = optimisticLevelsRef.current.get(pl.id)
+            deletedLevelIdsRef.current.add(pl.id)
+            optimisticLevelsRef.current.delete(pl.id)
             await api.deletePriceLevel(pl.id)
             levelIdsRef.current.delete(`support:${price}`)
             captureMessage(`删除支撑位: 品种#${varietyId} @ ${price}`, 'info')
@@ -296,6 +313,10 @@ export function usePriceLevels({
           setLevelError(null)
           return
         } catch (err) {
+          if (deletedId != null) {
+            deletedLevelIdsRef.current.delete(deletedId)
+            if (deletedOptimistic) optimisticLevelsRef.current.set(deletedId, deletedOptimistic)
+          }
           captureMessage(`删除支撑位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
           setSupportLevels((levels) => (
             levels.includes(price) ? levels : [...levels, price].sort((a, b) => a - b)
@@ -315,6 +336,8 @@ export function usePriceLevels({
       const mutationVersion = ++mutationVersionRef.current
       setResistanceLevels((levels) => levels.filter((level) => level !== price))
       if (varietyId) {
+        let deletedId: number | null = null
+        let deletedOptimistic: PriceLevel | undefined
         try {
           const knownId = levelIdsRef.current.get(`resistance:${price}`)
           const levels = knownId == null
@@ -324,6 +347,10 @@ export function usePriceLevels({
             ? { id: knownId }
             : levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
           if (pl) {
+            deletedId = pl.id
+            deletedOptimistic = optimisticLevelsRef.current.get(pl.id)
+            deletedLevelIdsRef.current.add(pl.id)
+            optimisticLevelsRef.current.delete(pl.id)
             await api.deletePriceLevel(pl.id)
             levelIdsRef.current.delete(`resistance:${price}`)
             captureMessage(`删除阻力位: 品种#${varietyId} @ ${price}`, 'info')
@@ -339,6 +366,10 @@ export function usePriceLevels({
           setLevelError(null)
           return
         } catch (err) {
+          if (deletedId != null) {
+            deletedLevelIdsRef.current.delete(deletedId)
+            if (deletedOptimistic) optimisticLevelsRef.current.set(deletedId, deletedOptimistic)
+          }
           captureMessage(`删除阻力位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
           setResistanceLevels((levels) => (
             levels.includes(price) ? levels : [...levels, price].sort((a, b) => b - a)
