@@ -20,6 +20,7 @@ from data_collector.pipeline_tasks._common import (
 from data_collector.upsert import (
     upsert_fut_daily_bulk,
     upsert_fut_holding_bulk,
+    upsert_fut_main_daily_bulk,
     upsert_fut_price_limit_bulk,
     upsert_fut_settle_bulk,
     upsert_fut_weekly_detail_bulk,
@@ -107,7 +108,15 @@ def _run_simple_batch_pipeline(
 # 具体任务
 # ------------------------------------------------------------------
 
-def run_fut_daily(collector, adapter, ts_code: str, start_date: str, end_date: str, period: str = "D") -> dict:
+def run_fut_daily(
+    collector,
+    adapter,
+    ts_code: str,
+    start_date: str,
+    end_date: str,
+    period: str = "D",
+    target: str = "daily",
+) -> dict:
     """Sync recent futures daily/weekly/monthly bars.
 
     该任务需要预查 variety_id 并注入 adapter，逻辑较特殊，不直接使用 _run_simple_batch_pipeline。
@@ -150,7 +159,8 @@ def run_fut_daily(collector, adapter, ts_code: str, start_date: str, end_date: s
                 continue
             rows.append(mapped)
 
-        inserted = upsert_fut_daily_bulk(db, rows)
+        upsert_fn = upsert_fut_main_daily_bulk if target == "main" else upsert_fut_daily_bulk
+        inserted = upsert_fn(db, rows)
         db.commit()
         stats["processed"] = inserted
         stats["skipped"] += missing_variety + (len(rows) - inserted)
@@ -165,13 +175,26 @@ def run_fut_daily(collector, adapter, ts_code: str, start_date: str, end_date: s
     finally:
         db.close()
         _record_run(
-            job_name=f"sync_fut_daily_{period}",
+            job_name=f"sync_fut_{'main_' if target == 'main' else ''}daily_{period}",
             source=source_name,
             stats=stats,
             exc=exc,
             meta={"ts_code": ts_code, "start_date": start_date, "end_date": end_date, "period": period},
         )
         _record_circuit_outcome(source_name, stats, exc)
+
+
+def run_fut_main_daily(collector, adapter, ts_code: str, start_date: str, end_date: str) -> dict:
+    """同步主力连续日线到 fut_main_daily_data。"""
+    return run_fut_daily(
+        collector,
+        adapter,
+        ts_code,
+        start_date,
+        end_date,
+        period="D",
+        target="main",
+    )
 
 
 def run_fut_settle(collector, adapter, trade_date: str, exchange: str = None) -> dict:

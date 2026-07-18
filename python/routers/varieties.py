@@ -1,10 +1,17 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import and_, asc, case, desc, func, or_
-from sqlalchemy.orm import Session, aliased, joinedload
+from sqlalchemy import desc
+from sqlalchemy.orm import Session, joinedload
 
 from dependencies import get_current_user_dependency, get_db
-from models import ContractRolloverDB, FutContractDB, FutDailyDataDB, FutMainDailyDataDB, FutTradeFeeDB, RealtimeQuoteDB, UserDB, VarietyDB
+from models import (
+    ContractRolloverDB,
+    FutContractDB,
+    FutMainDailyDataDB,
+    FutTradeFeeDB,
+    UserDB,
+    VarietyDB,
+)
 from schemas import (
     CommentResponse,
     ContractResponse,
@@ -14,6 +21,7 @@ from schemas import (
     VarietyResponse,
     VarietyWithQuoteResponse,
 )
+from services.domain.market_data_service import MarketDataService
 
 router = APIRouter(prefix="/api/varieties", tags=["品种"])
 
@@ -31,160 +39,24 @@ def get_varieties(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user_dependency),
 ):
-    """品种列表（基于 fut_main_daily_data 主力日线）。
-
-    只返回 fut_main_daily_data 中有最新主力合约日线数据的品种。
-    通过 ts_code 排序（主力合约如 AG.SHF 排在具体合约 AG2608.SHF 前面），
-    配合 row_number() 确保每个品种仅返回一条主力记录。
-    支持搜索/分类/涨跌筛选/排序/分页。
-    """
+    """品种列表：主力日线优先，实时行情作为 fallback。"""
     from urllib.parse import quote
 
-    # 子查询：用 row_number() 取每个品种最新的一条主力 D 周期记录
-    # 排序：trade_date desc 确保最新日期；ts_code asc 确保主力合约（如 AG.SHF）排在具体合约（AG2608.SHF）前面
-    ranked = (
-        db.query(
-            FutMainDailyDataDB,
-            func.row_number().over(
-                partition_by=FutMainDailyDataDB.variety_id,
-                order_by=[desc(FutMainDailyDataDB.trade_date), asc(FutMainDailyDataDB.ts_code)],
-            ).label("rn"),
-        )
-        .filter(FutMainDailyDataDB.period == "D")
-        .subquery()
+    items, summary = MarketDataService(db).get_varieties_with_realtime(
+        skip=skip,
+        limit=limit,
+        search=search,
+        category=category,
+        direction=direction,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
-
-    # 创建别名，让后续查询可以像操作原模型一样操作子查询结果
-    D = aliased(FutMainDailyDataDB, ranked)
-
-    # 主查询：取 rn=1 的记录 join 品种信息
-    q = (
-        db.query(D, VarietyDB)
-        .join(VarietyDB, D.variety_id == VarietyDB.id)
-        .filter(ranked.c.rn == 1)
-        .filter(VarietyDB.is_active.is_(True))
-    )
-
-    # 搜索
-    keyword = search.strip() if search else ""
-    if keyword:
-        pattern = f"%{keyword}%"
-        q = q.filter(
-            or_(
-                VarietyDB.name.ilike(pattern),
-                VarietyDB.symbol.ilike(pattern),
-                VarietyDB.category.ilike(pattern),
-            )
-        )
-
-    # 分类筛选
-    if category and category != "all":
-        q = q.filter(VarietyDB.category == category)
-
-    # 涨跌百分比 SQL 表达式（settle 优先，close_price 兜底）
-    _change_pct = case(
-        (and_(D.pre_settle.isnot(None), D.pre_settle != 0, D.settle.isnot(None)),
-            (D.settle - D.pre_settle) / D.pre_settle),
-        (and_(D.pre_settle.isnot(None), D.pre_settle != 0, D.close_price.isnot(None)),
-            (D.close_price - D.pre_settle) / D.pre_settle),
-        else_=0,
-    )
-
-    if direction == "up":
-        q = q.filter(_change_pct >= 0)
-    elif direction == "down":
-        q = q.filter(_change_pct < 0)
-
-    # 统计
-    stats_query = q.with_entities(
-        func.count(VarietyDB.id),
-        func.coalesce(func.sum(D.volume), 0),
-        func.sum(case((_change_pct >= 0, 1), else_=0)),
-        func.sum(case((_change_pct < 0, 1), else_=0)),
-    )
-    total_count, total_volume, up_count, down_count = stats_query.one()
-
-    categories = [
-        row[0]
-        for row in db.query(VarietyDB.category)
-        .filter(VarietyDB.is_active.is_(True), VarietyDB.category.isnot(None), VarietyDB.category != "")
-        .distinct()
-        .order_by(VarietyDB.category.asc())
-        .all()
-    ]
-
-    # 排序
-    _price_col = case(
-        (D.settle.isnot(None), D.settle),
-        else_=D.close_price,
-    )
-    sort_column_map = {
-        "change_percent": _change_pct,
-        "volume": D.volume,
-        "current_price": _price_col,
-    }
-    sort_col = sort_column_map[sort_by]
-    sort_expr = (
-        desc(func.coalesce(sort_col, 0))
-        if sort_order == "desc"
-        else asc(func.coalesce(sort_col, 0))
-    )
-
-    results = (
-        q.order_by(sort_expr, VarietyDB.id.asc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
-
-    response.headers["X-Total-Count"] = str(total_count or 0)
-    response.headers["X-Total-Volume"] = str(int(total_volume or 0))
-    response.headers["X-Up-Count"] = str(up_count or 0)
-    response.headers["X-Down-Count"] = str(down_count or 0)
-    response.headers["X-Categories"] = ",".join(quote(c) for c in categories)
-
-    def _to_float(v):
-        return float(v) if v is not None else None
-
-    def _price_precision(tick_size):
-        if not tick_size:
-            return 2
-        ts = float(tick_size)
-        s = f"{ts:.10f}".rstrip("0")
-        if "." in s:
-            return len(s.split(".")[1])
-        return 0
-
-    def _daily_change_percent(d) -> float | None:
-        if d is None:
-            return None
-        pre = d.pre_settle
-        cur = d.settle if d.settle is not None else d.close_price
-        if pre is not None and float(pre) != 0 and cur is not None:
-            return round((float(cur) - float(pre)) / float(pre) * 100, 2)
-        return None
-
-    return [
-        VarietyWithQuoteResponse(
-            id=v.id,
-            symbol=v.symbol,
-            name=v.name,
-            category=v.category,
-            current_price=_to_float(d.close_price),
-            change_percent=_daily_change_percent(d),
-            open_price=_to_float(d.open_price),
-            high=_to_float(d.high_price),
-            low=_to_float(d.low_price),
-            volume=d.volume,
-            limit_up=None,
-            limit_down=None,
-            price_precision=_price_precision(v.tick_size),
-            margin_rate=_to_float(v.margin_rate),
-            commission=_to_float(v.commission),
-            updated_at=str(d.trade_date) if d.trade_date else None,
-        )
-        for d, v in results
-    ]
+    response.headers["X-Total-Count"] = str(summary["total"])
+    response.headers["X-Total-Volume"] = str(summary["total_volume"])
+    response.headers["X-Up-Count"] = str(summary["up_count"])
+    response.headers["X-Down-Count"] = str(summary["down_count"])
+    response.headers["X-Categories"] = ",".join(quote(c) for c in summary["categories"])
+    return items
 
 
 @router.get("/{symbol}", response_model=VarietyResponse)

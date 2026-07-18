@@ -1,6 +1,6 @@
 """批量写入。本模块不执行 commit，commit 由 Pipeline/Scheduler 控制。"""
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -11,6 +11,7 @@ from models import (
     FutContractDB,
     FutDailyDataDB,
     FutHoldingDB,
+    FutMainDailyDataDB,
     FutPriceLimitDB,
     FutSettleDB,
     FutWeeklyDetailDB,
@@ -43,7 +44,7 @@ def upsert_realtime(db: Session, data: dict) -> None:
             return
         variety_id = variety.id
 
-    _updated_at = data.get("updated_at") or datetime.now(timezone.utc)
+    _updated_at = data.get("updated_at") or datetime.now(UTC)
 
     stmt = _dialect_insert(RealtimeQuoteDB).values(
         variety_id=variety_id,
@@ -177,14 +178,8 @@ def insert_kline_bulk(db: Session, rows: list[dict], period: str) -> int:
     return inserted
 
 
-def upsert_fut_daily_bulk(db: Session, rows: list[dict]) -> int:
-    """批量写入期货日线/周线/月线数据。自动拆批避免 PostgreSQL 参数上限。
-
-    同一批次中若存在重复的唯一键 (variety_id, ts_code, period, trade_date)——例如同一
-    品种的不同合约被映射到同一品种——会触发 PostgreSQL 的
-    "ON CONFLICT DO UPDATE command cannot affect row a second time" 错误。
-    此处按唯一键保留最后一条记录，避免批量插入失败。
-    """
+def _upsert_fut_daily_bulk(db: Session, rows: list[dict], model, job_name: str) -> int:
+    """写入日线类数据集，供具体表的 upsert 包装器复用。"""
     if not rows:
         return 0
 
@@ -197,17 +192,17 @@ def upsert_fut_daily_bulk(db: Session, rows: list[dict]) -> int:
     dropped = len(rows) - len(unique_rows)
     if dropped:
         logger.warning(
-            f"upsert_fut_daily_bulk dropped {dropped} duplicate rows "
-            "(same variety_id/ts_code/period/trade_date within batch)"
+            "%s dropped %s duplicate rows (same variety_id/ts_code/period/trade_date within batch)",
+            job_name,
+            dropped,
         )
 
-    # PostgreSQL 协议参数上限 32767；FutDailyDataDB 每条约 18 个字段，
-    # 300 条 ≈ 5400 个参数，留足安全余量。
+    # PostgreSQL 协议参数上限 32767；每条约 18 个字段，300 条留足安全余量。
     batch_size = 300
     total = 0
     for i in range(0, len(unique_rows), batch_size):
-        batch = unique_rows[i:i + batch_size]
-        stmt = _dialect_insert(FutDailyDataDB).values(batch)
+        batch = unique_rows[i : i + batch_size]
+        stmt = _dialect_insert(model).values(batch)
         stmt = stmt.on_conflict_do_update(
             index_elements=["variety_id", "ts_code", "period", "trade_date"],
             set_={
@@ -229,6 +224,22 @@ def upsert_fut_daily_bulk(db: Session, rows: list[dict]) -> int:
         result = db.execute(stmt)
         total += result.rowcount if hasattr(result, "rowcount") else len(batch)
     return total
+
+
+def upsert_fut_daily_bulk(db: Session, rows: list[dict]) -> int:
+    """批量写入期货日线/周线/月线数据。自动拆批避免 PostgreSQL 参数上限。
+
+    同一批次中若存在重复的唯一键 (variety_id, ts_code, period, trade_date)——例如同一
+    品种的不同合约被映射到同一品种——会触发 PostgreSQL 的
+    "ON CONFLICT DO UPDATE command cannot affect row a second time" 错误。
+    此处按唯一键保留最后一条记录，避免批量插入失败。
+    """
+    return _upsert_fut_daily_bulk(db, rows, FutDailyDataDB, "upsert_fut_daily_bulk")
+
+
+def upsert_fut_main_daily_bulk(db: Session, rows: list[dict]) -> int:
+    """批量写入主力/活跃品种日线，按业务唯一键幂等更新。"""
+    return _upsert_fut_daily_bulk(db, rows, FutMainDailyDataDB, "upsert_fut_main_daily_bulk")
 
 
 def upsert_fut_settle_bulk(db: Session, rows: list[dict]) -> int:

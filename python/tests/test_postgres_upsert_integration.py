@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data_collector.upsert import (
     insert_kline_bulk,
     upsert_fut_daily_bulk,
+    upsert_fut_main_daily_bulk,
     upsert_fut_price_limit_bulk,
     upsert_fut_settle_bulk,
     upsert_realtime,
@@ -34,6 +35,7 @@ from data_collector.upsert import (
 from models import (
     FutContractDB,
     FutDailyDataDB,
+    FutMainDailyDataDB,
     FutPriceLimitDB,
     FutSettleDB,
     KlineDataDB,
@@ -41,7 +43,6 @@ from models import (
     VarietyDB,
     init_db,
 )
-
 
 # 动态判断是否需要 PostgreSQL session。
 # 注意：不能依赖 models.engine（conftest 会强制设为 SQLite），
@@ -72,6 +73,9 @@ def _cleanup(db):
         db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).delete(synchronize_session=False)
         db.query(KlineDataDB).filter(KlineDataDB.variety_id == variety.id).delete(synchronize_session=False)
         db.query(FutDailyDataDB).filter(FutDailyDataDB.variety_id == variety.id).delete(synchronize_session=False)
+        db.query(FutMainDailyDataDB).filter(FutMainDailyDataDB.variety_id == variety.id).delete(
+            synchronize_session=False
+        )
         db.delete(variety)
 
     db.query(FutContractDB).filter(FutContractDB.ts_code == TS_CODE).delete(synchronize_session=False)
@@ -224,6 +228,45 @@ def test_postgres_fut_daily_upsert_updates_existing_row(pg_db):
         FutDailyDataDB.trade_date == TRADE_DATE,
     ).one()
     assert row.close_price == 108.0
+    assert row.volume == 1300
+
+
+def test_postgres_fut_main_daily_upsert_updates_existing_row(pg_db):
+    db = pg_db
+    variety = db.query(VarietyDB).filter(VarietyDB.symbol == SYMBOL).one()
+    base = {
+        "variety_id": variety.id,
+        "ts_code": TS_CODE,
+        "trade_date": TRADE_DATE,
+        "pre_close": 99.0,
+        "pre_settle": 98.0,
+        "open_price": 100.0,
+        "high_price": 110.0,
+        "low_price": 90.0,
+        "close_price": 105.0,
+        "settle": 104.0,
+        "change1": 6.0,
+        "change2": 7.0,
+        "volume": 1000,
+        "amount": 12345.0,
+        "open_interest": 2000,
+        "oi_chg": 10,
+        "period": "D",
+    }
+
+    assert upsert_fut_main_daily_bulk(db, [base]) == 1
+    db.commit()
+    updated = dict(base, close_price=108.0, settle=107.0, volume=1300)
+    assert upsert_fut_main_daily_bulk(db, [updated]) == 1
+    db.commit()
+
+    row = db.query(FutMainDailyDataDB).filter(
+        FutMainDailyDataDB.variety_id == variety.id,
+        FutMainDailyDataDB.period == "D",
+        FutMainDailyDataDB.trade_date == TRADE_DATE,
+    ).one()
+    assert row.close_price == 108.0
+    assert row.settle == 107.0
     assert row.volume == 1300
 
 

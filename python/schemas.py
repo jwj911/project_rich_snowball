@@ -241,6 +241,8 @@ class VarietyWithQuoteResponse(BaseModel):
     margin_rate: float | None = None
     commission: float | None = None
     updated_at: str | None = None
+    data_source: str | None = None
+    data_freshness: str = "unavailable"
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -295,6 +295,34 @@ def sync_fut_daily():
         db.close()
 
 
+def sync_fut_main_daily():
+    """Sync continuous/main-contract daily bars into fut_main_daily_data."""
+    if not is_trading_day(_cn_date()):
+        logger.info("sync_fut_main_daily skipped: non-trading day")
+        return
+    pipeline = _pipeline("fut_daily")
+    if not pipeline:
+        logger.debug("sync_fut_main_daily skipped: not tushare source")
+        return
+    logger.info("Syncing futures main daily data...")
+    db = SessionLocal()
+    try:
+        end_date = _cn_date().strftime("%Y%m%d")
+        start_date = (_cn_date() - timedelta(days=30)).strftime("%Y%m%d")
+        varieties = _get_active_varieties(db)
+        total = 0
+        for variety in varieties:
+            try:
+                ts_code = _get_ts_code(variety)
+                stats = pipeline.run_fut_main_daily(ts_code, start_date, end_date)
+                total += stats.get("processed", 0)
+            except (SQLAlchemyError, OSError) as e:
+                logger.error("Failed to sync main daily for %s: %s", variety.symbol, e)
+        logger.info("Synced %d main daily rows for %d varieties", total, len(varieties))
+    finally:
+        db.close()
+
+
 def sync_fut_settle():
     """Sync futures settlement parameters."""
     if not is_trading_day(_cn_date()):
@@ -572,6 +600,7 @@ def start_scheduler():
         sync_variety_metadata_func=sync_variety_metadata,
         sync_news_func=sync_news,
         sync_fut_daily_func=sync_fut_daily if _pipeline("fut_daily") else None,
+        sync_fut_main_daily_func=sync_fut_main_daily if _pipeline("fut_daily") else None,
         sync_fut_settle_func=sync_fut_settle if _pipeline("fut_settle") else None,
         sync_fut_weekly_detail_func=sync_fut_weekly_detail if _pipeline("fut_weekly_detail") else None,
         sync_fut_wsr_func=sync_fut_wsr if _pipeline("fut_wsr") else None,

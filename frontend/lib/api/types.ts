@@ -27,6 +27,8 @@ export interface Product {
   contract_code?: string
   exchange?: string
   tick_size?: number | null
+  data_source?: string | null
+  data_freshness?: 'fresh' | 'stale' | 'unavailable'
 }
 
 export interface ProductQuery {

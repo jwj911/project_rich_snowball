@@ -182,6 +182,12 @@ class DataPipeline:
         from data_collector.pipeline_tasks.tushare_batch_tasks import run_fut_daily
         return run_fut_daily(self.collector, self.adapter, ts_code, start_date, end_date, period)
 
+    def run_fut_main_daily(self, ts_code: str, start_date: str, end_date: str) -> dict:
+        """同步主力连续日线到 fut_main_daily_data。"""
+        from data_collector.pipeline_tasks.tushare_batch_tasks import run_fut_main_daily
+
+        return run_fut_main_daily(self.collector, self.adapter, ts_code, start_date, end_date)
+
     def run_fut_settle(self, trade_date: str, exchange: str = None) -> dict:
         from data_collector.pipeline_tasks.tushare_batch_tasks import run_fut_settle
         return run_fut_settle(self.collector, self.adapter, trade_date, exchange)

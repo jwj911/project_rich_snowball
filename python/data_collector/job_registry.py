@@ -48,6 +48,7 @@ def build_job_configs(
     sync_variety_metadata_func: Callable,
     sync_news_func: Callable,
     sync_fut_daily_func: Callable | None = None,
+    sync_fut_main_daily_func: Callable | None = None,
     sync_fut_settle_func: Callable | None = None,
     sync_fut_weekly_detail_func: Callable | None = None,
     sync_fut_wsr_func: Callable | None = None,
@@ -103,6 +104,15 @@ def build_job_configs(
                 id="fut_daily",
                 func=sync_fut_daily_func,
                 trigger=CronTrigger(hour=16, minute=10, timezone="Asia/Shanghai"),
+                misfire_grace_time=300,
+            )
+        )
+    if sync_fut_main_daily_func:
+        jobs.append(
+            JobConfig(
+                id="fut_main_daily",
+                func=sync_fut_main_daily_func,
+                trigger=CronTrigger(hour=16, minute=12, timezone="Asia/Shanghai"),
                 misfire_grace_time=300,
             )
         )

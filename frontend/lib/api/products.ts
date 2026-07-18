@@ -33,6 +33,8 @@ function _mapVarietyToProduct(v: Record<string, unknown>): Product {
     contract_code: v.contract_code as string | undefined,
     exchange: v.exchange as string | undefined,
     tick_size: v.tick_size as number | null | undefined,
+    data_source: v.data_source as string | null | undefined,
+    data_freshness: v.data_freshness as Product['data_freshness'],
   }
 }
 

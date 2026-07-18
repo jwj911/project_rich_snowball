@@ -9,11 +9,12 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, asc, case, desc, func, or_
+from sqlalchemy.orm import Session, aliased
 
 from config import REALTIME_REFRESH_INTERVAL_SECONDS
 from errors import ErrorCode
-from models import RealtimeQuoteDB, VarietyDB
+from models import FutMainDailyDataDB, RealtimeQuoteDB, VarietyDB
 from services.cache import get_cached, invalidate_cache_pattern
 from services.domain.exceptions import NotFoundError, ServiceError, ValidationError
 
@@ -138,83 +139,208 @@ class MarketDataService:
         sort_by: str = "symbol",
         sort_order: str = "asc",
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-        """获取品种列表并附加实时行情，返回 (items, summary)。
+        """获取品种列表并附加行情，返回 ``(items, summary)``。
 
-        当前保留原 router 中的查询语义；后续可进一步下沉聚合逻辑。
+        主力日线优先用于列表展示；主力日线缺失时回退到实时快照，
+        这样 Mock、真实日线和盘中行情都遵循同一套读模型契约。
         """
-        from sqlalchemy import asc, desc, or_
+        if sort_by not in {"change_percent", "volume", "current_price", "symbol"}:
+            raise ValidationError(f"不支持的排序字段: {sort_by}", code=ErrorCode.VALIDATION_ERROR)
+        if sort_order not in {"asc", "desc"}:
+            raise ValidationError(f"不支持的排序方向: {sort_order}", code=ErrorCode.VALIDATION_ERROR)
 
-        q = self._db.query(VarietyDB)
+        ranked_main = (
+            self._db.query(
+                FutMainDailyDataDB,
+                func.row_number()
+                .over(
+                    partition_by=FutMainDailyDataDB.variety_id,
+                    order_by=[
+                        desc(FutMainDailyDataDB.trade_date),
+                        asc(FutMainDailyDataDB.ts_code),
+                    ],
+                )
+                .label("rn"),
+            )
+            .filter(FutMainDailyDataDB.period == "D")
+            .subquery()
+        )
+        main = aliased(FutMainDailyDataDB, ranked_main)
+
+        q = (
+            self._db.query(VarietyDB, main, RealtimeQuoteDB)
+            .outerjoin(
+                main,
+                and_(
+                    main.variety_id == VarietyDB.id,
+                    ranked_main.c.rn == 1,
+                ),
+            )
+            .outerjoin(RealtimeQuoteDB, RealtimeQuoteDB.variety_id == VarietyDB.id)
+            .filter(VarietyDB.is_active.is_(True))
+        )
         if search:
+            search = search.strip()
             q = q.filter(
                 or_(
                     VarietyDB.symbol.ilike(f"%{search}%"),
                     VarietyDB.name.ilike(f"%{search}%"),
+                    VarietyDB.category.ilike(f"%{search}%"),
                 )
             )
-        if category:
+        if category and category != "all":
             q = q.filter(VarietyDB.category == category)
 
-        # 统计查询
-        stats_query = self._db.query(VarietyDB)
-        if search:
-            stats_query = stats_query.filter(
-                or_(
-                    VarietyDB.symbol.ilike(f"%{search}%"),
-                    VarietyDB.name.ilike(f"%{search}%"),
-                )
-            )
-        if category:
-            stats_query = stats_query.filter(VarietyDB.category == category)
+        main_current = func.coalesce(main.settle, main.close_price)
+        main_change = case(
+            (
+                and_(
+                    main.pre_settle.isnot(None),
+                    main.pre_settle != 0,
+                    main_current.isnot(None),
+                ),
+                (main_current - main.pre_settle) / main.pre_settle * 100,
+            ),
+            else_=None,
+        )
+        effective_current = func.coalesce(main_current, RealtimeQuoteDB.current_price)
+        effective_change = func.coalesce(main_change, RealtimeQuoteDB.change_percent)
+        effective_volume = func.coalesce(main.volume, RealtimeQuoteDB.volume, 0)
+        has_data = or_(main.id.isnot(None), RealtimeQuoteDB.id.isnot(None))
 
-        total = stats_query.count()
-
-        # 涨跌筛选
+        # 方向筛选只作用于有行情的数据，避免无行情品种被视为上涨。
         if direction == "up":
-            q = q.join(RealtimeQuoteDB).filter(RealtimeQuoteDB.change_percent > 0)
-            stats_query = stats_query.join(RealtimeQuoteDB).filter(RealtimeQuoteDB.change_percent > 0)
+            q = q.filter(has_data, effective_change >= 0)
         elif direction == "down":
-            q = q.join(RealtimeQuoteDB).filter(RealtimeQuoteDB.change_percent < 0)
-            stats_query = stats_query.join(RealtimeQuoteDB).filter(RealtimeQuoteDB.change_percent < 0)
-        elif direction == "all" or not direction:
-            q = q.outerjoin(RealtimeQuoteDB)
-            stats_query = stats_query.outerjoin(RealtimeQuoteDB)
+            q = q.filter(has_data, effective_change < 0)
+        elif direction not in {"all", None, ""}:
+            raise ValidationError(f"不支持的涨跌方向: {direction}", code=ErrorCode.VALIDATION_ERROR)
 
-        total_after_direction = stats_query.count()
-        up_count = stats_query.filter(RealtimeQuoteDB.change_percent > 0).count()
-        down_count = stats_query.filter(RealtimeQuoteDB.change_percent < 0).count()
+        total_count, total_volume, up_count, down_count = q.with_entities(
+            func.count(VarietyDB.id),
+            func.coalesce(func.sum(effective_volume), 0),
+            func.coalesce(
+                func.sum(case((and_(has_data, effective_change >= 0), 1), else_=0)),
+                0,
+            ),
+            func.coalesce(
+                func.sum(case((and_(has_data, effective_change < 0), 1), else_=0)),
+                0,
+            ),
+        ).one()
 
-        sort_column = getattr(VarietyDB, sort_by, VarietyDB.symbol)
         order_func = desc if sort_order == "desc" else asc
-        items = q.order_by(order_func(sort_column)).offset(skip).limit(limit).all()
+        sort_columns = {
+            "symbol": VarietyDB.symbol,
+            "change_percent": effective_change,
+            "volume": effective_volume,
+            "current_price": effective_current,
+        }
+        items = (
+            q.order_by(order_func(func.coalesce(sort_columns[sort_by], 0)), VarietyDB.id.asc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
-        variety_ids = [v.id for v in items]
-        quotes_map = {}
-        if variety_ids:
-            quotes = self._db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id.in_(variety_ids)).all()
-            quotes_map = {q.variety_id: q for q in quotes}
+        categories = [
+            row[0]
+            for row in self._db.query(VarietyDB.category)
+            .filter(
+                VarietyDB.is_active.is_(True),
+                VarietyDB.category.isnot(None),
+                VarietyDB.category != "",
+            )
+            .distinct()
+            .order_by(VarietyDB.category.asc())
+            .all()
+        ]
 
-        result = []
-        for v in items:
-            quote = quotes_map.get(v.id)
+        def _to_float(value: Any) -> float | None:
+            return float(value) if value is not None else None
+
+        def _isoformat(value: Any) -> str | None:
+            return value.isoformat() if hasattr(value, "isoformat") else (str(value) if value else None)
+
+        def _freshness(updated_at: Any, source: str | None) -> str:
+            if updated_at is None or source is None:
+                return "unavailable"
+            if getattr(updated_at, "tzinfo", None) is None:
+                updated_at = updated_at.replace(tzinfo=UTC)
+            age = datetime.now(UTC) - updated_at
+            threshold = 3 * REALTIME_REFRESH_INTERVAL_SECONDS if source == "realtime_quotes" else 3 * 86400
+            return "fresh" if age.total_seconds() <= threshold else "stale"
+
+        def _price_precision(tick_size: Any) -> int:
+            if not tick_size:
+                return 2
+            text = f"{float(tick_size):.10f}".rstrip("0")
+            return len(text.split(".")[1]) if "." in text else 0
+
+        result: list[dict[str, Any]] = []
+        for variety, main_row, quote in items:
+            if main_row is not None:
+                current_price = main_row.settle if main_row.settle is not None else main_row.close_price
+                change_percent = None
+                if main_row.pre_settle is not None and float(main_row.pre_settle) != 0 and current_price is not None:
+                    change_percent = round(
+                        (float(current_price) - float(main_row.pre_settle)) / float(main_row.pre_settle) * 100,
+                        2,
+                    )
+                source = "fut_main_daily_data"
+                updated_at = main_row.trade_date
+                open_price = main_row.open_price
+                high = main_row.high_price
+                low = main_row.low_price
+                volume = main_row.volume
+                limit_up = None
+                limit_down = None
+            elif quote is not None:
+                current_price = quote.current_price
+                change_percent = quote.change_percent
+                source = quote.data_source or "realtime_quotes"
+                updated_at = quote.updated_at
+                open_price = quote.open_price
+                high = quote.high
+                low = quote.low
+                volume = quote.volume
+                limit_up = quote.limit_up
+                limit_down = quote.limit_down
+            else:
+                current_price = change_percent = open_price = high = low = volume = None
+                limit_up = limit_down = None
+                source = None
+                updated_at = None
+
             result.append(
                 {
-                    "symbol": v.symbol,
-                    "name": v.name,
-                    "exchange": v.exchange,
-                    "category": v.category,
-                    "current_price": quote.current_price if quote else None,
-                    "change_percent": quote.change_percent if quote else None,
-                    "volume": quote.volume if quote else None,
-                    "updated_at": quote.updated_at if quote else None,
+                    "id": variety.id,
+                    "symbol": variety.symbol,
+                    "name": variety.name,
+                    "category": variety.category,
+                    "current_price": _to_float(current_price),
+                    "change_percent": _to_float(change_percent),
+                    "open_price": _to_float(open_price),
+                    "high": _to_float(high),
+                    "low": _to_float(low),
+                    "volume": int(volume) if volume is not None else None,
+                    "limit_up": _to_float(limit_up),
+                    "limit_down": _to_float(limit_down),
+                    "price_precision": _price_precision(variety.tick_size),
+                    "margin_rate": _to_float(variety.margin_rate),
+                    "commission": _to_float(variety.commission),
+                    "updated_at": _isoformat(updated_at),
+                    "data_source": source,
+                    "data_freshness": _freshness(updated_at, source),
                 }
             )
 
         summary = {
-            "total": total,
-            "filtered_total": total_after_direction,
-            "up_count": up_count,
-            "down_count": down_count,
+            "total": int(total_count or 0),
+            "total_volume": int(total_volume or 0),
+            "up_count": int(up_count or 0),
+            "down_count": int(down_count or 0),
+            "categories": categories,
         }
         return result, summary
 

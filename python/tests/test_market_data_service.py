@@ -6,7 +6,7 @@ import datetime
 
 import pytest
 
-from models import RealtimeQuoteDB, VarietyDB
+from models import FutMainDailyDataDB, RealtimeQuoteDB, VarietyDB
 from services.domain.exceptions import NotFoundError
 from services.domain.market_data_service import MarketDataService
 
@@ -83,6 +83,71 @@ def test_get_market_comparison(db_session, seed_quotes):
     assert len(result) == 3
     assert result[0]["symbol"] == "TESTAU"  # 涨幅最大
     assert result[-1]["symbol"] == "TESTAG"  # 跌幅最大
+
+
+def test_get_varieties_prefers_main_daily_over_realtime(db_session, seed_quotes):
+    variety = seed_quotes["au"]
+    db_session.add(
+        FutMainDailyDataDB(
+            variety_id=variety.id,
+            ts_code="TESTAU.SHF",
+            trade_date=datetime.datetime.now(datetime.UTC),
+            pre_settle=450.0,
+            settle=460.0,
+            open_price=451.0,
+            high_price=465.0,
+            low_price=448.0,
+            close_price=459.0,
+            volume=200000,
+            period="D",
+        )
+    )
+    db_session.flush()
+
+    items, summary = MarketDataService(db_session).get_varieties_with_realtime(
+        search="TESTAU",
+        sort_by="change_percent",
+        sort_order="desc",
+    )
+
+    assert summary["total"] == 1
+    assert len(items) == 1
+    assert items[0]["current_price"] == pytest.approx(460.0)
+    assert items[0]["data_source"] == "fut_main_daily_data"
+    assert items[0]["data_freshness"] == "fresh"
+
+
+def test_get_varieties_falls_back_to_realtime(db_session, seed_quotes):
+    items, summary = MarketDataService(db_session).get_varieties_with_realtime(
+        search="TESTAG",
+        sort_by="change_percent",
+        sort_order="desc",
+    )
+
+    assert summary["total"] == 1
+    assert items[0]["current_price"] == pytest.approx(5420.0)
+    assert items[0]["data_source"] == "mock"
+    assert items[0]["data_freshness"] == "fresh"
+
+
+def test_get_varieties_reports_unavailable_data(db_session):
+    db_session.add(
+        VarietyDB(
+            symbol="TESTNO DATA",
+            contract_code="TESTNO2406",
+            name="无行情",
+            exchange="SHFE",
+            category="测试",
+        )
+    )
+    db_session.flush()
+
+    items, _ = MarketDataService(db_session).get_varieties_with_realtime(search="TESTNO DATA")
+
+    assert len(items) == 1
+    assert items[0]["current_price"] is None
+    assert items[0]["data_source"] is None
+    assert items[0]["data_freshness"] == "unavailable"
 
 
 def test_get_data_quality(db_session, seed_quotes):
