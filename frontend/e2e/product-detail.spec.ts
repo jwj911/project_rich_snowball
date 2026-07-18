@@ -51,13 +51,19 @@ test.describe.serial('品种详情页', () => {
     const supportSection = page.locator('section').filter({ hasText: '支撑位' }).first()
     const input = supportSection.getByLabel('支撑位')
     await input.fill(supportPrice)
+    const createResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/price-levels') &&
+        response.request().method() === 'POST',
+    )
     await supportSection.getByRole('button', { name: '添加' }).click()
+    await expect((await createResponse).ok()).toBeTruthy()
 
     const formattedSupportPrice = Number(supportPrice).toLocaleString('zh-CN', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })
-    await expect(supportSection.getByText(formattedSupportPrice)).toBeVisible()
+    await expect(supportSection.getByText(formattedSupportPrice)).toBeVisible({ timeout: 15000 })
 
     await supportSection.locator('button', { hasText: formattedSupportPrice }).click()
     await expect(supportSection.getByText(formattedSupportPrice)).not.toBeVisible()
@@ -70,13 +76,19 @@ test.describe.serial('品种详情页', () => {
     const resistanceSection = page.locator('section').filter({ hasText: '阻力位' }).first()
     const input = resistanceSection.getByLabel('阻力位')
     await input.fill(resistancePrice)
+    const createResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/price-levels') &&
+        response.request().method() === 'POST',
+    )
     await resistanceSection.getByRole('button', { name: '添加' }).click()
+    await expect((await createResponse).ok()).toBeTruthy()
 
     const formattedResistancePrice = Number(resistancePrice).toLocaleString('zh-CN', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })
-    await expect(resistanceSection.getByText(formattedResistancePrice)).toBeVisible()
+    await expect(resistanceSection.getByText(formattedResistancePrice)).toBeVisible({ timeout: 15000 })
 
     await resistanceSection.locator('button', { hasText: formattedResistancePrice }).click()
     await expect(resistanceSection.getByText(formattedResistancePrice)).not.toBeVisible()
