@@ -130,6 +130,38 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
+      - name: Build frontend for E2E
+        working-directory: ./frontend
+        env:
+          NEXT_PUBLIC_API_BASE: http://127.0.0.1:8401
+        run: npm run build
+
+      - name: Start frontend
+        working-directory: ./frontend
+        env:
+          NEXT_PUBLIC_API_BASE: http://127.0.0.1:8401
+        run: |
+          nohup npm start -- -H 127.0.0.1 -p 3200 > ../frontend-e2e.log 2> ../frontend-e2e.err &
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3200/ > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat ../frontend-e2e.log
+          cat ../frontend-e2e.err
+          exit 1
+
+      - name: Upload frontend E2E startup logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-e2e-startup-log
+          path: |
+            frontend-e2e.log
+            frontend-e2e.err
+          if-no-files-found: ignore
+
       - name: Install Chromium
         working-directory: ./frontend
         run: npx playwright install --with-deps chromium
@@ -138,6 +170,7 @@ jobs:
         working-directory: ./frontend
         env:
           NEXT_PUBLIC_API_BASE: http://127.0.0.1:8401
+          E2E_EXTERNAL_SERVER: "1"
         run: npx playwright test
 
       - name: Test

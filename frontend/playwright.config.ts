@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const useExternalWebServer = process.env.E2E_EXTERNAL_SERVER === '1'
+
 /**
  * Playwright E2E 配置
  *
@@ -31,10 +33,12 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://127.0.0.1:3200',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  webServer: useExternalWebServer
+    ? undefined
+    : {
+        command: 'npm run dev',
+        url: 'http://127.0.0.1:3200',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120 * 1000,
+      },
 })
