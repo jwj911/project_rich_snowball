@@ -4,6 +4,9 @@
 > 审查分支：`master`  
 > 审查基线：`0530a94b fix: K线时间格式YYYY-MM-DD + 主力合约数据同步修复`  
 > 范围：代码、测试、依赖、数据库迁移、CI/CD、容器部署、运行文档和路线图。
+>
+> 最新复核：2026-07-19，迁移修复提交 `46ab2edc`、安全依赖修复提交
+> `210b7e82` 已推送；Backend CI #22 已全绿，Frontend CI 待本次文档变更触发。
 
 ## 1. 结论摘要
 
@@ -17,13 +20,13 @@
 
 | 项目 | 当前事实 |
 | --- | --- |
-| 工作区 | Phase 0/1/2 代码已提交并推送；Phase 2 文档正在收口 |
+| 工作区 | Phase 0/1/2 代码已提交并推送；Backend CI 已通过，Frontend smoke 待验证 |
 | 后端源码 | 350 个 Python 文件 |
 | 后端测试 | 85 个 pytest 文件 |
 | 前端测试 | 33 个 Vitest 文件，6 个 Playwright spec |
-| Alembic | 58 个迁移脚本 |
+| Alembic | 59 个迁移脚本，head 为 `f7a8b9c0d1e2` |
 | 前端构建 | 通过，最大 First Load JS 为 `/products/[id]` 的 147 kB |
-| 后端覆盖率 | 本地 `71.97%`，CI 门槛已提升至 `40%` |
+| 后端覆盖率 | 本地 `71.97%`，CI 门槛 `40%`；Backend CI #22 通过 |
 | 当前产品形态 | 行情/研究工作台，不是真实交易终端 |
 
 ### 2.2 质量命令结果
@@ -37,6 +40,7 @@
 | `npm run test` | **192 passed, 0 failed** | K 线调用契约测试已同步 |
 | `npm run build` | 通过 | 18 个路由生成成功 |
 | 单独运行 `test_phase1_3_integration.py` | **26 passed, 0 failed** | schema 测试显式依赖建表 fixture |
+| Backend CI #22 | **成功** | Alembic、PostgreSQL pytest、API smoke、Ruff、pip-audit 全部通过 |
 
 > 本次后端命令使用项目 `python/.venv` 执行；依赖 lock 已包含 `scikit-learn`、`feedparser` 及其运行依赖。后续 CI 继续使用 lock 文件创建干净环境。
 
@@ -52,7 +56,7 @@
 | F-06 | **P1** | Agent 步骤持久化重新变成逐步提交 | [executor.py:72-86](../python/services/agent/executor.py#L72-L86) 每个步骤都 `commit()`，调用方又逐步调用；这与路线图中“批量提交、避免 SQLite locked”的状态描述相反。高步骤数或并发 SSE 下会增加锁竞争和事务开销。 | 改为任务级批量 `add_all + flush/commit`，失败时统一回滚并保留错误步骤。 |
 | F-07 | **P1** | 生产调度拓扑不一致 | [docker-compose.yml:46-55](../docker-compose.yml#L46-L55) 的 backend 设置 `ENABLE_SCHEDULER=1`，但 compose 没有 worker；运行文档又要求生产使用独立 `python/worker.py`。后续若额外启动 worker，会产生重复采集；若不启动，API 进程承担了不应承担的任务。 | 明确单一 scheduler owner：API 默认 `0`，新增独立 worker service 或在部署文档中明确单进程方案。 |
 | F-08 | **P1** | 测试隔离依赖执行顺序 | `test_all_tables_exist` 直接 `inspect(engine)`，单独运行时在 fixture/lifespan 建表前失败。该测试无法证明自身环境可运行，容易造成“全量通过、单文件失败”。 | 在 session fixture 中显式建表/迁移，测试只读取自己的 fixture；禁止依赖其他测试副作用。 |
-| F-09 | **P2，Phase 2 已处理** | CI 门禁没有覆盖真实浏览器流程 | 初始审查时 [frontend-ci.yml](../.github/workflows/frontend-ci.yml) 只跑 Vitest、Build 和 Lighthouse，后端 coverage 阈值为 30%。 | 已增加 PostgreSQL + backend + Playwright Chromium smoke，并将 coverage 门槛提升到 40%；首次 GitHub Actions 运行结果仍待确认。 |
+| F-09 | **P2，Phase 2 已处理** | CI 门禁没有覆盖真实浏览器流程 | 初始审查时 [frontend-ci.yml](../.github/workflows/frontend-ci.yml) 只跑 Vitest、Build 和 Lighthouse，后端 coverage 阈值为 30%。 | 已增加 PostgreSQL + backend + Playwright Chromium smoke，并将 coverage 门槛提升到 40%；Backend CI #22 已通过，Frontend CI 待触发。 |
 | F-10 | **P2** | 文档没有唯一现状基线 | `frontend/README.md` 仍写 Next.js 14.1.0；`README.md`、`AGENTS.md`、`.agents/roadmap.md`、`docs/` 记录的测试数、迁移数、阶段状态和旧 ProductDB 计划互相不一致。 | 以本文件作为当前基线，随后同步 README/AGENTS/roadmap；历史文档只保留在 archive。 |
 | F-11 | **P2** | 行情列表存在两套实现 | `services/domain/market_data_service.py:131-219` 已有 `VarietyDB + RealtimeQuoteDB` 聚合实现，但实际路由自己查询 `FutMainDailyDataDB`，形成未使用服务与路由逻辑分叉。 | 选定 canonical read model，将 router 收敛为薄层，删除或重构重复查询。 |
 | F-12 | **P2** | Agent SQL 工具仍依赖正则解析 | `.agents/roadmap.md:258-262` 已承认 `database_tools.py` 仅用正则白名单和字符串注入。多表 JOIN、子查询、大小写/别名和 `user_id` 自动注入都不是 AST 级安全边界。 | 保持当前风险接受，但远期改为 SQL AST 只读校验和显式用户数据访问 API。 |
@@ -268,21 +272,26 @@ flowchart TD
 
 对应提交：`9b44678c feat(data): unify varieties market read model`。
 
-### Phase 2：执行可靠性与生产拓扑（2026-07-18）— 代码已完成，远程 smoke 待验证
+### Phase 2：执行可靠性与生产拓扑（2026-07-18～19）— Backend 已验收，Frontend smoke 待验证
 
 已完成事项：
 
 - Agent 步骤持久化改为任务级事务，步骤不再逐条 `commit()`；
 - Compose 拆分 API 与独立 scheduler worker，backend 使用 `ENABLE_SCHEDULER=0`；
 - CI 增加依赖锁漂移检查、PostgreSQL API smoke、Playwright smoke，并将 coverage 门槛提升到 `40%`。
+- 新增 `fut_main_daily_data` Alembic 迁移 `f7a8b9c0d1e2`，唯一键为
+  `(variety_id, ts_code, period, trade_date)`，并增加 PostgreSQL schema 断言；
+- 修复 `python-multipart`、`scikit-learn`、`starlette` 的已知漏洞版本，lock 与直接依赖保持一致。
 
 验收结果：
 
-- 后端：`965 passed, 7 skipped, 0 failed`；
+- 本地后端：`965 passed, 8 skipped, 0 failed`；
 - 覆盖率：`71.97%`；
 - `docker compose config --quiet`、Python Ruff、TypeScript、ESLint 和相关 Vitest 通过；
-- 本地 Playwright 受机器高负载影响未完成：Next dev/build 均卡在启动阶段，3200 端口未在 120 秒内返回 HTTP。GitHub Actions 的 Playwright 与 PostgreSQL job 尚未取得远程运行结果。
+- Backend CI #22：Alembic、PostgreSQL pytest、API smoke、Ruff、`pip-audit` 全部成功；
+- 本地 Playwright 受机器高负载影响未完成：Next dev/build 均卡在启动阶段，3200 端口未在 120 秒内返回 HTTP；
+  Frontend CI 将在本次文档提交后重新运行。
 
-对应提交：`7a235fd7`、`23a5aecc`、`60efd483`。
+对应提交：`7a235fd7`、`23a5aecc`、`60efd483`、`46ab2edc`、`210b7e82`。
 
-下一项：Phase 3「文档与发布治理」；先回收 GitHub Actions 运行结果，再处理文档唯一基线与发布清单。
+下一项：完成 Frontend CI PostgreSQL/Playwright smoke 后进入 Phase 3「文档与发布治理」。

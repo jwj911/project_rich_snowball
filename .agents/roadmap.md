@@ -8,7 +8,7 @@
 - 同步前端 `useProductKline` 测试契约，修复后端 schema 测试的执行顺序依赖
 - `requirements.txt` / `requirements.lock` 补齐 `scikit-learn`、`feedparser` 及其依赖
 - Python `ruff check .`、后端全量 pytest、前端 Vitest、TypeScript、ESLint、production build 全部通过
-- 当前基线：后端 `961 passed, 6 skipped, 0 failed`；前端 `192 passed, 0 failed`
+- 当前基线：后端 `965 passed, 8 skipped, 0 failed`；前端 `192 passed, 0 failed`
 - 详细记录：[docs/iteration_plan_20260718_project_audit.md](../docs/iteration_plan_20260718_project_audit.md)
 
 ### Phase 1：行情读模型收敛 — 已完成（2026-07-18）
@@ -18,17 +18,20 @@
 - 新增 `upsert_fut_main_daily_bulk`、主力日线 pipeline 和 scheduler job
 - 增加 SQLite/PG 读写回归与 `data_source` / `data_freshness` 测试
 
-### Phase 2：执行可靠性与生产拓扑 — 代码已完成（2026-07-18）
+### Phase 2：执行可靠性与生产拓扑 — Backend 已验收，Frontend smoke 待验证（2026-07-19）
 
 - Agent 步骤持久化改为任务级事务，避免步骤级 `commit()` 带来的 SQLite 锁竞争
 - `docker-compose.yml` 中 backend 关闭 scheduler，新增独立 worker 作为唯一 scheduler owner
 - backend CI 增加 direct dependency/lock 漂移检查、PostgreSQL API smoke，coverage 门槛提升到 `40%`
 - frontend CI 增加 PostgreSQL + Alembic + backend 启动和 Playwright Chromium smoke
-- 本地后端全量：`965 passed, 7 skipped, 0 failed`；覆盖率 `71.97%`
+- 新增 `fut_main_daily_data` Alembic 迁移 `f7a8b9c0d1e2`，并验证 `(variety_id, ts_code, period, trade_date)` 唯一键
+- 升级 `python-multipart`、`scikit-learn`、`starlette` 到无已知漏洞版本，lock 漂移检查保持通过
+- 本地后端全量：`965 passed, 8 skipped, 0 failed`；覆盖率 `71.97%`
+- Backend CI #22：Alembic、PostgreSQL pytest、API smoke、Ruff、`pip-audit` 全部通过
 - 本地 Playwright 受机器高负载影响未完成，需以 GitHub Actions 运行结果作为远程浏览器验收依据
 - 详细记录：[docs/iteration_plan_20260718_project_audit.md](../docs/iteration_plan_20260718_project_audit.md)
 
-下一阶段：Phase 3「文档与发布治理」，先回收 GitHub Actions 的 PostgreSQL/Playwright/lock/coverage 结果。
+下一阶段：先完成 Frontend CI PostgreSQL/Playwright smoke，再进入 Phase 3「文档与发布治理」。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 
@@ -180,7 +183,7 @@
 
 ### 后端 Roadmap V3 阶段五：CI/运维与架构优化 — 已完成（2026-06-05）
 
-- **CI 增强**：backend-ci.yml 增加 Alembic 迁移一致性检查（CI 内嵌 PostgreSQL service）+ pytest-cov（阈值 30%）
+- **CI 增强**：backend-ci.yml 增加 Alembic 迁移一致性检查（CI 内嵌 PostgreSQL service）+ pytest-cov（当前阈值 40%）
 - **运维文档补齐**：`python/docs/sse_scaling_strategy.md`（SSE 部署约束）、`python/docs/kline_partitioning.md`（K 线表分区策略）
 - **交易日历预测告警**：`services/trading_calendar.py` 使用预测年份时输出 warning 日志
 - **Service 层试点**：`routers/opinions.py` 提取 `OpinionService`，router 仅负责 HTTP 契约转换

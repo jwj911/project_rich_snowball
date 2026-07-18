@@ -17,8 +17,9 @@
   - 5-6 全量测试 + 提交到 master（历史基线）
 - **Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 8 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理 / 分析流水线 / 回测 / 策略编排 / 因子挖掘），执行过程通过 SSE 流式展示。
 - 近期新增：策略工作台（`/strategies`）、策略参数优化（`/strategies/{id}/optimize`）、回测信号可视化（K 线叠加标记）、预警中心（`/alerts`）、Agent 工作台（`/agents`）。
-- **当前质量基线（2026-07-18）**：后端 `965 passed, 7 skipped, 0 failed`；覆盖率 `71.97%`；前端 Vitest `192 passed, 0 failed`；Python Ruff、TypeScript、ESLint 和 production build 均通过。
-- **当前迭代**：Phase 0、Phase 1 和 Phase 2 代码实现已完成；Phase 2 的 GitHub Actions PostgreSQL/Playwright smoke 尚待远程运行结果，下一阶段为 Phase 3 文档与发布治理。
+- **当前质量基线（2026-07-19）**：后端本地 `965 passed, 8 skipped, 0 failed`；覆盖率 `71.97%`；前端 Vitest `192 passed, 0 failed`；Python Ruff、TypeScript、ESLint 和 production build 均通过。
+- **远程验收**：Backend CI #22 的 Alembic、PostgreSQL pytest、API smoke、Ruff 和 `pip-audit` 全部通过；Frontend PostgreSQL/Playwright smoke 待本次文档变更触发。
+- **当前迭代**：Phase 0、Phase 1 和 Phase 2 代码已完成，Phase 2 仅剩 Frontend smoke 收口，随后进入 Phase 3 文档与发布治理。
 
 ## 主要功能模块
 
@@ -57,7 +58,7 @@
 | 后端服务器 | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.25 |
 | 数据库 | SQLite / PostgreSQL | SQLite 开发零配置；PG 16 通过 compose 提供，映射端口 15432 |
-| 迁移 | Alembic | 1.13.1，当前 58 个迁移文件 |
+| **迁移** | Alembic | 1.13.1，当前 59 个迁移文件；head 为 `f7a8b9c0d1e2` |
 | 认证 | JWT + OAuth2 密码流 | PyJWT 2.13.0，passlib bcrypt，access token 默认 15 分钟，refresh token 默认 7 天 |
 | 数据校验 | Pydantic v2 | 2.9.0 |
 | 数据采集 | Mock / AkShare / Tushare | `DATA_SOURCE` 控制，非生产可降级 Mock |

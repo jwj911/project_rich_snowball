@@ -16,6 +16,8 @@
 - 价格预警：用户为品种设置 above/below 价格预警，实时行情刷新时自动检测触发
 - 模拟持仓：用户创建虚拟交易记录，支持做多/做空、盈亏计算与复盘统计
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
+- 当前工程基线：后端本地 `965 passed, 8 skipped, 0 failed`，前端 Vitest `192 passed, 0 failed`；Backend CI #22 的 PostgreSQL、Alembic、Ruff、覆盖率和 `pip-audit` 全部通过
+- 当前迭代：Phase 2 仅剩 Frontend PostgreSQL/Playwright smoke 收口，之后进入 Phase 3 文档与发布治理
 
 ---
 
@@ -56,7 +58,7 @@ project_rich_snowball/
 │   ├── data_collector/           # 数据采集流水线与调度器
 │   ├── middleware/               # 中间件（限流、API 版本映射）
 │   ├── scripts/                  # 工具脚本（回填、迁移、验收）
-│   ├── tests/                    # pytest 测试（961 passed, 6 skipped）
+│   ├── tests/                    # pytest 测试（965 passed, 8 skipped）
 │   └── alembic/                  # 数据库迁移
 │
 ├── quantative_tools/             # 量化分析工具集
@@ -281,6 +283,9 @@ DATABASE_URL=postgresql://futures:futures123@localhost:15432/futures_community
 cd D:\Code\project_rich_snowball\python
 alembic upgrade head
 ```
+
+当前 Alembic head 为 `f7a8b9c0d1e2`，共 59 个迁移版本；其中
+`fut_main_daily_data` 使用 `(variety_id, ts_code, period, trade_date)` 作为幂等唯一键。
 
 Tushare 历史回填脚本位于 `python/tushare_pg_ingest/`，包含日线、周/月线、结算、仓单、持仓、涨跌停、主力映射、周度统计等入口。详见 [python/tushare_pg_ingest/README.md](python/tushare_pg_ingest/README.md)。
 

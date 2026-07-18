@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-07-18（Phase 0 可运行性收口完成）
+> **最后更新**：2026-07-19（Phase 2 Backend CI 收口）
 
 ---
 
@@ -16,8 +16,9 @@
 - **Agent 系统 Phase 0~2 已完成**并接入真实 SSE 进度流：DataAgent、DataQualityAgent、TechAnalysisAgent、RiskManagementAgent、AnalysisPipelineAgent、StrategyCompilerAgent、BacktestAgent、FactorMiningAgent、TraderAgent 已上线。
 - **策略进化（Strategy Evolution）已落地**：GA 进化循环、GP 因子生成、Pareto 适应度、贝叶斯优化、策略生命周期追踪。
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
-- **测试状态**：最近一次全量后端测试为 `965 passed, 7 skipped, 0 failed`，覆盖率为 `71.97%`；前端 Vitest 为 `192 passed, 0 failed`。Python `ruff check .`、前端 TypeScript、ESLint 和 production build 均通过。
-- **当前迭代**：Phase 0、Phase 1 和 Phase 2 代码实现已完成；Phase 2 的 PostgreSQL/Playwright CI smoke 尚待 GitHub Actions 远程结果，下一阶段为 Phase 3 文档与发布治理。
+- **测试状态**：最近一次本地全量后端测试为 `965 passed, 8 skipped, 0 failed`，覆盖率为 `71.97%`；前端 Vitest 为 `192 passed, 0 failed`。Python `ruff check .`、前端 TypeScript、ESLint 和 production build 均通过。
+- **远程验收**：Backend CI #22 的 Alembic、PostgreSQL pytest、API smoke、Ruff 和 `pip-audit` 全部通过；Frontend PostgreSQL/Playwright smoke 待本次文档变更触发。
+- **当前迭代**：Phase 0、Phase 1 和 Phase 2 代码实现已完成，Phase 2 仅剩 Frontend smoke 收口，随后进入 Phase 3 文档与发布治理。
 - **文件审计**：2026-07-05 完成 Phase 1/2 清理，根目录精简至 7 个文件，文档迁入 `docs/guides/`、`docs/archive/` 与 `quantative_tools/reports/`，详见 [docs/audit_cleanup_20260705.md](docs/audit_cleanup_20260705.md)。
 
 ### 主要功能模块
@@ -87,7 +88,7 @@
 | 框架 | FastAPI | 0.136.3 |
 | 服务器 | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.25 |
-| 迁移 | Alembic | 1.13.1，当前 58 个迁移脚本 |
+| 迁移 | Alembic | 1.13.1，当前 59 个迁移脚本；head 为 `f7a8b9c0d1e2` |
 | 校验 | Pydantic | v2 2.9.0 |
 | 认证 | JWT + OAuth2 密码流 | PyJWT 2.13.0，bcrypt via passlib |
 | 数据库 | SQLite / PostgreSQL | 开发默认 SQLite；PG 16 通过 docker-compose 提供，映射端口 15432 |
@@ -164,7 +165,7 @@ d:\Code\project_rich_snowball/
 | `middleware/` | `api_version.py`（`/api/v1/*` 映射）、`rate_limit.py` |
 | `scripts/` | 运维/回填/迁移/验收脚本 |
 | `tests/` | 85 个 pytest 测试文件 + `conftest.py` |
-| `alembic/` | 58 个 Alembic 迁移版本 |
+| `alembic/` | 59 个 Alembic 迁移版本 |
 | `tushare_pg_ingest/` | Tushare 历史数据回填脚本体系 |
 | `docs/` | 后端专项技术文档 |
 

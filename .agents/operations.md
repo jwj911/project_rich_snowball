@@ -143,7 +143,7 @@ ruff format .
 
 ### GitHub Actions
 
-- `.github/workflows/backend-ci.yml`：pytest + ruff + pip-audit + Alembic 迁移一致性检查 + pytest-cov（阈值 30%），使用 `requirements.lock`，Python 3.12，CI 内嵌 PostgreSQL service。
+- `.github/workflows/backend-ci.yml`：pytest + ruff + pip-audit + Alembic 迁移一致性检查 + pytest-cov（阈值 40%），使用 `requirements.lock`，Python 3.12，CI 内嵌 PostgreSQL service；Backend CI #22 已全绿。
 - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test` → Lighthouse 基线。
 - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发。
 
