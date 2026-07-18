@@ -53,6 +53,28 @@ jobs:
           pip install -r requirements.lock
           pip install pytest-cov
 
+      - name: Verify direct dependencies are locked
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from packaging.requirements import Requirement
+
+          direct = {
+              Requirement(line.strip()).name.lower().replace("_", "-")
+              for line in Path("requirements.txt").read_text(encoding="utf-8").splitlines()
+              if line.strip() and not line.lstrip().startswith("#")
+          }
+          locked = {
+              Requirement(line.strip()).name.lower().replace("_", "-")
+              for line in Path("requirements.lock").read_text(encoding="utf-8").splitlines()
+              if line.strip() and not line.startswith((" ", "#"))
+          }
+          missing = sorted(direct - locked)
+          if missing:
+              raise SystemExit(f"Direct dependencies missing from requirements.lock: {missing}")
+          print(f"Verified {len(direct)} direct dependencies are present in requirements.lock")
+          PY
+
       - name: Run Alembic migrations
         env:
           SECRET_KEY: test-secret-key-for-ci-local-development-42
@@ -66,7 +88,36 @@ jobs:
           ENABLE_SCHEDULER: "0"
           SSE_TEST_MODE: "1"
           DATABASE_URL: postgresql://futures:futures123@localhost:15432/futures_community
-        run: pytest tests -q --tb=short --cov=. --cov-report=term-missing --cov-fail-under=30
+        run: pytest tests -q --tb=short --cov=. --cov-report=term-missing --cov-fail-under=40
+
+      - name: PostgreSQL API smoke
+        env:
+          SECRET_KEY: test-secret-key-for-ci-local-development-42
+          ENABLE_SCHEDULER: "0"
+          ENV: development
+          CORS_ORIGINS: http://127.0.0.1:3200
+          DATABASE_URL: postgresql://futures:futures123@localhost:15432/futures_community
+        run: |
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from main import app
+
+          with TestClient(app) as client:
+              ready = client.get("/health/ready")
+              assert ready.status_code == 200, ready.text
+              login = client.post(
+                  "/api/auth/login",
+                  data={"username": "trader001", "password": "password123"},
+              )
+              assert login.status_code == 200, login.text
+              token = login.json()["access_token"]
+              varieties = client.get(
+                  "/api/varieties",
+                  headers={"Authorization": f"Bearer {token}"},
+              )
+              assert varieties.status_code == 200, varieties.text
+              assert varieties.json(), "PostgreSQL API smoke returned no varieties"
+          PY
 
       - name: Install ruff
         run: pip install ruff
