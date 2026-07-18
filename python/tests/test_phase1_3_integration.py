@@ -26,7 +26,7 @@ from data_collector.init_varieties import init_varieties
 # ============================================================================
 
 class TestSchemaIntegrity:
-    def test_all_tables_exist(self):
+    def test_all_tables_exist(self, db_session):
         """数据库中应存在核心业务表"""
         inspector = inspect(engine)
         tables = set(inspector.get_table_names())
@@ -42,21 +42,21 @@ class TestSchemaIntegrity:
         count = db_session.query(VarietyDB).count()
         assert count == 10, f"预期 10 条品种数据，实际 {count}"
 
-    def test_varieties_indexes(self):
+    def test_varieties_indexes(self, db_session):
         """varieties 表应有 symbol 和 category 索引"""
         inspector = inspect(engine)
         indexes = {idx["name"] for idx in inspector.get_indexes("varieties")}
         assert "ix_varieties_symbol" in indexes
         assert "ix_varieties_category" in indexes
 
-    def test_kline_unique_constraint(self):
+    def test_kline_unique_constraint(self, db_session):
         """kline_data 应有 variety_id+contract_id+period+trading_time 唯一约束"""
         inspector = inspect(engine)
         constraints = inspector.get_unique_constraints("kline_data")
         names = {c["name"] for c in constraints}
         assert "uix_kline_contract" in names
 
-    def test_foreign_keys(self):
+    def test_foreign_keys(self, db_session):
         """关键外键关系存在"""
         inspector = inspect(engine)
         fk_map = {}
