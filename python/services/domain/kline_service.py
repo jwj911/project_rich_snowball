@@ -17,7 +17,12 @@ from errors import ErrorCode
 from lib.technical_indicators import calculate_all_indicators
 from models import FutContractDB, VarietyDB
 from services.cache import get_cached, invalidate_cache_pattern
-from services.continuous_kline import get_fut_daily_main_kline, get_fut_daily_contract_kline, get_continuous_kline, get_main_contract_kline
+from services.continuous_kline import (
+    get_continuous_kline,
+    get_fut_daily_contract_kline,
+    get_fut_daily_main_kline,
+    get_main_contract_kline,
+)
 from services.domain.exceptions import NotFoundError, ValidationError
 from services.domain.repositories.kline_repository import KlineRepository
 from services.kline_period import period_candidates

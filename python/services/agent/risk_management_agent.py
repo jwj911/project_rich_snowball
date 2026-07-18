@@ -13,7 +13,7 @@ from typing import Any
 import pandas as pd
 
 from lib.technical_indicators import calculate_all_indicators
-from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
+from services.agent.core import Agent, AgentEventType, AgentResult, AgentStatus
 from services.agent.data_tools import _get_kline_data, _get_realtime_quote, _get_variety_info
 from services.agent.risk_management.drawdown_control import generate_risk_management_plan
 from services.agent.utils import extract_direction, extract_price, resolve_symbol

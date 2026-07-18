@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
-from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
+from services.agent.core import Agent, AgentEventType, AgentResult, AgentStatus
 from services.data_quality import DataQualityService
 
 

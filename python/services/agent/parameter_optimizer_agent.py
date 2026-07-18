@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from services.agent.core import Agent, AgentResult, AgentStatus
-from services.agent.parameter_optimizer import optimize_strategy, format_optimization_report
+from services.agent.parameter_optimizer import format_optimization_report, optimize_strategy
 from services.agent.strategy_compiler_agent import StrategyParser
 
 

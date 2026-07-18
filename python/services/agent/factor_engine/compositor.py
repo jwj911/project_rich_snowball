@@ -475,7 +475,7 @@ class FactorCompositor:
         details: list[CompositeScoreDetail] = []
         if last_date is not None:
             for spec in config.factors:
-                icir = icir_by_factor.get(spec.field, None)
+                icir = icir_by_factor.get(spec.field)
                 rank = _compute_factor_rank(factor_panels[spec.field], spec.is_asc)
                 last_rank = float(rank.loc[last_date].mean()) if last_date in rank.index else None
                 wr_val = None

@@ -260,16 +260,24 @@ def get_fut_daily_main_kline(
         return []
 
     # 1. 优先：通过 contract_type='MAIN' 识别主力合约
-    main_contract = db.query(FutContractDB).filter(
-        FutContractDB.fut_code == variety.symbol,
-        FutContractDB.contract_type == 'MAIN',
-    ).first()
+    main_contract = (
+        db.query(FutContractDB)
+        .filter(
+            FutContractDB.fut_code == variety.symbol,
+            FutContractDB.contract_type == "MAIN",
+        )
+        .first()
+    )
 
     # 2. 其次：通过 VarietyDB.contract_code 获取当前主力合约
     if not main_contract and variety.contract_code:
-        contract = db.query(FutContractDB).filter(
-            FutContractDB.symbol == variety.contract_code,
-        ).first()
+        contract = (
+            db.query(FutContractDB)
+            .filter(
+                FutContractDB.symbol == variety.contract_code,
+            )
+            .first()
+        )
         if contract:
             main_contract = contract
 
@@ -304,15 +312,13 @@ def get_fut_daily_main_kline(
             ]
 
     # 4. Fallback: 找 fut_main_daily_data 中记录数最多的 ts_code（兼容原逻辑）
-    main_ts = db.query(
-        FutMainDailyDataDB.ts_code, func.count(FutMainDailyDataDB.id)
-    ).filter(
-        FutMainDailyDataDB.variety_id == variety_id
-    ).group_by(
-        FutMainDailyDataDB.ts_code
-    ).order_by(
-        func.count(FutMainDailyDataDB.id).desc()
-    ).first()
+    main_ts = (
+        db.query(FutMainDailyDataDB.ts_code, func.count(FutMainDailyDataDB.id))
+        .filter(FutMainDailyDataDB.variety_id == variety_id)
+        .group_by(FutMainDailyDataDB.ts_code)
+        .order_by(func.count(FutMainDailyDataDB.id).desc())
+        .first()
+    )
 
     if main_ts:
         ts_code = main_ts[0]
@@ -331,9 +337,13 @@ def get_fut_daily_main_kline(
         rows.reverse()
         if rows:
             # 单独获取 contract_id（不 JOIN）
-            contract = db.query(FutContractDB).filter(
-                FutContractDB.ts_code == ts_code,
-            ).first()
+            contract = (
+                db.query(FutContractDB)
+                .filter(
+                    FutContractDB.ts_code == ts_code,
+                )
+                .first()
+            )
             contract_id = contract.id if contract else None
             return [
                 {
@@ -380,7 +390,6 @@ def get_fut_daily_main_kline(
     return []
 
 
-
 def get_fut_daily_contract_kline(
     db: Session,
     contract_id: int,
@@ -397,13 +406,13 @@ def get_fut_daily_contract_kline(
     if not contract:
         return []
 
-    q = db.query(
-        FutDailyDataDB, FutContractDB.id.label("contract_id")
-    ).join(
-        FutContractDB, FutDailyDataDB.ts_code == FutContractDB.ts_code
-    ).filter(
-        FutDailyDataDB.ts_code == contract.ts_code,
-        FutDailyDataDB.period == "D",
+    q = (
+        db.query(FutDailyDataDB, FutContractDB.id.label("contract_id"))
+        .join(FutContractDB, FutDailyDataDB.ts_code == FutContractDB.ts_code)
+        .filter(
+            FutDailyDataDB.ts_code == contract.ts_code,
+            FutDailyDataDB.period == "D",
+        )
     )
 
     if start:

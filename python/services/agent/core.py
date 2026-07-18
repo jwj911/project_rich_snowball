@@ -202,7 +202,7 @@ class Agent:
                 try:
                     event = await asyncio.wait_for(self._progress_queue.get(), timeout=0.1)
                     yield event
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     if task.done():
                         break
             else:

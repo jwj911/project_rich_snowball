@@ -14,7 +14,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from services.agent.context import AgentContext
-from services.agent.core import Agent, AgentEvent, AgentEventType, AgentResult, AgentStatus
+from services.agent.core import Agent, AgentEventType, AgentResult, AgentStatus
 from services.agent.data_agent import DataAgent
 from services.agent.executor import AgentExecutor
 from services.agent.risk_management_agent import RiskManagementAgent
@@ -108,10 +108,17 @@ class AnalysisPipelineAgent(Agent):
         if preflight_bad and not ta_result.success:
             # 数据质量 bad 且技术分析无法完成：返回数据现状报告
             self._add_step("system", "数据质量不足，生成数据现状报告")
-            report = self._build_report(symbol, direction, data_result, ta_result, AgentResult(
-                status=AgentStatus.FAILED,
-                error_message="因 K 线数据不足，未生成风控方案",
-            ), data_preflight)
+            report = self._build_report(
+                symbol,
+                direction,
+                data_result,
+                ta_result,
+                AgentResult(
+                    status=AgentStatus.FAILED,
+                    error_message="因 K 线数据不足，未生成风控方案",
+                ),
+                data_preflight,
+            )
             summary = self._build_degraded_summary(report, reason="data_bad")
             return AgentResult(
                 status=AgentStatus.COMPLETED,

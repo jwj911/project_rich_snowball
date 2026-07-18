@@ -6,12 +6,11 @@ import time
 from datetime import date, timedelta
 from pathlib import Path
 
+import psycopg2
+import tushare as ts
 from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
-
-import psycopg2
-import tushare as ts
 
 TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN")
 if not TUSHARE_TOKEN:
