@@ -96,6 +96,25 @@ describe('usePriceLevels', () => {
     expect(result.current.levelError).toBeNull()
   })
 
+  it('keeps the created level visible when the immediate refresh is temporarily empty', async () => {
+    const created = makeLevel({ id: 4, type: 'support', price: '515.00' })
+    vi.mocked(api.getPriceLevels).mockReset().mockResolvedValue([])
+    vi.mocked(api.createPriceLevel).mockReset().mockResolvedValue(created)
+
+    const { result } = renderHook(() => usePriceLevels({ varietyId: 3, userId: 2, symbol: 'AU' }))
+
+    await waitFor(() => {
+      expect(result.current.levelsLoaded).toBe(true)
+    })
+
+    await act(async () => {
+      await result.current.addSupport(515)
+    })
+
+    expect(result.current.supportLevels).toEqual([515])
+    expect(result.current.levelError).toBeNull()
+  })
+
   it('falls back to local storage when cloud create fails', async () => {
     vi.mocked(api.getPriceLevels).mockReset().mockResolvedValue([])
     vi.mocked(api.createPriceLevel).mockReset().mockRejectedValue(new Error('请求过于频繁，请 17 秒后再试'))

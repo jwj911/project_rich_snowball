@@ -173,10 +173,17 @@ export function usePriceLevels({
       if (!Number.isFinite(price) || currentSupport.includes(price)) return
       if (varietyId) {
         try {
-          await api.createPriceLevel(varietyId, 'support', formatPricePayload(price, pricePrecision), scope, contractId)
+          const created = await api.createPriceLevel(
+            varietyId,
+            'support',
+            formatPricePayload(price, pricePrecision),
+            scope,
+            contractId,
+          )
           const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
-          updateLevelsFromData(levels)
-          syncToLocalStorage(levels)
+          const mergedLevels = levels.some((level) => level.id === created.id) ? levels : [...levels, created]
+          updateLevelsFromData(mergedLevels)
+          syncToLocalStorage(mergedLevels)
           setLevelError(null)
           return
         } catch (err) {
@@ -210,10 +217,17 @@ export function usePriceLevels({
       if (!Number.isFinite(price) || currentResistance.includes(price)) return
       if (varietyId) {
         try {
-          await api.createPriceLevel(varietyId, 'resistance', formatPricePayload(price, pricePrecision), scope, contractId)
+          const created = await api.createPriceLevel(
+            varietyId,
+            'resistance',
+            formatPricePayload(price, pricePrecision),
+            scope,
+            contractId,
+          )
           const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
-          updateLevelsFromData(levels)
-          syncToLocalStorage(levels)
+          const mergedLevels = levels.some((level) => level.id === created.id) ? levels : [...levels, created]
+          updateLevelsFromData(mergedLevels)
+          syncToLocalStorage(mergedLevels)
           setLevelError(null)
           return
         } catch (err) {
