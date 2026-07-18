@@ -2,6 +2,15 @@
 
 ## 主要模块演进状态
 
+### Phase 0：可运行性收口 — 已完成（2026-07-18）
+
+- Mock 初始化补齐 `FutMainDailyDataDB` 主力日线，恢复 `/api/varieties` 列表数据
+- 同步前端 `useProductKline` 测试契约，修复后端 schema 测试的执行顺序依赖
+- `requirements.txt` / `requirements.lock` 补齐 `scikit-learn`、`feedparser` 及其依赖
+- Python `ruff check .`、后端全量 pytest、前端 Vitest、TypeScript、ESLint、production build 全部通过
+- 当前基线：后端 `961 passed, 6 skipped, 0 failed`；前端 `192 passed, 0 failed`
+- 详细记录：[docs/iteration_plan_20260718_project_audit.md](../docs/iteration_plan_20260718_project_audit.md)
+
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 
 - `price_levels` / `watchlists` / `workspace` 云端同步闭环
@@ -196,7 +205,7 @@
 - **数据 bad 降级**：`analysis_pipeline_agent.py` preflight `bad` 时返回「数据现状报告」+ `completed` 状态，不再直接失败。
 - **移除悬空能力**：`routers/agents.py` 与 `schemas.py` 移除未实现的 `orchestrator` 类型。
 - **前端 SSE 治理**：`agents.ts` 支持 `AbortSignal`、`event:` 标签解析、malformed 行提示；`chat/page.tsx` 增加 `AbortController` 与停止按钮。
-- **测试补强**：新增 `tests/test_agent_streaming.py`、`tests/test_agent_data_preflight.py`；Agent 相关 pytest 65 个全部通过，后端全量 `669 passed, 7 skipped, 0 failed`。
+- **测试补强（历史记录）**：新增 `tests/test_agent_streaming.py`、`tests/test_agent_data_preflight.py`；该阶段后端曾达到 `669 passed, 7 skipped, 0 failed`，当前统一基线见本文顶部 Phase 0。
 
 ### TraderAgent 新增上线（2026-07-05）
 

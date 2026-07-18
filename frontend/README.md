@@ -1,6 +1,6 @@
 # 前端说明与迭代计划
 
-> 最后更新：2026-05-16。本文档聚焦 `frontend/`，根目录 `README.md` 负责全栈启动与后端说明。
+> 最后更新：2026-07-18。本文档聚焦 `frontend/`，根目录 `README.md` 负责全栈启动与后端说明。
 
 ## 当前定位
 
@@ -12,7 +12,7 @@
 
 | 分类 | 当前方案 |
 | --- | --- |
-| 框架 | Next.js 14.1.0 App Router |
+| 框架 | Next.js 14.2.35 App Router |
 | UI Runtime | React 18.2 |
 | 语言 | TypeScript 5.3，`strict: true` |
 | 样式 | Tailwind CSS 3.4 |
@@ -20,7 +20,7 @@
 | K 线 | `lightweight-charts` 5.2 |
 | 请求 | 自定义 `ApiService` + `fetch` |
 | 状态 | React Context + 页面/组件本地状态 |
-| 测试 | Vitest + jsdom + Testing Library |
+| 测试 | Vitest 4.1.7（33 个测试文件 / 192 个测试）+ jsdom + Testing Library；Playwright 6 个 spec |
 
 ## 目录职责
 
@@ -96,25 +96,25 @@ npm.cmd run build
 
 | 优先级 | 问题 | 影响 |
 | --- | --- | --- |
-| P0 | 部分中文 UI 文案编码污染，尤其品种详情页 | 用户可见文案异常，后续编辑容易继续扩散 |
 | P1 | 部分行情组件仍偏大 | 展示细节后续扩展成本较高；API 层和价位标注工具已先拆出领域模块 |
 | P1 | 详情页 quote 后续可进一步接 `useRealtimeQuotes` | 当前轮询已统一，但实时状态表达还有提升空间 |
 | P1 | 行情列表尚未虚拟滚动 | 桌面/移动重复 DOM 已消除，合约数量继续扩大后仍需虚拟滚动 |
 | P2 | 认证状态仍是单一 Context | 后续偏好、实时连接、交易态增加后重渲染粒度偏粗 |
 | P2 | 可访问性不完整 | K 线、表单、颜色表达仍需继续加强 |
-| P2 | 测试覆盖不足 | 页面级回归和关键组件行为缺少自动保护 |
-| P3 | CI、E2E、前端错误监控缺失 | 质量门禁和线上定位能力不足 |
+| P2 | 页面级测试与 Playwright 尚未纳入 CI | 关键登录、行情和工作区流程缺少发布门禁 |
+| P2 | CI coverage 与性能门禁仍需提高 | 当前后端 coverage 阈值为 30%，前端 Lighthouse 尚未形成趋势比较 |
+
+Phase 0「可运行性收口」已完成：`npm run test` 为 `192 passed`，`npx tsc --noEmit`、`npm run lint`、`npm run build` 均通过。后续前端工作与全栈路线同步，优先进入行情读模型和 E2E 门禁建设。
 
 ## 下一步迭代规划
 
-### 1. 稳定可读性与基础质量（1-2 天）
+### 1. 行情读模型配合与页面验收（1-2 天）
 
-- 修复 `products/[id]/page.tsx` 中乱码文案。
-- 清理重复测试文件命名，统一测试组织。
-- 给 `package.json` 增加 `type-check` script，减少命令记忆成本。已完成。
-- 让详情页错误态优先使用 `ApiError.status`。
+- 配合后端统一 `/api/varieties` 的主力日线与实时快照 fallback 契约。
+- 为行情中心、品种详情补齐主力数据存在/缺失/过期三种状态的页面级测试。
+- 让详情页错误态优先使用 `ApiError.status`，并统一展示数据来源和更新时间。
 
-验收标准：页面中文文案正常显示；`npm run lint`、`npx tsc --noEmit`、`npm run test` 通过。
+验收标准：Mock SQLite 与 PostgreSQL 样本环境页面均可加载；`npm run lint`、`npx tsc --noEmit`、`npm run test` 通过。
 
 ### 2. 组件拆分与请求策略统一（3-5 天）
 

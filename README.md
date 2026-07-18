@@ -56,7 +56,7 @@ project_rich_snowball/
 │   ├── data_collector/           # 数据采集流水线与调度器
 │   ├── middleware/               # 中间件（限流、API 版本映射）
 │   ├── scripts/                  # 工具脚本（回填、迁移、验收）
-│   ├── tests/                    # pytest 测试（669+ passed）
+│   ├── tests/                    # pytest 测试（961 passed, 6 skipped）
 │   └── alembic/                  # 数据库迁移
 │
 ├── quantative_tools/             # 量化分析工具集
@@ -237,7 +237,7 @@ $env:ENABLE_SCHEDULER="0"
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-前端已配置 Vitest + Playwright 自动化测试（31 files / 184 tests），并配有 `.github/workflows/frontend-ci.yml` 在 PR 时自动执行 lint + build + test + Lighthouse。修改前端后至少运行：
+前端已配置 Vitest + Playwright 自动化测试（33 个 Vitest 文件 / 192 个测试，6 个 Playwright spec），并配有 `.github/workflows/frontend-ci.yml` 在 PR 时自动执行 lint + build + test + Lighthouse。修改前端后至少运行：
 
 ```powershell
 cd D:\Code\project_rich_snowball\frontend

@@ -17,10 +17,10 @@
 
 | 项目 | 当前事实 |
 | --- | --- |
-| 工作区 | 干净，无未提交代码变更 |
+| 工作区 | 当前代码变更已提交并推送，文档更新进行中 |
 | 后端源码 | 350 个 Python 文件 |
 | 后端测试 | 85 个 pytest 文件 |
-| 前端测试 | 34 个 Vitest 文件，6 个 Playwright spec |
+| 前端测试 | 33 个 Vitest 文件，6 个 Playwright spec |
 | Alembic | 58 个迁移脚本 |
 | 前端构建 | 通过，最大 First Load JS 为 `/products/[id]` 的 147 kB |
 | 当前产品形态 | 行情/研究工作台，不是真实交易终端 |
@@ -29,15 +29,15 @@
 
 | 检查 | 结果 | 说明 |
 | --- | --- | --- |
-| `python -m pytest tests -q --tb=short` | **954 passed, 7 failed, 6 skipped** | 7 个失败全部集中在 `/api/varieties` 列表 |
-| `python -m ruff check .` | **失败，10 项** | E402、I001、F401、UP041、SIM910 |
+| `python -m pytest tests -q --tb=short` | **961 passed, 0 failed, 6 skipped** | Phase 0 修复后全量通过 |
+| `python -m ruff check .` | 通过 | `python/` 范围门禁全绿 |
 | `npx tsc --noEmit` | 通过 | 类型检查通过 |
 | `npm run lint` | 通过 | ESLint 无警告/错误 |
-| `npm run test` | **191 passed, 1 failed** | `useProductKline` 测试仍断言旧参数 |
+| `npm run test` | **192 passed, 0 failed** | K 线调用契约测试已同步 |
 | `npm run build` | 通过 | 18 个路由生成成功 |
-| 单独运行 `test_phase1_3_integration.py` | **8 failed, 26 passed** | 首个 schema 测试依赖其他测试先建表 |
+| 单独运行 `test_phase1_3_integration.py` | **26 passed, 0 failed** | schema 测试显式依赖建表 fixture |
 
-> 本次后端命令使用项目 `python/.venv` 复核了关键失败；全量统计同时保留了首次完整运行结果。后续 CI 应固定使用 lock 文件创建干净环境后再记录基线。
+> 本次后端命令使用项目 `python/.venv` 执行；依赖 lock 已包含 `scikit-learn`、`feedparser` 及其运行依赖。后续 CI 继续使用 lock 文件创建干净环境。
 
 ## 3. 关键发现
 
@@ -227,3 +227,27 @@ flowchart TD
 7. `docs: refresh current project baseline and archive stale plans`
 
 每个提交都应独立运行对应的最小验证，并在最后一次提交更新本文件的“可复现基线”。
+
+## 8. 执行记录
+
+### Phase 0：可运行性收口（2026-07-18）— 已完成
+
+已完成事项：
+
+- Mock 初始化补齐 `FutMainDailyDataDB` 主力日线，恢复 `/api/varieties` 列表数据；
+- 同步 `useProductKline` 测试与 `loadKlineBySource` 新契约；
+- `requirements.txt` 增加直接依赖 `feedparser`，lock 补齐 `scikit-learn`、`joblib`、`threadpoolctl` 和 RSS 依赖；
+- 清理 Python Ruff 门禁错误；
+- schema 集成测试显式依赖 `db_session`，支持单文件独立运行。
+
+验收结果：
+
+- 后端：`961 passed, 6 skipped, 0 failed`；
+- 前端：`192 passed, 0 failed`；
+- TypeScript、ESLint、Next production build、Python Ruff 全部通过。
+
+对应提交：
+
+`5e9f81be`、`29517ba4`、`401940c5`、`739908d3`、`ddd622fc`、`15cf91e6`。
+
+下一项：Phase 1「行情读模型收敛」。

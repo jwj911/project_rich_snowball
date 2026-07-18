@@ -14,10 +14,11 @@
   - 5-3 策略信号可视化（K 线叠加买卖信号标记）
   - 5-4 性能优化（回测结果 5 分钟 LRU 缓存 + 缓存 key 哈希）
   - 5-5 监控告警与日志增强（回测/优化失败自动告警 + 结构化日志）
-  - 5-6 全量测试 + 提交到 master（523 passed, 7 skipped, 0 failed）
+  - 5-6 全量测试 + 提交到 master（历史基线）
 - **Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 8 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理 / 分析流水线 / 回测 / 策略编排 / 因子挖掘），执行过程通过 SSE 流式展示。
 - 近期新增：策略工作台（`/strategies`）、策略参数优化（`/strategies/{id}/optimize`）、回测信号可视化（K 线叠加标记）、预警中心（`/alerts`）、Agent 工作台（`/agents`）。
-- **已知测试问题**：`test_strategies.py` 的 2 个测试因 SQLite 事务隔离问题失败，延后到后续阶段修复。
+- **当前质量基线（2026-07-18）**：后端 `961 passed, 6 skipped, 0 failed`；前端 Vitest `192 passed, 0 failed`；Python Ruff、TypeScript、ESLint 和 production build 均通过。
+- **当前迭代**：Phase 0 可运行性收口已完成，下一阶段为行情读模型收敛。
 
 ## 主要功能模块
 
@@ -56,7 +57,7 @@
 | 后端服务器 | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.25 |
 | 数据库 | SQLite / PostgreSQL | SQLite 开发零配置；PG 16 通过 compose 提供，映射端口 15432 |
-| 迁移 | Alembic | 1.13.1，当前 51 个迁移文件 |
+| 迁移 | Alembic | 1.13.1，当前 58 个迁移文件 |
 | 认证 | JWT + OAuth2 密码流 | PyJWT 2.13.0，passlib bcrypt，access token 默认 15 分钟，refresh token 默认 7 天 |
 | 数据校验 | Pydantic v2 | 2.9.0 |
 | 数据采集 | Mock / AkShare / Tushare | `DATA_SOURCE` 控制，非生产可降级 Mock |

@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-07-05（基于项目文件审计结果与当前代码结构重写）
+> **最后更新**：2026-07-18（Phase 0 可运行性收口完成）
 
 ---
 
@@ -16,7 +16,7 @@
 - **Agent 系统 Phase 0~2 已完成**并接入真实 SSE 进度流：DataAgent、DataQualityAgent、TechAnalysisAgent、RiskManagementAgent、AnalysisPipelineAgent、StrategyCompilerAgent、BacktestAgent、FactorMiningAgent、TraderAgent 已上线。
 - **策略进化（Strategy Evolution）已落地**：GA 进化循环、GP 因子生成、Pareto 适应度、贝叶斯优化、策略生命周期追踪。
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
-- **测试状态**：最近一次全量 Agent 专项测试记录为 `812 passed, 7 skipped, 0 failed`（排除依赖缺失的 `test_strategy_evolution_agent.py`）。
+- **测试状态**：最近一次全量后端测试为 `961 passed, 6 skipped, 0 failed`；前端 Vitest 为 `192 passed, 0 failed`。Python `ruff check .`、前端 TypeScript、ESLint 和 production build 均通过。
 - **文件审计**：2026-07-05 完成 Phase 1/2 清理，根目录精简至 7 个文件，文档迁入 `docs/guides/`、`docs/archive/` 与 `quantative_tools/reports/`，详见 [docs/audit_cleanup_20260705.md](docs/audit_cleanup_20260705.md)。
 
 ### 主要功能模块
@@ -110,7 +110,7 @@
 | 表单 | react-hook-form | ^7.76.0 |
 | 消息提示 | sonner | ^2.0.7 |
 | 性能采集 | web-vitals | ^5.2.0 |
-| 单元测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，34 个测试文件 |
+| 单元测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，33 个测试文件，192 个测试 |
 | E2E 测试 | Playwright | ^1.60.0，6 个 spec 文件 + `auth.setup.ts` |
 | 性能基线 | Lighthouse | `npm run lighthouse` |
 
@@ -176,7 +176,7 @@ d:\Code\project_rich_snowball/
 | `hooks/` | 自定义 React Hooks（行情轮询、K 线、实时推送等） |
 | `lib/` | API 客户端、类型、工具函数、实时 Store、常量 |
 | `lib/api/` | 领域 API 模块与 `client.ts` 统一 `api` 实例 |
-| `tests/` | Vitest 单元/集成测试（34 个文件） |
+| `tests/` | Vitest 单元/集成测试（33 个文件） |
 | `e2e/` | Playwright E2E 测试（6 个 spec + auth.setup.ts） |
 | `scripts/` | Lighthouse 基线脚本 |
 | `docs/` | 前端专项文档 |
