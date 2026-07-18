@@ -35,7 +35,7 @@ describe('useProductKline', () => {
       signal: expect.any(AbortSignal),
     }))
 
-    expect(api.getMainContractKline).toHaveBeenCalledWith('RB', '1d', '2025-01-01', '2026-07-02', 90, expect.objectContaining({
+    expect(api.getMainContractKline).toHaveBeenCalledWith('RB', '1d', undefined, undefined, 500, expect.objectContaining({
       signal: expect.any(AbortSignal),
     }))
     expect(api.getContinuousKline).not.toHaveBeenCalled()
