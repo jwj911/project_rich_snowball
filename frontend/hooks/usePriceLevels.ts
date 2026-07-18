@@ -32,6 +32,7 @@ export function usePriceLevels({
   const supportRef = useRef(supportLevels)
   const resistanceRef = useRef(resistanceLevels)
   const queueRef = useRef(Promise.resolve())
+  const mutationVersionRef = useRef(0)
 
   useEffect(() => { supportRef.current = supportLevels }, [supportLevels])
   useEffect(() => { resistanceRef.current = resistanceLevels }, [resistanceLevels])
@@ -111,6 +112,7 @@ export function usePriceLevels({
     setLevelsLoaded(false)
 
     async function loadLevels() {
+      const loadVersion = mutationVersionRef.current
       if (!varietyId) {
         loadFromLocalStorage()
         if (!cancelled) setLevelsLoaded(true)
@@ -119,7 +121,7 @@ export function usePriceLevels({
 
       try {
         const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
-        if (!cancelled) {
+        if (!cancelled && loadVersion === mutationVersionRef.current) {
           updateLevelsFromData(levels)
           syncToLocalStorage(levels)
         }
@@ -142,7 +144,7 @@ export function usePriceLevels({
               })
             }
             const imported = await api.getPriceLevels(varietyId, undefined, scope, contractId)
-            if (!cancelled) {
+            if (!cancelled && loadVersion === mutationVersionRef.current) {
               updateLevelsFromData(imported)
               syncToLocalStorage(imported)
             }
@@ -150,7 +152,7 @@ export function usePriceLevels({
         }
       } catch (err) {
         captureMessage(`加载价位标注失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
-        if (!cancelled) {
+        if (!cancelled && loadVersion === mutationVersionRef.current) {
           loadFromLocalStorage()
           setLevelError('云端价位加载失败，已使用本地缓存。')
         }
@@ -171,6 +173,7 @@ export function usePriceLevels({
       const currentSupport = supportRef.current
       const currentResistance = resistanceRef.current
       if (!Number.isFinite(price) || currentSupport.includes(price)) return
+      const mutationVersion = ++mutationVersionRef.current
       if (varietyId) {
         try {
           const created = await api.createPriceLevel(
@@ -181,9 +184,11 @@ export function usePriceLevels({
             contractId,
           )
           const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
-          const mergedLevels = levels.some((level) => level.id === created.id) ? levels : [...levels, created]
-          updateLevelsFromData(mergedLevels)
-          syncToLocalStorage(mergedLevels)
+          if (mutationVersion === mutationVersionRef.current) {
+            const mergedLevels = levels.some((level) => level.id === created.id) ? levels : [...levels, created]
+            updateLevelsFromData(mergedLevels)
+            syncToLocalStorage(mergedLevels)
+          }
           setLevelError(null)
           return
         } catch (err) {
@@ -215,6 +220,7 @@ export function usePriceLevels({
       const currentSupport = supportRef.current
       const currentResistance = resistanceRef.current
       if (!Number.isFinite(price) || currentResistance.includes(price)) return
+      const mutationVersion = ++mutationVersionRef.current
       if (varietyId) {
         try {
           const created = await api.createPriceLevel(
@@ -225,9 +231,11 @@ export function usePriceLevels({
             contractId,
           )
           const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
-          const mergedLevels = levels.some((level) => level.id === created.id) ? levels : [...levels, created]
-          updateLevelsFromData(mergedLevels)
-          syncToLocalStorage(mergedLevels)
+          if (mutationVersion === mutationVersionRef.current) {
+            const mergedLevels = levels.some((level) => level.id === created.id) ? levels : [...levels, created]
+            updateLevelsFromData(mergedLevels)
+            syncToLocalStorage(mergedLevels)
+          }
           setLevelError(null)
           return
         } catch (err) {
@@ -255,49 +263,63 @@ export function usePriceLevels({
   }
 
   const removeSupport = async (price: number) => {
-    if (varietyId) {
-      try {
-        const levels = await api.getPriceLevels(varietyId, 'support', scope, contractId)
-        const pl = levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
-        if (pl) {
-          await api.deletePriceLevel(pl.id)
-          captureMessage(`删除支撑位: 品种#${varietyId} @ ${price}`, 'info')
-          const refreshed = await api.getPriceLevels(varietyId, undefined, scope, contractId)
-          updateLevelsFromData(refreshed)
-          syncToLocalStorage(refreshed)
+    const promise = queueRef.current.then(async () => {
+      const mutationVersion = ++mutationVersionRef.current
+      if (varietyId) {
+        try {
+          const levels = await api.getPriceLevels(varietyId, 'support', scope, contractId)
+          const pl = levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
+          if (pl) {
+            await api.deletePriceLevel(pl.id)
+            captureMessage(`删除支撑位: 品种#${varietyId} @ ${price}`, 'info')
+            const refreshed = await api.getPriceLevels(varietyId, undefined, scope, contractId)
+            if (mutationVersion === mutationVersionRef.current) {
+              updateLevelsFromData(refreshed)
+              syncToLocalStorage(refreshed)
+            }
+          }
+          setLevelError(null)
+          return
+        } catch (err) {
+          captureMessage(`删除支撑位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
+          setLevelError(`删除失败：${err instanceof Error ? err.message : '未知错误'}`)
+          return
         }
-        setLevelError(null)
-        return
-      } catch (err) {
-        captureMessage(`删除支撑位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
-        setLevelError(`删除失败：${err instanceof Error ? err.message : '未知错误'}`)
-        return
       }
-    }
-    setSupportLevels((levels) => levels.filter((level) => level !== price))
+      setSupportLevels((levels) => levels.filter((level) => level !== price))
+    })
+    queueRef.current = promise
+    return promise
   }
 
   const removeResistance = async (price: number) => {
-    if (varietyId) {
-      try {
-        const levels = await api.getPriceLevels(varietyId, 'resistance', scope, contractId)
-        const pl = levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
-        if (pl) {
-          await api.deletePriceLevel(pl.id)
-          captureMessage(`删除阻力位: 品种#${varietyId} @ ${price}`, 'info')
-          const refreshed = await api.getPriceLevels(varietyId, undefined, scope, contractId)
-          updateLevelsFromData(refreshed)
-          syncToLocalStorage(refreshed)
+    const promise = queueRef.current.then(async () => {
+      const mutationVersion = ++mutationVersionRef.current
+      if (varietyId) {
+        try {
+          const levels = await api.getPriceLevels(varietyId, 'resistance', scope, contractId)
+          const pl = levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
+          if (pl) {
+            await api.deletePriceLevel(pl.id)
+            captureMessage(`删除阻力位: 品种#${varietyId} @ ${price}`, 'info')
+            const refreshed = await api.getPriceLevels(varietyId, undefined, scope, contractId)
+            if (mutationVersion === mutationVersionRef.current) {
+              updateLevelsFromData(refreshed)
+              syncToLocalStorage(refreshed)
+            }
+          }
+          setLevelError(null)
+          return
+        } catch (err) {
+          captureMessage(`删除阻力位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
+          setLevelError(`删除失败：${err instanceof Error ? err.message : '未知错误'}`)
+          return
         }
-        setLevelError(null)
-        return
-      } catch (err) {
-        captureMessage(`删除阻力位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'error')
-        setLevelError(`删除失败：${err instanceof Error ? err.message : '未知错误'}`)
-        return
       }
-    }
-    setResistanceLevels((levels) => levels.filter((level) => level !== price))
+      setResistanceLevels((levels) => levels.filter((level) => level !== price))
+    })
+    queueRef.current = promise
+    return promise
   }
 
   return {

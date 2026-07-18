@@ -55,6 +55,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const [newResistance, setNewResistance] = useState('')
   const [isInWatchlist, setIsInWatchlist] = useState(false)
   const [watchlistId, setWatchlistId] = useState<number | null>(null)
+  const [watchlistLoadedFor, setWatchlistLoadedFor] = useState<number | null>(null)
   const [rollovers, setRollovers] = useState<ContractRollover[]>([])
   const [rolloversLoading, setRolloversLoading] = useState(false)
   const [showAlertForm, setShowAlertForm] = useState(false)
@@ -101,8 +102,12 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   }, [productDetail])
 
   useEffect(() => {
-    if (!varietyId) return
+    if (!varietyId) {
+      setWatchlistLoadedFor(null)
+      return
+    }
     let cancelled = false
+    setWatchlistLoadedFor(null)
     api.getWatchlists(varietyId)
       .then((list) => {
         if (cancelled) return
@@ -123,6 +128,9 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           setIsInWatchlist(false)
           setWatchlistId(null)
         }
+      })
+      .finally(() => {
+        if (!cancelled) setWatchlistLoadedFor(varietyId)
       })
     return () => { cancelled = true }
   }, [varietyId])
@@ -269,7 +277,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                 {product.category && (
                   <span className="rounded border border-gray-alpha-400 bg-gray-100 px-2.5 py-1 text-label-13 text-gray-800">{product.category}</span>
                 )}
-                {varietyId && (
+                {varietyId && watchlistLoadedFor === varietyId && (
                   <WatchlistButton
                     varietyId={varietyId}
                     isInWatchlist={isInWatchlist}

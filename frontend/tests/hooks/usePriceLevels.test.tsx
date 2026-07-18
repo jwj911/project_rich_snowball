@@ -115,6 +115,37 @@ describe('usePriceLevels', () => {
     expect(result.current.levelError).toBeNull()
   })
 
+  it('ignores an older initial load response after a cloud mutation starts', async () => {
+    const created = makeLevel({ id: 5, type: 'support', price: '520.00' })
+    let resolveInitialLoad!: (levels: ReturnType<typeof makeLevel>[]) => void
+    const initialLoad = new Promise<ReturnType<typeof makeLevel>[]>((resolve) => {
+      resolveInitialLoad = resolve
+    })
+
+    vi.mocked(api.getPriceLevels)
+      .mockReset()
+      .mockImplementationOnce(() => initialLoad)
+      .mockResolvedValueOnce([created])
+    vi.mocked(api.createPriceLevel).mockReset().mockResolvedValue(created)
+
+    const { result } = renderHook(() => usePriceLevels({ varietyId: 3, userId: 2, symbol: 'AU' }))
+
+    await waitFor(() => {
+      expect(api.getPriceLevels).toHaveBeenCalledTimes(1)
+    })
+
+    await act(async () => {
+      await result.current.addSupport(520)
+    })
+    expect(result.current.supportLevels).toEqual([520])
+
+    await act(async () => {
+      resolveInitialLoad([])
+    })
+
+    expect(result.current.supportLevels).toEqual([520])
+  })
+
   it('falls back to local storage when cloud create fails', async () => {
     vi.mocked(api.getPriceLevels).mockReset().mockResolvedValue([])
     vi.mocked(api.createPriceLevel).mockReset().mockRejectedValue(new Error('请求过于频繁，请 17 秒后再试'))
