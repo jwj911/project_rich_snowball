@@ -1,22 +1,154 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
-from models import SessionLocal, UserDB, CommentDB, KlineDataDB, VarietyDB, RealtimeQuoteDB, FutContractDB, TradingCalendarDB
-from utils import hash_password
+
 from data_collector.mock_collector import MockCollector
-from data_collector.upsert import insert_kline_bulk, upsert_realtime, upsert_fut_contract_bulk
+from data_collector.upsert import insert_kline_bulk, upsert_fut_contract_bulk, upsert_realtime
+from models import (
+    CommentDB,
+    FutContractDB,
+    FutMainDailyDataDB,
+    KlineDataDB,
+    RealtimeQuoteDB,
+    SessionLocal,
+    TradingCalendarDB,
+    UserDB,
+    VarietyDB,
+)
+from utils import hash_password
 
 # 模拟品种基础数据（用于 RealtimeQuoteDB / KlineDataDB / FutContractDB 初始化）
 _MOCK_PRODUCTS = [
-    {"name": "黄金", "symbol": "AU", "current_price": 453.2, "change_percent": 1.25, "open_price": 447.5, "high": 455.8, "low": 446.2, "volume": 152340, "category": "贵金属", "margin": 8, "commission": 15},
-    {"name": "白银", "symbol": "AG", "current_price": 5420, "change_percent": -0.85, "open_price": 5465, "high": 5500, "low": 5380, "volume": 89420, "category": "贵金属", "margin": 9, "commission": 12},
-    {"name": "铜", "symbol": "CU", "current_price": 68450, "change_percent": 2.15, "open_price": 67000, "high": 68800, "low": 66800, "volume": 125680, "category": "有色金属", "margin": 10, "commission": 18},
-    {"name": "螺纹钢", "symbol": "RB", "current_price": 3680, "change_percent": -1.32, "open_price": 3730, "high": 3750, "low": 3650, "volume": 2156800, "category": "黑色系", "margin": 12, "commission": 8},
-    {"name": "铁矿石", "symbol": "I", "current_price": 825, "change_percent": 0.78, "open_price": 818, "high": 835, "low": 812, "volume": 985420, "category": "黑色系", "margin": 11, "commission": 10},
-    {"name": "原油", "symbol": "SC", "current_price": 528.5, "change_percent": -2.15, "open_price": 540.0, "high": 542.0, "low": 525.0, "volume": 425680, "category": "能源化工", "margin": 15, "commission": 20},
-    {"name": "甲醇", "symbol": "MA", "current_price": 2580, "change_percent": 1.05, "open_price": 2555, "high": 2600, "low": 2540, "volume": 1856420, "category": "能源化工", "margin": 8, "commission": 6},
-    {"name": "豆粕", "symbol": "M", "current_price": 3250, "change_percent": 0.45, "open_price": 3235, "high": 3280, "low": 3220, "volume": 652340, "category": "农产品", "margin": 10, "commission": 7},
-    {"name": "玉米", "symbol": "C", "current_price": 2455, "change_percent": -0.62, "open_price": 2470, "high": 2485, "low": 2440, "volume": 425680, "category": "农产品", "margin": 8, "commission": 5},
-    {"name": "棉花", "symbol": "CF", "current_price": 16850, "change_percent": 1.88, "open_price": 16540, "high": 16920, "low": 16480, "volume": 285640, "category": "农产品", "margin": 12, "commission": 14},
+    {
+        "name": "黄金",
+        "symbol": "AU",
+        "current_price": 453.2,
+        "change_percent": 1.25,
+        "open_price": 447.5,
+        "high": 455.8,
+        "low": 446.2,
+        "volume": 152340,
+        "category": "贵金属",
+        "margin": 8,
+        "commission": 15,
+    },
+    {
+        "name": "白银",
+        "symbol": "AG",
+        "current_price": 5420,
+        "change_percent": -0.85,
+        "open_price": 5465,
+        "high": 5500,
+        "low": 5380,
+        "volume": 89420,
+        "category": "贵金属",
+        "margin": 9,
+        "commission": 12,
+    },
+    {
+        "name": "铜",
+        "symbol": "CU",
+        "current_price": 68450,
+        "change_percent": 2.15,
+        "open_price": 67000,
+        "high": 68800,
+        "low": 66800,
+        "volume": 125680,
+        "category": "有色金属",
+        "margin": 10,
+        "commission": 18,
+    },
+    {
+        "name": "螺纹钢",
+        "symbol": "RB",
+        "current_price": 3680,
+        "change_percent": -1.32,
+        "open_price": 3730,
+        "high": 3750,
+        "low": 3650,
+        "volume": 2156800,
+        "category": "黑色系",
+        "margin": 12,
+        "commission": 8,
+    },
+    {
+        "name": "铁矿石",
+        "symbol": "I",
+        "current_price": 825,
+        "change_percent": 0.78,
+        "open_price": 818,
+        "high": 835,
+        "low": 812,
+        "volume": 985420,
+        "category": "黑色系",
+        "margin": 11,
+        "commission": 10,
+    },
+    {
+        "name": "原油",
+        "symbol": "SC",
+        "current_price": 528.5,
+        "change_percent": -2.15,
+        "open_price": 540.0,
+        "high": 542.0,
+        "low": 525.0,
+        "volume": 425680,
+        "category": "能源化工",
+        "margin": 15,
+        "commission": 20,
+    },
+    {
+        "name": "甲醇",
+        "symbol": "MA",
+        "current_price": 2580,
+        "change_percent": 1.05,
+        "open_price": 2555,
+        "high": 2600,
+        "low": 2540,
+        "volume": 1856420,
+        "category": "能源化工",
+        "margin": 8,
+        "commission": 6,
+    },
+    {
+        "name": "豆粕",
+        "symbol": "M",
+        "current_price": 3250,
+        "change_percent": 0.45,
+        "open_price": 3235,
+        "high": 3280,
+        "low": 3220,
+        "volume": 652340,
+        "category": "农产品",
+        "margin": 10,
+        "commission": 7,
+    },
+    {
+        "name": "玉米",
+        "symbol": "C",
+        "current_price": 2455,
+        "change_percent": -0.62,
+        "open_price": 2470,
+        "high": 2485,
+        "low": 2440,
+        "volume": 425680,
+        "category": "农产品",
+        "margin": 8,
+        "commission": 5,
+    },
+    {
+        "name": "棉花",
+        "symbol": "CF",
+        "current_price": 16850,
+        "change_percent": 1.88,
+        "open_price": 16540,
+        "high": 16920,
+        "low": 16480,
+        "volume": 285640,
+        "category": "农产品",
+        "margin": 12,
+        "commission": 14,
+    },
 ]
 
 
@@ -38,9 +170,21 @@ def init_mock_data():
         # 1. 初始化用户
         if db.query(UserDB).count() == 0:
             users = [
-                {"username": "trader001", "email": "trader001@example.com", "password_hash": hash_password("password123")},
-                {"username": "investor_wang", "email": "wang@example.com", "password_hash": hash_password("password123")},
-                {"username": "futures_master", "email": "master@example.com", "password_hash": hash_password("password123")},
+                {
+                    "username": "trader001",
+                    "email": "trader001@example.com",
+                    "password_hash": hash_password("password123"),
+                },
+                {
+                    "username": "investor_wang",
+                    "email": "wang@example.com",
+                    "password_hash": hash_password("password123"),
+                },
+                {
+                    "username": "futures_master",
+                    "email": "master@example.com",
+                    "password_hash": hash_password("password123"),
+                },
             ]
             for u in users:
                 db.add(UserDB(**u))
@@ -51,43 +195,50 @@ def init_mock_data():
             for c in _MOCK_COMMENTS:
                 variety = variety_map.get(c["symbol"])
                 if variety:
-                    db.add(CommentDB(
-                        variety_id=variety.id,
-                        user_id=c["user_id"],
-                        content=c["content"],
-                    ))
+                    db.add(
+                        CommentDB(
+                            variety_id=variety.id,
+                            user_id=c["user_id"],
+                            content=c["content"],
+                        )
+                    )
 
         # 4. 初始化实时行情（直接从 mock 数据写入 RealtimeQuoteDB，不再依赖 ProductDB 作为数据源）
         if db.query(RealtimeQuoteDB).count() == 0:
             for p in _MOCK_PRODUCTS:
                 variety = variety_map.get(p["symbol"])
                 if variety:
-                    upsert_realtime(db, {
-                        "symbol": p["symbol"],
-                        "current_price": p["current_price"],
-                        "change_percent": p["change_percent"],
-                        "open_price": p["open_price"],
-                        "high": p["high"],
-                        "low": p["low"],
-                        "volume": p["volume"],
-                        "limit_up": round(float(p["current_price"]) * 1.05, 2) if p["current_price"] else None,
-                        "limit_down": round(float(p["current_price"]) * 0.95, 2) if p["current_price"] else None,
-                        "updated_at": datetime.now(timezone.utc),
-                    })
+                    upsert_realtime(
+                        db,
+                        {
+                            "symbol": p["symbol"],
+                            "current_price": p["current_price"],
+                            "change_percent": p["change_percent"],
+                            "open_price": p["open_price"],
+                            "high": p["high"],
+                            "low": p["low"],
+                            "volume": p["volume"],
+                            "limit_up": round(float(p["current_price"]) * 1.05, 2) if p["current_price"] else None,
+                            "limit_down": round(float(p["current_price"]) * 0.95, 2) if p["current_price"] else None,
+                            "updated_at": datetime.now(UTC),
+                        },
+                    )
 
         # 确保每个品种都有对应的合约记录，供 K 线匹配 contract_id
         # 使用 upsert 避免 PostgreSQL 等环境下的唯一约束冲突
         varieties = db.query(VarietyDB).all()
         contract_rows = []
         for variety in varieties:
-            contract_rows.append({
-                "ts_code": f"{variety.contract_code}.{variety.exchange}",
-                "symbol": variety.contract_code,
-                "name": variety.name,
-                "fut_code": variety.symbol,
-                "exchange": variety.exchange,
-                "is_active": True,
-            })
+            contract_rows.append(
+                {
+                    "ts_code": f"{variety.contract_code}.{variety.exchange}",
+                    "symbol": variety.contract_code,
+                    "name": variety.name,
+                    "fut_code": variety.symbol,
+                    "exchange": variety.exchange,
+                    "is_active": True,
+                }
+            )
         if contract_rows:
             upsert_fut_contract_bulk(db, contract_rows)
         db.commit()
@@ -96,13 +247,61 @@ def init_mock_data():
         for variety in varieties:
             # 同时生成 1h/1d（基础 K 线）和 D（连续/主力 K 线）数据
             for period, limit in (("1h", 120), ("1d", 90), ("D", 90)):
-                has_kline = db.query(KlineDataDB).filter(
-                    KlineDataDB.variety_id == variety.id,
-                    KlineDataDB.period == period,
-                ).first()
+                has_kline = (
+                    db.query(KlineDataDB)
+                    .filter(
+                        KlineDataDB.variety_id == variety.id,
+                        KlineDataDB.period == period,
+                    )
+                    .first()
+                )
                 if not has_kline:
                     rows = collector.fetch_kline(variety.contract_code, period, limit=limit)
                     insert_kline_bulk(db, rows, period)
+
+            # 列表与主力日线 API 使用 fut_main_daily_data；Mock 数据必须同时提供该读模型。
+            contract = (
+                db.query(FutContractDB)
+                .filter(
+                    FutContractDB.fut_code == variety.symbol,
+                    FutContractDB.symbol == variety.contract_code,
+                )
+                .first()
+            )
+            if contract:
+                main_ts_code = contract.ts_code
+                has_main_daily = (
+                    db.query(FutMainDailyDataDB)
+                    .filter(
+                        FutMainDailyDataDB.variety_id == variety.id,
+                        FutMainDailyDataDB.ts_code == main_ts_code,
+                        FutMainDailyDataDB.period == "D",
+                    )
+                    .first()
+                )
+                if not has_main_daily:
+                    daily_rows = collector.fetch_kline(variety.contract_code, "D", limit=90)
+                    previous_close = None
+                    for row in daily_rows:
+                        close_price = row["close_price"]
+                        db.add(
+                            FutMainDailyDataDB(
+                                variety_id=variety.id,
+                                ts_code=main_ts_code,
+                                trade_date=row["trading_time"],
+                                pre_close=previous_close,
+                                pre_settle=previous_close,
+                                open_price=row["open_price"],
+                                high_price=row["high_price"],
+                                low_price=row["low_price"],
+                                close_price=close_price,
+                                settle=close_price,
+                                volume=row["volume"],
+                                open_interest=row.get("open_interest"),
+                                period="D",
+                            )
+                        )
+                        previous_close = close_price
 
         # 5. 兜底：确保每个 Variety 都有 RealtimeQuote（避免 init_varieties 与 mock 数据脱节）
         mock_price_map = {p["symbol"]: p["current_price"] for p in _MOCK_PRODUCTS}
@@ -110,31 +309,36 @@ def init_mock_data():
             existing = db.query(RealtimeQuoteDB).filter(RealtimeQuoteDB.variety_id == variety.id).first()
             if not existing:
                 default_price = mock_price_map.get(variety.symbol, 0.0)
-                db.add(RealtimeQuoteDB(
-                    variety_id=variety.id,
-                    current_price=default_price,
-                    change_percent=0.0,
-                    open_price=default_price,
-                    high=default_price,
-                    low=default_price,
-                    volume=0,
-                    limit_up=None,
-                    limit_down=None,
-                    updated_at=datetime.now(timezone.utc),
-                ))
+                db.add(
+                    RealtimeQuoteDB(
+                        variety_id=variety.id,
+                        current_price=default_price,
+                        change_percent=0.0,
+                        open_price=default_price,
+                        high=default_price,
+                        low=default_price,
+                        volume=0,
+                        limit_up=None,
+                        limit_down=None,
+                        updated_at=datetime.now(UTC),
+                    )
+                )
 
         # 初始化手续费/保证金数据，供 /api/varieties/{symbol}/fees 使用
         from models import FutTradeFeeDB
+
         if db.query(FutTradeFeeDB).count() == 0:
             for variety in varieties:
-                db.add(FutTradeFeeDB(
-                    exchange=variety.exchange,
-                    contract_name=variety.name,
-                    contract_code=variety.contract_code,
-                    margin_per_hand=variety.margin_rate,
-                    fee_open_fixed=str(variety.commission),
-                    fee_updated_at=datetime.now(timezone.utc),
-                ))
+                db.add(
+                    FutTradeFeeDB(
+                        exchange=variety.exchange,
+                        contract_name=variety.name,
+                        contract_code=variety.contract_code,
+                        margin_per_hand=variety.margin_rate,
+                        fee_open_fixed=str(variety.commission),
+                        fee_updated_at=datetime.now(UTC),
+                    )
+                )
 
         # 初始化交易日历（2025-2026）
         if db.query(TradingCalendarDB).count() == 0:
@@ -153,24 +357,67 @@ def _init_trading_calendar(db: Session) -> None:
     # 2025 年法定节假日（国务院公布 + 期货交易所实际休市）
     holidays_2025 = {
         "2025-01-01",  # 元旦
-        "2025-01-28", "2025-01-29", "2025-01-30", "2025-01-31",
-        "2025-02-01", "2025-02-02", "2025-02-03", "2025-02-04",  # 春节
-        "2025-04-04", "2025-04-05", "2025-04-06",  # 清明
-        "2025-05-01", "2025-05-02", "2025-05-03", "2025-05-04", "2025-05-05",  # 劳动节
-        "2025-05-31", "2025-06-01", "2025-06-02",  # 端午
-        "2025-10-01", "2025-10-02", "2025-10-03", "2025-10-04",
-        "2025-10-05", "2025-10-06", "2025-10-07", "2025-10-08",  # 国庆+中秋
+        "2025-01-28",
+        "2025-01-29",
+        "2025-01-30",
+        "2025-01-31",
+        "2025-02-01",
+        "2025-02-02",
+        "2025-02-03",
+        "2025-02-04",  # 春节
+        "2025-04-04",
+        "2025-04-05",
+        "2025-04-06",  # 清明
+        "2025-05-01",
+        "2025-05-02",
+        "2025-05-03",
+        "2025-05-04",
+        "2025-05-05",  # 劳动节
+        "2025-05-31",
+        "2025-06-01",
+        "2025-06-02",  # 端午
+        "2025-10-01",
+        "2025-10-02",
+        "2025-10-03",
+        "2025-10-04",
+        "2025-10-05",
+        "2025-10-06",
+        "2025-10-07",
+        "2025-10-08",  # 国庆+中秋
     }
     holidays_2026 = {
         "2026-01-01",  # 元旦
-        "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20",
-        "2026-02-21", "2026-02-22", "2026-02-23", "2026-02-24",  # 春节（预估）
-        "2026-04-04", "2026-04-05", "2026-04-06",  # 清明
-        "2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05",  # 劳动节
-        "2026-06-19", "2026-06-20", "2026-06-21",  # 端午（预估）
-        "2026-09-25", "2026-09-26", "2026-09-27", "2026-09-28",
-        "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04",
-        "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08",  # 国庆+中秋（预估）
+        "2026-02-17",
+        "2026-02-18",
+        "2026-02-19",
+        "2026-02-20",
+        "2026-02-21",
+        "2026-02-22",
+        "2026-02-23",
+        "2026-02-24",  # 春节（预估）
+        "2026-04-04",
+        "2026-04-05",
+        "2026-04-06",  # 清明
+        "2026-05-01",
+        "2026-05-02",
+        "2026-05-03",
+        "2026-05-04",
+        "2026-05-05",  # 劳动节
+        "2026-06-19",
+        "2026-06-20",
+        "2026-06-21",  # 端午（预估）
+        "2026-09-25",
+        "2026-09-26",
+        "2026-09-27",
+        "2026-09-28",
+        "2026-10-01",
+        "2026-10-02",
+        "2026-10-03",
+        "2026-10-04",
+        "2026-10-05",
+        "2026-10-06",
+        "2026-10-07",
+        "2026-10-08",  # 国庆+中秋（预估）
     }
     holidays = holidays_2025 | holidays_2026
 
@@ -182,16 +429,18 @@ def _init_trading_calendar(db: Session) -> None:
         remark = None
         if current.strftime("%Y-%m-%d") in holidays:
             remark = "法定节假日"
-        db.add(TradingCalendarDB(
-            trade_date=datetime(current.year, current.month, current.day, tzinfo=timezone.utc),
-            is_trading_day=not is_holiday,
-            day_session_start="09:00",
-            day_session_end="15:00",
-            night_session_start="21:00",
-            night_session_end="02:30",
-            exchange="ALL",
-            remark=remark,
-        ))
+        db.add(
+            TradingCalendarDB(
+                trade_date=datetime(current.year, current.month, current.day, tzinfo=UTC),
+                is_trading_day=not is_holiday,
+                day_session_start="09:00",
+                day_session_end="15:00",
+                night_session_start="21:00",
+                night_session_end="02:30",
+                exchange="ALL",
+                remark=remark,
+            )
+        )
         current += timedelta(days=1)
 
 
