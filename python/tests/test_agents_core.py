@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
+from unittest.mock import patch
 
 from models import AgentTaskDB, FutContractDB, KlineDataDB, RealtimeQuoteDB, UserDB, VarietyDB
 from services.agent.context import AgentContext
@@ -38,6 +39,19 @@ class _FailedAgent(Agent):
         return AgentResult(
             status=AgentStatus.FAILED,
             error_message="模拟失败",
+            steps=self.get_steps(),
+        )
+
+
+class _MultiStepAgent(Agent):
+    name = "multi_step"
+
+    async def run(self, query: str) -> AgentResult:
+        for index in range(3):
+            self._add_step("thought", f"步骤 {index + 1}")
+        return AgentResult(
+            status=AgentStatus.COMPLETED,
+            answer="ok",
             steps=self.get_steps(),
         )
 
@@ -85,6 +99,20 @@ def test_executor_persists_completed_status_and_steps(db_session):
     assert task.result_json is not None
     assert len(task.steps) == 1
     assert task.steps[0].role == "thought"
+
+
+def test_executor_batches_step_commits(db_session):
+    user = _create_user(db_session)
+    executor = AgentExecutor(db_session, user.id)
+    task_id = executor.create_task("multi_step", "hello")
+    agent = _MultiStepAgent(AgentContext(db_session, user.id, task_id))
+
+    with patch.object(db_session, "commit", wraps=db_session.commit) as commit:
+        result = asyncio.run(executor.execute(agent, "hello", task_id=task_id))
+
+    assert result.success is True
+    assert commit.call_count == 2  # running 状态一次，步骤与 completed 状态合并一次
+    assert len(db_session.get(AgentTaskDB, task_id).steps) == 3
 
 
 def test_executor_persists_failed_result_as_failed(db_session):

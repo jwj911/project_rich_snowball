@@ -70,7 +70,7 @@ class AgentExecutor:
         self.db.commit()
 
     def persist_step(self, task_id: int, step: AgentStep) -> None:
-        """持久化单个步骤到数据库。"""
+        """将单个步骤加入当前事务，由任务状态更新统一提交。"""
         db_step = AgentTaskStepDB(
             task_id=task_id,
             step_number=step.step_number,
@@ -83,7 +83,6 @@ class AgentExecutor:
             else None,
         )
         self.db.add(db_step)
-        self.db.commit()
 
     async def execute(self, agent: Agent, query: str, task_id: int | None = None) -> AgentResult:
         """执行 Agent 并持久化全链路。
