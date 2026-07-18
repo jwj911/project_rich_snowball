@@ -80,7 +80,20 @@ jobs:
           SECRET_KEY: test-secret-key-for-ci-local-development-42
           DATABASE_URL: postgresql://futures:futures123@localhost:15432/futures_community
         run: |
-          alembic upgrade head
+          set -o pipefail
+          if ! alembic upgrade head 2>&1 | tee alembic-migration.log; then
+            summary="$(tail -n 30 alembic-migration.log | tr '\n' ' ' | cut -c1-3000)"
+            echo "::error title=Alembic migration failed::${summary}"
+            exit 1
+          fi
+
+      - name: Upload Alembic failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-alembic-migration-log
+          path: python/alembic-migration.log
+          if-no-files-found: ignore
 
       - name: Run tests with coverage
         env:
