@@ -189,7 +189,21 @@ jobs:
         env:
           NEXT_PUBLIC_API_BASE: http://127.0.0.1:8401
           E2E_EXTERNAL_SERVER: "1"
-        run: npx playwright test
+        run: |
+          set -o pipefail
+          if ! npx playwright test 2>&1 | tee playwright-ci.log; then
+            summary="$(tail -n 80 playwright-ci.log | tr '\n' ' ' | cut -c1-5000)"
+            echo "::error title=Playwright smoke failed::${summary}"
+            exit 1
+          fi
+
+      - name: Upload Playwright failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-e2e-playwright-log
+          path: frontend/playwright-ci.log
+          if-no-files-found: ignore
 
       - name: Test
         run: npm run test
