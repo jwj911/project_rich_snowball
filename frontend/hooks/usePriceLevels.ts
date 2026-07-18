@@ -39,11 +39,12 @@ export function usePriceLevels({
   useEffect(() => { resistanceRef.current = resistanceLevels }, [resistanceLevels])
 
   const scope = getScopeFromSource(source)
+  const effectiveContractId = scope === 'contract' ? contractId : null
 
   const levelsStorageKey = useMemo(() => {
     if (!symbol || !userId) return null
-    return `price-levels:v2:${userId}:${symbol}:${scope}:${contractId ?? 'all'}`
-  }, [symbol, userId, scope, contractId])
+    return `price-levels:v2:${userId}:${symbol}:${scope}:${effectiveContractId ?? 'all'}`
+  }, [symbol, userId, scope, effectiveContractId])
 
   // v1 fallback key for migration
   const v1StorageKey = useMemo(() => {
@@ -124,7 +125,7 @@ export function usePriceLevels({
       }
 
       try {
-        const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
+        const levels = await api.getPriceLevels(varietyId, undefined, scope, effectiveContractId)
         if (!cancelled && loadVersion === mutationVersionRef.current) {
           updateLevelsFromData(levels)
           syncToLocalStorage(levels)
@@ -147,7 +148,7 @@ export function usePriceLevels({
                 captureMessage(`导入阻力位失败: ${err instanceof Error ? err.message : '未知错误'}`, 'warning')
               })
             }
-            const imported = await api.getPriceLevels(varietyId, undefined, scope, contractId)
+            const imported = await api.getPriceLevels(varietyId, undefined, scope, effectiveContractId)
             if (!cancelled && loadVersion === mutationVersionRef.current) {
               updateLevelsFromData(imported)
               syncToLocalStorage(imported)
@@ -170,7 +171,7 @@ export function usePriceLevels({
     return () => {
       cancelled = true
     }
-  }, [varietyId, scope, contractId, levelsStorageKey, v1StorageKey, loadFromLocalStorage, updateLevelsFromData, syncToLocalStorage])
+  }, [varietyId, scope, effectiveContractId, levelsStorageKey, v1StorageKey, loadFromLocalStorage, updateLevelsFromData, syncToLocalStorage])
 
   const addSupport = async (price: number) => {
     const promise = queueRef.current.then(async () => {
@@ -185,9 +186,9 @@ export function usePriceLevels({
             'support',
             formatPricePayload(price, pricePrecision),
             scope,
-            contractId,
+            effectiveContractId,
           )
-          const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
+          const levels = await api.getPriceLevels(varietyId, undefined, scope, effectiveContractId)
           if (mutationVersion === mutationVersionRef.current) {
             const mergedLevels = levels.some((level) => level.id === created.id) ? levels : [...levels, created]
             updateLevelsFromData(mergedLevels)
@@ -232,9 +233,9 @@ export function usePriceLevels({
             'resistance',
             formatPricePayload(price, pricePrecision),
             scope,
-            contractId,
+            effectiveContractId,
           )
-          const levels = await api.getPriceLevels(varietyId, undefined, scope, contractId)
+          const levels = await api.getPriceLevels(varietyId, undefined, scope, effectiveContractId)
           if (mutationVersion === mutationVersionRef.current) {
             const mergedLevels = levels.some((level) => level.id === created.id) ? levels : [...levels, created]
             updateLevelsFromData(mergedLevels)
@@ -273,7 +274,7 @@ export function usePriceLevels({
         try {
           const knownId = levelIdsRef.current.get(`support:${price}`)
           const levels = knownId == null
-            ? await api.getPriceLevels(varietyId, 'support', scope, contractId)
+            ? await api.getPriceLevels(varietyId, 'support', scope, effectiveContractId)
             : []
           const pl = knownId != null
             ? { id: knownId }
@@ -282,7 +283,7 @@ export function usePriceLevels({
             await api.deletePriceLevel(pl.id)
             levelIdsRef.current.delete(`support:${price}`)
             captureMessage(`删除支撑位: 品种#${varietyId} @ ${price}`, 'info')
-            const refreshed = await api.getPriceLevels(varietyId, undefined, scope, contractId)
+            const refreshed = await api.getPriceLevels(varietyId, undefined, scope, effectiveContractId)
             if (mutationVersion === mutationVersionRef.current) {
               const remaining = refreshed.filter((level) => level.id !== pl.id)
               updateLevelsFromData(remaining)
@@ -312,7 +313,7 @@ export function usePriceLevels({
         try {
           const knownId = levelIdsRef.current.get(`resistance:${price}`)
           const levels = knownId == null
-            ? await api.getPriceLevels(varietyId, 'resistance', scope, contractId)
+            ? await api.getPriceLevels(varietyId, 'resistance', scope, effectiveContractId)
             : []
           const pl = knownId != null
             ? { id: knownId }
@@ -321,7 +322,7 @@ export function usePriceLevels({
             await api.deletePriceLevel(pl.id)
             levelIdsRef.current.delete(`resistance:${price}`)
             captureMessage(`删除阻力位: 品种#${varietyId} @ ${price}`, 'info')
-            const refreshed = await api.getPriceLevels(varietyId, undefined, scope, contractId)
+            const refreshed = await api.getPriceLevels(varietyId, undefined, scope, effectiveContractId)
             if (mutationVersion === mutationVersionRef.current) {
               const remaining = refreshed.filter((level) => level.id !== pl.id)
               updateLevelsFromData(remaining)
