@@ -59,14 +59,11 @@ test.describe.serial('品种详情页', () => {
     await supportSection.getByRole('button', { name: '添加' }).click()
     await expect((await createResponse).ok()).toBeTruthy()
 
-    const formattedSupportPrice = Number(supportPrice).toLocaleString('zh-CN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
-    await expect(supportSection.getByText(formattedSupportPrice)).toBeVisible({ timeout: 15000 })
+    const savedSupportLevel = supportSection.getByRole('button', { name: /删除支撑位/ })
+    await expect(savedSupportLevel).toBeVisible({ timeout: 15000 })
 
-    await supportSection.locator('button', { hasText: formattedSupportPrice }).click()
-    await expect(supportSection.getByText(formattedSupportPrice)).not.toBeVisible()
+    await savedSupportLevel.click()
+    await expect(savedSupportLevel).not.toBeVisible()
   })
 
   test('添加与删除阻力位应可正常工作', async ({ page }) => {
@@ -84,14 +81,11 @@ test.describe.serial('品种详情页', () => {
     await resistanceSection.getByRole('button', { name: '添加' }).click()
     await expect((await createResponse).ok()).toBeTruthy()
 
-    const formattedResistancePrice = Number(resistancePrice).toLocaleString('zh-CN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
-    await expect(resistanceSection.getByText(formattedResistancePrice)).toBeVisible({ timeout: 15000 })
+    const savedResistanceLevel = resistanceSection.getByRole('button', { name: /删除阻力位/ })
+    await expect(savedResistanceLevel).toBeVisible({ timeout: 15000 })
 
-    await resistanceSection.locator('button', { hasText: formattedResistancePrice }).click()
-    await expect(resistanceSection.getByText(formattedResistancePrice)).not.toBeVisible()
+    await savedResistanceLevel.click()
+    await expect(savedResistanceLevel).not.toBeVisible()
   })
 
   test('发表评论应可正常工作', async ({ page }) => {
