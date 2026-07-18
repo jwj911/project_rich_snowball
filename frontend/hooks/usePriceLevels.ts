@@ -33,6 +33,7 @@ export function usePriceLevels({
   const resistanceRef = useRef(resistanceLevels)
   const queueRef = useRef(Promise.resolve())
   const mutationVersionRef = useRef(0)
+  const levelIdsRef = useRef(new Map<string, number>())
 
   useEffect(() => { supportRef.current = supportLevels }, [supportLevels])
   useEffect(() => { resistanceRef.current = resistanceLevels }, [resistanceLevels])
@@ -53,12 +54,15 @@ export function usePriceLevels({
   const updateLevelsFromData = useCallback((levels: PriceLevel[]) => {
     const support: number[] = []
     const resistance: number[] = []
+    const levelIds = new Map<string, number>()
     for (const pl of levels) {
       const price = Number(pl.price)
       if (!Number.isFinite(price)) continue
       if (pl.type === 'support') support.push(price)
       else if (pl.type === 'resistance') resistance.push(price)
+      levelIds.set(`${pl.type}:${price}`, pl.id)
     }
+    levelIdsRef.current = levelIds
     setSupportLevels(support.sort((a, b) => a - b))
     setResistanceLevels(resistance.sort((a, b) => b - a))
   }, [])
@@ -267,16 +271,25 @@ export function usePriceLevels({
       const mutationVersion = ++mutationVersionRef.current
       if (varietyId) {
         try {
-          const levels = await api.getPriceLevels(varietyId, 'support', scope, contractId)
-          const pl = levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
+          const knownId = levelIdsRef.current.get(`support:${price}`)
+          const levels = knownId == null
+            ? await api.getPriceLevels(varietyId, 'support', scope, contractId)
+            : []
+          const pl = knownId != null
+            ? { id: knownId }
+            : levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
           if (pl) {
             await api.deletePriceLevel(pl.id)
+            levelIdsRef.current.delete(`support:${price}`)
             captureMessage(`删除支撑位: 品种#${varietyId} @ ${price}`, 'info')
             const refreshed = await api.getPriceLevels(varietyId, undefined, scope, contractId)
             if (mutationVersion === mutationVersionRef.current) {
-              updateLevelsFromData(refreshed)
-              syncToLocalStorage(refreshed)
+              const remaining = refreshed.filter((level) => level.id !== pl.id)
+              updateLevelsFromData(remaining)
+              syncToLocalStorage(remaining)
             }
+          } else {
+            setSupportLevels((levels) => levels.filter((level) => level !== price))
           }
           setLevelError(null)
           return
@@ -297,16 +310,25 @@ export function usePriceLevels({
       const mutationVersion = ++mutationVersionRef.current
       if (varietyId) {
         try {
-          const levels = await api.getPriceLevels(varietyId, 'resistance', scope, contractId)
-          const pl = levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
+          const knownId = levelIdsRef.current.get(`resistance:${price}`)
+          const levels = knownId == null
+            ? await api.getPriceLevels(varietyId, 'resistance', scope, contractId)
+            : []
+          const pl = knownId != null
+            ? { id: knownId }
+            : levels.find((l) => Math.abs(Number(l.price) - price) < 0.0001)
           if (pl) {
             await api.deletePriceLevel(pl.id)
+            levelIdsRef.current.delete(`resistance:${price}`)
             captureMessage(`删除阻力位: 品种#${varietyId} @ ${price}`, 'info')
             const refreshed = await api.getPriceLevels(varietyId, undefined, scope, contractId)
             if (mutationVersion === mutationVersionRef.current) {
-              updateLevelsFromData(refreshed)
-              syncToLocalStorage(refreshed)
+              const remaining = refreshed.filter((level) => level.id !== pl.id)
+              updateLevelsFromData(remaining)
+              syncToLocalStorage(remaining)
             }
+          } else {
+            setResistanceLevels((levels) => levels.filter((level) => level !== price))
           }
           setLevelError(null)
           return
