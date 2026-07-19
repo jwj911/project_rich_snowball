@@ -206,7 +206,21 @@ jobs:
           if-no-files-found: ignore
 
       - name: Test
-        run: npm run test
+        run: |
+          set -o pipefail
+          if ! npm run test -- --reporter=dot 2>&1 | tee frontend-vitest-ci.log; then
+            summary="$(tail -n 80 frontend-vitest-ci.log | tr '\n' ' ' | cut -c1-5000)"
+            echo "::error title=Frontend Vitest failed::${summary}"
+            exit 1
+          fi
+
+      - name: Upload frontend Vitest failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-vitest-log
+          path: frontend/frontend-vitest-ci.log
+          if-no-files-found: ignore
 
       - name: Lighthouse Baseline
         run: |
