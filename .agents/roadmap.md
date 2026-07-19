@@ -8,7 +8,7 @@
 - 同步前端 `useProductKline` 测试契约，修复后端 schema 测试的执行顺序依赖
 - `requirements.txt` / `requirements.lock` 补齐 `scikit-learn`、`feedparser` 及其依赖
 - Python `ruff check .`、后端全量 pytest、前端 Vitest、TypeScript、ESLint、production build 全部通过
-- 当前基线：后端 `965 passed, 8 skipped, 0 failed`；前端 `192 passed, 0 failed`
+- 当前基线：后端 `965 passed, 8 skipped, 0 failed`；前端 `195 passed, 0 failed`
 - 详细记录：[docs/iteration_plan_20260718_project_audit.md](../docs/iteration_plan_20260718_project_audit.md)
 
 ### Phase 1：行情读模型收敛 — 已完成（2026-07-18）
@@ -18,7 +18,7 @@
 - 新增 `upsert_fut_main_daily_bulk`、主力日线 pipeline 和 scheduler job
 - 增加 SQLite/PG 读写回归与 `data_source` / `data_freshness` 测试
 
-### Phase 2：执行可靠性与生产拓扑 — Backend 已验收，Frontend smoke 待验证（2026-07-19）
+### Phase 2：执行可靠性与生产拓扑 — 已完成（2026-07-19）
 
 - Agent 步骤持久化改为任务级事务，避免步骤级 `commit()` 带来的 SQLite 锁竞争
 - `docker-compose.yml` 中 backend 关闭 scheduler，新增独立 worker 作为唯一 scheduler owner
@@ -28,10 +28,12 @@
 - 升级 `python-multipart`、`scikit-learn`、`starlette` 到无已知漏洞版本，lock 漂移检查保持通过
 - 本地后端全量：`965 passed, 8 skipped, 0 failed`；覆盖率 `71.97%`
 - Backend CI #22：Alembic、PostgreSQL pytest、API smoke、Ruff、`pip-audit` 全部通过
-- 本地 Playwright 受机器高负载影响未完成，需以 GitHub Actions 运行结果作为远程浏览器验收依据
+- 前端 Vitest：`195 passed, 0 failed`；TypeScript、ESLint、production build 通过
+- Frontend CI #28（run `29670891119`）：PostgreSQL migration、backend、frontend build/start、Chromium Playwright、Vitest、Lighthouse 全部通过
+- 详情页价位标注 E2E 使用精确 heading 定位，`usePriceLevels` 增加主力范围隔离和 optimistic mutation 保护
 - 详细记录：[docs/iteration_plan_20260718_project_audit.md](../docs/iteration_plan_20260718_project_audit.md)
 
-下一阶段：先完成 Frontend CI PostgreSQL/Playwright smoke，再进入 Phase 3「文档与发布治理」。
+下一阶段：进入 Phase 3「文档与发布治理」，建立唯一现状基线、发布清单和历史计划归档规则。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 

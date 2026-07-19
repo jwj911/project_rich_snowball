@@ -16,8 +16,8 @@
 - 价格预警：用户为品种设置 above/below 价格预警，实时行情刷新时自动检测触发
 - 模拟持仓：用户创建虚拟交易记录，支持做多/做空、盈亏计算与复盘统计
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
-- 当前工程基线：后端本地 `965 passed, 8 skipped, 0 failed`，前端 Vitest `192 passed, 0 failed`；Backend CI #22 的 PostgreSQL、Alembic、Ruff、覆盖率和 `pip-audit` 全部通过
-- 当前迭代：Phase 2 仅剩 Frontend PostgreSQL/Playwright smoke 收口，之后进入 Phase 3 文档与发布治理
+- 当前工程基线：后端本地 `965 passed, 8 skipped, 0 failed`，前端 Vitest `195 passed, 0 failed`；Backend CI #22 与 Frontend CI #28 的 PostgreSQL、Alembic、Ruff、覆盖率、`pip-audit`、Playwright 和 Lighthouse 全部通过
+- 当前迭代：Phase 2 已完成，下一阶段进入 Phase 3 文档与发布治理
 
 ---
 
@@ -239,7 +239,7 @@ $env:ENABLE_SCHEDULER="0"
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-前端已配置 Vitest + Playwright 自动化测试（33 个 Vitest 文件 / 192 个测试，6 个 Playwright spec）。`.github/workflows/frontend-ci.yml` 在 PR 时执行 lint + type-check + build + Vitest + Lighthouse，并由独立 job 执行 PostgreSQL + Alembic + backend + Chromium Playwright smoke。修改前端后至少运行：
+前端已配置 Vitest + Playwright 自动化测试（33 个 Vitest 文件 / 195 个测试，6 个 Playwright spec）。`.github/workflows/frontend-ci.yml` 在 PR 时执行 lint + type-check + build + Vitest + Lighthouse，并由独立 job 执行 PostgreSQL + Alembic + backend + Chromium Playwright smoke。Frontend CI #28 已完成全链路验收。修改前端后至少运行：
 
 ```powershell
 cd D:\Code\project_rich_snowball\frontend
