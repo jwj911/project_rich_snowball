@@ -1,5 +1,7 @@
 # Phase 5 迭代跟踪文档
 
+> **历史归档（2026-07-19）**：Phase 5 已完成，本文件仅保留历史交付记录，不再作为当前迭代入口。当前状态请查看 [`../iteration_plan_20260718_project_audit.md`](../iteration_plan_20260718_project_audit.md)。
+>
 > 创建时间：2026-07-04
 > 当前状态：Phase 5-1~5-5 已完成，Phase 5-6 全量测试 + 提交到 master 已完成（523 passed, 7 skipped, 0 failed）
 

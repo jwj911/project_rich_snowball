@@ -1,5 +1,7 @@
 # P0/P1 迭代回顾与完整性验证
 
+> **历史归档（2026-07-19）**：本文件记录 2026-07-04 的 P0/P1 回顾，不再作为当前迭代入口。当前状态请查看 [`../iteration_plan_20260718_project_audit.md`](../iteration_plan_20260718_project_audit.md)。
+>
 **验证日期**：2026-07-04
 **审计文档**：[agent_audit.md](agent_audit.md)
 

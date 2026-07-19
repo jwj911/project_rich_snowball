@@ -40,9 +40,10 @@
 - `docs/iteration_plan_20260718_project_audit.md` 作为当前迭代唯一事实源
 - 新增 [`docs/release_checklist_20260719.md`](../docs/release_checklist_20260719.md)，统一代码、迁移、数据、权限、浏览器、备份和回滚检查
 - ProductDB 退场计划、旧前端质量清单和旧前端路线图移动到 `docs/archive/`，并标记为历史记录
+- 已完成的 Agent/项目审计、P0-P2、Phase 5 及 2026-07-05 修复记录移动到 `docs/archive/`，保留历史上下文但不再作为当前执行入口
 - `.agents/data.md` 移除已退场的兼容层调度任务，更新归档链接
 
-后续 Phase 3：将发布清单接入每次版本发布记录，继续清理其他已完成阶段的重复文档。
+后续 Phase 3：将发布清单接入每次真实版本发布记录；当前暂无需要填写的生产发布记录。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 

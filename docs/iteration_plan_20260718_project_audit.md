@@ -309,12 +309,14 @@ flowchart TD
 - 本文件继续作为当前迭代唯一事实源，并同步 README、AGENTS、`.agents/*` 和 `frontend/README.md`；
 - 新增 [`docs/release_checklist_20260719.md`](release_checklist_20260719.md)，固定代码质量、迁移、数据、权限、浏览器、备份和回滚检查；
 - 将 ProductDB 退场计划、旧前端质量清单和旧前端路线图移动到 `docs/archive/`，并在归档文件中标记历史状态；
+- 将已完成的 Agent/项目审计、P0-P2、Phase 5 及 2026-07-05 修复记录移动到 `docs/archive/`，保留历史上下文但不再作为当前执行入口；
 - 从 `.agents/data.md` 移除已退场的 ProductDB 兼容层调度描述，更新归档链接。
 
 验收结果：
 
 - 当前文档中的测试、迁移、阶段和 CI 状态统一到 2026-07-19 基线；
 - 发布清单已包含 Backend CI #22、Frontend CI #28 的可追溯证据链接；
-- `git diff --check` 和仓库 pre-commit 文档/YAML 检查通过。
+- `git diff --check` 和仓库 pre-commit 文档/YAML 检查通过；
+- 归档文件路径、当前文档导航和归档后的内部链接已完成核对。
 
-下一项：继续清理其他重复的历史阶段文档，并为实际发布建立逐次填写的发布记录。
+下一项：将发布清单接入实际版本发布记录；当前暂无需要填写的生产发布记录。

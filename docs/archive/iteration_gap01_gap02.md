@@ -1,5 +1,7 @@
 # P0 迭代文档：多条件策略编译 + 多品种组合能力
 
+> **历史归档（2026-07-19）**：本文件记录 2026-07-04 的 P0 迭代结果，不再作为当前迭代入口。当前状态请查看 [`../iteration_plan_20260718_project_audit.md`](../iteration_plan_20260718_project_audit.md)。
+>
 **迭代日期**：2026-07-04
 **关联审计**：[agent_audit.md](agent_audit.md)
 **完成项**：GAP-01a、GAP-01b、GAP-02
