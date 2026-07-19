@@ -206,6 +206,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Test
+        working-directory: ./frontend
         run: |
           set -o pipefail
           if ! npm run test -- --reporter=dot 2>&1 | tee frontend-vitest-ci.log; then
@@ -223,6 +224,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Lighthouse Baseline
+        working-directory: ./frontend
         run: |
           npm run build
           npm start &
