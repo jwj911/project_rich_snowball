@@ -146,6 +146,7 @@ ruff format .
 - `.github/workflows/backend-ci.yml`：pytest + ruff + pip-audit + Alembic 迁移一致性检查 + pytest-cov（阈值 40%），使用 `requirements.lock`，Python 3.12，CI 内嵌 PostgreSQL service；Backend CI #22 已全绿。
 - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → Vitest → Lighthouse 基线；独立 job 执行 PostgreSQL/Alembic/backend/Chromium Playwright smoke。Test 与 Lighthouse 均显式使用 `frontend/` 工作目录，并上传 Vitest 失败日志；Frontend CI #28 已全绿。
 - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发。
+- 发布前按 [`docs/release_checklist_20260719.md`](../docs/release_checklist_20260719.md) 执行质量、迁移、权限、备份和回滚检查。
 
 ### Dockerfile
 

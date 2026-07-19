@@ -1,5 +1,7 @@
-﻿# FRONTEND_QUALITY_AUDIT_V6_20260601
+# FRONTEND_QUALITY_AUDIT_V6_20260601
 
+> **历史归档（2026-07-19）**：本审计清单对应 2026-06-01 的前端状态，不是当前缺陷基线。当前状态请查看 `docs/iteration_plan_20260718_project_audit.md`。
+>
 > 面向前端修复 agent 的问题清单。  
 > 审计日期：2026-06-01  
 > 范围：`frontend/app`、`components`、`hooks`、`lib`、`tests`、`e2e`、前端配置。  

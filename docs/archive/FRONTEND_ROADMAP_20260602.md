@@ -1,5 +1,7 @@
 # 前端质量迭代 Roadmap
 
+> **历史归档（2026-07-19）**：本路线图对应 2026-06-02 的阶段记录，不是当前迭代入口。当前状态请查看 `docs/iteration_plan_20260718_project_audit.md`。
+>
 > 基于架构师审查报告 `FRONTEND_FIX_LIST_20260601.md` 的细化迭代计划。
 > 梳理日期：2026-06-02
 > 范围：`frontend/app`、`components`、`hooks`、`lib`、`tests`、`e2e`、前端配置。

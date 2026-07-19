@@ -1,5 +1,7 @@
 # ProductDB 兼容层退场计划
 
+> **历史归档（2026-07-19）**：ProductDB 已完成退场，本文件仅保留迁移过程和历史验收记录，不再作为当前执行计划。当前数据模型和发布基线请查看根目录 `AGENTS.md` 与 `docs/iteration_plan_20260718_project_audit.md`。
+>
 > 制定日期：2026-05-26
 > 更新日期：2026-05-27（Phase 1-3 已完成，进入 Phase 4 准备）
 > 目标：消除 `ProductDB` 与新行情数据层（`VarietyDB`/`RealtimeQuoteDB`/`KlineDataDB`）长期并存造成的双写/双读债务。

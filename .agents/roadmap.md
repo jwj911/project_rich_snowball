@@ -35,6 +35,15 @@
 
 下一阶段：进入 Phase 3「文档与发布治理」，建立唯一现状基线、发布清单和历史计划归档规则。
 
+### Phase 3：文档与发布治理 — 首批完成（2026-07-19）
+
+- `docs/iteration_plan_20260718_project_audit.md` 作为当前迭代唯一事实源
+- 新增 [`docs/release_checklist_20260719.md`](../docs/release_checklist_20260719.md)，统一代码、迁移、数据、权限、浏览器、备份和回滚检查
+- ProductDB 退场计划、旧前端质量清单和旧前端路线图移动到 `docs/archive/`，并标记为历史记录
+- `.agents/data.md` 移除已退场的兼容层调度任务，更新归档链接
+
+后续 Phase 3：将发布清单接入每次版本发布记录，继续清理其他已完成阶段的重复文档。
+
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 
 - `price_levels` / `watchlists` / `workspace` 云端同步闭环

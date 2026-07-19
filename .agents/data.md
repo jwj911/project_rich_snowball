@@ -7,7 +7,6 @@
 ### 调度任务
 
 - 实时行情：每 60 秒（可通过 `REALTIME_REFRESH_INTERVAL_SECONDS` 调整）
-- 兼容层产品价格同步：每 60 秒
 - 日 K：每日 16:05
 - 分钟 K：每 15 分钟，走 AkShare 分钟线 pipeline
 - 品种元数据：每日 02:00
@@ -71,6 +70,6 @@ alembic upgrade head
 - `sse_scaling_strategy.md`：SSE 单实例限制、sticky session、cookie-only 鉴权部署约束
 - `observability_runbook.md`：可观测性运维手册（指标、日志、告警）
 - `postgres_acceptance.md` / `postgres_backup_runbook.md`：PostgreSQL 验收与备份手册
-- `productdb_sunset_plan.md`：ProductDB 退场完整计划与验证清单
+- `../docs/archive/productdb_sunset_plan.md`：ProductDB 退场历史计划与验证记录（仅归档）
 - `settings_api.md`：用户偏好设置 API 设计文档
 - `kline_benchmark_20260529.md`：K 线性能基准测试记录
