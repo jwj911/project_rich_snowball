@@ -48,7 +48,7 @@ test.describe.serial('品种详情页', () => {
     await enterFirstProductDetail(page)
 
     const supportPrice = (3000 + Math.random() * 100).toFixed(2)
-    const supportSection = page.locator('section').filter({ hasText: '支撑位' }).first()
+    const supportSection = page.getByRole('heading', { name: '支撑位', exact: true }).locator('..')
     const input = supportSection.getByLabel('支撑位')
     await input.fill(supportPrice)
     const createResponse = page.waitForResponse(
@@ -70,7 +70,7 @@ test.describe.serial('品种详情页', () => {
     await enterFirstProductDetail(page)
 
     const resistancePrice = (6000 + Math.random() * 100).toFixed(2)
-    const resistanceSection = page.locator('section').filter({ hasText: '阻力位' }).first()
+    const resistanceSection = page.getByRole('heading', { name: '阻力位', exact: true }).locator('..')
     const input = resistanceSection.getByLabel('阻力位')
     await input.fill(resistancePrice)
     const createResponse = page.waitForResponse(
