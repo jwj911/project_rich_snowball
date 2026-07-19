@@ -31,7 +31,7 @@ test.describe('运营指标面板', () => {
       await expect(page.getByRole('heading', { name: '运营指标' })).toBeVisible({ timeout: 10000 })
 
       // 至少应有一个关键指标卡片可见
-      await expect(page.getByRole('main').getByText(/用户数/)).toBeVisible()
+      await expect(page.getByText('总用户数', { exact: true })).toBeVisible()
     })
   })
 })
