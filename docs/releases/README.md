@@ -14,3 +14,4 @@
 当前记录：
 
 - [20260721_engineering_baseline.md](20260721_engineering_baseline.md)：Phase 3 文档治理基线，非生产发布。
+- [20260721_phase4_sql_ast.md](20260721_phase4_sql_ast.md)：Phase 4 SQL AST 安全迭代基线，非生产发布。
