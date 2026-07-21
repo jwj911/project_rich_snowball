@@ -351,6 +351,7 @@ flowchart TD
 - Ruff：通过；
 - `pip check`：No broken requirements found；
 - `pip-audit`（OSV）：No known vulnerabilities found；
+- Backend CI run `29846448474`：Alembic、PostgreSQL pytest、API smoke、Ruff 和 pip-audit 全部成功；
 - 详细记录：[`docs/phase4_sql_ast_readonly.md`](phase4_sql_ast_readonly.md)。
 
 下一项：将私有数据 `user_id` 自动注入从字符串操作升级为 AST 级谓词改写，或收敛为显式 repository/API。

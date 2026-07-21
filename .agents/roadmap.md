@@ -57,6 +57,7 @@ Phase 3 后续只在真实发布窗口填写生产记录；工程风险治理进
 - Agent `query_database` 已切换到 `sqlglot` AST 只读校验；
 - 覆盖单语句、SELECT/集合查询根节点、DML/DDL/事务节点、危险函数、CTE/子查询和 schema/table 白名单；
 - 新增 `sqlglot` 直接依赖与锁定版本，补充 31 个数据库工具回归用例；
+- Backend CI run `29846448474` 已成功，覆盖 Alembic、PostgreSQL pytest、API smoke、Ruff 和 pip-audit；
 - 详细记录：[`docs/phase4_sql_ast_readonly.md`](../docs/phase4_sql_ast_readonly.md)
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
