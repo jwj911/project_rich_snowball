@@ -4,14 +4,11 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
 from models import VarietyDB
 from services.agent.database_tools import (
-    _FORBIDDEN_KEYWORDS,
+    GetTableSchemaTool,
     ListTablesTool,
     QueryDatabaseTool,
-    GetTableSchemaTool,
     _ensure_limit,
     _validate_sql,
 )
@@ -93,6 +90,31 @@ class TestSQLValidation:
             "SELECT v.symbol, r.current_price FROM varieties v JOIN realtime_quotes r ON v.id = r.variety_id LIMIT 10"
         )
         assert ok, msg
+
+    def test_cte_and_nested_subquery_pass(self):
+        ok, msg = _validate_sql(
+            "WITH recent AS ("
+            "SELECT variety_id FROM kline_data WHERE trading_time >= '2026-01-01'"
+            ") "
+            "SELECT v.symbol FROM varieties v "
+            "WHERE v.id IN (SELECT variety_id FROM recent)"
+        )
+        assert ok, msg
+
+    def test_multiple_statements_fail(self):
+        ok, msg = _validate_sql("SELECT * FROM varieties; SELECT * FROM fut_wsr")
+        assert not ok
+        assert "单条" in msg
+
+    def test_dangerous_function_fails(self):
+        ok, msg = _validate_sql("SELECT pg_sleep(10) FROM varieties")
+        assert not ok
+        assert "禁止的函数" in msg
+
+    def test_schema_qualified_non_public_table_fails(self):
+        ok, msg = _validate_sql("SELECT * FROM private.varieties")
+        assert not ok
+        assert "不在允许查询" in msg
 
     def test_block_comment_strips_keywords(self):
         """Block comment removal: /* DROP TABLE some_table */ exposes a non-whitelist table."""
@@ -176,7 +198,7 @@ class TestQueryDatabaseTool:
         from services.agent.context import AgentContext
 
         # 确保有测试数据
-        variety = db_session.query(VarietyDB).filter(VarietyDB.is_active == True).first()
+        variety = db_session.query(VarietyDB).filter(VarietyDB.is_active).first()
         if variety is None:
             variety = VarietyDB(
                 symbol="DBTEST",

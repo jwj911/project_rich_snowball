@@ -14,6 +14,8 @@ import time
 from typing import Any
 
 from sqlalchemy import text
+from sqlglot import exp, parse
+from sqlglot.errors import ParseError
 
 from services.agent.context import AgentContext
 from services.agent.tools import Tool, ToolDefinition, ToolParameter, register_tool
@@ -110,49 +112,83 @@ _QUERY_TIMEOUT_SECONDS = 5
 # SQL 安全检查
 # ------------------------------------------------------------------
 
-_SQL_COMMENT_RE = re.compile(r"--.*?$|/\*.*?\*/", re.MULTILINE | re.DOTALL)
-_SQL_STRING_RE = re.compile(r"'(?:[^']|'')*'")
-
-
-def _strip_comments(sql: str) -> str:
-    """移除 SQL 中的注释，避免注释中隐藏恶意关键字。"""
-    return _SQL_COMMENT_RE.sub(" ", sql)
-
-
-def _extract_non_string_parts(sql: str) -> str:
-    """将 SQL 字符串字面量替换为占位符，只保留非字符串部分用于关键字检查。"""
-    return _SQL_STRING_RE.sub(" ? ", sql)
+# 保留旧关键字集合作为公开模块常量，实际校验由 SQL AST 完成。
+_FORBIDDEN_AST_NODES = (
+    exp.Insert,
+    exp.Update,
+    exp.Delete,
+    exp.Drop,
+    exp.Alter,
+    exp.Create,
+    exp.Command,
+    exp.Copy,
+    exp.Merge,
+    exp.Grant,
+    exp.Transaction,
+    exp.Pragma,
+    exp.Set,
+    exp.Use,
+    exp.TruncateTable,
+    exp.Commit,
+    exp.Rollback,
+    exp.LoadData,
+    exp.Describe,
+    exp.Into,
+    exp.Lock,
+)
+_READ_QUERY_ROOTS = (exp.Select, exp.Union, exp.Intersect, exp.Except)
+_FORBIDDEN_FUNCTIONS = frozenset(
+    {
+        "dblink_connect",
+        "dblink_exec",
+        "load_extension",
+        "pg_ls_dir",
+        "pg_read_file",
+        "pg_sleep",
+        "readfile",
+        "writefile",
+    }
+)
 
 
 def _validate_sql(sql: str) -> tuple[bool, str]:
-    """验证 SQL 是否安全。
+    """Validate a single read-only SQL statement with its parsed AST.
 
-    Returns:
-        (is_valid, error_message)
+    Regex checks are insufficient for nested queries, CTEs, comments, aliases,
+    and multi-statement payloads. Parsing first lets the validator inspect the
+    actual statement tree while preserving the existing table allowlist.
     """
     if not sql or not sql.strip():
         return False, "SQL 查询不能为空"
 
-    stripped = _strip_comments(sql)
-    check_text = _extract_non_string_parts(stripped).lower()
+    try:
+        statements = parse(sql)
+    except ParseError as exc:
+        return False, f"SQL 解析失败: {exc}"
 
-    # 1. 必须是 SELECT 开头
-    first_token = check_text.strip().split()[0] if check_text.strip() else ""
-    if first_token != "select":
-        return False, f"只允许 SELECT 查询，当前以 '{first_token}' 开头"
+    if len(statements) != 1:
+        return False, "只允许执行单条 SELECT 查询"
 
-    # 2. 检查禁止关键字
-    for keyword in _FORBIDDEN_KEYWORDS:
-        # 使用正则匹配单词边界，避免 "selection" 被误拦截
-        pattern = r"\b" + re.escape(keyword) + r"\b"
-        if re.search(pattern, check_text):
-            return False, f"SQL 中包含禁止关键字: {keyword}"
+    expression = statements[0]
+    if not isinstance(expression, _READ_QUERY_ROOTS):
+        return False, "只允许 SELECT 查询"
 
-    # 3. 检查表名是否在白名单
-    # 提取 FROM 和 JOIN 后的表名
-    table_pattern = r"\b(from|join)\s+([a-zA-Z_][a-zA-Z0-9_]*)"
-    for match in re.finditer(table_pattern, check_text):
-        table_name = match.group(2)
+    for node in expression.walk():
+        if isinstance(node, _FORBIDDEN_AST_NODES):
+            return False, f"SQL 包含禁止的操作: {type(node).__name__}"
+
+    for function in expression.find_all(exp.Anonymous):
+        function_name = function.name.lower()
+        if function_name in _FORBIDDEN_FUNCTIONS:
+            return False, f"SQL 包含禁止的函数: {function_name}"
+
+    cte_names = {cte.alias_or_name.lower() for cte in expression.find_all(exp.CTE)}
+    for table in expression.find_all(exp.Table):
+        table_name = table.name.lower()
+        if table_name in cte_names:
+            continue
+        if table.catalog or (table.db and table.db.lower() != "public"):
+            return False, f"表 '{table.sql()}' 不在允许查询的白名单中"
         if table_name not in _ALLOWED_TABLES:
             return False, f"表 '{table_name}' 不在允许查询的白名单中"
 

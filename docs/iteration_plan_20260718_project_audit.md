@@ -335,3 +335,22 @@ flowchart TD
 - 本次记录明确标注为非生产发布，避免发布状态误读。
 
 下一项：进入 Phase 4，优先完成 Agent SQL AST 只读校验。
+
+### Phase 4：Agent SQL AST 只读校验（2026-07-21）— 第一项完成
+
+已完成事项：
+
+- `database_tools.py` 从正则安全检查升级为 `sqlglot` AST 校验；
+- 新增单语句、只读根节点、危险 AST 节点、危险函数、CTE/子查询和 schema/table 白名单；
+- 新增锁定依赖并补充数据库工具回归测试。
+
+验收结果：
+
+- 定向测试：`31 passed, 0 failed`；
+- 全量后端测试：`969 passed, 8 skipped, 0 failed`；
+- Ruff：通过；
+- `pip check`：No broken requirements found；
+- `pip-audit`（OSV）：No known vulnerabilities found；
+- 详细记录：[`docs/phase4_sql_ast_readonly.md`](phase4_sql_ast_readonly.md)。
+
+下一项：将私有数据 `user_id` 自动注入从字符串操作升级为 AST 级谓词改写，或收敛为显式 repository/API。
