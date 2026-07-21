@@ -43,7 +43,14 @@
 - 已完成的 Agent/项目审计、P0-P2、Phase 5 及 2026-07-05 修复记录移动到 `docs/archive/`，保留历史上下文但不再作为当前执行入口
 - `.agents/data.md` 移除已退场的兼容层调度任务，更新归档链接
 
-后续 Phase 3：将发布清单接入每次真实版本发布记录；当前暂无需要填写的生产发布记录。
+### Phase 3：文档与发布治理 — 第三批完成（2026-07-21）
+
+- 新增 [`docs/releases/README.md`](../docs/releases/README.md)，固定工程基线和生产发布记录格式；
+- 新增 [`docs/releases/20260721_engineering_baseline.md`](../docs/releases/20260721_engineering_baseline.md)，记录 Phase 3 文档治理基线，并明确其不是生产发布；
+- `AGENTS.md`、`README.md`、`.agents/operations.md` 已接入发布记录入口；
+- 未执行的生产检查保持未勾选，避免用历史 CI 结果冒充本次生产验收。
+
+Phase 3 后续只在真实发布窗口填写生产记录；工程风险治理进入 Phase 4。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 

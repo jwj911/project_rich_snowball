@@ -69,6 +69,7 @@ project_rich_snowball/
 │
 ├── docs/                         # 项目文档
 │   ├── release_checklist_20260719.md # 当前发布检查与回滚清单
+│   ├── releases/                  # 逐版本工程基线与生产发布记录
 │   ├── guides/                   # 技术参考（API 参考、数据管道、版本指南）
 │   ├── archive/                  # 历史审计/路线图归档
 │   └── audit_cleanup_20260705.md # 文件审计与清理追踪

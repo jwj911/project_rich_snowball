@@ -60,6 +60,7 @@
 | 文档 | 说明 |
 |------|------|
 | [docs/release_checklist_20260719.md](docs/release_checklist_20260719.md) | 当前发布前检查、CI 证据、备份与回滚清单 |
+| [docs/releases/README.md](docs/releases/README.md) | 按版本维护的工程基线与生产发布记录 |
 | [docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md](docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md) | 数据管道与 PostgreSQL 配置 |
 | [docs/guides/TUSHARE_POSTGRES_VERIFICATION.md](docs/guides/TUSHARE_POSTGRES_VERIFICATION.md) | Tushare 数据验证 |
 | [docs/guides/BACKEND_API_REFERENCE_FOR_FRONTEND.md](docs/guides/BACKEND_API_REFERENCE_FOR_FRONTEND.md) | 后端 API 参考（前端用） |

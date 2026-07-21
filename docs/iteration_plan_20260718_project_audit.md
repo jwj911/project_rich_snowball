@@ -308,6 +308,7 @@ flowchart TD
 
 - 本文件继续作为当前迭代唯一事实源，并同步 README、AGENTS、`.agents/*` 和 `frontend/README.md`；
 - 新增 [`docs/release_checklist_20260719.md`](release_checklist_20260719.md)，固定代码质量、迁移、数据、权限、浏览器、备份和回滚检查；
+- 新增 [`docs/releases/README.md`](releases/README.md) 和首份工程基线记录，区分工程基线与生产发布；
 - 将 ProductDB 退场计划、旧前端质量清单和旧前端路线图移动到 `docs/archive/`，并在归档文件中标记历史状态；
 - 将已完成的 Agent/项目审计、P0-P2、Phase 5 及 2026-07-05 修复记录移动到 `docs/archive/`，保留历史上下文但不再作为当前执行入口；
 - 从 `.agents/data.md` 移除已退场的 ProductDB 兼容层调度描述，更新归档链接。
@@ -319,4 +320,18 @@ flowchart TD
 - `git diff --check` 和仓库 pre-commit 文档/YAML 检查通过；
 - 归档文件路径、当前文档导航和归档后的内部链接已完成核对。
 
-下一项：将发布清单接入实际版本发布记录；当前暂无需要填写的生产发布记录。
+### Phase 3：文档与发布治理（2026-07-21）— 第三批完成
+
+已完成事项：
+
+- 建立 `docs/releases/` 发布记录目录、命名规则和工程基线/生产发布区分；
+- 新增 `20260721_engineering_baseline.md`，记录 Phase 3 文档治理提交 `b6a32e75`；
+- 在 `AGENTS.md`、`README.md`、`.agents/operations.md` 和 `.agents/roadmap.md` 接入发布记录入口；
+- 明确未执行的生产检查必须保留未勾选，不能用历史 CI 结果替代本次发布验收。
+
+验收结果：
+
+- 发布记录引用的 checklist、主计划和 CI 证据链接均存在；
+- 本次记录明确标注为非生产发布，避免发布状态误读。
+
+下一项：进入 Phase 4，优先完成 Agent SQL AST 只读校验。

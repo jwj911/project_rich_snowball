@@ -147,6 +147,7 @@ ruff format .
 - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → Vitest → Lighthouse 基线；独立 job 执行 PostgreSQL/Alembic/backend/Chromium Playwright smoke。Test 与 Lighthouse 均显式使用 `frontend/` 工作目录，并上传 Vitest 失败日志；Frontend CI #28 已全绿。
 - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发。
 - 发布前按 [`docs/release_checklist_20260719.md`](../docs/release_checklist_20260719.md) 执行质量、迁移、权限、备份和回滚检查。
+- 每次工程基线或生产发布都在 [`docs/releases/README.md`](../docs/releases/README.md) 下新增记录；工程基线不得替代生产发布验收。
 
 ### Dockerfile
 
