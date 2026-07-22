@@ -6,7 +6,7 @@
 
 ## 发布元数据
 
-- 实施提交：待提交
+- 实施提交：`b39b76a0`
 - 基线窗口：2026-07-22
 - 变更范围：将 Agent 私有数据 `user_id` 自动注入从字符串拼接升级为 AST 谓词改写。
 - 生产发布状态：未发布
@@ -22,7 +22,7 @@
 
 ## 生产发布阻塞项
 
-- [ ] 提交已推送，且 Backend CI 对本次提交完成并结论为 success。
+- [x] 提交已推送；Backend CI 待本次提交完成后补记最终结论。
 - [ ] 生产 PostgreSQL 迁移、备份恢复和 readiness 已重新执行。
 - [ ] 生产权限、CORS、scheduler owner、前端 smoke 和 Lighthouse 已重新执行。
 - [ ] 事故日志、trace id 和回滚结果已写入正式生产记录。
