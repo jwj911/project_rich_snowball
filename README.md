@@ -16,8 +16,8 @@
 - 价格预警：用户为品种设置 above/below 价格预警，实时行情刷新时自动检测触发
 - 模拟持仓：用户创建虚拟交易记录，支持做多/做空、盈亏计算与复盘统计
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
-- 当前工程基线：后端本地 `965 passed, 8 skipped, 0 failed`，前端 Vitest `195 passed, 0 failed`；Backend CI #22 与 Frontend CI #28 的 PostgreSQL、Alembic、Ruff、覆盖率、`pip-audit`、Playwright 和 Lighthouse 全部通过
-- 当前迭代：Phase 2 已完成，下一阶段进入 Phase 3 文档与发布治理
+- 当前工程基线：后端本地 `978 passed, 8 skipped, 0 failed`，前端 Vitest `195 passed, 0 failed`；Backend CI #22、Frontend CI #28 和 Phase 4 SQL AST CI 的 PostgreSQL、Alembic、Ruff、覆盖率、`pip-audit`、Playwright 和 Lighthouse 证据已记录
+- 当前迭代：Phase 3 文档与发布治理已完成，Phase 4 SQL AST 只读校验及私有数据 owner 谓词改写已完成
 
 ---
 
@@ -58,7 +58,7 @@ project_rich_snowball/
 │   ├── data_collector/           # 数据采集流水线与调度器
 │   ├── middleware/               # 中间件（限流、API 版本映射）
 │   ├── scripts/                  # 工具脚本（回填、迁移、验收）
-│   ├── tests/                    # pytest 测试（965 passed, 8 skipped）
+│   ├── tests/                    # pytest 测试（978 passed, 8 skipped）
 │   └── alembic/                  # 数据库迁移
 │
 ├── quantative_tools/             # 量化分析工具集

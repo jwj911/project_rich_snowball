@@ -10,6 +10,7 @@ from services.agent.database_tools import (
     ListTablesTool,
     QueryDatabaseTool,
     _ensure_limit,
+    _inject_user_filter,
     _validate_sql,
 )
 
@@ -127,6 +128,63 @@ class TestSQLValidation:
 class TestSQLHelpers:
     """辅助函数测试。"""
 
+    def test_injects_filter_for_unqualified_private_table(self):
+        result = _inject_user_filter("SELECT * FROM opinions", 7)
+        assert result == "SELECT * FROM opinions WHERE opinions.user_id = 7"
+
+    def test_does_not_duplicate_qualified_owner_filter(self):
+        result = _inject_user_filter("SELECT * FROM opinions o WHERE o.user_id = 7", 7)
+        assert result == "SELECT * FROM opinions o WHERE o.user_id = 7"
+
+    def test_overrides_mismatched_qualified_owner_filter(self):
+        result = _inject_user_filter("SELECT * FROM opinions o WHERE o.user_id = 2", 7)
+        assert "o.user_id = 2" in result
+        assert "o.user_id = 7" in result
+
+    def test_injects_each_private_table_by_alias(self):
+        result = _inject_user_filter(
+            "SELECT o.id, s.id FROM opinions o JOIN strategies s ON s.symbol = o.symbol",
+            7,
+        )
+        assert "o.user_id = 7" in result
+        assert "s.user_id = 7" in result
+        assert result.count("user_id = 7") == 2
+
+    def test_puts_join_filter_in_on_clause_for_outer_join(self):
+        result = _inject_user_filter(
+            "SELECT v.symbol, o.id FROM varieties v "
+            "LEFT JOIN opinions o ON o.variety_id = v.id",
+            7,
+        )
+        assert "LEFT JOIN opinions AS o" in result
+        assert "ON o.variety_id = v.id AND o.user_id = 7" in result
+        assert "WHERE o.user_id = 7" not in result
+
+    def test_rewrites_private_table_inside_cte_and_subquery(self):
+        cte_result = _inject_user_filter(
+            "WITH mine AS (SELECT * FROM opinions) SELECT * FROM mine",
+            7,
+        )
+        subquery_result = _inject_user_filter(
+            "SELECT * FROM varieties WHERE id IN (SELECT variety_id FROM opinions)",
+            7,
+        )
+        assert "FROM opinions WHERE opinions.user_id = 7" in cte_result
+        assert "FROM opinions WHERE opinions.user_id = 7" in subquery_result
+
+    def test_rewrites_task_steps_through_parent_task(self):
+        result = _inject_user_filter("SELECT * FROM agent_task_steps ats", 7)
+        assert result.count("EXISTS") == 1
+        assert "_agent_owner_task.user_id = 7" in result
+        assert "_agent_owner_task.id = ats.task_id" in result
+
+    def test_rewrites_each_side_of_union(self):
+        result = _inject_user_filter(
+            "SELECT * FROM opinions UNION ALL SELECT * FROM trade_records",
+            7,
+        )
+        assert result.count("user_id = 7") == 2
+
     def test_ensure_limit_adds_limit(self):
         sql = "SELECT * FROM varieties"
         result = _ensure_limit(sql, 100)
@@ -235,3 +293,13 @@ class TestQueryDatabaseTool:
         ctx = AgentContext(db_session, user_id=1)
         result = asyncio.run(tool.execute(ctx, sql=""))
         assert "error" in result
+
+    def test_private_query_executes_with_ast_owner_filter(self, db_session):
+        from services.agent.context import AgentContext
+
+        tool = QueryDatabaseTool()
+        ctx = AgentContext(db_session, user_id=1)
+        result = asyncio.run(tool.execute(ctx, sql="SELECT id FROM opinions"))
+
+        assert "error" not in result
+        assert "opinions.user_id = 1" in result["sql"]

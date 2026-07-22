@@ -355,3 +355,23 @@ flowchart TD
 - 详细记录：[`docs/phase4_sql_ast_readonly.md`](phase4_sql_ast_readonly.md)。
 
 下一项：将私有数据 `user_id` 自动注入从字符串操作升级为 AST 级谓词改写，或收敛为显式 repository/API。
+
+### Phase 4：私有数据 owner 谓词 AST 改写（2026-07-22）— 第二项完成
+
+已完成事项：
+
+- `_inject_user_filter` 改为解析 SQL AST，按最近的 `SELECT` 作用域处理私有表；
+- `FROM` 主表注入 `WHERE`，JOIN 表注入 `ON`，避免 LEFT JOIN 语义被错误收紧；
+- CTE、嵌套子查询和 UNION 分支独立注入；
+- `agent_task_steps` 通过 `EXISTS` 关联 `agent_tasks.user_id`；
+- 只有明确等于当前上下文用户的 owner 条件才跳过，其他 `user_id` 值会追加当前用户谓词。
+
+验收结果：
+
+- 定向测试：`40 passed, 0 failed`；
+- 全量后端测试：`978 passed, 8 skipped, 0 failed`；
+- 全仓库 Ruff：通过；
+- 既有 `sqlglot==26.20.0` lock 无变化；
+- 详细记录：[`docs/releases/20260722_phase4_user_scope.md`](releases/20260722_phase4_user_scope.md)。
+
+下一项：为复杂私有关联查询增加 PostgreSQL 专项回归，并逐步评估显式 repository/API。

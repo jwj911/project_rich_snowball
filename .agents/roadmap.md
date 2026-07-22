@@ -60,6 +60,16 @@ Phase 3 后续只在真实发布窗口填写生产记录；工程风险治理进
 - Backend CI run `29846448474` 已成功，覆盖 Alembic、PostgreSQL pytest、API smoke、Ruff 和 pip-audit；
 - 详细记录：[`docs/phase4_sql_ast_readonly.md`](../docs/phase4_sql_ast_readonly.md)
 
+### Phase 4：远期风险与安全 — 第二项完成（2026-07-22）
+
+- 私有数据 `user_id` 自动注入改为 AST 作用域改写；
+- 每个私有表按别名注入 owner 谓词，JOIN 表写入 `ON`，保留 LEFT JOIN 语义；
+- CTE、子查询、UNION 和多个私有表分别隔离；
+- `agent_task_steps` 使用 `EXISTS` 关联父任务的 `user_id`；
+- 不信任查询中的其他 `user_id` 值，只有等于当前上下文用户时才跳过重复注入；
+- 定向测试 `40 passed`，全量后端 `978 passed, 8 skipped, 0 failed`；
+- 详细记录：[`docs/releases/20260722_phase4_user_scope.md`](../docs/releases/20260722_phase4_user_scope.md)
+
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 
 - `price_levels` / `watchlists` / `workspace` 云端同步闭环

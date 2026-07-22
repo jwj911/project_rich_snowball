@@ -18,7 +18,9 @@
 - 拒绝 `pg_sleep`、`pg_read_file`、`pg_ls_dir`、`dblink_*`、SQLite 扩展读写等危险函数；
 - 遍历嵌套查询和 CTE 的真实表引用，保留允许表白名单；
 - 仅允许空 schema 或 `public` schema，拒绝其他 schema/catalog；
-- 保留现有私有表 `user_id` 过滤和返回行数限制逻辑。
+- 按表别名和 SELECT 作用域注入 owner 谓词；JOIN 表写入 `ON`，避免破坏 LEFT JOIN；
+- `agent_task_steps` 通过 `EXISTS` 关联 `agent_tasks.user_id`；
+- 只有明确等于当前上下文用户的 AST 条件才跳过重复注入，`user_id = 其他值` 会追加当前用户条件。
 
 ## 验证
 
@@ -33,14 +35,19 @@ cd python
 
 结果：
 
-- `31 passed, 0 failed`
+- `40 passed, 0 failed`
 - Ruff 检查通过
 - `pip check`：No broken requirements found
+- 全量后端：`978 passed, 8 skipped, 0 failed`
 
 回归覆盖：
 
 - 普通 SELECT、聚合、JOIN；
 - CTE 和嵌套子查询；
+- 多个私有表和表别名；
+- LEFT JOIN 的 ON 谓词保持；
+- `agent_task_steps` 的父任务 owner 关联；
+- 不同 `user_id` 条件不能越权；
 - 多语句 payload；
 - 注释和字符串中的关键字；
 - 非白名单表；
@@ -50,6 +57,5 @@ cd python
 
 ## 后续边界
 
-本批只替换只读语句识别，不宣称已经完成所有用户私有数据隔离。下一步应将
-`user_id` 自动注入从字符串操作升级为 AST 级谓词改写，或逐步收敛为显式
-repository/API，避免复杂 JOIN 和子查询中的过滤位置歧义。
+本批已完成私有数据 owner 谓词的 AST 改写。后续仍可将用户私有数据访问逐步
+收敛为显式 repository/API，并为复杂关联查询增加 PostgreSQL 专项回归。

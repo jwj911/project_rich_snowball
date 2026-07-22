@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-07-19（Phase 2 CI 全链路验收）
+> **最后更新**：2026-07-22（Phase 4 私有数据 owner 谓词改写）
 
 ---
 
@@ -16,9 +16,9 @@
 - **Agent 系统 Phase 0~2 已完成**并接入真实 SSE 进度流：DataAgent、DataQualityAgent、TechAnalysisAgent、RiskManagementAgent、AnalysisPipelineAgent、StrategyCompilerAgent、BacktestAgent、FactorMiningAgent、TraderAgent 已上线。
 - **策略进化（Strategy Evolution）已落地**：GA 进化循环、GP 因子生成、Pareto 适应度、贝叶斯优化、策略生命周期追踪。
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
-- **测试状态**：最近一次本地全量后端测试为 `965 passed, 8 skipped, 0 failed`，覆盖率为 `71.97%`；前端 Vitest 为 `195 passed, 0 failed`。Python `ruff check .`、前端 TypeScript、ESLint 和 production build 均通过。
+- **测试状态**：最近一次本地全量后端测试为 `978 passed, 8 skipped, 0 failed`，覆盖率基线为 `71.97%`；前端 Vitest 为 `195 passed, 0 failed`。Python `ruff check .`、前端 TypeScript、ESLint 和 production build 均通过。
 - **远程验收**：Backend CI #22 与 Frontend CI #28（run `29670891119`）的 Alembic、PostgreSQL pytest、API smoke、Ruff、`pip-audit`、Chromium Playwright、Vitest 和 Lighthouse 全部通过。
-- **当前迭代**：Phase 0、Phase 1 和 Phase 2 已完成，下一阶段进入 Phase 3 文档与发布治理。
+- **当前迭代**：Phase 3 文档与发布治理已完成首批、第二批和第三批；Phase 4 SQL AST 只读校验及私有数据 owner 谓词改写已完成。
 - **文件审计**：2026-07-05 完成 Phase 1/2 清理，根目录精简至 7 个文件，文档迁入 `docs/guides/`、`docs/archive/` 与 `quantative_tools/reports/`，详见 [docs/audit_cleanup_20260705.md](docs/audit_cleanup_20260705.md)。
 
 ### 主要功能模块

@@ -379,7 +379,10 @@ class QueryDatabaseTool(Tool):
             return {"error": error_msg, "sql": sql}
 
         # 自动注入 user_id 过滤（对私有数据表）
-        sql = _inject_user_filter(sql, context.user_id)
+        try:
+            sql = _inject_user_filter(sql, context.user_id)
+        except ValueError as exc:
+            return {"error": f"SQL 安全改写失败: {exc}", "sql": sql}
 
         # 自动追加 LIMIT（如果用户没写）
         sql = _ensure_limit(sql, limit)
@@ -460,36 +463,163 @@ _USER_ID_COLUMN_MAP: dict[str, str] = {
 
 
 def _inject_user_filter(sql: str, user_id: int) -> str:
-    """对私有数据表自动注入 user_id 过滤条件。
+    """在 SQL AST 中按查询作用域注入私有数据过滤条件。
 
-    如果 SQL 已经包含 user_id 条件，则不重复注入。
+    每个私有表都在其所属 ``SELECT`` 作用域中单独处理：
+
+    - ``FROM`` 主表使用 ``WHERE`` 谓词；
+    - JOIN 表使用 ``ON`` 谓词，避免把 LEFT JOIN 错误收紧为 INNER JOIN；
+    - 已有同一表/别名的 owner 条件不会重复注入；
+    - ``agent_task_steps`` 没有 ``user_id``，使用 ``EXISTS`` 关联
+      ``agent_tasks.user_id``；
+    - CTE 和嵌套 SELECT 各自按最近的 SELECT 作用域处理。
+
+    SQL 已由 ``_validate_sql`` 解析过；这里仍然 fail closed，避免未来调用方
+    绕过验证时执行未隔离的私有查询。
     """
-    sql_lower = sql.lower()
-    for table in _PRIVATE_TABLES:
-        if table not in sql_lower:
+    try:
+        statements = parse(sql)
+    except ParseError as exc:
+        raise ValueError(f"SQL 解析失败: {exc}") from exc
+    if len(statements) != 1:
+        raise ValueError("只允许改写单条 SELECT 查询")
+
+    expression = statements[0]
+    if not isinstance(expression, _READ_QUERY_ROOTS):
+        raise ValueError("只允许改写 SELECT 查询")
+
+    try:
+        owner_id = int(user_id)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("user_id 必须是整数") from exc
+
+    selects = list(expression.find_all(exp.Select))
+    if isinstance(expression, exp.Select) and expression not in selects:
+        selects.insert(0, expression)
+    changed = False
+
+    for select in selects:
+        cte_names = {cte.alias_or_name.lower() for cte in select.find_all(exp.CTE)}
+        direct_tables = [
+            table
+            for table in select.find_all(exp.Table)
+            if _nearest_select(table) is select
+            and table.name.lower() not in cte_names
+            and table.name.lower() in _PRIVATE_TABLES
+        ]
+        if not direct_tables:
             continue
-        user_col = _USER_ID_COLUMN_MAP.get(table, "user_id")
-        # 检查是否已有 user_id 条件
-        if f"{user_col}" in sql_lower:
-            continue
-        # 在 WHERE 子句中注入，或在末尾添加 WHERE
-        if " where " in sql_lower:
-            # 在 WHERE 后注入
-            # 简单处理：找到 WHERE 位置，在其后追加 AND 条件
-            where_idx = sql_lower.find(" where ")
-            insert_pos = where_idx + len(" where ")
-            sql = sql[:insert_pos] + f"{user_col} = {user_id} AND " + sql[insert_pos:]
-        else:
-            # 在 ORDER BY / LIMIT 之前添加 WHERE
-            order_idx = sql_lower.find(" order by ")
-            limit_idx = sql_lower.find(" limit ")
-            insert_pos = len(sql)
-            if order_idx > 0:
-                insert_pos = order_idx
-            elif limit_idx > 0:
-                insert_pos = limit_idx
-            sql = sql[:insert_pos] + f" WHERE {user_col} = {user_id}" + sql[insert_pos:]
-    return sql
+
+        private_aliases = {table.alias_or_name.lower() for table in direct_tables}
+        for table in direct_tables:
+            table_name = table.name.lower()
+            alias = table.alias_or_name
+            if table_name == "agent_task_steps":
+                predicate = _task_owner_predicate(alias, owner_id)
+            else:
+                user_column = _USER_ID_COLUMN_MAP.get(table_name, "user_id")
+                if _has_owner_predicate(select, table, user_column, private_aliases, owner_id):
+                    continue
+                predicate = exp.EQ(
+                    this=exp.column(user_column, table=alias),
+                    expression=exp.Literal.number(owner_id),
+                )
+
+            if isinstance(table.parent, exp.Join):
+                join = table.parent
+                join.set("on", _combine_predicates(join.args.get("on"), predicate))
+            else:
+                select.set("where", _append_where(select.args.get("where"), predicate))
+            changed = True
+
+    return expression.sql() if changed else sql
+
+
+def _nearest_select(expression: exp.Expression) -> exp.Select | None:
+    """Return the closest SELECT ancestor for a table or expression node."""
+    parent = expression.parent
+    while parent is not None:
+        if isinstance(parent, exp.Select):
+            return parent
+        parent = parent.parent
+    return None
+
+
+def _predicate_nodes(select: exp.Select) -> list[exp.Expression]:
+    """Return WHERE and direct JOIN ON expressions for owner checks."""
+    predicates: list[exp.Expression] = []
+    where = select.args.get("where")
+    if isinstance(where, exp.Where):
+        predicates.append(where.this)
+    for join in select.find_all(exp.Join):
+        if _nearest_select(join) is select and isinstance(join.args.get("on"), exp.Expression):
+            predicates.append(join.args["on"])
+    return predicates
+
+
+def _has_owner_predicate(
+    select: exp.Select,
+    table: exp.Table,
+    user_column: str,
+    private_aliases: set[str],
+    owner_id: int,
+) -> bool:
+    """Check whether a predicate already equals this table to ``owner_id``."""
+    alias = table.alias_or_name.lower()
+    for predicate in _predicate_nodes(select):
+        for equality in predicate.find_all(exp.EQ):
+            sides = ((equality.this, equality.expression), (equality.expression, equality.this))
+            for column_expr, value_expr in sides:
+                if not isinstance(column_expr, exp.Column):
+                    continue
+                if column_expr.name.lower() != user_column.lower():
+                    continue
+                qualifier = column_expr.table.lower()
+                if qualifier != alias and (qualifier or len(private_aliases) != 1):
+                    continue
+                if isinstance(value_expr, exp.Literal) and value_expr.is_number and int(value_expr.this) == owner_id:
+                    return True
+    return False
+
+
+def _task_owner_predicate(task_step_alias: str, user_id: int) -> exp.Exists:
+    """Build an ownership predicate for task steps via their parent task."""
+    owner_alias = "_agent_owner_task"
+    owner_table = exp.table_("agent_tasks", alias=owner_alias)
+    owner_query = (
+        exp.select(exp.Literal.number(1))
+        .from_(owner_table)
+        .where(
+            exp.and_(
+                exp.EQ(
+                    this=exp.column("id", table=owner_alias),
+                    expression=exp.column("task_id", table=task_step_alias),
+                ),
+                exp.EQ(
+                    this=exp.column("user_id", table=owner_alias),
+                    expression=exp.Literal.number(user_id),
+                ),
+            )
+        )
+    )
+    return exp.Exists(this=owner_query)
+
+
+def _combine_predicates(
+    existing: exp.Expression | None,
+    predicate: exp.Expression,
+) -> exp.Expression:
+    """Append an expression to an existing ON/WHERE predicate."""
+    return exp.and_(existing, predicate) if existing is not None else predicate
+
+
+def _append_where(
+    where: exp.Where | None,
+    predicate: exp.Expression,
+) -> exp.Where:
+    """Append an expression to a SELECT WHERE clause."""
+    existing = where.this if isinstance(where, exp.Where) else None
+    return exp.Where(this=_combine_predicates(existing, predicate))
 
 
 def _ensure_limit(sql: str, limit: int) -> str:
