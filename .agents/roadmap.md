@@ -68,6 +68,7 @@ Phase 3 后续只在真实发布窗口填写生产记录；工程风险治理进
 - `agent_task_steps` 使用 `EXISTS` 关联父任务的 `user_id`；
 - 不信任查询中的其他 `user_id` 值，只有等于当前上下文用户时才跳过重复注入；
 - 定向测试 `40 passed`，全量后端 `978 passed, 8 skipped, 0 failed`；
+- Backend CI run `29881570031` 已成功，覆盖 Alembic、PostgreSQL pytest、API smoke、Ruff 和 pip-audit；
 - 详细记录：[`docs/releases/20260722_phase4_user_scope.md`](../docs/releases/20260722_phase4_user_scope.md)
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成

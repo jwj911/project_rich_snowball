@@ -22,7 +22,8 @@
 
 ## 生产发布阻塞项
 
-- [x] 提交已推送；Backend CI 待本次提交完成后补记最终结论。
+- [x] 提交已推送。
+- [x] [Backend CI run 29881570031](https://github.com/jwj911/project_rich_snowball/actions/runs/29881570031)：completed successfully。
 - [ ] 生产 PostgreSQL 迁移、备份恢复和 readiness 已重新执行。
 - [ ] 生产权限、CORS、scheduler owner、前端 smoke 和 Lighthouse 已重新执行。
 - [ ] 事故日志、trace id 和回滚结果已写入正式生产记录。

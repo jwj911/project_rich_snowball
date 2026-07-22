@@ -372,6 +372,7 @@ flowchart TD
 - 全量后端测试：`978 passed, 8 skipped, 0 failed`；
 - 全仓库 Ruff：通过；
 - 既有 `sqlglot==26.20.0` lock 无变化；
+- Backend CI run `29881570031`：Alembic、PostgreSQL pytest、API smoke、Ruff 和 pip-audit 全部成功；
 - 详细记录：[`docs/releases/20260722_phase4_user_scope.md`](releases/20260722_phase4_user_scope.md)。
 
 下一项：为复杂私有关联查询增加 PostgreSQL 专项回归，并逐步评估显式 repository/API。
