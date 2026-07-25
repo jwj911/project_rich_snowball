@@ -2,7 +2,7 @@
 
 > 实施日期：2026-07-21
 > 关联风险：F-12（Agent SQL 工具依赖正则解析）
-> 当前迭代事实源：[`iteration_plan_20260718_project_audit.md`](iteration_plan_20260718_project_audit.md)
+> 后续迭代事实源：[`iteration_plan_20260724_follow_up.md`](iteration_plan_20260724_follow_up.md)
 
 ## 目标
 
@@ -57,5 +57,7 @@ cd python
 
 ## 后续边界
 
-本批已完成私有数据 owner 谓词的 AST 改写。后续仍可将用户私有数据访问逐步
-收敛为显式 repository/API，并为复杂关联查询增加 PostgreSQL 专项回归。
+本批后续已完成 PostgreSQL 专项回归，并在
+[`phase4_private_data_access_boundary.md`](phase4_private_data_access_boundary.md) 中明确了
+通用 SQL、领域 API 与后续 repository 的私有数据访问边界。下一阶段转入数据基础
+与可复现性建设。

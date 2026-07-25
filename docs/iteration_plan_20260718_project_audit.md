@@ -375,4 +375,5 @@ flowchart TD
 - Backend CI run `29881570031`：Alembic、PostgreSQL pytest、API smoke、Ruff 和 pip-audit 全部成功；
 - 详细记录：[`docs/releases/20260722_phase4_user_scope.md`](releases/20260722_phase4_user_scope.md)。
 
-下一项：为复杂私有关联查询增加 PostgreSQL 专项回归，并逐步评估显式 repository/API。
+下一项：执行 [`iteration_plan_20260724_follow_up.md`](iteration_plan_20260724_follow_up.md) 的 R1，
+为复杂私有关联查询增加 PostgreSQL 专项回归，并逐步评估显式 repository/API。

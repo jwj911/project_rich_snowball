@@ -37,7 +37,8 @@
 
 ### Phase 3：文档与发布治理 — 首批完成（2026-07-19）
 
-- `docs/iteration_plan_20260718_project_audit.md` 作为当前迭代唯一事实源
+- `docs/iteration_plan_20260718_project_audit.md` 记录已完成审计基线；后续执行以
+  [`docs/iteration_plan_20260724_follow_up.md`](../docs/iteration_plan_20260724_follow_up.md) 为事实源
 - 新增 [`docs/release_checklist_20260719.md`](../docs/release_checklist_20260719.md)，统一代码、迁移、数据、权限、浏览器、备份和回滚检查
 - ProductDB 退场计划、旧前端质量清单和旧前端路线图移动到 `docs/archive/`，并标记为历史记录
 - 已完成的 Agent/项目审计、P0-P2、Phase 5 及 2026-07-05 修复记录移动到 `docs/archive/`，保留历史上下文但不再作为当前执行入口
@@ -70,6 +71,33 @@ Phase 3 后续只在真实发布窗口填写生产记录；工程风险治理进
 - 定向测试 `40 passed`，全量后端 `978 passed, 8 skipped, 0 failed`；
 - Backend CI run `29881570031` 已成功，覆盖 Alembic、PostgreSQL pytest、API smoke、Ruff 和 pip-audit；
 - 详细记录：[`docs/releases/20260722_phase4_user_scope.md`](../docs/releases/20260722_phase4_user_scope.md)
+
+### Phase 4：远期风险与安全 — 第三项完成（2026-07-24）
+
+- 新增后续迭代事实源：[`docs/iteration_plan_20260724_follow_up.md`](../docs/iteration_plan_20260724_follow_up.md)；
+- 独立 PostgreSQL 测试库从空库迁移到 `f7a8b9c0d1e2`，owner-scope 回归覆盖 LEFT JOIN、
+  CTE/UNION、`agent_task_steps` 父任务关联、前端日志和用户偏好；
+- 数据库工具、PostgreSQL owner-scope 与既有 PostgreSQL upsert 回归合计 `50 passed`；
+- 私有表 owner policy 已收敛到单一映射，用户自建新闻源和新闻文章不再由通用 SQL 查询；
+- 决策记录：[`docs/phase4_private_data_access_boundary.md`](../docs/phase4_private_data_access_boundary.md)。
+
+当前下一项：进入 R3「数据基础与可复现性」，先完成 `raw_contract` 日级宽表的最小
+schema、血缘和重建设计。
+
+### R3：数据基础与可复现性 — 第一项完成（2026-07-24）
+
+- 新增 `agent_market_panel_daily`，首版只物化 `raw_contract`、`1d` 合约级视图；
+- `kline_data` 提供 OHLCV，`fut_daily_data` 补充成交额、持仓和结算价；估算值与缺失值通过
+  `source_flags` 和 `quality_status` 显式标记；
+- 通过 `rebuild_raw_contract_daily_panel()` 与
+  `scripts/rebuild_raw_contract_panel.py` 支持幂等重建和 dry-run；
+- Data Catalog 与 DataQualityService 已提供宽表覆盖和质量摘要；
+- 干净 PostgreSQL 库迁移至 `a1c2d3e4f5a6`，专项回归通过；
+- 本地全量后端：`1012 passed, 1 skipped, 0 failed`；全仓库 Ruff 通过；
+- 详细记录：[`docs/r3_raw_contract_market_panel.md`](../docs/r3_raw_contract_market_panel.md)。
+
+R3 后续：构建批次/失败重试/质量快照、主力连续与复权视图、FactorMiningAgent 与
+BacktestAgent 的显式 `data_view` 消费。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 
@@ -307,18 +335,20 @@ Phase 3 后续只在真实发布窗口填写生产记录；工程风险治理进
 - 前端页面：`/strategies`、`/alerts`、`/agents`、`/agents/detail`
 - 相关 pytest 已覆盖核心链路：`test_strategies.py`、`test_backtest_agent.py`、`test_alert_events.py`、`test_strategy_compiler.py`
 
-## 待处理 P1 事项
+## 已完成安全边界校正（2026-07-24）
 
-以下事项在当前代码中已有对应测试或部分修复，但仍是生产就绪前需要持续关注的高优先级项：
+以下历史 P1 项已在代码和测试中完成，保留在此用于追溯：
 
-1. **前端日志鉴权与 payload 限制**：`frontend_logs.py` 已鉴权，但需继续限制单条日志大小、JSON 深度、自定义 key 数量，防止存储滥用。
-2. ~~**RSS URL 校验与抓取超时**：`news_fetcher.py` 已显式拒绝非 http/https 及内网/本地/link-local 地址，httpx 请求超时 10s、最大重定向 3 次，并由 schema 层前置校验。~~ **已修复**。
-3. **价位标注并发重复**：`price_levels` 表已建立 partial unique index，确保 `(variety_id, type, price, scope, contract_id)` 在 `contract_id IS NULL` 分支唯一。
-4. **评论外键冲突**：删除品种或合约时需保证关联评论有级联或软删除策略，避免 500。
-5. **实时行情批量 symbol 上限**：`/api/realtime/batch` 应对请求 symbol 数量做硬性上限。
-6. **交易观点 reason 字段清洗**：与评论一致，使用 `html.escape()` 或等价 sanitize，防止 XSS。
+1. ~~前端日志鉴权与 payload 限制~~：已覆盖 8KB 大小、嵌套深度和 key 数量限制。
+2. ~~RSS URL 校验与抓取超时~~：已拒绝非 HTTP(S)、内网/本地地址并限制超时和重定向。
+3. ~~价位标注并发重复~~：已建立 partial unique index。
+4. ~~评论外键冲突~~：品种/用户删除使用级联策略。
+5. ~~实时行情批量 symbol 上限~~：batch 与 SSE 共用 50 个 symbol 上限。
+6. ~~交易观点 reason 字段清洗~~：请求 schema 层执行 HTML 清洗。
 
-新功能开发时应优先处理上述安全/稳定性项，并补充对应 pytest / 单元测试。
+后续未完成项统一以
+[`docs/iteration_plan_20260724_follow_up.md`](../docs/iteration_plan_20260724_follow_up.md)
+为执行入口，不再从本节拆分平行待办。
 
 ## 待处理 P2 风险接受项
 
@@ -328,6 +358,6 @@ Phase 3 后续只在真实发布窗口填写生产记录；工程风险治理进
 2. **`kline_data` 表分区/归档**：K 线数据目前单表存储，PostgreSQL 大数据量场景下需按 `trading_time` + `period` 做 range partition 并冷数据归档。方案已记录在 `python/docs/kline_partitioning.md`。
 3. ~~**RSS fetch 后台化**：`/api/news/sources/{id}/fetch` 在 API 请求内同步执行，慢源可能导致请求超时。~~ **已修复（2026-06-24）**：手动触发接口改为 `BackgroundTasks` 异步执行。
 4. ~~**自动备份/恢复演练**：`python/docs/postgres_backup_runbook.md` 已提供手动 runbook，但尚未自动化。~~ **已修复（2026-06-24）**：新增 `python/scripts/backup_postgres.py`（逻辑/物理备份 + 过期清理）与 `python/scripts/restore_postgres.py`（恢复演练 + 核心表行数校验），支持 `DATABASE_URL` / `PG*` 环境变量与 `--dry-run`。
-5. **`database_tools.py` SQL 安全加固**：当前使用正则白名单 + 字符串匹配做 SQL 校验，存在被绕过的理论风险；远期应引入 SQL parser 与参数化查询，作为 P2 风险接受项。
+5. ~~**`database_tools.py` SQL 安全加固**：当前使用正则白名单 + 字符串匹配做 SQL 校验，存在被绕过的理论风险。~~ **已完成 AST 只读校验和 owner 谓词改写（2026-07-22）；PostgreSQL 专项语义回归见后续迭代 R1。**
 
 > 注：上述列表随修复迭代更新；已修复项保留 ~~删除线~~ 以便追溯。

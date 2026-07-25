@@ -16,8 +16,8 @@
 - 价格预警：用户为品种设置 above/below 价格预警，实时行情刷新时自动检测触发
 - 模拟持仓：用户创建虚拟交易记录，支持做多/做空、盈亏计算与复盘统计
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
-- 当前工程基线：后端本地 `978 passed, 8 skipped, 0 failed`，前端 Vitest `195 passed, 0 failed`；Backend CI #22、Frontend CI #28 和 Phase 4 SQL AST CI 的 PostgreSQL、Alembic、Ruff、覆盖率、`pip-audit`、Playwright 和 Lighthouse 证据已记录
-- 当前迭代：Phase 3 文档与发布治理已完成，Phase 4 SQL AST 只读校验及私有数据 owner 谓词改写已完成
+- 当前工程基线：后端本地 `1012 passed, 1 skipped, 0 failed`，前端 Vitest `195 passed, 0 failed`；Backend CI #22、Frontend CI #28 和 Phase 4 SQL AST CI 的 PostgreSQL、Alembic、Ruff、覆盖率、`pip-audit`、Playwright 和 Lighthouse 证据已记录
+- 当前迭代：Phase 3 文档与发布治理已完成，Phase 4 SQL AST、PostgreSQL owner-scope 回归和私有数据访问边界收敛已完成；R3 已交付 [raw_contract 日频研究宽表](docs/r3_raw_contract_market_panel.md)
 
 ---
 
@@ -58,7 +58,7 @@ project_rich_snowball/
 │   ├── data_collector/           # 数据采集流水线与调度器
 │   ├── middleware/               # 中间件（限流、API 版本映射）
 │   ├── scripts/                  # 工具脚本（回填、迁移、验收）
-│   ├── tests/                    # pytest 测试（978 passed, 8 skipped）
+│   ├── tests/                    # pytest 测试（1012 passed, 1 skipped）
 │   └── alembic/                  # 数据库迁移
 │
 ├── quantative_tools/             # 量化分析工具集
@@ -69,6 +69,9 @@ project_rich_snowball/
 │
 ├── docs/                         # 项目文档
 │   ├── release_checklist_20260719.md # 当前发布检查与回滚清单
+│   ├── iteration_plan_20260724_follow_up.md # Phase 4 后续迭代队列
+│   ├── phase4_private_data_access_boundary.md # Agent 私有数据访问边界
+│   ├── r3_raw_contract_market_panel.md # raw_contract 日频研究宽表
 │   ├── releases/                  # 逐版本工程基线与生产发布记录
 │   ├── phase4_sql_ast_readonly.md # Agent SQL AST 只读校验记录
 │   ├── guides/                   # 技术参考（API 参考、数据管道、版本指南）
@@ -287,8 +290,9 @@ cd D:\Code\project_rich_snowball\python
 alembic upgrade head
 ```
 
-当前 Alembic head 为 `f7a8b9c0d1e2`，共 59 个迁移版本；其中
-`fut_main_daily_data` 使用 `(variety_id, ts_code, period, trade_date)` 作为幂等唯一键。
+当前 Alembic head 为 `a1c2d3e4f5a6`，共 60 个迁移版本；其中
+`fut_main_daily_data` 使用 `(variety_id, ts_code, period, trade_date)` 作为幂等唯一键，
+`agent_market_panel_daily` 使用 `(data_view, variety_id, contract_id, period, trading_date)` 作为重建唯一键。
 
 Tushare 历史回填脚本位于 `python/tushare_pg_ingest/`，包含日线、周/月线、结算、仓单、持仓、涨跌停、主力映射、周度统计等入口。详见 [python/tushare_pg_ingest/README.md](python/tushare_pg_ingest/README.md)。
 

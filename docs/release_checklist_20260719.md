@@ -20,15 +20,15 @@
 - [ ] 后端 pytest 失败数为 `0`，跳过项有明确原因。
 - [ ] 前端 Vitest 失败数为 `0`。
 
-当前基线（2026-07-22）：
+当前工程基线（2026-07-24）：
 
-- 后端：`978 passed, 8 skipped, 0 failed`，coverage 基线 `71.97%`。
+- 后端：`1012 passed, 1 skipped, 0 failed`，coverage 历史基线 `71.97%`。
 - 前端：`195 passed, 0 failed`。
 
 ## 3. 数据库与数据
 
 - [ ] PostgreSQL 目标实例可连接，执行 `alembic upgrade head`。
-- [ ] Alembic head 为 `f7a8b9c0d1e2`，迁移数量为 59。
+- [ ] Alembic head 为 `a1c2d3e4f5a6`，迁移数量为 60。
 - [ ] `fut_main_daily_data` 唯一键为
   `(variety_id, ts_code, period, trade_date)`。
 - [ ] Mock、主力日线、具体合约日线和实时快照路径均有可解释结果。

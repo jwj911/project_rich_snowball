@@ -57,9 +57,10 @@
    - AnalysisPipelineAgent 已在 DataAgent / TechAnalysisAgent / RiskManagementAgent 前增加数据可用性检查；`bad` 时停止流水线，`warning` 时继续并在最终报告保留风险提示。
    - 已增加 `tests/test_agent_data_preflight.py` 覆盖回测 bad 拒绝、因子缺字段失败、流水线 bad 停止，并修复 `test_factor_mining_agent.py` 测试夹具的数据复用问题。
 
-5. **Milestone D：数据宽表审计**
+5. **Milestone D：数据宽表审计与 raw_contract 最小实现**
    - 已新增 `docs/data_wide_table_audit.md`。
-   - 审计结论：当前具备构建宽表的数据来源，但尚未实现独立物理宽表；第一版应先落地 `raw_contract` 日级宽表，再接主力连续与复权口径。
+   - 已新增 `agent_market_panel_daily`，完成 `raw_contract` 日级宽表、字段血缘、质量状态、幂等重建和 Data Catalog 接入。
+   - 主力连续/复权、质量快照和因子/回测消费侧待后续实现，详见 `docs/r3_raw_contract_market_panel.md`。
 
 最近一次后端 targeted 验证：
 
@@ -82,7 +83,7 @@ cd python
 | P0 | Data Catalog | **已完成最小闭环** | Agent 知道可用表、覆盖范围、更新时间、质量状态 | 当前线程/Agent |
 | P0 | LLM 配置 API | **已完成最小闭环** | 用户可配置自己的 OpenAI 兼容 API，系统默认可兜底 | 当前线程/Agent |
 | P1 | Agent 数据前置检查 | **已完成最小闭环** | 回测/因子/技术分析前自动检查数据可用性 | 当前线程/Agent |
-| P1 | 数据宽表审计 | **审计已完成，实现待做** | 审计另一个 Agent 做的数据宽表，确保可用于因子/策略 | 当前线程审计 |
+| P1 | 数据宽表审计与 raw_contract 实现 | **第一项已完成** | 原始合约日频宽表可重建、可追溯、可被目录和质量服务发现 | 当前线程 |
 | P1 | 主力连续数据管道 | 待开始 | 生成可复权、可重跑、可审计的连续合约数据 | 分配给数据管道 Agent |
 
 ---
@@ -570,7 +571,7 @@ DataQualityAgent → DataAgent → TechAnalysisAgent → RiskManagementAgent
 - 已验证因子评估缺字段时返回明确错误，而不是在计算阶段隐式失败。
 - 已验证完整分析流水线第一步能展示数据检查结果。
 
-### Milestone D：数据宽表审计（审计已完成，实现待做）
+### Milestone D：数据宽表审计与 raw_contract 实现（第一项已完成）
 
 交付：
 
@@ -579,11 +580,14 @@ DataQualityAgent → DataAgent → TechAnalysisAgent → RiskManagementAgent
 - 已交付刷新机制审计
 - 已交付索引和性能建议
 - 已交付质量门禁建议
+- 已交付 `agent_market_panel_daily` 的 `raw_contract` / `1d` 宽表、幂等重建服务与 dry-run 脚本
+- 已接入 Data Catalog 和 DataQualityService
 
 验收：
 
-- 当前结论为“数据来源具备，独立宽表尚未实现”，因此暂不满足“宽表可被 FactorMiningAgent 和 BacktestAgent 安全使用”。
-- C+ 已在宽表缺失阶段提供保护：因子缺字段会明确失败，回测/流水线会先检查 K 线质量。
+- raw_contract 视图已可构建、重建和解释字段血缘，但不包含连续/复权口径。
+- 尚不满足“宽表可被 FactorMiningAgent 和 BacktestAgent 安全使用”：消费侧仍未显式选择 `data_view`。
+- C+ 保护继续有效：因子缺字段会明确失败，回测/流水线会先检查 K 线质量。
 
 ### Milestone E：主力连续数据接入
 

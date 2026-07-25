@@ -58,7 +58,7 @@ Agent 系统按「功能能力」拆分，每个 Agent 有清晰边界、稳定�
 - `tests/test_backtest_agent.py`、`tests/test_strategy_compiler.py`、`tests/test_factor_mining_agent.py`、`tests/test_data_quality_agent.py`：对应 Agent 核心链路
 - `tests/test_trader_modules.py`、`tests/test_trader_agent.py`：TraderAgent 子模块与集成测试
 
-当前 Agent 相关 pytest 已新增 trader 专项 18 个；项目已补齐 `scikit-learn` lock，最近一次全量后端测试为 `978 passed, 8 skipped, 0 failed`，前端 Vitest 为 `195 passed, 0 failed`。Backend CI #22、Frontend CI #28 和 Phase 4 Backend CI 均已通过。
+当前 Agent 相关 pytest 已新增 trader 专项 18 个；项目已补齐 `scikit-learn` lock，最近一次全量后端测试为 `1012 passed, 1 skipped, 0 failed`，前端 Vitest 为 `195 passed, 0 failed`。Backend CI #22、Frontend CI #28 和 Phase 4 Backend CI 均已通过。
 
 ## 数据库模型
 
@@ -80,4 +80,4 @@ Agent 系统按「功能能力」拆分，每个 Agent 有清晰边界、稳定�
 - 流式事件类型新增时，前后端 `AgentEvent` 枚举必须同步更新；当前事件类型：`start`、`progress`、`thought`、`action`、`observation`、`result`、`error`、`done`。
 - 涉及 Agent 改动至少运行 `python -m py_compile` 和相关 pytest。
 - 策略 DSL 新增 `transform` 字段（如 `multiply_indicator2`）时，需同步更新策略编译器、DSL schema 校验与回测引擎消费侧；当前回测引擎尚未消费 `multiply_indicator2`，仅验证 DSL 生成。
-- `services/agent/database_tools.py` 的查询入口已使用 `sqlglot` AST 做单语句、只读节点、危险函数、表白名单和私有数据 owner 谓词改写；复杂私有关联查询继续补充 PostgreSQL 专项回归。
+- `services/agent/database_tools.py` 的查询入口已使用 `sqlglot` AST 做单语句、只读节点、危险函数、表白名单和私有数据 owner 谓词改写；PostgreSQL 专项回归已覆盖复杂关联，owner policy 集中在 `_PRIVATE_TABLE_USER_COLUMNS`，用户自建新闻数据不开放给通用 SQL。

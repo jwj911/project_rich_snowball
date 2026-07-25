@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-07-22（Phase 4 私有数据 owner 谓词改写）
+> **最后更新**：2026-07-24（R3 raw_contract 日频研究宽表）
 
 ---
 
@@ -16,9 +16,9 @@
 - **Agent 系统 Phase 0~2 已完成**并接入真实 SSE 进度流：DataAgent、DataQualityAgent、TechAnalysisAgent、RiskManagementAgent、AnalysisPipelineAgent、StrategyCompilerAgent、BacktestAgent、FactorMiningAgent、TraderAgent 已上线。
 - **策略进化（Strategy Evolution）已落地**：GA 进化循环、GP 因子生成、Pareto 适应度、贝叶斯优化、策略生命周期追踪。
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
-- **测试状态**：最近一次本地全量后端测试为 `978 passed, 8 skipped, 0 failed`，覆盖率基线为 `71.97%`；前端 Vitest 为 `195 passed, 0 failed`。Python `ruff check .`、前端 TypeScript、ESLint 和 production build 均通过。
+- **测试状态**：最近一次本地全量后端测试为 `1012 passed, 1 skipped, 0 failed`，覆盖率历史基线为 `71.97%`；前端 Vitest 为 `195 passed, 0 failed`。Python `ruff check .`、前端 TypeScript、ESLint 和 production build 均通过。
 - **远程验收**：Backend CI #22 与 Frontend CI #28（run `29670891119`）的 Alembic、PostgreSQL pytest、API smoke、Ruff、`pip-audit`、Chromium Playwright、Vitest 和 Lighthouse 全部通过。
-- **当前迭代**：Phase 3 文档与发布治理已完成首批、第二批和第三批；Phase 4 SQL AST 只读校验及私有数据 owner 谓词改写已完成。
+- **当前迭代**：Phase 3 文档与发布治理已完成；Phase 4 SQL AST、PostgreSQL owner-scope 回归和私有数据访问边界收敛已完成；R3 已交付 raw_contract 日频研究宽表，后续处理连续合约、质量快照和 Agent 消费侧。
 - **文件审计**：2026-07-05 完成 Phase 1/2 清理，根目录精简至 7 个文件，文档迁入 `docs/guides/`、`docs/archive/` 与 `quantative_tools/reports/`，详见 [docs/audit_cleanup_20260705.md](docs/audit_cleanup_20260705.md)。
 
 ### 主要功能模块
@@ -60,6 +60,9 @@
 | 文档 | 说明 |
 |------|------|
 | [docs/release_checklist_20260719.md](docs/release_checklist_20260719.md) | 当前发布前检查、CI 证据、备份与回滚清单 |
+| [docs/iteration_plan_20260724_follow_up.md](docs/iteration_plan_20260724_follow_up.md) | Phase 4 后续安全回归、数据基础、策略验证与发布队列 |
+| [docs/phase4_private_data_access_boundary.md](docs/phase4_private_data_access_boundary.md) | Agent 通用 SQL 的私有数据访问边界与 owner policy |
+| [docs/r3_raw_contract_market_panel.md](docs/r3_raw_contract_market_panel.md) | raw_contract 日频研究宽表的 schema、血缘和重建规则 |
 | [docs/releases/README.md](docs/releases/README.md) | 按版本维护的工程基线与生产发布记录 |
 | [docs/phase4_sql_ast_readonly.md](docs/phase4_sql_ast_readonly.md) | Phase 4 Agent SQL AST 只读校验实施记录 |
 | [docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md](docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md) | 数据管道与 PostgreSQL 配置 |
@@ -91,7 +94,7 @@
 | 框架 | FastAPI | 0.136.3 |
 | 服务器 | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.25 |
-| 迁移 | Alembic | 1.13.1，当前 59 个迁移脚本；head 为 `f7a8b9c0d1e2` |
+| 迁移 | Alembic | 1.13.1，当前 60 个迁移脚本；head 为 `a1c2d3e4f5a6` |
 | 校验 | Pydantic | v2 2.9.0 |
 | 认证 | JWT + OAuth2 密码流 | PyJWT 2.13.0，bcrypt via passlib |
 | 数据库 | SQLite / PostgreSQL | 开发默认 SQLite；PG 16 通过 docker-compose 提供，映射端口 15432 |
@@ -167,8 +170,8 @@ d:\Code\project_rich_snowball/
 | `lib/` | 纯 numpy/pandas 技术指标库 `technical_indicators.py` |
 | `middleware/` | `api_version.py`（`/api/v1/*` 映射）、`rate_limit.py` |
 | `scripts/` | 运维/回填/迁移/验收脚本 |
-| `tests/` | 85 个 pytest 测试文件 + `conftest.py` |
-| `alembic/` | 59 个 Alembic 迁移版本 |
+| `tests/` | 89 个 pytest 测试文件 + `conftest.py` |
+| `alembic/` | 60 个 Alembic 迁移版本 |
 | `tushare_pg_ingest/` | Tushare 历史数据回填脚本体系 |
 | `docs/` | 后端专项技术文档 |
 

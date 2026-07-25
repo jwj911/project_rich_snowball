@@ -2,7 +2,11 @@
 
 **日期**：2026-07-04  
 **范围**：因子评估、回测、技术分析可复用的数据宽表/面板能力  
-**结论**：当前仓库尚未实现独立物理数据宽表；已有能力是 `kline_data` 原始 K 线、Tushare 扩展表、因子引擎内存面板，以及 `technical_indicators.py` 的单 DataFrame 因子计算。宽表可以设计并落地，但目前不应标记为“可被 FactorMiningAgent 和 BacktestAgent 安全使用”。
+**结论（2026-07-24 更新）**：已落地独立物理宽表
+`agent_market_panel_daily` 的 `raw_contract` 日频最小闭环；连续/复权视图与
+FactorMiningAgent、BacktestAgent 的直接消费尚未实现，因此仍不应标记为“可被因子和
+回测安全使用的完整宽表体系”。实施记录见
+[`r3_raw_contract_market_panel.md`](r3_raw_contract_market_panel.md)。
 
 ---
 
@@ -19,6 +23,7 @@
 | `fut_holding` | 持仓排名 | `symbol`、`broker`、成交/多空持仓及变化 | 可聚合为 `holding_rank` 或多空集中度指标 |
 | `fut_price_limits` | 涨跌停与保证金 | `ts_code`、`up_limit`、`down_limit`、`m_ratio` | 可补充 `limit_up/limit_down`，需合约映射 |
 | `contract_rollovers` | 主力换月 | `variety_id`、新旧合约、`effective_date` | 是连续合约和 `data_view` 口径的必要来源 |
+| `agent_market_panel_daily` | 合约日频研究宽表 | `raw_contract`、OHLCV、扩展字段、派生字段、`source_flags`、`quality_status` | 第一版已完成，连续/复权视图待实现 |
 
 ### 1.2 当前因子面板限制
 
@@ -160,14 +165,16 @@ updated_at
 
 ## 7. 审计结论
 
-Milestone D 的审计结论是：**当前具备构建宽表的数据来源，但还没有可验收的数据宽表实现**。
+Milestone D 已完成第一版实现：`raw_contract` 日级宽表已具备基础 OHLCV、`amount`、
+`open_interest`、常用派生字段、字段血缘、质量状态、幂等重建和 Data Catalog 可发现性。
 
-建议下一步先实现最小宽表：
+尚未完成的是主力连续/复权、采集批次质量快照，以及因子和回测的显式 `data_view`
+消费。因此它不能替代现有 K 线数据，也不能被误认为完整的多口径研究面板。
 
-1. `raw_contract` 日级宽表：只做原始合约口径。
-2. 字段覆盖：基础 OHLCV + `amount/open_interest` + 常用派生字段。
-3. source_flags：记录 `amount` 是否估算。
-4. 质量门禁：row count、OHLC、空值比例、抽样对账。
-5. Data Catalog 接入：让 Agent 能发现并解释宽表可用性。
+后续建议：
 
-主力连续与复权口径应进入 Milestone E，不建议和第一版宽表混在同一个提交里一次完成。
+1. 将宽表构建接入批次记录、失败重试和质量快照。
+2. 实现主力连续与复权视图，并保留换月血缘。
+3. 在因子和回测中显式选择 `data_view`，禁止隐式混用原始合约与连续价格。
+
+主力连续与复权口径仍应进入 Milestone E，不与 raw_contract 第一版混在同一个提交。
