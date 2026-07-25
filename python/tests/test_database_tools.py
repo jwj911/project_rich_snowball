@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from models import VarietyDB
 from services.agent.database_tools import (
+    _ALLOWED_TABLES,
+    _PRIVATE_TABLE_USER_COLUMNS,
     GetTableSchemaTool,
     ListTablesTool,
     QueryDatabaseTool,
@@ -117,6 +121,12 @@ class TestSQLValidation:
         assert not ok
         assert "不在允许查询" in msg
 
+    @pytest.mark.parametrize("table_name", ["news_sources", "news_articles"])
+    def test_user_curated_news_tables_are_not_available_to_generic_sql(self, table_name):
+        ok, msg = _validate_sql(f"SELECT * FROM {table_name}")
+        assert not ok
+        assert "不在允许查询" in msg
+
     def test_block_comment_strips_keywords(self):
         """Block comment removal: /* DROP TABLE some_table */ exposes a non-whitelist table."""
         # After stripping the comment: "SELECT * FROM varieties   LIMIT 1"
@@ -184,6 +194,24 @@ class TestSQLHelpers:
             7,
         )
         assert result.count("user_id = 7") == 2
+
+    @pytest.mark.parametrize(
+        ("table_name", "user_column"),
+        sorted((name, column) for name, column in _PRIVATE_TABLE_USER_COLUMNS.items() if column is not None),
+    )
+    def test_injects_owner_filter_for_each_direct_private_table(self, table_name, user_column):
+        result = _inject_user_filter(f"SELECT * FROM {table_name}", 7)
+        assert f"{table_name}.{user_column} = 7" in result
+
+    def test_task_steps_owner_policy_uses_parent_task(self):
+        assert _PRIVATE_TABLE_USER_COLUMNS["agent_task_steps"] is None
+        result = _inject_user_filter("SELECT * FROM agent_task_steps", 7)
+        assert "EXISTS" in result
+        assert "_agent_owner_task.user_id = 7" in result
+
+    def test_generic_sql_allowlist_excludes_user_curated_news_data(self):
+        assert "news_sources" not in _ALLOWED_TABLES
+        assert "news_articles" not in _ALLOWED_TABLES
 
     def test_ensure_limit_adds_limit(self):
         sql = "SELECT * FROM varieties"

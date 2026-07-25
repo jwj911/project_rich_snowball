@@ -54,6 +54,26 @@ _FORBIDDEN_KEYWORDS: frozenset[str] = frozenset(
     }
 )
 
+# 用户隔离策略。值为 ``user_id`` 的表直接按 owner 过滤；``None`` 表示需要通过
+# 关联任务表推导 owner。所有能在通用 SQL 中访问的用户数据必须在这里显式登记。
+_PRIVATE_TABLE_USER_COLUMNS: dict[str, str | None] = {
+    "opinions": "user_id",
+    "trade_records": "user_id",
+    "strategies": "user_id",
+    "backtest_runs": "user_id",
+    "price_levels": "user_id",
+    "watchlists": "user_id",
+    "comments": "user_id",
+    "price_alerts": "user_id",
+    "alert_events": "user_id",
+    "alert_event_user_states": "user_id",
+    "agent_tasks": "user_id",
+    "agent_task_steps": None,
+    "frontend_logs": "user_id",
+    "user_preferences": "user_id",
+}
+_PRIVATE_TABLES: frozenset[str] = frozenset(_PRIVATE_TABLE_USER_COLUMNS)
+
 # 白名单表（Agent 可以查询的表）
 # 注意：users 表被排除，避免泄露密码哈希等敏感信息
 _ALLOWED_TABLES: frozenset[str] = frozenset(
@@ -77,9 +97,6 @@ _ALLOWED_TABLES: frozenset[str] = frozenset(
         # 交易日历与监控
         "trading_calendar",
         "data_ingestion_runs",
-        # 新闻
-        "news_articles",
-        "news_sources",
         # 用户业务数据（需通过 user_id 过滤，由查询逻辑自动注入）
         "opinions",
         "trade_records",
@@ -226,7 +243,6 @@ class ListTablesTool(Tool):
             "fut_weekly_detail": "周度交易统计（成交量/持仓量周同比环比）",
             "fut_trade_fee": "手续费与保证金（九期网数据）",
             "trading_calendar": "交易日历",
-            "news_articles": "新闻资讯",
             "opinions": "用户交易观点",
             "trade_records": "模拟持仓交易记录",
             "strategies": "用户策略",
@@ -241,7 +257,10 @@ class ListTablesTool(Tool):
                 for name, desc in table_descriptions.items()
                 if name in _ALLOWED_TABLES
             ],
-            "note": f"共 {len(table_descriptions)} 张表可查询。查询用户私有数据（opinions/trade_records等）时，SQL中需包含 user_id = {context.user_id} 条件。",
+            "note": (
+                f"共 {len(table_descriptions)} 张表可查询。用户私有数据会自动按当前用户隔离；"
+                "新闻源和新闻文章请使用受鉴权的新闻 API 查询。"
+            ),
         }
 
 
@@ -331,11 +350,11 @@ class QueryDatabaseTool(Tool):
     name = "query_database"
     description = (
         "执行受控的 SELECT SQL 查询，直接从数据库获取数据。"
-        "支持任何已入库的期货数据表：行情、基本面、用户业务数据等。"
+        "支持白名单内的期货行情、基本面和当前用户业务数据。"
         "\n"
         "使用建议：\n"
         "1. 不确定表结构时，先调用 get_table_schema 工具\n"
-        "2. 查询用户私有数据（opinions/trade_records等）时，必须加 user_id 条件\n"
+        "2. 查询用户私有数据（opinions/trade_records等）时，系统会自动注入当前用户过滤条件\n"
         "3. 日期比较格式：trade_date >= '2024-01-01'\n"
         "4. 限制返回行数：SELECT ... LIMIT 100\n"
         "\n"
@@ -428,39 +447,6 @@ class QueryDatabaseTool(Tool):
 # SQL 辅助函数
 # ------------------------------------------------------------------
 
-_PRIVATE_TABLES: frozenset[str] = frozenset(
-    {
-        "opinions",
-        "trade_records",
-        "strategies",
-        "backtest_runs",
-        "price_levels",
-        "watchlists",
-        "comments",
-        "price_alerts",
-        "alert_events",
-        "alert_event_user_states",
-        "agent_tasks",
-        "agent_task_steps",
-    }
-)
-
-
-_USER_ID_COLUMN_MAP: dict[str, str] = {
-    "opinions": "user_id",
-    "trade_records": "user_id",
-    "strategies": "user_id",
-    "backtest_runs": "user_id",
-    "price_levels": "user_id",
-    "watchlists": "user_id",
-    "comments": "user_id",
-    "price_alerts": "user_id",
-    "alert_events": "user_id",
-    "alert_event_user_states": "user_id",
-    "agent_tasks": "user_id",
-    "agent_task_steps": "task_id",  # 通过 task 间接关联 user
-}
-
 
 def _inject_user_filter(sql: str, user_id: int) -> str:
     """在 SQL AST 中按查询作用域注入私有数据过滤条件。
@@ -514,10 +500,10 @@ def _inject_user_filter(sql: str, user_id: int) -> str:
         for table in direct_tables:
             table_name = table.name.lower()
             alias = table.alias_or_name
-            if table_name == "agent_task_steps":
+            user_column = _PRIVATE_TABLE_USER_COLUMNS[table_name]
+            if user_column is None:
                 predicate = _task_owner_predicate(alias, owner_id)
             else:
-                user_column = _USER_ID_COLUMN_MAP.get(table_name, "user_id")
                 if _has_owner_predicate(select, table, user_column, private_aliases, owner_id):
                     continue
                 predicate = exp.EQ(

@@ -39,7 +39,7 @@ _SYSTEM_PROMPT = (
     "- get_holding_rankings: 查询持仓排名（资金流向分析）\n"
     "- get_settlement_params: 查询结算参数（保证金/手续费）\n"
     "- get_price_limits: 查询涨跌停价格\n"
-    "- query_database: 通用 SQL 查询（灵活查询任何已入库数据表）\n"
+    "- query_database: 通用 SQL 查询（白名单内的行情、基本面和当前用户业务数据）\n"
     "- list_tables: 列出可查询的数据库表\n"
     "- get_table_schema: 获取表结构\n"
     "\n"
@@ -51,7 +51,7 @@ _SYSTEM_PROMPT = (
     "5. 如果用户询问持仓/主力动向，调用 get_holding_rankings\n"
     "6. 如果用户询问保证金/手续费/结算价，调用 get_settlement_params\n"
     "7. 当用户询问『涨幅前 N』、『排名前 N』时，必须将 sort_order 设为 desc；询问『跌幅前 N』时设为 asc\n"
-    "8. 当用户的问题超出上述专用工具范围时，你可以使用 query_database 工具直接写 SQL 查询数据库\n"
+    "8. 当用户的问题超出上述专用工具范围时，你可以使用 query_database 工具查询白名单数据；新闻源和新闻文章使用新闻 API\n"
     "9. 使用 query_database 前，如果不确定表结构，先调用 list_tables 或 get_table_schema\n"
     "10. 数据获取完成后，用简洁专业的中文总结\n"
     "11. 所有分析仅供参考，不构成投资建议\n"
@@ -68,7 +68,7 @@ class DataAgent(Agent):
     description = (
         "期货数据查询专家，可获取品种信息、实时行情、K线数据（含连续/主力合约）、"
         "仓单日报、持仓排名、结算参数、涨跌停价格、市场状态等。"
-        "支持通用 SQL 查询，可灵活访问数据库中任何已入库的数据。"
+        "支持通用 SQL 查询，可访问白名单内的市场数据与当前用户业务数据。"
     )
 
     def __init__(self, context: AgentContext) -> None:

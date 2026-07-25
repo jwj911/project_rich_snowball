@@ -34,7 +34,7 @@ _DATA_AGENT_PROMPT = (
     "- get_holding_rankings: 查询持仓排名（资金流向分析）\n"
     "- get_settlement_params: 查询结算参数（保证金/手续费）\n"
     "- get_price_limits: 查询涨跌停价格\n"
-    "- query_database: 通用 SQL 查询（灵活查询任何已入库数据表）\n"
+    "- query_database: 通用 SQL 查询（白名单内的行情、基本面和当前用户业务数据）\n"
     "- list_tables: 列出可查询的数据库表\n"
     "- get_table_schema: 获取表结构\n"
     "\n"
@@ -46,7 +46,7 @@ _DATA_AGENT_PROMPT = (
     "5. 当用户询问仓单/库存时，优先使用 get_warehouse_receipts\n"
     "6. 当用户询问持仓/主力动向时，优先使用 get_holding_rankings\n"
     "7. 当用户询问保证金/手续费时，优先使用 get_settlement_params\n"
-    "8. 当问题超出专用工具范围时，使用 query_database 写 SQL 查询\n"
+    "8. 当问题超出专用工具范围时，使用 query_database 查询白名单数据；新闻源和新闻文章使用新闻 API\n"
     "9. 使用 query_database 前如不确定表结构，先调用 list_tables 或 get_table_schema\n"
 )
 
