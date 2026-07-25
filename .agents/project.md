@@ -17,9 +17,9 @@
   - 5-6 全量测试 + 提交到 master（历史基线）
 - **Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 8 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理 / 分析流水线 / 回测 / 策略编排 / 因子挖掘），执行过程通过 SSE 流式展示。
 - 近期新增：策略工作台（`/strategies`）、策略参数优化（`/strategies/{id}/optimize`）、回测信号可视化（K 线叠加标记）、预警中心（`/alerts`）、Agent 工作台（`/agents`）。
-- **当前质量基线（2026-07-24）**：后端本地 `1012 passed, 1 skipped, 0 failed`；覆盖率历史基线 `71.97%`；前端 Vitest `195 passed, 0 failed`；Python Ruff、TypeScript、ESLint 和 production build 均通过。
+- **当前质量基线（2026-07-25）**：后端本地 `1017 passed, 1 skipped, 0 failed`；覆盖率历史基线 `71.97%`；前端 Vitest `195 passed, 0 failed`；Python Ruff、TypeScript、ESLint 和 production build 均通过。
 - **远程验收**：Backend CI #22 与 Frontend CI #28（run `29670891119`）的 Alembic、PostgreSQL pytest、API smoke、Ruff、`pip-audit`、Chromium Playwright、Vitest 和 Lighthouse 全部通过。
-- **当前迭代**：Phase 3 文档与发布治理已完成；Phase 4 SQL AST、PostgreSQL owner-scope 回归和私有数据访问边界收敛已完成；R3 已交付 raw_contract 日频研究宽表，连续/复权视图、质量快照与 Agent 消费侧待续，详见 [`docs/r3_raw_contract_market_panel.md`](../docs/r3_raw_contract_market_panel.md)。
+- **当前迭代**：Phase 3 文档与发布治理已完成；Phase 4 SQL AST、PostgreSQL owner-scope 回归和私有数据访问边界收敛已完成；R3 已交付 raw_contract 日频研究宽表及批次、失败重试和质量快照，连续/复权视图与 Agent 消费侧待续，详见 [`docs/r3_raw_contract_market_panel.md`](../docs/r3_raw_contract_market_panel.md)。
 
 ## 主要功能模块
 

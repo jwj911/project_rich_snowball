@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-07-25
+
+- 宽表构建接入 `data_ingestion_runs` 批次记录、连接类异常指数退避重试和不含原始行情样本的质量快照；失败通过 `trace_id` 和异常类型诊断。
+- PostgreSQL 模式全量后端回归：`1017 passed, 1 skipped, 0 failed`。
+
 ## 2026-07-24
 
 - 新增 [`docs/iteration_plan_20260724_follow_up.md`](docs/iteration_plan_20260724_follow_up.md)，统一编排 Phase 4 后续安全回归、数据基础、策略验证、前端质量和发布治理。

@@ -20,9 +20,9 @@
 - [ ] 后端 pytest 失败数为 `0`，跳过项有明确原因。
 - [ ] 前端 Vitest 失败数为 `0`。
 
-当前工程基线（2026-07-24）：
+当前工程基线（2026-07-25）：
 
-- 后端：`1012 passed, 1 skipped, 0 failed`，coverage 历史基线 `71.97%`。
+- 后端：`1017 passed, 1 skipped, 0 failed`，coverage 历史基线 `71.97%`。
 - 前端：`195 passed, 0 failed`。
 
 ## 3. 数据库与数据

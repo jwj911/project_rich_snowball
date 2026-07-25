@@ -1,13 +1,13 @@
 # 后续迭代计划：安全边界、数据基础与发布收口
 
 > 计划日期：2026-07-24
-> 当前状态：R1、R2 已完成；R3 第一项已完成，后续子项执行中
+> 当前状态：R1、R2 已完成；R3 前两项已完成，后续子项执行中
 > 适用范围：Phase 4 后续安全回归、数据基础、策略验证、前端质量和生产发布治理
 > 上一份事实源：[`iteration_plan_20260718_project_audit.md`](iteration_plan_20260718_project_audit.md)
 
 ## 1. 当前基线
 
-截至 2026-07-22，项目已经完成：
+截至 2026-07-25，项目已经完成：
 
 - Phase 0 可运行性收口、Phase 1 行情读模型收敛、Phase 2 执行可靠性与生产拓扑；
 - Phase 3 文档与发布治理，包括发布清单、工程基线记录和历史计划归档；
@@ -16,7 +16,7 @@
 
 当前可复现工程基线：
 
-- 后端：`1012 passed, 1 skipped, 0 failed`，coverage 历史基线 `71.97%`；
+- 后端：`1017 passed, 1 skipped, 0 failed`，coverage 历史基线 `71.97%`；
 - 前端：Vitest `195 passed, 0 failed`；
 - 全仓库 Ruff、TypeScript、ESLint、production build 和既有 CI 证据均通过；
 - 以上均为工程基线，不等同于生产发布。生产发布仍需逐项执行
@@ -102,11 +102,18 @@
 - Data Catalog、数据质量检查和手工重建脚本已接入；
 - 详细记录：[`r3_raw_contract_market_panel.md`](r3_raw_contract_market_panel.md)。
 
+第二项实施结果：
+
+- 宽表构建复用 `data_ingestion_runs`，每次尝试保留状态、窗口、计数与共享 `trace_id`；
+- 仅对数据库连接类异常执行指数退避重试，确定性数据错误即时结束；
+- 成功批次写入不含原始行情样本的质量快照；失败批次仅记录异常类型与诊断标识；
+- `--dry-run` 在保存点中运行且不写入宽表或批次记录；
+- 自动调度暂不接入，等待连续/复权视图明确日线依赖顺序后统一实现。
+
 后续子项：
 
-1. 为宽表构建增加采集批次记录、失败重试和质量快照；
-2. 实现主力连续与复权视图，并记录换月血缘；
-3. 将显式 `data_view` 接入 FactorMiningAgent 与 BacktestAgent。
+1. 实现主力连续与复权视图，并记录换月血缘；
+2. 将显式 `data_view` 接入 FactorMiningAgent 与 BacktestAgent。
 
 验收：
 
@@ -185,7 +192,7 @@ R1 与 R2 保持原子化执行：
 |---|---|---|
 | R1 PostgreSQL 私有查询语义回归 | 已完成 | 本文件、第 7 节 |
 | R2 私有数据访问边界收敛 | 已完成 | `phase4_private_data_access_boundary.md` |
-| R3 数据基础与可复现性 | 执行中（第一项完成） | `r3_raw_contract_market_panel.md` |
+| R3 数据基础与可复现性 | 执行中（前两项完成） | `r3_raw_contract_market_panel.md` |
 | R4 策略验证闭环 | 待开始 | 依赖 R3 数据口径 |
 | R5 前端质量与观测趋势 | 待开始 | 与 R3/R4 可并行 |
 | R6 真实发布窗口 | 按需 | 依赖发布窗口和前置证据 |
@@ -221,3 +228,14 @@ R1 与 R2 保持原子化执行：
 - 干净 PostgreSQL 数据库已成功迁移到 `a1c2d3e4f5a6`；
 - 全量后端回归：`1012 passed, 1 skipped, 0 failed`；全仓库 Ruff 通过；
 - 连续合约、复权视图、构建调度与 Agent 消费侧仍保持未实施，不与本批混合。
+
+## 10. R3 第二项执行记录（2026-07-25）
+
+- `run_raw_contract_daily_panel_build()` 复用 `data_ingestion_runs`，记录每次构建尝试；
+- 成功批次保存写入/删除统计、质量状态、分数、日期覆盖与 issue code 快照；
+- 失败批次通过共享 `trace_id`、异常类型、尝试次数和退避元数据提供可追溯诊断，不保存
+  原始行情或异常原文；
+- 仅连接与可操作性数据库错误参与指数退避；确定性数据问题立即终止；
+- `--dry-run` 已验证不写入宽表或批次记录；
+- SQLite 定向回归：`17 passed`；PostgreSQL 空库迁移和专项回归：`2 passed`；
+- PostgreSQL 模式全量后端回归：`1017 passed, 1 skipped, 0 failed`；全仓库 Ruff 通过。

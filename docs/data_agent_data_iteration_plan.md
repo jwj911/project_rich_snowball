@@ -60,7 +60,8 @@
 5. **Milestone D：数据宽表审计与 raw_contract 最小实现**
    - 已新增 `docs/data_wide_table_audit.md`。
    - 已新增 `agent_market_panel_daily`，完成 `raw_contract` 日级宽表、字段血缘、质量状态、幂等重建和 Data Catalog 接入。
-   - 主力连续/复权、质量快照和因子/回测消费侧待后续实现，详见 `docs/r3_raw_contract_market_panel.md`。
+   - 已复用 `data_ingestion_runs` 记录构建批次、可恢复重试和质量快照；主力连续/复权与因子/
+     回测消费侧待后续实现，详见 `docs/r3_raw_contract_market_panel.md`。
 
 最近一次后端 targeted 验证：
 
@@ -582,6 +583,7 @@ DataQualityAgent → DataAgent → TechAnalysisAgent → RiskManagementAgent
 - 已交付质量门禁建议
 - 已交付 `agent_market_panel_daily` 的 `raw_contract` / `1d` 宽表、幂等重建服务与 dry-run 脚本
 - 已接入 Data Catalog 和 DataQualityService
+- 已接入构建批次、连接类错误重试和无原始行情样本的质量快照
 
 验收：
 

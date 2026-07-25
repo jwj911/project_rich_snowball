@@ -65,13 +65,18 @@ alembic upgrade head
 
 `agent_market_panel_daily` 是可重建的合约级日频研究宽表。首版只支持
 `raw_contract` / `1d`，以 `kline_data` 为 OHLCV 主源、`fut_daily_data` 补充
-成交额、持仓和结算价；连续与复权视图尚未实现。
+成交额、持仓和结算价；连续与复权视图尚未实现。每次非 dry-run 构建均记录到
+`data_ingestion_runs`，成功批次包含质量快照，失败批次通过 `trace_id` 诊断。
 
 ```powershell
 cd python
 .venv\Scripts\python.exe scripts\rebuild_raw_contract_panel.py --symbol RB
 .venv\Scripts\python.exe scripts\rebuild_raw_contract_panel.py --start-date 2026-01-01 --dry-run
+.venv\Scripts\python.exe scripts\rebuild_raw_contract_panel.py --symbol RB --max-attempts 3 --retry-delay-seconds 1
 ```
+
+仅连接类错误会指数退避重试；`--dry-run` 不写入宽表或批次记录。自动调度暂不启用，
+避免在连续/复权视图的依赖顺序确定前物化不完整数据。
 
 字段血缘、质量状态、重建语义和后续边界见
 [`docs/r3_raw_contract_market_panel.md`](../docs/r3_raw_contract_market_panel.md)。

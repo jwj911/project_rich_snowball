@@ -99,6 +99,19 @@ schema、血缘和重建设计。
 R3 后续：构建批次/失败重试/质量快照、主力连续与复权视图、FactorMiningAgent 与
 BacktestAgent 的显式 `data_view` 消费。
 
+### R3：数据基础与可复现性 — 第二项完成（2026-07-25）
+
+- `run_raw_contract_daily_panel_build()` 为每次宽表构建尝试写入
+  `data_ingestion_runs`，成功批次含统计与无原始行情样本的质量快照；
+- 可恢复数据库连接错误以指数退避重试，失败批次使用共享 `trace_id` 和异常类型诊断；
+- CLI 支持 `--max-attempts`、`--retry-delay-seconds`，dry-run 不写入数据或批次记录；
+- 独立 PostgreSQL 空库迁移至 `a1c2d3e4f5a6` 并通过宽表批次专项回归；
+- PostgreSQL 模式全量后端：`1017 passed, 1 skipped, 0 failed`；全仓库 Ruff 通过；
+- 详细记录：[`docs/r3_raw_contract_market_panel.md`](../docs/r3_raw_contract_market_panel.md)。
+
+R3 后续：主力连续与复权视图、换月血缘，以及 FactorMiningAgent 与 BacktestAgent 的
+显式 `data_view` 消费。
+
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 
 - `price_levels` / `watchlists` / `workspace` 云端同步闭环
