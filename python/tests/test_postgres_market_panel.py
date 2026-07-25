@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import uuid
@@ -14,12 +15,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models import (
     AgentMarketPanelDailyDB,
+    DataIngestionRunDB,
     FutContractDB,
     FutDailyDataDB,
     KlineDataDB,
     VarietyDB,
 )
-from services.market_panel import rebuild_raw_contract_daily_panel
+from services.market_panel import (
+    PANEL_BUILD_JOB_NAME,
+    rebuild_raw_contract_daily_panel,
+    run_raw_contract_daily_panel_build,
+)
 
 _PG_URL = os.environ.get("_PYTEST_ORIGINAL_DATABASE_URL", "")
 _IS_PG = _PG_URL.startswith("postgresql")
@@ -144,3 +150,23 @@ def test_postgres_market_panel_schema_and_rebuild(pg_market_panel_data):
     assert float(rows[0].amount) == 10000.0
     assert float(rows[1].ret_1) == pytest.approx(0.1)
     assert rows[1].quality_status == "warning"
+
+
+def test_postgres_market_panel_build_run_persists_quality_snapshot(pg_market_panel_data):
+    db, variety, _ = pg_market_panel_data
+    variety_id = variety.id
+    result = run_raw_contract_daily_panel_build(db, variety_id=variety_id, max_attempts=1)
+
+    try:
+        run = db.query(DataIngestionRunDB).filter(DataIngestionRunDB.id == result["run_id"]).one()
+        metadata = json.loads(run.metadata_json)
+
+        assert run.job_name == PANEL_BUILD_JOB_NAME
+        assert run.status == "success"
+        assert run.success_count == 2
+        assert metadata["variety_id"] == variety_id
+        assert metadata["quality_snapshot"]["status"] == "warning"
+        assert metadata["quality_snapshot"]["coverage"]["row_count"] == 2
+    finally:
+        db.query(DataIngestionRunDB).filter(DataIngestionRunDB.id == result["run_id"]).delete(synchronize_session=False)
+        db.commit()

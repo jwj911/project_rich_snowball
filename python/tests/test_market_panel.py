@@ -9,13 +9,23 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
-from models import AgentMarketPanelDailyDB, Base, FutContractDB, FutDailyDataDB, KlineDataDB, VarietyDB
+import services.market_panel as market_panel
+from models import (
+    AgentMarketPanelDailyDB,
+    Base,
+    DataIngestionRunDB,
+    FutContractDB,
+    FutDailyDataDB,
+    KlineDataDB,
+    VarietyDB,
+)
 from scripts import rebuild_raw_contract_panel
 from services.data_catalog import DataCatalogService
 from services.data_quality import DataQualityService
-from services.market_panel import rebuild_raw_contract_daily_panel
+from services.market_panel import MarketPanelBuildError, rebuild_raw_contract_daily_panel, run_raw_contract_daily_panel_build
 
 
 def _seed_raw_contract_sources(db_session) -> tuple[VarietyDB, FutContractDB]:
@@ -145,6 +155,113 @@ def test_rebuild_raw_contract_panel_is_idempotent_and_removes_stale_rows(db_sess
     assert db_session.query(AgentMarketPanelDailyDB).filter_by(variety_id=variety.id).count() == 2
 
 
+def test_panel_build_records_quality_snapshot(db_session):
+    variety, _ = _seed_raw_contract_sources(db_session)
+    variety_id = variety.id
+
+    result = run_raw_contract_daily_panel_build(db_session, variety_id=variety_id, max_attempts=1)
+    run = db_session.get(DataIngestionRunDB, result["run_id"])
+    assert run is not None
+    metadata = json.loads(run.metadata_json)
+
+    assert result["run_id"] == run.id
+    assert result["attempt_count"] == 1
+    assert run.source == market_panel.PANEL_BUILD_SOURCE
+    assert run.status == "success"
+    assert run.success_count == 3
+    assert run.failed_count == 0
+    assert metadata["data_view"] == "raw_contract"
+    assert metadata["period"] == "1d"
+    assert metadata["variety_id"] == variety_id
+    assert metadata["build_stats"] == {"deleted_rows": 0, "source_rows": 3, "written_rows": 3}
+    assert metadata["quality_snapshot"]["status"] == "warning"
+    assert metadata["quality_snapshot"]["coverage"]["warning_row_count"] == 2
+    assert metadata["quality_snapshot"]["issue_codes"] == ["MARKET_PANEL_WARNING_ROWS"]
+
+
+def test_panel_build_retries_retryable_failure_and_records_each_attempt(db_session, monkeypatch):
+    variety, _ = _seed_raw_contract_sources(db_session)
+    variety_id = variety.id
+    original_rebuild = market_panel.rebuild_raw_contract_daily_panel
+    previous_run_id = db_session.query(DataIngestionRunDB.id).order_by(DataIngestionRunDB.id.desc()).scalar() or 0
+    call_count = 0
+
+    def transient_rebuild(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise OperationalError("SELECT 1", {}, ConnectionError("temporary database connection failure"))
+        return original_rebuild(*args, **kwargs)
+
+    monkeypatch.setattr(market_panel, "rebuild_raw_contract_daily_panel", transient_rebuild)
+
+    result = market_panel.run_raw_contract_daily_panel_build(
+        db_session,
+        variety_id=variety_id,
+        max_attempts=2,
+        retry_delay_seconds=0,
+    )
+    runs = (
+        db_session.query(DataIngestionRunDB)
+        .filter(
+            DataIngestionRunDB.job_name == market_panel.PANEL_BUILD_JOB_NAME,
+            DataIngestionRunDB.id > previous_run_id,
+        )
+        .order_by(DataIngestionRunDB.id.asc())
+        .all()
+    )
+    failed_metadata = json.loads(runs[0].metadata_json)
+    success_metadata = json.loads(runs[1].metadata_json)
+
+    assert result["attempt_count"] == 2
+    assert call_count == 2
+    assert [run.status for run in runs] == ["failed", "success"]
+    assert runs[0].failed_count == 1
+    assert "temporary database connection failure" not in (runs[0].error_message or "")
+    assert failed_metadata["error_type"] == "OperationalError"
+    assert failed_metadata["retryable"] is True
+    assert failed_metadata["retry_delay_seconds"] == 0
+    assert success_metadata["attempt"] == 2
+    assert success_metadata["quality_snapshot"]["status"] == "warning"
+
+
+def test_panel_build_persists_nonretryable_failure_without_raw_error_details(db_session, monkeypatch):
+    variety, _ = _seed_raw_contract_sources(db_session)
+    variety_id = variety.id
+    previous_run_id = db_session.query(DataIngestionRunDB.id).order_by(DataIngestionRunDB.id.desc()).scalar() or 0
+
+    def invalid_rebuild(*args, **kwargs):
+        raise ValueError("unexpected raw market value 12345")
+
+    monkeypatch.setattr(market_panel, "rebuild_raw_contract_daily_panel", invalid_rebuild)
+
+    with pytest.raises(MarketPanelBuildError) as error:
+        market_panel.run_raw_contract_daily_panel_build(
+            db_session,
+            variety_id=variety_id,
+            max_attempts=3,
+            retry_delay_seconds=0,
+        )
+
+    run = (
+        db_session.query(DataIngestionRunDB)
+        .filter(
+            DataIngestionRunDB.job_name == market_panel.PANEL_BUILD_JOB_NAME,
+            DataIngestionRunDB.id > previous_run_id,
+        )
+        .one()
+    )
+    metadata = json.loads(run.metadata_json)
+
+    assert error.value.attempt_count == 1
+    assert run.status == "failed"
+    assert run.failed_count == 1
+    assert "12345" not in (run.error_message or "")
+    assert "12345" not in str(error.value)
+    assert metadata["error_type"] == "ValueError"
+    assert metadata["retryable"] is False
+
+
 def test_market_panel_is_visible_to_catalog_and_data_quality(db_session):
     variety, _ = _seed_raw_contract_sources(db_session)
     rebuild_raw_contract_daily_panel(db_session, variety_id=variety.id)
@@ -191,8 +308,48 @@ def test_rebuild_script_dry_run_rolls_back(monkeypatch, capsys):
         assert rebuild_raw_contract_panel.main() == 0
         output = json.loads(capsys.readouterr().out)
 
-        assert output == {"source_rows": 3, "written_rows": 3, "deleted_rows": 0, "dry_run": True}
+        assert output["source_rows"] == 3
+        assert output["written_rows"] == 3
+        assert output["deleted_rows"] == 0
+        assert output["attempt_count"] == 1
+        assert output["run_id"] is None
+        assert output["quality_snapshot"]["status"] == "warning"
+        assert output["dry_run"] is True
         assert session.query(AgentMarketPanelDailyDB).filter_by(variety_id=variety_id).count() == 0
+        assert session.query(DataIngestionRunDB).count() == 0
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_rebuild_script_returns_sanitized_build_failure(monkeypatch, capsys):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine)()
+    try:
+        variety, _ = _seed_raw_contract_sources(session)
+
+        def fail_build(*args, **kwargs):
+            raise MarketPanelBuildError("trace_for_test", "ValueError", 1)
+
+        monkeypatch.setattr(rebuild_raw_contract_panel, "SessionLocal", lambda: session)
+        monkeypatch.setattr(rebuild_raw_contract_panel, "run_raw_contract_daily_panel_build", fail_build)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                str(Path(rebuild_raw_contract_panel.__file__)),
+                "--symbol",
+                variety.symbol,
+            ],
+        )
+
+        assert rebuild_raw_contract_panel.main() == 1
+        assert json.loads(capsys.readouterr().out) == {
+            "error": "market_panel_build_failed",
+            "error_type": "ValueError",
+            "trace_id": "trace_for_test",
+        }
     finally:
         session.close()
         engine.dispose()

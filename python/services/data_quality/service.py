@@ -194,9 +194,16 @@ class DataQualityService:
 
     def check_market_panel(self, symbol: str | None = None) -> DataQualityReport:
         """检查 raw_contract 日频研究宽表的可用性与物化质量状态。"""
-        query = self.db.query(AgentMarketPanelDailyDB).join(
-            VarietyDB,
-            AgentMarketPanelDailyDB.variety_id == VarietyDB.id,
+        query = (
+            self.db.query(AgentMarketPanelDailyDB)
+            .join(
+                VarietyDB,
+                AgentMarketPanelDailyDB.variety_id == VarietyDB.id,
+            )
+            .filter(
+                AgentMarketPanelDailyDB.data_view == "raw_contract",
+                AgentMarketPanelDailyDB.period == "1d",
+            )
         )
         if symbol:
             query = query.filter(VarietyDB.symbol == symbol.upper())

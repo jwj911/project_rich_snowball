@@ -3,23 +3,154 @@
 from __future__ import annotations
 
 import json
+import logging
+import time
+import uuid
 from collections import defaultdict
-from datetime import date
+from datetime import UTC, date, datetime
+from datetime import time as datetime_time
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from models import AgentMarketPanelDailyDB, FutContractDB, FutDailyDataDB, KlineDataDB, VarietyDB
+from models import AgentMarketPanelDailyDB, DataIngestionRunDB, FutContractDB, FutDailyDataDB, KlineDataDB, VarietyDB
+from services.data_quality import DataQualityService
 
 RAW_CONTRACT_VIEW = "raw_contract"
 PANEL_PERIOD = "1d"
+PANEL_BUILD_JOB_NAME = "rebuild_agent_market_panel_daily"
+PANEL_BUILD_SOURCE = "market_panel"
 _SOURCE_DAILY_PERIODS = ("1d", "D")
 _DECIMAL_ONE = Decimal("1")
 _DECIMAL_ZERO = Decimal("0")
+
+logger = logging.getLogger(__name__)
+
+
+class MarketPanelBuildError(RuntimeError):
+    """宽表构建最终失败时返回不含原始数据的诊断标识。"""
+
+    def __init__(self, trace_id: str, error_type: str, attempt_count: int) -> None:
+        self.trace_id = trace_id
+        self.error_type = error_type
+        self.attempt_count = attempt_count
+        super().__init__(
+            f"Market panel build failed (trace_id={trace_id}, error_type={error_type}, attempts={attempt_count})"
+        )
+
+
+def run_raw_contract_daily_panel_build(
+    db: Session,
+    *,
+    variety_id: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    max_attempts: int = 3,
+    retry_delay_seconds: float = 1.0,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """构建宽表并持久化批次记录、质量快照和可恢复失败信息。
+
+    每个实际尝试都会产生独立的 ``data_ingestion_runs`` 记录。仅数据库连接类故障
+    参与指数退避重试；输入或数据完整性错误会立即结束，避免无效重复写入。dry-run
+    始终回滚构建和批次记录，保持无副作用。
+    """
+    if max_attempts < 1:
+        raise ValueError("max_attempts 必须至少为 1")
+    if retry_delay_seconds < 0:
+        raise ValueError("retry_delay_seconds 不能小于 0")
+
+    trace_id = uuid.uuid4().hex
+    for attempt in range(1, max_attempts + 1):
+        started_at = datetime.now(UTC)
+        attempt_transaction = db.begin_nested()
+        try:
+            stats = rebuild_raw_contract_daily_panel(
+                db,
+                variety_id=variety_id,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            quality_snapshot = _quality_snapshot(
+                DataQualityService(db).check_market_panel(_variety_symbol(db, variety_id)).to_dict()
+            )
+            if dry_run:
+                attempt_transaction.rollback()
+                return {
+                    **stats,
+                    "attempt_count": attempt,
+                    "quality_snapshot": quality_snapshot,
+                    "run_id": None,
+                }
+
+            run = _build_run_record(
+                status="success",
+                started_at=started_at,
+                stats=stats,
+                variety_id=variety_id,
+                start_date=start_date,
+                end_date=end_date,
+                attempt=attempt,
+                max_attempts=max_attempts,
+                trace_id=trace_id,
+                quality_snapshot=quality_snapshot,
+            )
+            db.add(run)
+            attempt_transaction.commit()
+            db.commit()
+            return {
+                **stats,
+                "attempt_count": attempt,
+                "quality_snapshot": quality_snapshot,
+                "run_id": run.id,
+            }
+        except Exception as exc:
+            if attempt_transaction.is_active:
+                attempt_transaction.rollback()
+            # 数据库驱动抛出的异常会使 Session 失效，必须显式恢复；手工校验
+            # 异常和可回退的保存点失败则保留外层事务，避免误回滚调用方预置数据。
+            if not db.is_active:
+                db.rollback()
+            retryable = _is_retryable_build_error(exc)
+            retry_delay = retry_delay_seconds * (2 ** (attempt - 1)) if retryable else None
+
+            if not dry_run:
+                failure_run = _build_run_record(
+                    status="failed",
+                    started_at=started_at,
+                    stats={},
+                    variety_id=variety_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    trace_id=trace_id,
+                    error_type=type(exc).__name__,
+                    retryable=retryable and attempt < max_attempts,
+                    retry_delay_seconds=retry_delay if attempt < max_attempts else None,
+                )
+                db.add(failure_run)
+                db.commit()
+
+            logger.warning(
+                "Market-panel build failed trace_id=%s attempt=%d/%d error_type=%s retryable=%s",
+                trace_id,
+                attempt,
+                max_attempts,
+                type(exc).__name__,
+                retryable and attempt < max_attempts,
+            )
+            if not retryable or attempt == max_attempts:
+                raise MarketPanelBuildError(trace_id, type(exc).__name__, attempt) from exc
+            if retry_delay:
+                time.sleep(retry_delay)
+
+    raise AssertionError("Market-panel build retry loop exited unexpectedly")
 
 
 def rebuild_raw_contract_daily_panel(
@@ -74,6 +205,95 @@ def rebuild_raw_contract_daily_panel(
         "written_rows": written,
         "deleted_rows": deleted,
     }
+
+
+def _build_run_record(
+    *,
+    status: str,
+    started_at: datetime,
+    stats: dict[str, int],
+    variety_id: int | None,
+    start_date: date | None,
+    end_date: date | None,
+    attempt: int,
+    max_attempts: int,
+    trace_id: str,
+    quality_snapshot: dict[str, Any] | None = None,
+    error_type: str | None = None,
+    retryable: bool | None = None,
+    retry_delay_seconds: float | None = None,
+) -> DataIngestionRunDB:
+    """将无敏感字段的构建状态转换为通用采集批次记录。"""
+    finished_at = datetime.now(UTC)
+    metadata: dict[str, Any] = {
+        "attempt": attempt,
+        "data_view": RAW_CONTRACT_VIEW,
+        "period": PANEL_PERIOD,
+        "requested_window": {
+            "end_date": end_date.isoformat() if end_date else None,
+            "start_date": start_date.isoformat() if start_date else None,
+        },
+        "trace_id": trace_id,
+        "variety_id": variety_id,
+    }
+    if status == "success":
+        metadata["build_stats"] = stats
+        metadata["quality_snapshot"] = quality_snapshot
+    else:
+        metadata["error_type"] = error_type
+        metadata["max_attempts"] = max_attempts
+        metadata["retry_delay_seconds"] = retry_delay_seconds
+        metadata["retryable"] = retryable
+
+    error_message = None
+    if status == "failed":
+        error_message = f"market panel build failed; trace_id={trace_id}; error_type={error_type}"
+
+    return DataIngestionRunDB(
+        job_name=PANEL_BUILD_JOB_NAME,
+        source=PANEL_BUILD_SOURCE,
+        started_at=started_at,
+        finished_at=finished_at,
+        duration_ms=int((finished_at - started_at).total_seconds() * 1000),
+        status=status,
+        success_count=stats.get("written_rows", 0) if status == "success" else 0,
+        failed_count=0 if status == "success" else 1,
+        skipped_count=0,
+        error_message=error_message,
+        error_sample=error_message,
+        window_start=_window_boundary(start_date, is_end=False),
+        window_end=_window_boundary(end_date, is_end=True),
+        metadata_json=json.dumps(metadata, ensure_ascii=True, sort_keys=True),
+    )
+
+
+def _is_retryable_build_error(exc: Exception) -> bool:
+    """只重试可恢复的数据库连接错误，避免掩盖确定性数据问题。"""
+    return isinstance(exc, ConnectionError | TimeoutError | OperationalError)
+
+
+def _quality_snapshot(report: dict[str, Any]) -> dict[str, Any]:
+    """仅保留质量状态、计数和日期覆盖，不写入原始行情样本。"""
+    return {
+        "checked_at": datetime.now(UTC).isoformat(),
+        "coverage": report["coverage"],
+        "issue_codes": [issue["code"] for issue in report["issues"]],
+        "score": report["score"],
+        "status": report["status"],
+    }
+
+
+def _variety_symbol(db: Session, variety_id: int | None) -> str | None:
+    if variety_id is None:
+        return None
+    variety = db.query(VarietyDB.symbol).filter(VarietyDB.id == variety_id).scalar()
+    return str(variety) if variety else None
+
+
+def _window_boundary(value: date | None, *, is_end: bool) -> datetime | None:
+    if value is None:
+        return None
+    return datetime.combine(value, datetime_time.max if is_end else datetime_time.min, tzinfo=UTC)
 
 
 def _load_daily_rows(
