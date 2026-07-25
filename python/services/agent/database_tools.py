@@ -87,6 +87,7 @@ _ALLOWED_TABLES: frozenset[str] = frozenset(
         "kline_data",
         "fut_daily_data",
         "fut_index",
+        "agent_market_panel_daily",
         # 基本面数据
         "fut_settle",
         "fut_wsr",
@@ -236,6 +237,7 @@ class ListTablesTool(Tool):
             "realtime_quotes": "实时行情快照（current_price, change_percent, volume, open_interest等）",
             "kline_data": "K线数据（分钟/小时/日/周，含OHLCV）",
             "fut_daily_data": "日线/周线/月线行情（Tushare回填，含settle/amount/oi_chg等）",
+            "agent_market_panel_daily": "合约日频研究宽表（raw_contract、扩展字段、派生字段和血缘）",
             "fut_settle": "每日结算参数（保证金率、手续费率、交割费等）",
             "fut_wsr": "仓单日报（各仓库库存、品级、年度等）",
             "fut_holding": "持仓排名（成交量/多空持仓前N券商）",

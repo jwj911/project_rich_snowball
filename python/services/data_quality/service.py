@@ -6,9 +6,10 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from models import KlineDataDB, RealtimeQuoteDB, VarietyDB
+from models import AgentMarketPanelDailyDB, KlineDataDB, RealtimeQuoteDB, VarietyDB
 from services.agent.utils import resolve_symbol
 from services.data_quality.checks import check_daily_date_gaps, check_kline_duplicates, check_kline_ohlc
 from services.data_quality.coverage import get_kline_coverage, get_realtime_coverage
@@ -189,6 +190,57 @@ class DataQualityService:
             coverage=coverage,
             issues=issues,
             recommendations=_recommendations(status, f"{symbol} {period} K 线"),
+        )
+
+    def check_market_panel(self, symbol: str | None = None) -> DataQualityReport:
+        """检查 raw_contract 日频研究宽表的可用性与物化质量状态。"""
+        query = self.db.query(AgentMarketPanelDailyDB).join(
+            VarietyDB,
+            AgentMarketPanelDailyDB.variety_id == VarietyDB.id,
+        )
+        if symbol:
+            query = query.filter(VarietyDB.symbol == symbol.upper())
+
+        row_count = query.count()
+        issues: list[DataQualityIssue] = []
+        if row_count == 0:
+            issues.append(DataQualityIssue("bad", "MARKET_PANEL_NO_DATA", "未找到 raw_contract 日频研究宽表数据"))
+
+        bad_count = query.filter(AgentMarketPanelDailyDB.quality_status == "bad").count()
+        warning_count = query.filter(AgentMarketPanelDailyDB.quality_status == "warning").count()
+        if bad_count:
+            issues.append(DataQualityIssue("bad", "MARKET_PANEL_BAD_ROWS", "宽表存在 bad 质量记录"))
+        if warning_count:
+            issues.append(
+                DataQualityIssue(
+                    "warning",
+                    "MARKET_PANEL_WARNING_ROWS",
+                    "宽表存在估算字段或缺失持仓量记录",
+                )
+            )
+
+        first_date, last_date = query.with_entities(
+            func.min(AgentMarketPanelDailyDB.trading_date),
+            func.max(AgentMarketPanelDailyDB.trading_date),
+        ).one()
+        status, score = score_issues(issues)
+        return DataQualityReport(
+            scope={
+                "dataset": "agent_market_panel_daily",
+                "data_view": "raw_contract",
+                "symbol": symbol.upper() if symbol else None,
+            },
+            status=status,
+            score=score,
+            coverage={
+                "row_count": row_count,
+                "first_date": first_date.isoformat() if first_date else None,
+                "last_date": last_date.isoformat() if last_date else None,
+                "bad_row_count": bad_count,
+                "warning_row_count": warning_count,
+            },
+            issues=issues,
+            recommendations=_recommendations(status, "raw_contract 日频研究宽表"),
         )
 
     def _dataset_summary(self, dataset_name: str) -> dict[str, Any]:

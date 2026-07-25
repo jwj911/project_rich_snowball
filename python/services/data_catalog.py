@@ -10,6 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models import (
+    AgentMarketPanelDailyDB,
     BacktestRunDB,
     ContractRolloverDB,
     FutContractDB,
@@ -111,6 +112,16 @@ DATASET_DEFINITIONS: dict[str, DatasetDefinition] = {
         date_field="trade_date",
         symbol_field="ts_code",
         agents=("data", "data_quality", "factor_mining"),
+    ),
+    "agent_market_panel_daily": DatasetDefinition(
+        "agent_market_panel_daily",
+        "合约日频研究宽表",
+        "可重建的 raw_contract 日频研究宽表，包含 OHLCV、成交额、持仓、结算和派生字段血缘。",
+        "data_view + variety + contract + period + trading_date",
+        AgentMarketPanelDailyDB,
+        date_field="trading_date",
+        symbol_field="symbol",
+        agents=("data", "data_quality", "factor_mining", "backtest"),
     ),
     "fut_settle": DatasetDefinition(
         "fut_settle",
@@ -238,6 +249,7 @@ class DataCatalogService:
                 "kline_data": self._kline_symbol_coverage(resolved_symbol, kline_period),
                 "fut_main_daily_data": self._fut_main_daily_symbol_coverage(resolved_symbol),
                 "fut_daily_data": self._fut_daily_symbol_coverage(resolved_symbol),
+                "agent_market_panel_daily": self._market_panel_symbol_coverage(resolved_symbol),
             },
         }
 
@@ -251,6 +263,8 @@ class DataCatalogService:
         quality = DataQualityService(self.db)
         if dataset_name == "realtime_quotes":
             return quality.check_realtime(symbol.upper() if symbol else None).to_dict()
+        if dataset_name == "agent_market_panel_daily":
+            return quality.check_market_panel(symbol.upper() if symbol else None).to_dict()
         if dataset_name in (None, "kline_data") and symbol:
             return quality.check_kline(symbol.upper(), period or "1d").to_dict()
         return quality.inventory().to_dict()
@@ -297,6 +311,8 @@ class DataCatalogService:
         if dataset_name in {"kline_data", "realtime_quotes"}:
             summary = self.get_data_quality_summary(dataset_name=dataset_name)
             return summary["status"]
+        if dataset_name == "agent_market_panel_daily":
+            return self.get_data_quality_summary(dataset_name=dataset_name)["status"]
         return "available"
 
     def _variety_coverage(self, symbol: str) -> dict[str, Any]:
@@ -380,6 +396,29 @@ class DataCatalogService:
             "row_count": int(row_count or 0),
             "first_date": _serialize_date(first_date),
             "last_date": _serialize_date(last_date),
+        }
+
+    def _market_panel_symbol_coverage(self, symbol: str) -> dict[str, Any]:
+        row_count, first_date, last_date, contract_count = (
+            self.db.query(
+                func.count(AgentMarketPanelDailyDB.id),
+                func.min(AgentMarketPanelDailyDB.trading_date),
+                func.max(AgentMarketPanelDailyDB.trading_date),
+                func.count(func.distinct(AgentMarketPanelDailyDB.contract_id)),
+            )
+            .filter(
+                AgentMarketPanelDailyDB.symbol == symbol,
+                AgentMarketPanelDailyDB.data_view == "raw_contract",
+                AgentMarketPanelDailyDB.period == "1d",
+            )
+            .one()
+        )
+        return {
+            "available": int(row_count or 0) > 0,
+            "row_count": int(row_count or 0),
+            "first_date": _serialize_date(first_date),
+            "last_date": _serialize_date(last_date),
+            "contract_count": int(contract_count or 0),
         }
 
     def _sample_realtime_symbols(self) -> list[str]:

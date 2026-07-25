@@ -44,17 +44,17 @@ class TestSQLValidation:
         ok, msg = _validate_sql("DELETE FROM varieties")
         assert not ok
         # DELETE is caught as non-SELECT (stricter check kicks in first)
-        assert ("只允许 SELECT" in msg or "禁止关键字" in msg)
+        assert "只允许 SELECT" in msg or "禁止关键字" in msg
 
     def test_forbidden_keyword_drop_fails(self):
         ok, msg = _validate_sql("DROP TABLE varieties")
         assert not ok
-        assert ("只允许 SELECT" in msg or "禁止关键字" in msg)
+        assert "只允许 SELECT" in msg or "禁止关键字" in msg
 
     def test_forbidden_keyword_truncate_fails(self):
         ok, msg = _validate_sql("TRUNCATE TABLE varieties")
         assert not ok
-        assert ("只允许 SELECT" in msg or "禁止关键字" in msg)
+        assert "只允许 SELECT" in msg or "禁止关键字" in msg
 
     def test_forbidden_keyword_in_string_not_blocked(self):
         """字符串字面量中的 DROP 不触发误判（单引号内是安全的）。"""
@@ -76,6 +76,10 @@ class TestSQLValidation:
 
     def test_whitelist_kline_data_table_ok(self):
         ok, msg = _validate_sql("SELECT * FROM kline_data LIMIT 1")
+        assert ok, msg
+
+    def test_whitelist_agent_market_panel_daily_table_ok(self):
+        ok, msg = _validate_sql("SELECT * FROM agent_market_panel_daily LIMIT 1")
         assert ok, msg
 
     def test_whitelist_trading_calendar_table_ok(self):
@@ -162,8 +166,7 @@ class TestSQLHelpers:
 
     def test_puts_join_filter_in_on_clause_for_outer_join(self):
         result = _inject_user_filter(
-            "SELECT v.symbol, o.id FROM varieties v "
-            "LEFT JOIN opinions o ON o.variety_id = v.id",
+            "SELECT v.symbol, o.id FROM varieties v LEFT JOIN opinions o ON o.variety_id = v.id",
             7,
         )
         assert "LEFT JOIN opinions AS o" in result

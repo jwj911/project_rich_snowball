@@ -148,9 +148,8 @@ def init_db():
     并在 CI 中通过 PostgreSQL 执行所有迁移来验证兼容性。
     """
     if ENV == "production":
-        from alembic.config import Config as AlembicConfig
-
         from alembic import command
+        from alembic.config import Config as AlembicConfig
 
         alembic_cfg = AlembicConfig(os.path.join(os.path.dirname(__file__), "alembic.ini"))
         command.upgrade(alembic_cfg, "head")
@@ -239,6 +238,7 @@ class VarietyDB(Base):
     trade_records = relationship("TradeRecordDB", back_populates="variety", passive_deletes=True)
     daily_data = relationship("FutDailyDataDB", back_populates="variety", passive_deletes=True)
     main_daily_data = relationship("FutMainDailyDataDB", back_populates="variety", passive_deletes=True)
+    market_panel_daily = relationship("AgentMarketPanelDailyDB", back_populates="variety", passive_deletes=True)
     watchlists = relationship("WatchlistDB", back_populates="variety", passive_deletes=True)
     opinions = relationship("OpinionDB", back_populates="variety", passive_deletes=True)
     price_levels = relationship("PriceLevelDB", back_populates="variety", passive_deletes=True)
@@ -641,6 +641,59 @@ class FutMainDailyDataDB(Base):
     __table_args__ = (
         UniqueConstraint("variety_id", "ts_code", "period", "trade_date", name="uix_fut_main_daily"),
         Index("idx_fut_main_daily_lookup", "variety_id", "period", "trade_date"),
+    )
+
+
+class AgentMarketPanelDailyDB(Base):
+    """可重建的合约级日频研究宽表。
+
+    第一版只写入 ``raw_contract`` 视图；连续合约和复权视图必须由独立管道生成，
+    不允许直接复用本表的原始合约价格。
+    """
+
+    __tablename__ = "agent_market_panel_daily"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    data_view = Column(String(30), nullable=False, default="raw_contract")
+    variety_id = Column(Integer, ForeignKey("varieties.id", ondelete="CASCADE"), nullable=False)
+    contract_id = Column(Integer, ForeignKey("fut_contracts.id", ondelete="CASCADE"), nullable=False)
+    symbol = Column(String(20), nullable=False, index=True)
+    contract_code = Column(String(30), nullable=False)
+    trading_date = Column(Date, nullable=False, index=True)
+    period = Column(String(10), nullable=False, default="1d")
+    open_price = Column(Numeric(19, 4), nullable=False)
+    high_price = Column(Numeric(19, 4), nullable=False)
+    low_price = Column(Numeric(19, 4), nullable=False)
+    close_price = Column(Numeric(19, 4), nullable=False)
+    volume = Column(Integer, nullable=False)
+    amount = Column(Numeric(24, 4), nullable=True)
+    open_interest = Column(Integer, nullable=True)
+    settlement = Column(Numeric(19, 4), nullable=True)
+    ret_1 = Column(Numeric(20, 8), nullable=True)
+    ret_5 = Column(Numeric(20, 8), nullable=True)
+    ret_20 = Column(Numeric(20, 8), nullable=True)
+    gap = Column(Numeric(20, 8), nullable=True)
+    amplitude = Column(Numeric(20, 8), nullable=True)
+    intraday_range = Column(Numeric(20, 8), nullable=True)
+    volume_ratio_20 = Column(Numeric(20, 8), nullable=True)
+    source_flags = Column(Text, nullable=False, default="{}")
+    quality_status = Column(String(10), nullable=False, default="good")
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
+    variety = relationship("VarietyDB", back_populates="market_panel_daily")
+    contract = relationship("FutContractDB")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "data_view",
+            "variety_id",
+            "contract_id",
+            "period",
+            "trading_date",
+            name="uix_agent_market_panel_daily",
+        ),
+        Index("idx_agent_panel_symbol_date", "symbol", "trading_date"),
+        Index("idx_agent_panel_period_symbol_date", "period", "symbol", "trading_date"),
+        Index("idx_agent_panel_view_symbol_date", "data_view", "symbol", "trading_date"),
     )
 
 
