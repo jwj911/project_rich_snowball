@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-07-25（R3 宽表构建批次与质量快照）
+> **最后更新**：2026-07-26（R5 前端质量与观测趋势）
 
 ---
 
@@ -16,9 +16,9 @@
 - **Agent 系统 Phase 0~2 已完成**并接入真实 SSE 进度流：DataAgent、DataQualityAgent、TechAnalysisAgent、RiskManagementAgent、AnalysisPipelineAgent、StrategyCompilerAgent、BacktestAgent、FactorMiningAgent、TraderAgent 已上线。
 - **策略进化（Strategy Evolution）已落地**：GA 进化循环、GP 因子生成、Pareto 适应度、贝叶斯优化、策略生命周期追踪。
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
-- **测试状态**：最近一次本地全量后端测试为 `1017 passed, 1 skipped, 0 failed`，覆盖率历史基线为 `71.97%`；前端 Vitest 为 `195 passed, 0 failed`。Python `ruff check .`、前端 TypeScript、ESLint 和 production build 均通过。
+- **测试状态**：本轮 SQLite 全量后端测试为 `1026 passed, 15 skipped, 0 failed`，覆盖率历史基线为 `71.97%`；R5 前端 Vitest 为 `200 passed, 0 failed`，TypeScript、ESLint、production build、行情/详情 Playwright（18 passed）和 Lighthouse 均通过。
 - **远程验收**：Backend CI #22 与 Frontend CI #28（run `29670891119`）的 Alembic、PostgreSQL pytest、API smoke、Ruff、`pip-audit`、Chromium Playwright、Vitest 和 Lighthouse 全部通过。
-- **当前迭代**：Phase 3 文档与发布治理已完成；Phase 4 SQL AST、PostgreSQL owner-scope 回归和私有数据访问边界收敛已完成；R3 已交付 raw_contract 日频研究宽表及其构建批次、失败重试和质量快照，后续处理连续合约与 Agent 消费侧。
+- **当前迭代**：Phase 3 文档与发布治理、Phase 4 SQL AST、PostgreSQL owner-scope 回归和私有数据访问边界收敛已完成；R3 已完成四种日频研究视图、换月/复权血缘、显式 Agent 消费和独立 worker 调度；R4 已完成共享 DSL transform 契约、日频 walk-forward 诊断和生命周期持久化；R5 已完成 Lighthouse 路由趋势、详情页失败态和 token/CSP 迁移边界，下一项为 R6 发布窗口。
 - **文件审计**：2026-07-05 完成 Phase 1/2 清理，根目录精简至 7 个文件，文档迁入 `docs/guides/`、`docs/archive/` 与 `quantative_tools/reports/`，详见 [docs/audit_cleanup_20260705.md](docs/audit_cleanup_20260705.md)。
 
 ### 主要功能模块
@@ -62,7 +62,9 @@
 | [docs/release_checklist_20260719.md](docs/release_checklist_20260719.md) | 当前发布前检查、CI 证据、备份与回滚清单 |
 | [docs/iteration_plan_20260724_follow_up.md](docs/iteration_plan_20260724_follow_up.md) | Phase 4 后续安全回归、数据基础、策略验证与发布队列 |
 | [docs/phase4_private_data_access_boundary.md](docs/phase4_private_data_access_boundary.md) | Agent 通用 SQL 的私有数据访问边界与 owner policy |
-| [docs/r3_raw_contract_market_panel.md](docs/r3_raw_contract_market_panel.md) | raw_contract 日频研究宽表的 schema、血缘和重建规则 |
+| [docs/r3_raw_contract_market_panel.md](docs/r3_raw_contract_market_panel.md) | 多视图日频研究宽表的 schema、血缘、消费和调度规则 |
+| [docs/r4_dsl_walk_forward_validation.md](docs/r4_dsl_walk_forward_validation.md) | DSL transform 语义、walk-forward 窗口、报告和生命周期查询规则 |
+| [docs/r5_frontend_quality_observability.md](docs/r5_frontend_quality_observability.md) | Lighthouse 趋势、页面失败态、虚拟滚动决策和 CSP/token 迁移边界 |
 | [docs/releases/README.md](docs/releases/README.md) | 按版本维护的工程基线与生产发布记录 |
 | [docs/phase4_sql_ast_readonly.md](docs/phase4_sql_ast_readonly.md) | Phase 4 Agent SQL AST 只读校验实施记录 |
 | [docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md](docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md) | 数据管道与 PostgreSQL 配置 |
@@ -94,7 +96,7 @@
 | 框架 | FastAPI | 0.136.3 |
 | 服务器 | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.25 |
-| 迁移 | Alembic | 1.13.1，当前 60 个迁移脚本；head 为 `a1c2d3e4f5a6` |
+| 迁移 | Alembic | 1.13.1，当前 61 个迁移脚本；head 为 `c0d1e2f3a4b5` |
 | 校验 | Pydantic | v2 2.9.0 |
 | 认证 | JWT + OAuth2 密码流 | PyJWT 2.13.0，bcrypt via passlib |
 | 数据库 | SQLite / PostgreSQL | 开发默认 SQLite；PG 16 通过 docker-compose 提供，映射端口 15432 |
@@ -118,9 +120,9 @@
 | 表单 | react-hook-form | ^7.76.0 |
 | 消息提示 | sonner | ^2.0.7 |
 | 性能采集 | web-vitals | ^5.2.0 |
-| 单元测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，33 个测试文件，195 个测试 |
+| 单元测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，34 个测试文件，200 个测试 |
 | E2E 测试 | Playwright | ^1.60.0，6 个 spec 文件 + `auth.setup.ts` |
-| 性能基线 | Lighthouse | `npm run lighthouse` |
+| 性能基线 | Lighthouse | `npm run lighthouse`，路由/提交/CI 趋势 artifact |
 
 ### 基础设施
 
@@ -331,7 +333,8 @@ npm start
 npm run lighthouse
 ```
 
-输出到 `.lighthouse/latest.json`。
+输出 `.lighthouse/lighthouse-trend.json`、`.lighthouse/lighthouse-history.json` 和兼容文件
+`.lighthouse/latest.json`；CI artifact 保留 90 天。
 
 ---
 
@@ -380,7 +383,10 @@ npm run lighthouse
 
 - 写接口（POST/PUT/PATCH/DELETE）必须显式携带 `Authorization: Bearer` header；CSRF 防护下不接受 cookie 回退。
 - GET/HEAD 可回退到 `access_token` cookie 保持兼容。
-- refresh token 以 HttpOnly cookie 返回，生产环境 `secure=True, samesite=lax`。
+- refresh token 以 HttpOnly cookie 返回，生产环境 `secure=True, samesite=lax`；刷新时必须同步轮换
+  SSE 使用的 access cookie，logout 同时清理两者。
+- access token 当前仍需为写请求提供 Bearer header，因此保留 localStorage 风险接受项；在可验证
+  CSRF、SSE、登录/刷新/退出迁移前，禁止直接改为 cookie-only 写请求。
 - 登录/注册使用独立限流 key（`auth:register` / `auth:login`）。
 
 ### XSS / SSRF / 输入安全
@@ -405,7 +411,7 @@ npm run lighthouse
 | Workflow | 触发条件 | 内容 |
 |----------|----------|------|
 | `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，安装 `requirements.lock`，依赖锁漂移检查，Alembic `upgrade head`，pytest + coverage（阈值 40%），PostgreSQL API smoke，ruff lint，pip-audit 安全扫描 |
-| `.github/workflows/frontend-ci.yml` | `frontend/**`、workflow 本身变更 | Node 20，`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test` → Lighthouse 基线；独立 job 执行 PostgreSQL + Alembic + backend + Playwright Chromium smoke |
+| `.github/workflows/frontend-ci.yml` | `frontend/**`、workflow 本身变更 | Node 20，`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test` → Lighthouse 路由趋势 artifact；独立 job 执行 PostgreSQL + Alembic + backend + Playwright Chromium smoke |
 | `.github/workflows/update-calendar.yml` | 每年 1 月 1 日 cron + manual | 更新交易日历 `python/data/trading_calendar.json` 并提交 |
 
 ### Docker

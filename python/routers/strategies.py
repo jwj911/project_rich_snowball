@@ -33,8 +33,10 @@ from schemas import (
     StrategyPortfolioPlanResponse,
     StrategyResponse,
 )
+from services.agent.evolution.strategy_lifecycle import StrategyLifecycleManager
 from services.agent.risk_management.drawdown_control import generate_risk_management_plan
 from services.backtest.service import run_dsl_backtest
+from services.backtest.walk_forward import WalkForwardConfig, run_walk_forward_validation
 from services.domain.exceptions import ForbiddenError, NotFoundError, ServiceError
 
 logger = logging.getLogger(__name__)
@@ -45,6 +47,7 @@ router = APIRouter(prefix="/api/strategies", tags=["策略"])
 # ------------------------------------------------------------------
 # CRUD
 # ------------------------------------------------------------------
+
 
 @router.get("", response_model=list[StrategyResponse])
 def list_strategies(
@@ -211,6 +214,7 @@ def delete_strategy(
 # 回测
 # ------------------------------------------------------------------
 
+
 @router.post("/{strategy_id}/backtest", response_model=BacktestRunResponse)
 def run_strategy_backtest_api(
     strategy_id: int,
@@ -250,6 +254,27 @@ def run_strategy_backtest_api(
             risk=dsl.get("risk"),
             engine_mode=params.engine_mode,
         )
+        result["walk_forward"] = run_walk_forward_validation(
+            db,
+            symbol=strategy.symbol,
+            period=strategy.timeframe,
+            direction=strategy.direction,
+            entry_conditions=dsl.get("entry", {}).get("conditions", []),
+            exit_conditions=dsl.get("exit", {}).get("conditions", []),
+            initial_cash=params.initial_cash,
+            quantity=params.quantity,
+            limit=params.limit,
+            risk=dsl.get("risk"),
+            engine_mode=params.engine_mode,
+            config=WalkForwardConfig(),
+        )
+        StrategyLifecycleManager.register_strategy(
+            db,
+            strategy_id=strategy.id,
+            source="manual",
+            is_metrics=result["metrics"],
+            walk_forward_metrics=result["walk_forward"],
+        )
         metrics = result["metrics"]
         run_record.result_json = json.dumps(result, ensure_ascii=False)
         run_record.metrics_score = metrics.get("score")
@@ -264,6 +289,7 @@ def run_strategy_backtest_api(
         # 创建告警事件
         try:
             from services.alert_events import create_strategy_alert_for_backtest
+
             create_strategy_alert_for_backtest(
                 db,
                 strategy_id=strategy.id,
@@ -308,6 +334,7 @@ def list_strategy_backtests(
 # 回测信号
 # ------------------------------------------------------------------
 
+
 @router.get("/{strategy_id}/backtests/{backtest_id}/signals", response_model=BacktestSignalsResponse)
 def get_backtest_signals(
     strategy_id: int,
@@ -322,10 +349,14 @@ def get_backtest_signals(
     if strategy.user_id != current_user.id and not strategy.is_builtin:
         raise ForbiddenError("无权访问该策略")
 
-    run = db.query(BacktestRunDB).filter(
-        BacktestRunDB.id == backtest_id,
-        BacktestRunDB.strategy_id == strategy_id,
-    ).first()
+    run = (
+        db.query(BacktestRunDB)
+        .filter(
+            BacktestRunDB.id == backtest_id,
+            BacktestRunDB.strategy_id == strategy_id,
+        )
+        .first()
+    )
     if not run:
         raise NotFoundError("回测记录不存在", code=ErrorCode.NOT_FOUND)
 
@@ -350,6 +381,7 @@ def get_backtest_signals(
         signals=signals,
         trades=trades_raw,
     )
+
 
 @router.post("/{strategy_id}/portfolio-plan", response_model=StrategyPortfolioPlanResponse)
 def generate_strategy_portfolio_plan(
@@ -420,10 +452,10 @@ def generate_strategy_portfolio_plan(
     )
 
 
-
 # ------------------------------------------------------------------
 # 参数优化引擎
 # ------------------------------------------------------------------
+
 
 @router.post("/{strategy_id}/optimize", response_model=StrategyOptimizationResponse)
 def optimize_strategy_params_api(
@@ -464,6 +496,7 @@ def optimize_strategy_params_api(
         logger.exception("Optimization failed for strategy %s", strategy_id)
         try:
             from services.alert_events import create_strategy_alert_for_optimization
+
             create_strategy_alert_for_optimization(
                 db,
                 strategy_id=strategy.id,
@@ -502,4 +535,5 @@ def optimize_strategy_params_api(
 
 def _utc_now():
     import datetime
+
     return datetime.datetime.now(datetime.UTC)

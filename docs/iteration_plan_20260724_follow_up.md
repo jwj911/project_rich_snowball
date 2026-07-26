@@ -1,13 +1,13 @@
 # 后续迭代计划：安全边界、数据基础与发布收口
 
 > 计划日期：2026-07-24
-> 当前状态：R1、R2 已完成；R3 前两项已完成，后续子项执行中
+> 当前状态：R1、R2、R3、R4、R5 已完成；下一项为 R6 真实发布窗口
 > 适用范围：Phase 4 后续安全回归、数据基础、策略验证、前端质量和生产发布治理
 > 上一份事实源：[`iteration_plan_20260718_project_audit.md`](iteration_plan_20260718_project_audit.md)
 
 ## 1. 当前基线
 
-截至 2026-07-25，项目已经完成：
+截至 2026-07-26，项目已经完成：
 
 - Phase 0 可运行性收口、Phase 1 行情读模型收敛、Phase 2 执行可靠性与生产拓扑；
 - Phase 3 文档与发布治理，包括发布清单、工程基线记录和历史计划归档；
@@ -16,9 +16,10 @@
 
 当前可复现工程基线：
 
-- 后端：`1017 passed, 1 skipped, 0 failed`，coverage 历史基线 `71.97%`；
-- 前端：Vitest `195 passed, 0 failed`；
-- 全仓库 Ruff、TypeScript、ESLint、production build 和既有 CI 证据均通过；
+- 后端：本轮 SQLite `1026 passed, 15 skipped, 0 failed`，coverage 历史基线 `71.97%`；
+- 前端：R5 Vitest `200 passed, 0 failed`；TypeScript、ESLint、production build、行情/详情
+  Playwright 与双路由 Lighthouse 均通过；
+- 本轮关联文件 Ruff、Python 编译和既有 TypeScript、ESLint、production build/CI 证据均通过；
 - 以上均为工程基线，不等同于生产发布。生产发布仍需逐项执行
   [`release_checklist_20260719.md`](release_checklist_20260719.md)。
 
@@ -83,7 +84,7 @@
 - 新增 repository/API 不绕过现有鉴权、限流和审计；
 - SQL 工具白名单、文档和 Agent 工具描述同步更新。
 
-### R3：数据基础与可复现性（P1，执行中）
+### R3：数据基础与可复现性（P1，已完成）
 
 **目标**：让数据质量检查结果能支持连续合约、因子和回测的可复现输入。
 
@@ -110,10 +111,16 @@
 - `--dry-run` 在保存点中运行且不写入宽表或批次记录；
 - 自动调度暂不接入，等待连续/复权视图明确日线依赖顺序后统一实现。
 
-后续子项：
+R3.3 至 R3.6 实施结果：
 
-1. 实现主力连续与复权视图，并记录换月血缘；
-2. 将显式 `data_view` 接入 FactorMiningAgent 与 BacktestAgent。
+1. 物化 `main_continuous`、`main_back_adjusted`、`main_forward_adjusted`；
+   每行保留实际合约、换月 ID、累计调整、算法、换月列表和构建 trace；
+2. Data Catalog、DataQualityService 和 DataQualityAgent 支持按
+   `data_view + period` 检查，并覆盖连续日期、OHLC、血缘、非正复权价格和换月关联；
+3. FactorMiningAgent 与 BacktestAgent 仅在显式请求时消费研究宽表，报告和缓存键记录
+   视图、合约、质量、窗口和 trace；`raw_contract` 必须指定合约；
+4. `worker.py` 独占 `market_panel_daily` 调度，16:18 在日线与结算任务后执行，使用 20
+   交易日预热窗口，并在迟到换月记录出现时回推到最早影响日。
 
 验收：
 
@@ -121,7 +128,7 @@
 - 每条派生数据可追溯到原始合约、来源和生成时间；
 - 回测前置检查能区分缺失、过期和质量异常，而不是只返回空数据。
 
-### R4：策略验证闭环（P1）
+### R4：策略验证闭环（P1，已完成）
 
 **目标**：避免策略编译结果与回测实际执行语义不一致。
 
@@ -139,7 +146,9 @@
 - walk-forward 结果可持久化、可查询、可解释；
 - 不把样本外验证缺失误报为策略通过。
 
-### R5：前端质量与观测趋势（P2）
+执行记录见 [`r4_dsl_walk_forward_validation.md`](r4_dsl_walk_forward_validation.md)。
+
+### R5：前端质量与观测趋势（P2，已完成）
 
 **目标**：在后端安全和数据基础稳定后，继续降低页面级性能与可访问性风险。
 
@@ -155,6 +164,8 @@
 - 关键页面在 CI 中有稳定 smoke；
 - 性能回归能关联到提交和路由；
 - 新增安全策略不破坏 SSE、登录和 API 请求。
+
+执行记录见 [`r5_frontend_quality_observability.md`](r5_frontend_quality_observability.md)。
 
 ### R6：真实发布窗口（P1，按需）
 
@@ -192,9 +203,9 @@ R1 与 R2 保持原子化执行：
 |---|---|---|
 | R1 PostgreSQL 私有查询语义回归 | 已完成 | 本文件、第 7 节 |
 | R2 私有数据访问边界收敛 | 已完成 | `phase4_private_data_access_boundary.md` |
-| R3 数据基础与可复现性 | 执行中（前两项完成） | `r3_raw_contract_market_panel.md` |
-| R4 策略验证闭环 | 待开始 | 依赖 R3 数据口径 |
-| R5 前端质量与观测趋势 | 待开始 | 与 R3/R4 可并行 |
+| R3 数据基础与可复现性 | 已完成 | `r3_raw_contract_market_panel.md` |
+| R4 策略验证闭环 | 已完成 | `r4_dsl_walk_forward_validation.md` |
+| R5 前端质量与观测趋势 | 已完成 | `r5_frontend_quality_observability.md` |
 | R6 真实发布窗口 | 按需 | 依赖发布窗口和前置证据 |
 
 ## 7. R1 执行记录（2026-07-24）
@@ -239,3 +250,48 @@ R1 与 R2 保持原子化执行：
 - `--dry-run` 已验证不写入宽表或批次记录；
 - SQLite 定向回归：`17 passed`；PostgreSQL 空库迁移和专项回归：`2 passed`；
 - PostgreSQL 模式全量后端回归：`1017 passed, 1 skipped, 0 failed`；全仓库 Ruff 通过。
+
+## 11. R3.3 至 R3.6 执行记录（2026-07-26）
+
+- 新增 `c0d1e2f3a4b5`，为 `agent_market_panel_daily` 追加换月、复权与 build trace 血缘；
+- 连续、前复权和后复权视图由 `raw_contract` 与 `contract_rollovers` 重建，不改变既有产品
+  连续 K 线 API；
+- 宽表质量、目录和 DataQualityAgent 已按视图隔离，并检查连续日期、OHLC、换月和血缘；
+- 新增显式研究数据选择器；FactorMiningAgent 与 BacktestAgent 维持默认 K 线语义，仅在
+  请求中明确 `data_view` 时改走宽表，`raw_contract` 强制要求 `contract_code`；
+- 新增多视图重建 CLI 与独立 worker 的 `market_panel_daily` 任务，调度窗口、迟到换月回推、
+  `max_instances=1`、`coalesce=True` 均有回归覆盖；
+- SQLite 相关定向回归：`59 passed, 2 skipped`；空 PostgreSQL 库已升级至
+  `c0d1e2f3a4b5`，宽表 DDL 与数据选择专项：`5 passed`，隔离库已删除；
+- SQLite 全量后端回归：`1015 passed, 14 skipped, 0 failed`；全仓 Ruff 通过；
+- 生产发布检查仍需按发布窗口单独执行。
+
+## 12. R4 执行记录（2026-07-26）
+
+- 新增共享 transform 契约：compiler 输出 canonical `multiply_indicator2`，
+  `multiply_value` 仅保持兼容；未知 transform、缺少 `indicator2`、非有限或非正乘数均显式拒绝；
+- `StrategyValidator`、`run_dsl_backtest()`、引擎条件求值和可读解释复用同一右侧
+  `indicator2 * value` 语义，并补齐 compiler 到 backtest engine 的回归；
+- 新增按已观测日线建立的 expanding / rolling walk-forward 服务，窗口不足、执行失败和
+  非日线均返回明确的未通过状态，不能误报为 OOS 通过；
+- `StrategyLifecycleDB.walk_forward_metrics` 已接入首次登记、后续更新、摘要和 evolution
+  API 查询；策略回测 API 的结果快照也保存该报告；
+- BacktestAgent 与 StrategyEvolutionAgent 报告展示数据覆盖、质量提示和
+  walk-forward 诊断；进化报告不再把全历史搜索后的留出段复测描述为独立 OOS；
+- 日线窗口查询按 `trading_date` 包含首尾交易日，旧数据行才回退 SQL 日期表达式。
+- SQLite 全量后端：`1026 passed, 15 skipped, 0 failed`；隔离 PostgreSQL 数据库从空库升级至
+  `c0d1e2f3a4b5` 后专项回归：`3 passed`；`ruff check .`、`py_compile` 与
+  `git diff --check` 通过，验证库已删除。
+
+## 13. R5 执行记录（2026-07-26）
+
+- Lighthouse 采集改为固定命名路由集，结果包含 route、commit SHA、CI run/attempt、ref、
+  时间与跨提交 delta；CI 恢复并上传可合并的 90 天趋势 artifact；
+- 行情中心保持每页 20 条的服务端分页；已记录超过 100 行、无限滚动或可复现性能回归时的
+  虚拟滚动重评估条件，当前不引入虚拟列表依赖；
+- 详情页恢复单品种实时行情读取，在失败时明确显示最近收盘数据降级状态；评论、标注和详情请求
+  失败均有页面级行为和 Playwright route-interception 回归；
+- refresh 轮换同步写入 SSE 使用的 access cookie，logout 同时清理 access/refresh cookies；
+  CSP 和 localStorage access token 的 Report-Only、nonce/hash、内存 token 与 cookie-only
+  写请求边界已形成分阶段迁移与停止条件；
+- 详细记录：[`r5_frontend_quality_observability.md`](r5_frontend_quality_observability.md)。

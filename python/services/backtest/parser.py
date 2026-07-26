@@ -26,6 +26,8 @@ class StrategyIntent:
     quantity: int = 1
     direction: str = "long"
     limit: int = 500
+    data_view: str | None = None
+    contract_code: str | None = None
 
 
 _PERIOD_ALIASES = {

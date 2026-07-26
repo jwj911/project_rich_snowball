@@ -41,6 +41,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     productDetail,
     product,
     realtime,
+    realtimeError,
     varietyId,
     loading: isLoading,
     error,
@@ -82,6 +83,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     supportLevels,
     resistanceLevels,
     levelsLoaded,
+    levelError,
     addSupport,
     addResistance,
     removeSupport,
@@ -358,6 +360,11 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                   数据日期: {displayTradeDate}
                 </div>
               )}
+              {realtimeError && (
+                <p role="status" className="text-label-12 text-amber-700">
+                  实时行情暂不可用，正在展示最近收盘数据。
+                </p>
+              )}
             </div>
           </div>
 
@@ -411,6 +418,12 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
               <TradingInfoPanel product={product} displayPrice={displayPrice} marginCost={marginCost} />
 
               <ContractRolloverPanel rollovers={rollovers} loading={rolloversLoading} />
+
+              {levelError && (
+                <p role="alert" className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                  {levelError}
+                </p>
+              )}
 
               <LevelEditor
                 title="支撑位"

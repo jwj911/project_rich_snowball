@@ -34,6 +34,8 @@
 - `useRealtimeQuotes.ts` 明确区分增量合并与全量替换场景。
 - 订阅 symbol 数组请用 `useMemo` 避免无意义重连。
 - SSE URL 截断：当 symbol 数量 >30 时省略 `symbols` 参数，后端为空时自动订阅全部活跃品种。
+- 详情页使用 `useRealtime()` 单品种轮询；失败时必须保留最近收盘字段并展示降级状态，不能将
+  单独的 realtime 故障升级为整个详情页错误。
 
 ## 搜索防抖
 
@@ -47,7 +49,9 @@
 
 ## 关键配置
 
-- `next.config.js`：`output: 'standalone'`；全局安全响应头（CSP、`X-Frame-Options: DENY`、`Referrer-Policy`、`Permissions-Policy`）；CSP 当前允许 `'unsafe-eval'` 和 `'unsafe-inline'` 以兼容 lightweight-charts 和 Next.js；Bundle 预算红线为任意路由 First Load JS 不得超过 180 kB。
+- `next.config.js`：`output: 'standalone'`；全局安全响应头（CSP、`X-Frame-Options: DENY`、`Referrer-Policy`、`Permissions-Policy`）；CSP 当前仍允许 `'unsafe-eval'` 和 `'unsafe-inline'`，收紧先走 Report-Only，不得跳过 Next、图表、SSE、登录和写请求回归；Bundle 预算红线为任意路由 First Load JS 不得超过 180 kB。
 - `tailwind.config.js`：暗色主题，自定义 `up`（红色系）、`down`（绿色系）。
 - `tsconfig.json`：`"strict": true`，`"@/*": ["./*"]` 路径别名，`moduleResolution: "bundler"`。
 - `playwright.config.ts`：`baseURL: http://127.0.0.1:3200`，`auth.setup.ts` 为前置依赖，`webServer` 自动运行 `npm run dev`。
+- `scripts/lighthouse-baseline.js`：默认采集 `home=/`、`products=/products`，写入趋势/历史 JSON；
+  CI artifact 保留 90 天。更多前置和容量决策见 `docs/r5_frontend_quality_observability.md`。

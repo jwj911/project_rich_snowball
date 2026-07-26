@@ -21,7 +21,7 @@ from services.domain.market_data_service import MarketDataService
 from services.metrics import data_collection_duration_seconds, data_collection_runs_total
 from services.news_fetcher import fetch_all_enabled_sources
 from services.realtime_state import mark_realtime_updated
-from services.trading_calendar import _cn_date, is_trading_day
+from services.trading_calendar import _cn_date, get_trading_days, is_trading_day
 
 logger = logging.getLogger("data.scheduler")
 
@@ -57,6 +57,7 @@ def _ensure_collectors():
         logger.info("Using %s collector", name)
     else:
         from data_collector.collector_registry import _MappedFallbackCollector
+
         logger.info("Using collector fallback order: %s", " -> ".join(entry[0] for entry in entries))
         collector = _MappedFallbackCollector(entries)
         realtime_adapter = None
@@ -70,6 +71,7 @@ def _ensure_collectors():
 # ------------------------------------------------------------------
 # 辅助函数
 # ------------------------------------------------------------------
+
 
 def _pipeline(name: str):
     _ensure_collectors()
@@ -87,6 +89,7 @@ def _should_skip_daily_task(job_name: str, trade_date: str, db) -> bool:
     防止手动重试或 misfire 补执行时产生重复数据。
     """
     from models import DataIngestionRunDB
+
     try:
         dt = datetime.strptime(trade_date, "%Y%m%d")
         exists = (
@@ -125,6 +128,7 @@ def _get_ts_code(variety):
 # ------------------------------------------------------------------
 # 核心采集任务
 # ------------------------------------------------------------------
+
 
 def refresh_realtime_quotes():
     """Refresh realtime quotes."""
@@ -183,9 +187,8 @@ def _check_price_alerts(db):
             if current is None:
                 continue
 
-            triggered = (
-                (alert.alert_type == "above" and current >= alert.target_price)
-                or (alert.alert_type == "below" and current <= alert.target_price)
+            triggered = (alert.alert_type == "above" and current >= alert.target_price) or (
+                alert.alert_type == "below" and current <= alert.target_price
             )
 
             if triggered:
@@ -243,6 +246,7 @@ def sync_daily_kline():
 # ------------------------------------------------------------------
 # 扩展采集任务
 # ------------------------------------------------------------------
+
 
 def sync_minute_kline():
     """Sync recent minute-level kline data via AkShare."""
@@ -345,6 +349,85 @@ def sync_fut_settle():
         logger.info("Synced settle: %s", stats)
     except (SQLAlchemyError, OSError) as e:
         logger.error("Failed to sync settle: %s", e)
+
+
+def market_panel_rebuild_window(db, today=None):
+    """返回日频宽表的预热窗口，并为迟到的换月记录向前扩展重建范围。"""
+    from models import ContractRolloverDB, DataIngestionRunDB
+    from services.market_panel import PANEL_BUILD_JOB_NAME, PANEL_BUILD_SOURCE
+
+    end_date = today or _cn_date()
+    trading_days = get_trading_days(end_date - timedelta(days=45), end_date)
+    warmup_start = trading_days[-20] if len(trading_days) >= 20 else end_date - timedelta(days=28)
+    latest_run = (
+        db.query(DataIngestionRunDB)
+        .filter(
+            DataIngestionRunDB.job_name == PANEL_BUILD_JOB_NAME,
+            DataIngestionRunDB.source == PANEL_BUILD_SOURCE,
+            DataIngestionRunDB.status == "success",
+        )
+        .order_by(DataIngestionRunDB.finished_at.desc(), DataIngestionRunDB.id.desc())
+        .first()
+    )
+    if latest_run is None:
+        return warmup_start, end_date, "warmup_20_trading_days"
+
+    completed_at = latest_run.finished_at or latest_run.started_at
+    earliest_late_rollover = (
+        db.query(ContractRolloverDB.effective_date)
+        .filter(ContractRolloverDB.created_at > completed_at)
+        .order_by(ContractRolloverDB.effective_date.asc())
+        .scalar()
+    )
+    if earliest_late_rollover is None:
+        return warmup_start, end_date, "warmup_20_trading_days"
+
+    rollover_date = earliest_late_rollover.date()
+    start_date = min(warmup_start, rollover_date)
+    return start_date, end_date, "late_rollover_from_effective_date"
+
+
+def sync_market_panel_daily():
+    """在独立 worker 中物化 raw、连续和复权日频研究宽表。"""
+    if not is_trading_day(_cn_date()):
+        logger.info("sync_market_panel_daily skipped: non-trading day")
+        data_collection_runs_total.labels(task_name="sync_market_panel_daily", status="skipped").inc()
+        return
+
+    from services.market_panel import MarketPanelBuildError, run_market_panel_daily_build
+
+    started = time.time()
+    db = SessionLocal()
+    try:
+        start_date, end_date, window_reason = market_panel_rebuild_window(db)
+        stats = run_market_panel_daily_build(
+            db,
+            start_date=start_date,
+            end_date=end_date,
+            max_attempts=3,
+        )
+        logger.info(
+            "market_panel_daily_synced",
+            extra={
+                "end_date": end_date.isoformat(),
+                "run_id": stats["run_id"],
+                "start_date": start_date.isoformat(),
+                "window_reason": window_reason,
+                "written_rows": stats["written_rows"],
+            },
+        )
+        data_collection_runs_total.labels(task_name="sync_market_panel_daily", status="success").inc()
+    except MarketPanelBuildError as exc:
+        logger.error(
+            "market_panel_daily_failed trace_id=%s error_type=%s",
+            exc.trace_id,
+            exc.error_type,
+        )
+        data_collection_runs_total.labels(task_name="sync_market_panel_daily", status="failed").inc()
+        raise
+    finally:
+        db.close()
+        data_collection_duration_seconds.labels(task_name="sync_market_panel_daily").observe(time.time() - started)
 
 
 def sync_fut_weekly_detail():
@@ -450,9 +533,9 @@ def sync_trading_calendar():
     logger.info("Syncing trading calendar...")
     try:
         import importlib.util
+
         script_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "scripts", "update_trading_calendar.py"
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "update_trading_calendar.py"
         )
         if not os.path.exists(script_path):
             logger.warning("update_trading_calendar.py not found at %s", script_path)
@@ -514,6 +597,7 @@ def sync_news():
         # 为未生成 AI 摘要的最新文章批量生成摘要
         if total_new > 0:
             from services.ai_chat import summarize_article_sync
+
             unsummarized = (
                 db.query(NewsArticleDB)
                 .filter(NewsArticleDB.ai_summary.is_(None))
@@ -558,24 +642,32 @@ def weekly_strategy_evolution():
                 agent = StrategyEvolutionAgent(ctx)
                 # 使用轻量配置
                 import asyncio
+
                 result = asyncio.get_event_loop().run_until_complete(
                     agent.run(f"为 {variety.symbol} 自动进化策略：世代数=5 种群=20")
                 )
-                results.append({
-                    "symbol": variety.symbol,
-                    "status": result.status,
-                    "best_fitness": result.data.get("best_fitness") if result.data else None,
-                })
+                results.append(
+                    {
+                        "symbol": variety.symbol,
+                        "status": result.status,
+                        "best_fitness": result.data.get("best_fitness") if result.data else None,
+                    }
+                )
                 logger.info(
                     "周度策略进化 %s: status=%s fitness=%s",
-                    variety.symbol, result.status,
+                    variety.symbol,
+                    result.status,
                     result.data.get("best_fitness") if result.data else "N/A",
                 )
             except Exception as exc:
                 logger.error("周度策略进化 %s 失败: %s", variety.symbol, exc)
                 results.append({"symbol": variety.symbol, "status": "failed", "error": str(exc)})
 
-        logger.info("周度策略进化完成：%d 品种，%d 成功", len(varieties[:10]), sum(1 for r in results if r["status"] == "completed"))
+        logger.info(
+            "周度策略进化完成：%d 品种，%d 成功",
+            len(varieties[:10]),
+            sum(1 for r in results if r["status"] == "completed"),
+        )
 
     except Exception as exc:
         logger.error("周度策略进化任务异常：%s", exc)
@@ -590,7 +682,12 @@ def weekly_strategy_evolution():
 scheduler = BackgroundScheduler()
 
 
-def start_scheduler():
+def start_scheduler(*, include_market_panel: bool = False):
+    """启动采集 scheduler。
+
+    宽表物化仅由独立 worker 传入 ``include_market_panel=True`` 注册，避免 API
+    进程在本地兼容调度模式下与 worker 重复执行可重建任务。
+    """
     _ensure_collectors()
     jobs = build_job_configs(
         refresh_realtime_quotes_func=refresh_realtime_quotes,
@@ -606,6 +703,7 @@ def start_scheduler():
         sync_fut_wsr_func=sync_fut_wsr if _pipeline("fut_wsr") else None,
         sync_fut_holding_func=sync_fut_holding if _pipeline("fut_holding") else None,
         sync_fut_price_limit_func=sync_fut_price_limit if _pipeline("fut_price_limit") else None,
+        sync_market_panel_daily_func=sync_market_panel_daily if include_market_panel else None,
     )
     register_jobs(scheduler, jobs)
 

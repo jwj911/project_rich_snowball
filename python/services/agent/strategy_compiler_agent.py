@@ -19,6 +19,12 @@ from typing import Any
 
 from services.agent.core import Agent, AgentEventType, AgentResult, AgentStatus
 from services.agent.utils import resolve_symbols
+from services.backtest.transform_contract import (
+    MULTIPLY_INDICATOR2,
+    TransformContractError,
+    format_transformed_indicator2,
+    validate_condition_transform,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -326,7 +332,7 @@ class StrategyParser:
                 "operator": "greater_than",
                 "indicator2": f"volume_sma{vol_period}",
                 "value": vol_mult,
-                "transform": "multiply_value",
+                "transform": MULTIPLY_INDICATOR2,
             }
         )
 
@@ -657,7 +663,7 @@ class StrategyParser:
                     "operator": "greater_than",
                     "indicator2": ma_indicator,
                     "value": threshold,
-                    "transform": "multiply_value",
+                    "transform": MULTIPLY_INDICATOR2,
                 }
             ]
             exit_conditions = [
@@ -666,7 +672,7 @@ class StrategyParser:
                     "operator": "less_than",
                     "indicator2": ma_indicator,
                     "value": threshold,
-                    "transform": "multiply_value",
+                    "transform": MULTIPLY_INDICATOR2,
                 }
             ]
         else:
@@ -676,7 +682,7 @@ class StrategyParser:
                     "operator": "less_than",
                     "indicator2": ma_indicator,
                     "value": threshold,
-                    "transform": "multiply_value",
+                    "transform": MULTIPLY_INDICATOR2,
                 }
             ]
             exit_conditions = [
@@ -685,7 +691,7 @@ class StrategyParser:
                     "operator": "greater_than",
                     "indicator2": ma_indicator,
                     "value": threshold,
-                    "transform": "multiply_value",
+                    "transform": MULTIPLY_INDICATOR2,
                 }
             ]
 
@@ -841,6 +847,11 @@ class StrategyValidator:
                     errors.append(f"{prefix} between 需要 value")
                 elif not isinstance(value, list | tuple) or len(value) != 2:
                     errors.append(f"{prefix} between 需要 value 为长度 2 的数值列表")
+
+            try:
+                validate_condition_transform(cond, context=prefix)
+            except TransformContractError as exc:
+                errors.append(str(exc))
 
         return errors
 
@@ -1007,7 +1018,7 @@ def _parse_extra_conditions(query: str) -> list[dict[str, Any]]:
                 "operator": "greater_than",
                 "indicator2": "volume_sma20",
                 "value": vol_mult,
-                "transform": "multiply_value",
+                "transform": MULTIPLY_INDICATOR2,
             }
         )
 
@@ -1019,7 +1030,7 @@ def _parse_extra_conditions(query: str) -> list[dict[str, Any]]:
                 "operator": "less_than",
                 "indicator2": "volume_sma20",
                 "value": 0.5,
-                "transform": "multiply_value",
+                "transform": MULTIPLY_INDICATOR2,
             }
         )
 
@@ -1285,10 +1296,21 @@ def _operator_desc(cond: dict[str, Any]) -> str:
     indicator = cond.get("indicator", "")
     indicator2 = cond.get("indicator2")
     value = cond.get("value")
-    transform = cond.get("transform")
 
-    if transform == "multiply_value" and indicator2 is not None and value is not None:
-        return f"{indicator} > {indicator2} × {value}"
+    transformed_indicator2 = format_transformed_indicator2(cond)
+    if transformed_indicator2 is not None:
+        if operator == "above":
+            return f"{indicator} 在 {transformed_indicator2} 上方"
+        if operator == "below":
+            return f"{indicator} 在 {transformed_indicator2} 下方"
+        op_map = {
+            "cross_above": "上穿",
+            "cross_below": "下穿",
+            "greater_than": ">",
+            "less_than": "<",
+            "equal": "=",
+        }
+        return f"{indicator} {op_map.get(operator, operator)} {transformed_indicator2}"
 
     op_map = {
         "cross_above": f"{indicator} 上穿 {indicator2}",

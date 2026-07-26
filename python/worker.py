@@ -63,7 +63,8 @@ def main():
 
         init_mock_data()
 
-    start_scheduler()
+    # 宽表物化只在独立 worker 注册，API 进程即使启用本地 scheduler 也不执行它。
+    start_scheduler(include_market_panel=True)
     logger.info("Scheduler worker started. Press Ctrl+C to stop.")
 
     try:

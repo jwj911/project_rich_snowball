@@ -18,13 +18,35 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from models import AgentMarketPanelDailyDB, DataIngestionRunDB, FutContractDB, FutDailyDataDB, KlineDataDB, VarietyDB
+from models import (
+    AgentMarketPanelDailyDB,
+    ContractRolloverDB,
+    DataIngestionRunDB,
+    FutContractDB,
+    FutDailyDataDB,
+    KlineDataDB,
+    VarietyDB,
+)
 from services.data_quality import DataQualityService
 
 RAW_CONTRACT_VIEW = "raw_contract"
+MAIN_CONTINUOUS_VIEW = "main_continuous"
+MAIN_BACK_ADJUSTED_VIEW = "main_back_adjusted"
+MAIN_FORWARD_ADJUSTED_VIEW = "main_forward_adjusted"
 PANEL_PERIOD = "1d"
 PANEL_BUILD_JOB_NAME = "rebuild_agent_market_panel_daily"
 PANEL_BUILD_SOURCE = "market_panel"
+PANEL_DATA_VIEWS = (
+    RAW_CONTRACT_VIEW,
+    MAIN_CONTINUOUS_VIEW,
+    MAIN_BACK_ADJUSTED_VIEW,
+    MAIN_FORWARD_ADJUSTED_VIEW,
+)
+_DERIVED_PANEL_VIEWS = (
+    MAIN_CONTINUOUS_VIEW,
+    MAIN_BACK_ADJUSTED_VIEW,
+    MAIN_FORWARD_ADJUSTED_VIEW,
+)
 _SOURCE_DAILY_PERIODS = ("1d", "D")
 _DECIMAL_ONE = Decimal("1")
 _DECIMAL_ZERO = Decimal("0")
@@ -54,39 +76,91 @@ def run_raw_contract_daily_panel_build(
     retry_delay_seconds: float = 1.0,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """构建宽表并持久化批次记录、质量快照和可恢复失败信息。
+    """构建 ``raw_contract`` 视图并保持历史调用方的返回契约。"""
+    return run_market_panel_daily_build(
+        db,
+        variety_id=variety_id,
+        start_date=start_date,
+        end_date=end_date,
+        data_views=(RAW_CONTRACT_VIEW,),
+        max_attempts=max_attempts,
+        retry_delay_seconds=retry_delay_seconds,
+        dry_run=dry_run,
+    )
+
+
+def run_market_panel_daily_build(
+    db: Session,
+    *,
+    variety_id: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    data_views: tuple[str, ...] | list[str] = PANEL_DATA_VIEWS,
+    max_attempts: int = 3,
+    retry_delay_seconds: float = 1.0,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """按依赖顺序构建日频研究视图并记录统一批次诊断。
 
     每个实际尝试都会产生独立的 ``data_ingestion_runs`` 记录。仅数据库连接类故障
     参与指数退避重试；输入或数据完整性错误会立即结束，避免无效重复写入。dry-run
-    始终回滚构建和批次记录，保持无副作用。
+    始终回滚构建和批次记录，保持无副作用。所有视图共享一个 ``trace_id``，方便将
+    原始合约、连续和复权结果关联到同一次逻辑构建。
     """
     if max_attempts < 1:
         raise ValueError("max_attempts 必须至少为 1")
     if retry_delay_seconds < 0:
         raise ValueError("retry_delay_seconds 不能小于 0")
 
+    requested_views = _normalize_data_views(data_views)
+    build_views = _resolve_build_views(requested_views)
     trace_id = uuid.uuid4().hex
     for attempt in range(1, max_attempts + 1):
         started_at = datetime.now(UTC)
         attempt_transaction = db.begin_nested()
         try:
-            stats = rebuild_raw_contract_daily_panel(
-                db,
-                variety_id=variety_id,
-                start_date=start_date,
-                end_date=end_date,
-            )
-            quality_snapshot = _quality_snapshot(
-                DataQualityService(db).check_market_panel(_variety_symbol(db, variety_id)).to_dict()
-            )
+            view_stats: dict[str, dict[str, int]] = {}
+            for data_view in build_views:
+                if data_view == RAW_CONTRACT_VIEW:
+                    view_stats[data_view] = rebuild_raw_contract_daily_panel(
+                        db,
+                        variety_id=variety_id,
+                        start_date=start_date,
+                        end_date=end_date,
+                        build_trace_id=trace_id,
+                    )
+                else:
+                    view_stats[data_view] = rebuild_main_daily_panel_view(
+                        db,
+                        data_view=data_view,
+                        variety_id=variety_id,
+                        start_date=start_date,
+                        end_date=end_date,
+                        build_trace_id=trace_id,
+                    )
+
+            stats = _aggregate_build_stats(view_stats)
+            symbol = _variety_symbol(db, variety_id)
+            quality_snapshots = {
+                data_view: _quality_snapshot(
+                    DataQualityService(db).check_market_panel(symbol, data_view=data_view).to_dict()
+                )
+                for data_view in requested_views
+            }
+            quality_snapshot = quality_snapshots[requested_views[0]] if len(requested_views) == 1 else None
             if dry_run:
                 attempt_transaction.rollback()
-                return {
+                result: dict[str, Any] = {
                     **stats,
                     "attempt_count": attempt,
-                    "quality_snapshot": quality_snapshot,
                     "run_id": None,
                 }
+                if quality_snapshot is not None:
+                    result["quality_snapshot"] = quality_snapshot
+                else:
+                    result["quality_snapshots"] = quality_snapshots
+                result["data_views"] = requested_views
+                return result
 
             run = _build_run_record(
                 status="success",
@@ -99,16 +173,24 @@ def run_raw_contract_daily_panel_build(
                 max_attempts=max_attempts,
                 trace_id=trace_id,
                 quality_snapshot=quality_snapshot,
+                quality_snapshots=quality_snapshots if quality_snapshot is None else None,
+                data_views=requested_views,
+                view_stats=view_stats,
             )
             db.add(run)
             attempt_transaction.commit()
             db.commit()
-            return {
+            result = {
                 **stats,
                 "attempt_count": attempt,
-                "quality_snapshot": quality_snapshot,
                 "run_id": run.id,
+                "data_views": requested_views,
             }
+            if quality_snapshot is not None:
+                result["quality_snapshot"] = quality_snapshot
+            else:
+                result["quality_snapshots"] = quality_snapshots
+            return result
         except Exception as exc:
             if attempt_transaction.is_active:
                 attempt_transaction.rollback()
@@ -133,6 +215,7 @@ def run_raw_contract_daily_panel_build(
                     error_type=type(exc).__name__,
                     retryable=retryable and attempt < max_attempts,
                     retry_delay_seconds=retry_delay if attempt < max_attempts else None,
+                    data_views=requested_views,
                 )
                 db.add(failure_run)
                 db.commit()
@@ -159,6 +242,7 @@ def rebuild_raw_contract_daily_panel(
     variety_id: int | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
+    build_trace_id: str | None = None,
 ) -> dict[str, int]:
     """从原始合约 K 线重建 ``raw_contract`` 日频研究宽表。
 
@@ -185,7 +269,13 @@ def rebuild_raw_contract_daily_panel(
 
     source_keys = {(contract.ts_code, kline.trading_date) for kline, _, contract in source_rows}
     daily_rows = _load_daily_rows(db, source_keys)
-    values = _build_panel_rows(source_rows, daily_rows, start_date=start_date, end_date=end_date)
+    values = _build_panel_rows(
+        source_rows,
+        daily_rows,
+        start_date=start_date,
+        end_date=end_date,
+        build_trace_id=build_trace_id,
+    )
 
     delete_query = db.query(AgentMarketPanelDailyDB).filter(
         AgentMarketPanelDailyDB.data_view == RAW_CONTRACT_VIEW,
@@ -207,6 +297,268 @@ def rebuild_raw_contract_daily_panel(
     }
 
 
+def rebuild_main_daily_panel_view(
+    db: Session,
+    *,
+    data_view: str,
+    variety_id: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    build_trace_id: str | None = None,
+) -> dict[str, int]:
+    """从 ``raw_contract`` 物化一个主力连续或复权日频视图。
+
+    原始合约视图是唯一的 OHLCV 输入。每个连续行保留提供该日行情的
+    ``contract_id``，并以 ``rollover_id`` 和 ``lineage_json`` 记录换月链路。
+    """
+    if data_view not in _DERIVED_PANEL_VIEWS:
+        raise ValueError(f"不支持的派生宽表视图：{data_view}")
+
+    source_query = (
+        db.query(AgentMarketPanelDailyDB, VarietyDB)
+        .join(VarietyDB, AgentMarketPanelDailyDB.variety_id == VarietyDB.id)
+        .filter(
+            AgentMarketPanelDailyDB.data_view == RAW_CONTRACT_VIEW,
+            AgentMarketPanelDailyDB.period == PANEL_PERIOD,
+        )
+        .order_by(
+            AgentMarketPanelDailyDB.variety_id.asc(),
+            AgentMarketPanelDailyDB.trading_date.asc(),
+            AgentMarketPanelDailyDB.contract_id.asc(),
+        )
+    )
+    if variety_id is not None:
+        source_query = source_query.filter(AgentMarketPanelDailyDB.variety_id == variety_id)
+
+    rows_by_variety: dict[int, tuple[VarietyDB, list[AgentMarketPanelDailyDB]]] = {}
+    for row, variety in source_query.all():
+        stored = rows_by_variety.setdefault(variety.id, (variety, []))
+        stored[1].append(row)
+
+    values: list[dict[str, Any]] = []
+    for variety, raw_rows in rows_by_variety.values():
+        rollovers = (
+            db.query(ContractRolloverDB)
+            .filter(ContractRolloverDB.variety_id == variety.id)
+            .order_by(ContractRolloverDB.effective_date.asc(), ContractRolloverDB.id.asc())
+            .all()
+        )
+        values.extend(
+            _build_main_view_rows(
+                variety,
+                raw_rows,
+                rollovers,
+                data_view=data_view,
+                start_date=start_date,
+                end_date=end_date,
+                build_trace_id=build_trace_id,
+            )
+        )
+
+    delete_query = db.query(AgentMarketPanelDailyDB).filter(
+        AgentMarketPanelDailyDB.data_view == data_view,
+        AgentMarketPanelDailyDB.period == PANEL_PERIOD,
+    )
+    if variety_id is not None:
+        delete_query = delete_query.filter(AgentMarketPanelDailyDB.variety_id == variety_id)
+    if start_date is not None:
+        delete_query = delete_query.filter(AgentMarketPanelDailyDB.trading_date >= start_date)
+    if end_date is not None:
+        delete_query = delete_query.filter(AgentMarketPanelDailyDB.trading_date <= end_date)
+    deleted = delete_query.delete(synchronize_session=False)
+
+    return {
+        "source_rows": sum(len(rows) for _, rows in rows_by_variety.values()),
+        "written_rows": _upsert_panel_rows(db, values),
+        "deleted_rows": deleted,
+    }
+
+
+def _build_main_view_rows(
+    variety: VarietyDB,
+    raw_rows: list[AgentMarketPanelDailyDB],
+    rollovers: list[ContractRolloverDB],
+    *,
+    data_view: str,
+    start_date: date | None,
+    end_date: date | None,
+    build_trace_id: str | None,
+) -> list[dict[str, Any]]:
+    """选择每日主力原始行，并按指定视图计算连续或复权价格。"""
+    rows_by_date: dict[date, list[AgentMarketPanelDailyDB]] = defaultdict(list)
+    contract_by_code: dict[str, int] = {}
+    for row in raw_rows:
+        rows_by_date[row.trading_date].append(row)
+        contract_by_code.setdefault(row.contract_code, row.contract_id)
+
+    selected: list[tuple[AgentMarketPanelDailyDB, ContractRolloverDB | None]] = []
+    for trading_date in sorted(rows_by_date):
+        rollover = _active_rollover(rollovers, trading_date)
+        contract_id = _main_contract_for_date(variety, rollovers, rollover, contract_by_code)
+        if contract_id is None:
+            continue
+        source_row = next((row for row in rows_by_date[trading_date] if row.contract_id == contract_id), None)
+        if source_row is not None:
+            selected.append((source_row, rollover))
+
+    if not selected:
+        return []
+
+    adjustment_values, applied_rollovers = _adjustment_details(selected, rollovers, data_view)
+    adjusted_rows: list[dict[str, Any]] = []
+    closes: list[Decimal] = []
+    volumes: list[Decimal] = []
+    for index, (source, rollover) in enumerate(selected):
+        adjustment = adjustment_values[index]
+        open_price = _decimal(source.open_price) + adjustment
+        high_price = _decimal(source.high_price) + adjustment
+        low_price = _decimal(source.low_price) + adjustment
+        close_price = _decimal(source.close_price) + adjustment
+        closes.append(close_price)
+        volumes.append(_decimal(source.volume))
+        if start_date is not None and source.trading_date < start_date:
+            continue
+        if end_date is not None and source.trading_date > end_date:
+            continue
+
+        flags = json.loads(source.source_flags or "{}")
+        flags["main_selection"] = "contract_rollovers"
+        lineage = {
+            "adjustment_method": _adjustment_method(data_view),
+            "applied_rollover_ids": applied_rollovers[index],
+            "source_contract_id": source.contract_id,
+            "source_data_view": RAW_CONTRACT_VIEW,
+        }
+        previous_close = closes[index - 1] if index > 0 else None
+        quality_status = source.quality_status
+        if rollover is not None and rollover.new_contract_id != source.contract_id:
+            quality_status = "warning"
+            lineage["selection_warning"] = "rollover_source_contract_mismatch"
+
+        adjusted_rows.append(
+            {
+                "data_view": data_view,
+                "variety_id": variety.id,
+                "contract_id": source.contract_id,
+                "symbol": variety.symbol,
+                "contract_code": source.contract_code,
+                "trading_date": source.trading_date,
+                "period": PANEL_PERIOD,
+                "open_price": open_price,
+                "high_price": high_price,
+                "low_price": low_price,
+                "close_price": close_price,
+                "volume": source.volume,
+                "amount": source.amount,
+                "open_interest": source.open_interest,
+                "settlement": _decimal(source.settlement) + adjustment if source.settlement is not None else None,
+                "ret_1": _return(closes, index, 1),
+                "ret_5": _return(closes, index, 5),
+                "ret_20": _return(closes, index, 20),
+                "gap": _ratio(open_price, previous_close),
+                "amplitude": _ratio(high_price - low_price, close_price),
+                "intraday_range": _ratio(close_price - open_price, open_price),
+                "volume_ratio_20": _volume_ratio(volumes, index),
+                "source_flags": json.dumps(flags, ensure_ascii=True, sort_keys=True),
+                "rollover_id": rollover.id if rollover else None,
+                "adjustment_value": adjustment,
+                "adjustment_method": _adjustment_method(data_view),
+                "lineage_json": json.dumps(lineage, ensure_ascii=True, sort_keys=True),
+                "build_trace_id": build_trace_id,
+                "quality_status": quality_status,
+            }
+        )
+    return adjusted_rows
+
+
+def _active_rollover(
+    rollovers: list[ContractRolloverDB],
+    trading_date: date,
+) -> ContractRolloverDB | None:
+    """返回在交易日已生效的最后一次换月记录。"""
+    active = None
+    for rollover in rollovers:
+        if rollover.effective_date.date() > trading_date:
+            break
+        active = rollover
+    return active
+
+
+def _main_contract_for_date(
+    variety: VarietyDB,
+    rollovers: list[ContractRolloverDB],
+    active_rollover: ContractRolloverDB | None,
+    contract_by_code: dict[str, int],
+) -> int | None:
+    """从换月链路解析交易日应使用的具体合约。"""
+    if active_rollover is not None:
+        return active_rollover.new_contract_id
+    if rollovers and rollovers[0].old_contract_id is not None:
+        return rollovers[0].old_contract_id
+    if variety.contract_code:
+        return contract_by_code.get(variety.contract_code)
+    return None
+
+
+def _adjustment_details(
+    selected: list[tuple[AgentMarketPanelDailyDB, ContractRolloverDB | None]],
+    rollovers: list[ContractRolloverDB],
+    data_view: str,
+) -> tuple[list[Decimal], list[list[int]]]:
+    """按既有连续 K 线的价差算法计算每行累计调整与依赖换月记录。"""
+    if data_view == MAIN_CONTINUOUS_VIEW:
+        return [_DECIMAL_ZERO for _ in selected], [[] for _ in selected]
+
+    source_by_date = {row.trading_date: row for row, _ in selected}
+    rollover_gaps: dict[int, Decimal] = {}
+    for rollover in rollovers:
+        effective_date = rollover.effective_date.date()
+        old_rows = [
+            row
+            for trading_date, row in source_by_date.items()
+            if trading_date < effective_date and row.contract_id == rollover.old_contract_id
+        ]
+        new_rows = [
+            row
+            for trading_date, row in source_by_date.items()
+            if trading_date >= effective_date and row.contract_id == rollover.new_contract_id
+        ]
+        if old_rows and new_rows:
+            old_close = _decimal(max(old_rows, key=lambda row: row.trading_date).close_price)
+            new_close = _decimal(min(new_rows, key=lambda row: row.trading_date).close_price)
+            rollover_gaps[rollover.id] = new_close - old_close
+
+    values: list[Decimal] = []
+    lineage_ids: list[list[int]] = []
+    for source, _ in selected:
+        if data_view == MAIN_BACK_ADJUSTED_VIEW:
+            applicable = [
+                rollover
+                for rollover in rollovers
+                if rollover.id in rollover_gaps and rollover.effective_date.date() > source.trading_date
+            ]
+        else:
+            applicable = [
+                rollover
+                for rollover in rollovers
+                if rollover.id in rollover_gaps and rollover.effective_date.date() <= source.trading_date
+            ]
+        # 与既有 apply_backward_adjustment 保持兼容：后复权调整较早的主力段；
+        # 前复权调整较新的主力段，两者都记录实际累计价差以供复放。
+        values.append(-sum((rollover_gaps[rollover.id] for rollover in applicable), _DECIMAL_ZERO))
+        lineage_ids.append([rollover.id for rollover in applicable])
+    return values, lineage_ids
+
+
+def _adjustment_method(data_view: str) -> str:
+    methods = {
+        MAIN_CONTINUOUS_VIEW: "none",
+        MAIN_BACK_ADJUSTED_VIEW: "legacy_backward_additive_v1",
+        MAIN_FORWARD_ADJUSTED_VIEW: "forward_additive_v1",
+    }
+    return methods[data_view]
+
+
 def _build_run_record(
     *,
     status: str,
@@ -219,15 +571,20 @@ def _build_run_record(
     max_attempts: int,
     trace_id: str,
     quality_snapshot: dict[str, Any] | None = None,
+    quality_snapshots: dict[str, dict[str, Any]] | None = None,
+    data_views: tuple[str, ...] | list[str] = (RAW_CONTRACT_VIEW,),
+    view_stats: dict[str, dict[str, int]] | None = None,
     error_type: str | None = None,
     retryable: bool | None = None,
     retry_delay_seconds: float | None = None,
 ) -> DataIngestionRunDB:
     """将无敏感字段的构建状态转换为通用采集批次记录。"""
     finished_at = datetime.now(UTC)
+    normalized_views = list(data_views)
     metadata: dict[str, Any] = {
         "attempt": attempt,
-        "data_view": RAW_CONTRACT_VIEW,
+        "data_view": normalized_views[0] if len(normalized_views) == 1 else "multi_view",
+        "data_views": normalized_views,
         "period": PANEL_PERIOD,
         "requested_window": {
             "end_date": end_date.isoformat() if end_date else None,
@@ -238,7 +595,12 @@ def _build_run_record(
     }
     if status == "success":
         metadata["build_stats"] = stats
-        metadata["quality_snapshot"] = quality_snapshot
+        if quality_snapshot is not None:
+            metadata["quality_snapshot"] = quality_snapshot
+        if quality_snapshots is not None:
+            metadata["quality_snapshots"] = quality_snapshots
+        if view_stats is not None:
+            metadata["view_stats"] = view_stats
     else:
         metadata["error_type"] = error_type
         metadata["max_attempts"] = max_attempts
@@ -265,6 +627,34 @@ def _build_run_record(
         window_end=_window_boundary(end_date, is_end=True),
         metadata_json=json.dumps(metadata, ensure_ascii=True, sort_keys=True),
     )
+
+
+def _normalize_data_views(data_views: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    """校验并按稳定顺序去重请求的物化视图。"""
+    requested = tuple(dict.fromkeys(data_views))
+    if not requested:
+        raise ValueError("至少指定一个 data_view")
+    unsupported = sorted(set(requested) - set(PANEL_DATA_VIEWS))
+    if unsupported:
+        raise ValueError(f"不支持的 data_view：{', '.join(unsupported)}")
+    return requested
+
+
+def _resolve_build_views(requested_views: tuple[str, ...]) -> tuple[str, ...]:
+    """确保派生视图总是在最新 raw_contract 输入后构建。"""
+    ordered = [view for view in PANEL_DATA_VIEWS if view in requested_views]
+    if any(view in _DERIVED_PANEL_VIEWS for view in ordered) and RAW_CONTRACT_VIEW not in ordered:
+        ordered.insert(0, RAW_CONTRACT_VIEW)
+    return tuple(ordered)
+
+
+def _aggregate_build_stats(view_stats: dict[str, dict[str, int]]) -> dict[str, int]:
+    """汇总多视图构建统计，同时保持原始单视图返回字段兼容。"""
+    return {
+        "source_rows": sum(stats["source_rows"] for stats in view_stats.values()),
+        "written_rows": sum(stats["written_rows"] for stats in view_stats.values()),
+        "deleted_rows": sum(stats["deleted_rows"] for stats in view_stats.values()),
+    }
 
 
 def _is_retryable_build_error(exc: Exception) -> bool:
@@ -326,6 +716,7 @@ def _build_panel_rows(
     *,
     start_date: date | None,
     end_date: date | None,
+    build_trace_id: str | None,
 ) -> list[dict[str, Any]]:
     """将同一合约的 K 线转换为宽表记录并计算确定性派生字段。"""
     grouped: dict[tuple[int, int], dict[date, tuple[KlineDataDB, VarietyDB, FutContractDB]]] = defaultdict(dict)
@@ -387,6 +778,18 @@ def _build_panel_rows(
                     ),
                     "volume_ratio_20": _volume_ratio(volumes, index),
                     "source_flags": json.dumps(flags, ensure_ascii=True, sort_keys=True),
+                    "rollover_id": None,
+                    "adjustment_value": _DECIMAL_ZERO,
+                    "adjustment_method": "none",
+                    "lineage_json": json.dumps(
+                        {
+                            "source_contract_id": contract.id,
+                            "source_data_view": "kline_data",
+                        },
+                        ensure_ascii=True,
+                        sort_keys=True,
+                    ),
+                    "build_trace_id": build_trace_id,
                     "quality_status": _quality_status(kline, amount_source, open_interest),
                 }
             )
@@ -422,6 +825,11 @@ def _upsert_panel_rows(db: Session, values: list[dict[str, Any]]) -> int:
             "intraday_range": stmt.excluded.intraday_range,
             "volume_ratio_20": stmt.excluded.volume_ratio_20,
             "source_flags": stmt.excluded.source_flags,
+            "rollover_id": stmt.excluded.rollover_id,
+            "adjustment_value": stmt.excluded.adjustment_value,
+            "adjustment_method": stmt.excluded.adjustment_method,
+            "lineage_json": stmt.excluded.lineage_json,
+            "build_trace_id": stmt.excluded.build_trace_id,
             "quality_status": stmt.excluded.quality_status,
             "updated_at": func.now(),
         },

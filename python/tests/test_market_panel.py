@@ -16,16 +16,25 @@ import services.market_panel as market_panel
 from models import (
     AgentMarketPanelDailyDB,
     Base,
+    ContractRolloverDB,
     DataIngestionRunDB,
     FutContractDB,
     FutDailyDataDB,
     KlineDataDB,
     VarietyDB,
 )
-from scripts import rebuild_raw_contract_panel
+from scripts import rebuild_market_panel, rebuild_raw_contract_panel
 from services.data_catalog import DataCatalogService
 from services.data_quality import DataQualityService
-from services.market_panel import MarketPanelBuildError, rebuild_raw_contract_daily_panel, run_raw_contract_daily_panel_build
+from services.market_panel import (
+    MAIN_BACK_ADJUSTED_VIEW,
+    MAIN_CONTINUOUS_VIEW,
+    MAIN_FORWARD_ADJUSTED_VIEW,
+    MarketPanelBuildError,
+    rebuild_raw_contract_daily_panel,
+    run_market_panel_daily_build,
+    run_raw_contract_daily_panel_build,
+)
 
 
 def _seed_raw_contract_sources(db_session) -> tuple[VarietyDB, FutContractDB]:
@@ -90,6 +99,72 @@ def _seed_raw_contract_sources(db_session) -> tuple[VarietyDB, FutContractDB]:
     )
     db_session.commit()
     return variety, contract
+
+
+def _seed_rollover_panel_sources(db_session) -> tuple[VarietyDB, FutContractDB, FutContractDB, ContractRolloverDB]:
+    variety = VarietyDB(
+        symbol="ROLLPANEL",
+        contract_code="ROLL2505",
+        name="换月宽表测试",
+        exchange="TEST",
+        category="测试",
+        is_active=True,
+    )
+    old_contract = FutContractDB(
+        ts_code="ROLL2501.TEST",
+        symbol="ROLL2501",
+        fut_code="ROLLPANEL",
+        name="旧主力",
+        exchange="TEST",
+        is_active=True,
+    )
+    new_contract = FutContractDB(
+        ts_code="ROLL2505.TEST",
+        symbol="ROLL2505",
+        fut_code="ROLLPANEL",
+        name="新主力",
+        exchange="TEST",
+        is_active=True,
+    )
+    db_session.add_all([variety, old_contract, new_contract])
+    db_session.flush()
+
+    start = datetime(2026, 7, 1, tzinfo=UTC)
+    for offset, contract, close_price in (
+        (0, old_contract, 100),
+        (1, old_contract, 105),
+        (2, new_contract, 110),
+        (3, new_contract, 112),
+    ):
+        timestamp = start + timedelta(days=offset)
+        db_session.add(
+            KlineDataDB(
+                variety_id=variety.id,
+                contract_id=contract.id,
+                period="1d",
+                trading_time=timestamp,
+                trading_date=timestamp.date(),
+                open_price=close_price,
+                high_price=close_price + 2,
+                low_price=close_price - 2,
+                close_price=close_price,
+                volume=100 + offset,
+                open_interest=1000 + offset,
+            )
+        )
+
+    rollover = ContractRolloverDB(
+        variety_id=variety.id,
+        old_contract_id=old_contract.id,
+        new_contract_id=new_contract.id,
+        old_contract_code=old_contract.symbol,
+        new_contract_code=new_contract.symbol,
+        effective_date=start + timedelta(days=2),
+        source="test",
+    )
+    db_session.add(rollover)
+    db_session.commit()
+    return variety, old_contract, new_contract, rollover
 
 
 def test_rebuild_raw_contract_panel_merges_sources_and_tracks_lineage(db_session):
@@ -262,6 +337,99 @@ def test_panel_build_persists_nonretryable_failure_without_raw_error_details(db_
     assert metadata["retryable"] is False
 
 
+def test_rebuild_main_panel_views_preserves_rollover_and_adjustment_lineage(db_session):
+    variety, old_contract, new_contract, rollover = _seed_rollover_panel_sources(db_session)
+
+    result = run_market_panel_daily_build(db_session, variety_id=variety.id, max_attempts=1)
+    rows_by_view = {
+        data_view: (
+            db_session.query(AgentMarketPanelDailyDB)
+            .filter(
+                AgentMarketPanelDailyDB.variety_id == variety.id,
+                AgentMarketPanelDailyDB.data_view == data_view,
+            )
+            .order_by(AgentMarketPanelDailyDB.trading_date.asc())
+            .all()
+        )
+        for data_view in (MAIN_CONTINUOUS_VIEW, MAIN_BACK_ADJUSTED_VIEW, MAIN_FORWARD_ADJUSTED_VIEW)
+    }
+
+    assert result["data_views"] == (
+        "raw_contract",
+        MAIN_CONTINUOUS_VIEW,
+        MAIN_BACK_ADJUSTED_VIEW,
+        MAIN_FORWARD_ADJUSTED_VIEW,
+    )
+    assert result["written_rows"] == 16
+    assert {row.contract_id for row in rows_by_view[MAIN_CONTINUOUS_VIEW][:2]} == {old_contract.id}
+    assert {row.contract_id for row in rows_by_view[MAIN_CONTINUOUS_VIEW][2:]} == {new_contract.id}
+    assert [float(row.close_price) for row in rows_by_view[MAIN_CONTINUOUS_VIEW]] == [100, 105, 110, 112]
+    assert [float(row.close_price) for row in rows_by_view[MAIN_BACK_ADJUSTED_VIEW]] == [95, 100, 110, 112]
+    assert [float(row.close_price) for row in rows_by_view[MAIN_FORWARD_ADJUSTED_VIEW]] == [100, 105, 105, 107]
+
+    for data_view, rows in rows_by_view.items():
+        assert len({row.build_trace_id for row in rows}) == 1
+        assert rows[0].build_trace_id is not None
+        assert rows[2].rollover_id == rollover.id
+        assert json.loads(rows[2].lineage_json)["source_data_view"] == "raw_contract"
+        assert rows[2].adjustment_method != ""
+        if data_view == MAIN_BACK_ADJUSTED_VIEW:
+            assert float(rows[0].adjustment_value) == -5
+            assert json.loads(rows[0].lineage_json)["applied_rollover_ids"] == [rollover.id]
+        if data_view == MAIN_FORWARD_ADJUSTED_VIEW:
+            assert float(rows[2].adjustment_value) == -5
+            assert json.loads(rows[2].lineage_json)["applied_rollover_ids"] == [rollover.id]
+
+    run = db_session.get(DataIngestionRunDB, result["run_id"])
+    assert run is not None
+    metadata = json.loads(run.metadata_json)
+    assert metadata["data_view"] == "multi_view"
+    assert metadata["view_stats"][MAIN_CONTINUOUS_VIEW]["written_rows"] == 4
+    assert len(metadata["quality_snapshots"]) == 4
+
+
+def test_derived_panel_quality_and_catalog_are_scoped_to_the_requested_view(db_session):
+    variety, _, _, _ = _seed_rollover_panel_sources(db_session)
+    run_market_panel_daily_build(db_session, variety_id=variety.id, max_attempts=1)
+
+    continuous_rows = (
+        db_session.query(AgentMarketPanelDailyDB)
+        .filter(
+            AgentMarketPanelDailyDB.variety_id == variety.id,
+            AgentMarketPanelDailyDB.data_view == MAIN_CONTINUOUS_VIEW,
+        )
+        .order_by(AgentMarketPanelDailyDB.trading_date.asc())
+        .all()
+    )
+    continuous_rows[2].rollover_id = None
+    continuous_rows[2].lineage_json = "{}"
+    continuous_rows[2].build_trace_id = None
+    db_session.commit()
+
+    quality = (
+        DataQualityService(db_session)
+        .check_market_panel(
+            variety.symbol,
+            data_view=MAIN_CONTINUOUS_VIEW,
+        )
+        .to_dict()
+    )
+    coverage = DataCatalogService(db_session).get_symbol_data_coverage(
+        variety.symbol,
+        data_view=MAIN_FORWARD_ADJUSTED_VIEW,
+    )["datasets"]["agent_market_panel_daily"]
+
+    assert quality["scope"]["data_view"] == MAIN_CONTINUOUS_VIEW
+    assert quality["scope"]["period"] == "1d"
+    assert {issue["code"] for issue in quality["issues"]} >= {
+        "MARKET_PANEL_LINEAGE_MISSING",
+        "MARKET_PANEL_ROLLOVER_LINEAGE_MISSING",
+    }
+    assert coverage["available"] is True
+    assert coverage["row_count"] == 4
+    assert coverage["contract_count"] == 2
+
+
 def test_market_panel_is_visible_to_catalog_and_data_quality(db_session):
     variety, _ = _seed_raw_contract_sources(db_session)
     rebuild_raw_contract_daily_panel(db_session, variety_id=variety.id)
@@ -316,6 +484,38 @@ def test_rebuild_script_dry_run_rolls_back(monkeypatch, capsys):
         assert output["quality_snapshot"]["status"] == "warning"
         assert output["dry_run"] is True
         assert session.query(AgentMarketPanelDailyDB).filter_by(variety_id=variety_id).count() == 0
+        assert session.query(DataIngestionRunDB).count() == 0
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_multi_view_rebuild_script_dry_run_rolls_back(monkeypatch, capsys):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine)()
+    try:
+        variety, _ = _seed_raw_contract_sources(session)
+        monkeypatch.setattr(rebuild_market_panel, "SessionLocal", lambda: session)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                str(Path(rebuild_market_panel.__file__)),
+                "--symbol",
+                variety.symbol,
+                "--data-view",
+                MAIN_CONTINUOUS_VIEW,
+                "--dry-run",
+            ],
+        )
+
+        assert rebuild_market_panel.main() == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["data_views"] == [MAIN_CONTINUOUS_VIEW]
+        assert output["run_id"] is None
+        assert output["dry_run"] is True
+        assert session.query(AgentMarketPanelDailyDB).filter_by(variety_id=variety.id).count() == 0
         assert session.query(DataIngestionRunDB).count() == 0
     finally:
         session.close()

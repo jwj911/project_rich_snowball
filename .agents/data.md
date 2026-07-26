@@ -11,6 +11,7 @@
 - 分钟 K：每 15 分钟，走 AkShare 分钟线 pipeline
 - 品种元数据：每日 02:00
 - Tushare 扩展任务：日线、结算、仓单、持仓、涨跌停、周报等，仅在 Tushare pipeline 可用时注册
+- 日频研究宽表：仅独立 `worker.py` 注册，16:18 在日 K、具体合约日线、主力日线和结算完成后物化
 - 价格预警检测：`refresh_realtime_quotes` 成功后遍历未触发预警与 `RealtimeQuoteDB.current_price` 比较
 
 ## 数据源
@@ -63,20 +64,24 @@ alembic upgrade head
 
 ## 日频研究宽表
 
-`agent_market_panel_daily` 是可重建的合约级日频研究宽表。首版只支持
-`raw_contract` / `1d`，以 `kline_data` 为 OHLCV 主源、`fut_daily_data` 补充
-成交额、持仓和结算价；连续与复权视图尚未实现。每次非 dry-run 构建均记录到
-`data_ingestion_runs`，成功批次包含质量快照，失败批次通过 `trace_id` 诊断。
+`agent_market_panel_daily` 是可重建的多视图日频研究宽表，支持 `raw_contract`、
+`main_continuous`、`main_back_adjusted`、`main_forward_adjusted`。它以 `kline_data` 为
+OHLCV 主源、`fut_daily_data` 补充成交额、持仓和结算价，并记录换月、复权与 build trace
+血缘。每次非 dry-run 构建均记录到 `data_ingestion_runs`，成功批次包含质量快照，失败
+批次通过 `trace_id` 诊断。
 
 ```powershell
 cd python
 .venv\Scripts\python.exe scripts\rebuild_raw_contract_panel.py --symbol RB
 .venv\Scripts\python.exe scripts\rebuild_raw_contract_panel.py --start-date 2026-01-01 --dry-run
 .venv\Scripts\python.exe scripts\rebuild_raw_contract_panel.py --symbol RB --max-attempts 3 --retry-delay-seconds 1
+.venv\Scripts\python.exe scripts\rebuild_market_panel.py --symbol RB
+.venv\Scripts\python.exe scripts\rebuild_market_panel.py --symbol RB --data-view main_continuous --dry-run
 ```
 
-仅连接类错误会指数退避重试；`--dry-run` 不写入宽表或批次记录。自动调度暂不启用，
-避免在连续/复权视图的依赖顺序确定前物化不完整数据。
+仅连接类错误会指数退避重试；`--dry-run` 不写入宽表或批次记录。worker 任务每次至少
+重建最近 20 个交易日；若上一成功批次后新增了更早生效的换月记录，则从最早影响日重建。
+API 进程不注册该任务。
 
 字段血缘、质量状态、重建语义和后续边界见
 [`docs/r3_raw_contract_market_panel.md`](../docs/r3_raw_contract_market_panel.md)。

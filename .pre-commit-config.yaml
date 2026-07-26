@@ -37,17 +37,12 @@ repos:
         name: "[通用] 确保文件以换行符结尾"
         exclude: '\.md$'
 
-  # TypeScript/TSX — ESLint（仅在 frontend/ 变更时运行）
-  - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v9.38.0
+  # TypeScript/TSX — 使用 frontend/package-lock.json 锁定的 ESLint/Next 依赖
+  - repo: local
     hooks:
       - id: eslint
         name: "[eslint] 检查前端代码"
-        args: [--fix]
+        entry: npm --prefix frontend run lint
+        language: system
+        pass_filenames: false
         files: '^frontend/.*\.(ts|tsx|js|jsx)$'
-        additional_dependencies:
-          - eslint@9.38.0
-          - eslint-config-next@14.2.35
-          - typescript@5.3.3
-          - "@typescript-eslint/parser@7.18.0"
-          - "@typescript-eslint/eslint-plugin@7.18.0"

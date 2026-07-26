@@ -1,7 +1,7 @@
 # 发布清单（2026-07-19）
 
 > 当前发布治理清单。项目现状以
-> [iteration_plan_20260718_project_audit.md](iteration_plan_20260718_project_audit.md)
+> [iteration_plan_20260724_follow_up.md](iteration_plan_20260724_follow_up.md)
 > 为唯一迭代事实源；本文件只记录发布前后可执行的检查项。
 
 ## 1. 发布元数据
@@ -20,15 +20,15 @@
 - [ ] 后端 pytest 失败数为 `0`，跳过项有明确原因。
 - [ ] 前端 Vitest 失败数为 `0`。
 
-当前工程基线（2026-07-25）：
+当前工程基线（2026-07-26）：
 
-- 后端：`1017 passed, 1 skipped, 0 failed`，coverage 历史基线 `71.97%`。
-- 前端：`195 passed, 0 failed`。
+- 后端：本轮 SQLite `1026 passed, 15 skipped, 0 failed`，coverage 历史基线 `71.97%`。
+- 前端：R5 本地基线 `200 passed, 0 failed`；生产发布窗口仍需重新执行。
 
 ## 3. 数据库与数据
 
 - [ ] PostgreSQL 目标实例可连接，执行 `alembic upgrade head`。
-- [ ] Alembic head 为 `a1c2d3e4f5a6`，迁移数量为 60。
+- [ ] Alembic head 为 `c0d1e2f3a4b5`，迁移数量为 61。
 - [ ] `fut_main_daily_data` 唯一键为
   `(variety_id, ts_code, period, trade_date)`。
 - [ ] Mock、主力日线、具体合约日线和实时快照路径均有可解释结果。
@@ -48,7 +48,8 @@
 
 - [ ] Frontend CI 的 PostgreSQL/Alembic/backend/Chromium Playwright smoke 通过。
 - [ ] 登录、行情中心、品种详情、价位标注、工作区和 metrics smoke 通过。
-- [ ] Lighthouse baseline 通过并保留 `.lighthouse/latest.json`。
+- [ ] Lighthouse 路由趋势通过并保留 `lighthouse-trend.json`、`lighthouse-history.json` 与
+  `latest.json` artifact；确认 commit、route 和 CI run metadata 可读。
 
 当前远程证据：
 

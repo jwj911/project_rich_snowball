@@ -116,7 +116,7 @@ DATASET_DEFINITIONS: dict[str, DatasetDefinition] = {
     "agent_market_panel_daily": DatasetDefinition(
         "agent_market_panel_daily",
         "合约日频研究宽表",
-        "可重建的 raw_contract 日频研究宽表，包含 OHLCV、成交额、持仓、结算和派生字段血缘。",
+        "可重建的合约、主力连续和前后复权日频研究视图，包含 OHLCV、换月和派生字段血缘。",
         "data_view + variety + contract + period + trading_date",
         AgentMarketPanelDailyDB,
         date_field="trading_date",
@@ -236,7 +236,13 @@ class DataCatalogService:
             result["columns"] = [column.name for column in definition.model.__table__.columns]
         return result
 
-    def get_symbol_data_coverage(self, symbol: str, period: str | None = None) -> dict[str, Any]:
+    def get_symbol_data_coverage(
+        self,
+        symbol: str,
+        period: str | None = None,
+        data_view: str = "raw_contract",
+        contract_code: str | None = None,
+    ) -> dict[str, Any]:
         """查询指定品种在核心行情数据集中的覆盖情况。"""
         resolved_symbol = resolve_symbol(self.db, symbol) or symbol.upper().strip()
         kline_period = period or "1d"
@@ -249,7 +255,12 @@ class DataCatalogService:
                 "kline_data": self._kline_symbol_coverage(resolved_symbol, kline_period),
                 "fut_main_daily_data": self._fut_main_daily_symbol_coverage(resolved_symbol),
                 "fut_daily_data": self._fut_daily_symbol_coverage(resolved_symbol),
-                "agent_market_panel_daily": self._market_panel_symbol_coverage(resolved_symbol),
+                "agent_market_panel_daily": self._market_panel_symbol_coverage(
+                    resolved_symbol,
+                    data_view=data_view,
+                    period=kline_period,
+                    contract_code=contract_code,
+                ),
             },
         }
 
@@ -258,13 +269,20 @@ class DataCatalogService:
         symbol: str | None = None,
         dataset_name: str | None = None,
         period: str | None = None,
+        data_view: str = "raw_contract",
+        contract_code: str | None = None,
     ) -> dict[str, Any]:
         """返回目录维度的质量摘要，优先复用 DataQualityService 的确定性规则。"""
         quality = DataQualityService(self.db)
         if dataset_name == "realtime_quotes":
             return quality.check_realtime(symbol.upper() if symbol else None).to_dict()
         if dataset_name == "agent_market_panel_daily":
-            return quality.check_market_panel(symbol.upper() if symbol else None).to_dict()
+            return quality.check_market_panel(
+                symbol.upper() if symbol else None,
+                data_view=data_view,
+                period=period or "1d",
+                contract_code=contract_code,
+            ).to_dict()
         if dataset_name in (None, "kline_data") and symbol:
             return quality.check_kline(symbol.upper(), period or "1d").to_dict()
         return quality.inventory().to_dict()
@@ -398,21 +416,27 @@ class DataCatalogService:
             "last_date": _serialize_date(last_date),
         }
 
-    def _market_panel_symbol_coverage(self, symbol: str) -> dict[str, Any]:
-        row_count, first_date, last_date, contract_count = (
-            self.db.query(
-                func.count(AgentMarketPanelDailyDB.id),
-                func.min(AgentMarketPanelDailyDB.trading_date),
-                func.max(AgentMarketPanelDailyDB.trading_date),
-                func.count(func.distinct(AgentMarketPanelDailyDB.contract_id)),
-            )
-            .filter(
-                AgentMarketPanelDailyDB.symbol == symbol,
-                AgentMarketPanelDailyDB.data_view == "raw_contract",
-                AgentMarketPanelDailyDB.period == "1d",
-            )
-            .one()
+    def _market_panel_symbol_coverage(
+        self,
+        symbol: str,
+        *,
+        data_view: str = "raw_contract",
+        period: str = "1d",
+        contract_code: str | None = None,
+    ) -> dict[str, Any]:
+        query = self.db.query(
+            func.count(AgentMarketPanelDailyDB.id),
+            func.min(AgentMarketPanelDailyDB.trading_date),
+            func.max(AgentMarketPanelDailyDB.trading_date),
+            func.count(func.distinct(AgentMarketPanelDailyDB.contract_id)),
+        ).filter(
+            AgentMarketPanelDailyDB.symbol == symbol,
+            AgentMarketPanelDailyDB.data_view == data_view,
+            AgentMarketPanelDailyDB.period == period,
         )
+        if contract_code:
+            query = query.filter(AgentMarketPanelDailyDB.contract_code == contract_code.upper())
+        row_count, first_date, last_date, contract_count = query.one()
         return {
             "available": int(row_count or 0) > 0,
             "row_count": int(row_count or 0),

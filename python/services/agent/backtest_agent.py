@@ -17,7 +17,14 @@ from services.agent.core import Agent, AgentEventType, AgentResult, AgentStatus
 from services.agent.strategy_compiler_agent import StrategyParser
 from services.agent.utils import resolve_symbol
 from services.backtest.parser import parse_strategy_intent
+from services.backtest.walk_forward import WalkForwardConfig, run_walk_forward_validation
 from services.data_catalog import DataCatalogService
+from services.research_data import (
+    RAW_CONTRACT_VIEW,
+    ResearchDataSelection,
+    parse_research_data_selection,
+    validate_research_data_selection,
+)
 
 
 class BacktestAgent(Agent):
@@ -28,13 +35,16 @@ class BacktestAgent(Agent):
 
     async def run(self, query: str) -> AgentResult:
         self._add_step("thought", f"解析回测需求：{query}")
+        data_selection = parse_research_data_selection(query)
+        if data_selection.data_view == RAW_CONTRACT_VIEW and not data_selection.contract_code:
+            return self._data_selection_error("raw_contract 视图必须显式指定 contract_code，例如：合约 RB2501")
 
         # 延迟导入，避免 services.agent 与 services.backtest 的循环引用
         from services.backtest.service import run_dsl_backtest, run_strategy_backtest
 
         # 检测多策略对比模式："比较/对比/哪个"
         if _is_comparison_query(query):
-            return await self._run_strategy_comparison(query)
+            return await self._run_strategy_comparison(query, data_selection)
 
         # 优先尝试 DSL 编译（支持 MACD/RSI/布林带等多种策略）
         parser = StrategyParser(self.context.db)
@@ -51,9 +61,13 @@ class BacktestAgent(Agent):
             # Multi-symbol backtest
             symbols = dsl.universe
             if len(symbols) > 1:
-                return await self._run_multi_symbol(dsl, symbols)
+                return await self._run_multi_symbol(dsl, symbols, data_selection)
 
-            preflight = self._check_backtest_data(symbols[0], dsl.timeframe)
+            try:
+                validate_research_data_selection(data_selection, period=dsl.timeframe)
+            except ValueError as exc:
+                return self._data_selection_error(str(exc))
+            preflight = self._check_backtest_data(symbols[0], dsl.timeframe, data_selection)
             if preflight["status"] == "bad":
                 return self._blocked_by_data_quality(preflight)
 
@@ -65,6 +79,8 @@ class BacktestAgent(Agent):
                     direction=dsl.direction,
                     entry_conditions=dsl.entry["conditions"],
                     exit_conditions=dsl.exit["conditions"],
+                    data_view=data_selection.data_view,
+                    contract_code=data_selection.contract_code,
                 )
             except ValueError as exc:
                 return AgentResult(
@@ -73,6 +89,7 @@ class BacktestAgent(Agent):
                     steps=self.get_steps(),
                 )
             result["data_preflight"] = preflight
+            self._attach_walk_forward_validation(result, dsl.to_dict())
             return self._format_result(result, dsl=dsl.to_dict())
 
         # 回退到传统均线交叉解析
@@ -92,7 +109,13 @@ class BacktestAgent(Agent):
             tool_output=asdict(intent),
         )
 
-        preflight = self._check_backtest_data(intent.symbol, intent.period)
+        try:
+            validate_research_data_selection(data_selection, period=intent.period)
+        except ValueError as exc:
+            return self._data_selection_error(str(exc))
+        intent.data_view = data_selection.data_view
+        intent.contract_code = data_selection.contract_code
+        preflight = self._check_backtest_data(intent.symbol, intent.period, data_selection)
         if preflight["status"] == "bad":
             return self._blocked_by_data_quality(preflight)
 
@@ -108,7 +131,11 @@ class BacktestAgent(Agent):
         result["data_preflight"] = preflight
         return self._format_result(result)
 
-    async def _run_strategy_comparison(self, query: str) -> AgentResult:
+    async def _run_strategy_comparison(
+        self,
+        query: str,
+        data_selection: ResearchDataSelection,
+    ) -> AgentResult:
         """Run multiple strategies on one symbol and produce a comparison report.
 
         Detects phrases like "比较均线交叉和MACD", "哪个夏普更高", "回测对比".
@@ -132,7 +159,11 @@ class BacktestAgent(Agent):
                 steps=self.get_steps(),
             )
 
-        preflight = self._check_backtest_data(symbol, "1d")
+        try:
+            validate_research_data_selection(data_selection, period="1d")
+        except ValueError as exc:
+            return self._data_selection_error(str(exc))
+        preflight = self._check_backtest_data(symbol, "1d", data_selection)
         if preflight["status"] == "bad":
             return self._blocked_by_data_quality(preflight)
 
@@ -152,6 +183,8 @@ class BacktestAgent(Agent):
                         direction=dsl.direction,
                         entry_conditions=dsl.entry["conditions"],
                         exit_conditions=dsl.exit["conditions"],
+                        data_view=data_selection.data_view,
+                        contract_code=data_selection.contract_code,
                     )
                     result["_strategy_label"] = kw
                     result["data_preflight"] = preflight
@@ -187,15 +220,28 @@ class BacktestAgent(Agent):
             steps=self.get_steps(),
         )
 
-    async def _run_multi_symbol(self, dsl, symbols: list[str]) -> AgentResult:
+    async def _run_multi_symbol(
+        self,
+        dsl,
+        symbols: list[str],
+        data_selection: ResearchDataSelection,
+    ) -> AgentResult:
         """Run backtest across multiple symbols and produce a comparison report."""
         from services.backtest.service import run_dsl_backtest
 
         results: list[dict[str, Any]] = []
         errors: list[str] = []
 
+        if data_selection.data_view == RAW_CONTRACT_VIEW and len(symbols) != 1:
+            return self._data_selection_error("raw_contract 回测一次只能选择一个品种和具体合约")
+
         for sym in symbols:
-            preflight = self._check_backtest_data(sym, dsl.timeframe)
+            try:
+                validate_research_data_selection(data_selection, period=dsl.timeframe)
+            except ValueError as exc:
+                errors.append(f"{sym}: {exc}")
+                continue
+            preflight = self._check_backtest_data(sym, dsl.timeframe, data_selection)
             if preflight["status"] == "bad":
                 errors.append(f"{sym}: 数据质量为 bad，已跳过；{_preflight_issue_summary(preflight)}")
                 continue
@@ -207,6 +253,8 @@ class BacktestAgent(Agent):
                     direction=dsl.direction,
                     entry_conditions=dsl.entry["conditions"],
                     exit_conditions=dsl.exit["conditions"],
+                    data_view=data_selection.data_view,
+                    contract_code=data_selection.contract_code,
                 )
                 result["data_preflight"] = preflight
                 results.append(result)
@@ -234,31 +282,57 @@ class BacktestAgent(Agent):
             steps=self.get_steps(),
         )
 
-    def _check_backtest_data(self, symbol: str, period: str) -> dict[str, Any]:
+    def _check_backtest_data(
+        self,
+        symbol: str,
+        period: str,
+        data_selection: ResearchDataSelection | None = None,
+    ) -> dict[str, Any]:
         """Run deterministic data availability checks before entering the backtest engine."""
+        selection = data_selection or ResearchDataSelection()
         catalog = DataCatalogService(self.context.db)
-        coverage = catalog.get_symbol_data_coverage(symbol, period=period)
-        quality = catalog.get_data_quality_summary(symbol=symbol, dataset_name="kline_data", period=period)
+        dataset_name = "agent_market_panel_daily" if selection.uses_market_panel else "kline_data"
+        coverage = catalog.get_symbol_data_coverage(
+            symbol,
+            period=period,
+            data_view=selection.data_view or "raw_contract",
+            contract_code=selection.contract_code,
+        )
+        quality = catalog.get_data_quality_summary(
+            symbol=symbol,
+            dataset_name=dataset_name,
+            period=period,
+            data_view=selection.data_view or "raw_contract",
+            contract_code=selection.contract_code,
+        )
         preflight = {
-            "dataset_name": "kline_data",
+            "dataset_name": dataset_name,
+            "data_view": selection.data_view,
+            "contract_code": selection.contract_code,
             "symbol": coverage["symbol"],
             "period": coverage["period"],
-            "coverage": coverage["datasets"]["kline_data"],
+            "coverage": coverage["datasets"][dataset_name],
             "quality": quality,
             "status": quality["status"],
         }
         self._add_step(
             "action",
-            f"回测前数据检查：{preflight['symbol']} {period} K 线质量 {preflight['status']}",
+            f"回测前数据检查：{preflight['symbol']} {period} {dataset_name} 质量 {preflight['status']}",
             tool_name="DataCatalogService",
-            tool_input={"symbol": symbol, "period": period, "dataset_name": "kline_data"},
+            tool_input={
+                "symbol": symbol,
+                "period": period,
+                "dataset_name": dataset_name,
+                "data_view": selection.data_view,
+                "contract_code": selection.contract_code,
+            },
             tool_output=preflight,
         )
         return preflight
 
     def _blocked_by_data_quality(self, preflight: dict[str, Any]) -> AgentResult:
         message = (
-            f"{preflight['symbol']} {preflight['period']} K 线数据质量为 bad，已停止回测。"
+            f"{preflight['symbol']} {preflight['period']} {preflight['dataset_name']} 数据质量为 bad，已停止回测。"
             f"{_preflight_issue_summary(preflight)}"
         )
         self._add_step("error", message)
@@ -268,6 +342,10 @@ class BacktestAgent(Agent):
             data={"data_preflight": preflight},
             steps=self.get_steps(),
         )
+
+    def _data_selection_error(self, message: str) -> AgentResult:
+        self._add_step("error", message)
+        return AgentResult(status=AgentStatus.FAILED, error_message=message, steps=self.get_steps())
 
     def _format_result(self, result: dict, dsl: dict | None = None) -> AgentResult:
         metrics = result["metrics"]
@@ -282,6 +360,44 @@ class BacktestAgent(Agent):
             data=result,
             steps=self.get_steps(),
         )
+
+    def _attach_walk_forward_validation(self, result: dict[str, Any], dsl: dict[str, Any]) -> None:
+        """Attach a bounded chronological stability diagnostic to a DSL backtest."""
+        config = result.get("config") or {}
+        data_source = result.get("data_source") or {}
+        try:
+            walk_forward = run_walk_forward_validation(
+                self.context.db,
+                symbol=str(config["symbol"]),
+                period=str(config["period"]),
+                direction=str(config["direction"]),
+                entry_conditions=dsl.get("entry", {}).get("conditions", []),
+                exit_conditions=dsl.get("exit", {}).get("conditions", []),
+                initial_cash=float(config.get("initial_cash", 100_000)),
+                quantity=int(config.get("quantity", 1)),
+                limit=max(int(result.get("data_window", {}).get("bars", 0)), 30),
+                risk=dsl.get("risk"),
+                engine_mode=str(config.get("engine_mode", "legacy")),
+                data_view=data_source.get("data_view"),
+                contract_code=data_source.get("contract_code"),
+                config=WalkForwardConfig(),
+            )
+            result["walk_forward"] = walk_forward
+            self._add_step(
+                "observation",
+                "Walk-forward 诊断："
+                f"{walk_forward['status']} / {walk_forward['validation_status']}，"
+                f"完成 {walk_forward['completed_window_count']} 个窗口",
+            )
+        except (ValueError, KeyError, TypeError) as exc:
+            result["walk_forward"] = {
+                "status": "not_run",
+                "validation_status": "inconclusive",
+                "reason": "execution_error",
+                "error_type": type(exc).__name__,
+                "warnings": ["Walk-forward 未完成，不能将样本外验证视为通过。"],
+            }
+            self._add_step("observation", "Walk-forward 未完成，不能将样本外验证视为通过")
 
     async def run_stream(self, query: str) -> AsyncIterator[dict[str, Any]]:
         """流式执行策略回测任务。
@@ -358,6 +474,8 @@ def _format_backtest_report(result: dict, dsl: dict | None = None) -> str:
     window = result["data_window"]
     trades = result["trades"][:5]
     preflight = result.get("data_preflight") or {}
+    data_source = result.get("data_source") or {}
+    walk_forward = result.get("walk_forward") or {}
 
     trade_lines = [
         f"- {t['entry_time']} -> {t['exit_time']}：{t['direction']} {t['entry_price']} -> {t['exit_price']}，PnL {t['pnl']}"
@@ -395,6 +513,37 @@ def _format_backtest_report(result: dict, dsl: dict | None = None) -> str:
         if quality.get("score") is not None:
             lines.append(f"- 质量评分：{quality['score']}/100")
         lines.append("")
+    if data_source:
+        lines.extend(
+            [
+                "### 数据口径",
+                f"- 数据集：{data_source.get('dataset_name')}，视图：{data_source.get('data_view') or 'legacy_kline'}",
+                f"- 合约：{data_source.get('contract_code') or '不适用'}，构建 trace：{', '.join(data_source.get('build_trace_ids') or []) or '不适用'}",
+                f"- 宽表质量状态：{', '.join(data_source.get('quality_statuses') or []) or '不适用'}",
+                "",
+            ]
+        )
+    lines.extend(["### Walk-forward 稳定性诊断"])
+    if walk_forward:
+        status = walk_forward.get("status", "not_run")
+        validation_status = walk_forward.get("validation_status", "not_run")
+        lines.append(
+            f"- 状态：{status} / {validation_status}，完成窗口 "
+            f"{walk_forward.get('completed_window_count', 0)}/{walk_forward.get('planned_window_count', 0)}"
+        )
+        summary = walk_forward.get("summary") or {}
+        if summary:
+            lines.append(
+                f"- OOS 平均收益：{summary.get('oos_total_return_pct_mean')}% | "
+                f"中位 Sharpe：{summary.get('oos_sharpe_median')} | "
+                f"正收益窗口占比：{summary.get('positive_oos_return_rate', 0) * 100:.1f}%"
+            )
+        for warning in walk_forward.get("warnings", [])[:3]:
+            lines.append(f"- 提示：{warning}")
+        lines.append("- 该结果为固定规则的时间窗口稳定性诊断，不能替代逐窗口重新寻优后的独立 OOS 验收。")
+    else:
+        lines.append("- 未运行，不能将策略视为已通过滚动样本外检验。")
+    lines.append("")
 
     lines.extend(
         [
@@ -411,7 +560,7 @@ def _format_backtest_report(result: dict, dsl: dict | None = None) -> str:
             "### 最近交易",
             *trade_lines,
             "",
-            "> 回测基于历史数据和固定规则，不构成投资建议；后续应加入滑点、合约换月和样本外验证。",
+            "> 回测基于历史数据和固定规则，不构成投资建议；walk-forward 未完成或不稳定时不得视为验证通过。",
         ]
     )
     return "\n".join(lines)
@@ -508,7 +657,11 @@ def _format_strategy_comparison_report(symbol: str, results: list[dict], errors:
             [
                 "",
                 "### 数据检查",
-                f"- 数据集：kline_data，质量：{preflight.get('status')}，覆盖 {coverage.get('first_date') or '—'} 至 {coverage.get('last_date') or '—'}",
+                (
+                    f"- 数据集：{preflight.get('dataset_name')}，视图：{preflight.get('data_view') or 'legacy_kline'}，"
+                    f"质量：{preflight.get('status')}，覆盖 {coverage.get('first_date') or '—'} 至 "
+                    f"{coverage.get('last_date') or '—'}"
+                ),
             ]
         )
         if preflight.get("status") == "warning":

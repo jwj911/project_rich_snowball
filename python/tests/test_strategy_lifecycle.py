@@ -6,16 +6,13 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from decimal import Decimal
 
-import pytest
 from sqlalchemy.orm import Session
 
 from models import (
     BacktestRunDB,
     StrategyDB,
-    StrategyEvolutionRunDB,
     StrategyLifecycleDB,
 )
 from services.agent.evolution.strategy_lifecycle import StrategyLifecycleManager
@@ -24,6 +21,7 @@ from services.agent.evolution.strategy_lifecycle import StrategyLifecycleManager
 def _create_user(db: Session):
     """创建测试用户。"""
     from models import UserDB
+
     user = UserDB(username="test_lifecycle_user", email="lifecycle@test.com", password_hash="hash", role="user")
     db.add(user)
     db.flush()
@@ -140,12 +138,15 @@ class TestEvaluateDecay:
         user = _create_user(db_session)
         strategy = _create_strategy(db_session, user.id)
         StrategyLifecycleManager.register_strategy(
-            db_session, strategy.id, source="manual",
+            db_session,
+            strategy.id,
+            source="manual",
             is_metrics={"sharpe": 1.5, "profit_factor": 2.0, "win_rate": 0.5, "trade_count": 20},
         )
         # Recent metrics are similar → low decay
         result = StrategyLifecycleManager.evaluate_decay(
-            db_session, strategy.id,
+            db_session,
+            strategy.id,
             recent_metrics={"sharpe": 1.4, "profit_factor": 1.9, "win_rate": 0.48, "trade_count": 18},
         )
         assert result["decay_score"] < 20
@@ -155,12 +156,15 @@ class TestEvaluateDecay:
         user = _create_user(db_session)
         strategy = _create_strategy(db_session, user.id)
         StrategyLifecycleManager.register_strategy(
-            db_session, strategy.id, source="manual",
+            db_session,
+            strategy.id,
+            source="manual",
             is_metrics={"sharpe": 2.0, "profit_factor": 3.0, "win_rate": 0.6, "trade_count": 30},
         )
         # Severe degradation in all dimensions
         result = StrategyLifecycleManager.evaluate_decay(
-            db_session, strategy.id,
+            db_session,
+            strategy.id,
             recent_metrics={"sharpe": -0.5, "profit_factor": 0.8, "win_rate": 0.2, "trade_count": 5},
         )
         assert result["decay_score"] > 60
@@ -170,13 +174,23 @@ class TestEvaluateDecay:
         user = _create_user(db_session)
         strategy = _create_strategy(db_session, user.id)
         StrategyLifecycleManager.register_strategy(
-            db_session, strategy.id, source="manual",
+            db_session,
+            strategy.id,
+            source="manual",
             is_metrics={"sharpe": 2.0, "profit_factor": 3.0, "win_rate": 0.6, "trade_count": 30},
         )
         # Create a backtest run with good recent metrics
-        _create_backtest_run(db_session, strategy.id, user.id, {
-            "sharpe": 1.9, "profit_factor": 2.8, "win_rate": 0.58, "trade_count": 28,
-        })
+        _create_backtest_run(
+            db_session,
+            strategy.id,
+            user.id,
+            {
+                "sharpe": 1.9,
+                "profit_factor": 2.8,
+                "win_rate": 0.58,
+                "trade_count": 28,
+            },
+        )
         # Don't pass recent_metrics — should use latest backtest
         result = StrategyLifecycleManager.evaluate_decay(db_session, strategy.id)
         assert result["decay_score"] < 20
@@ -192,8 +206,11 @@ class TestRecommendAction:
         user = _create_user(db_session)
         strategy = _create_strategy(db_session, user.id)
         lc = StrategyLifecycleDB(
-            strategy_id=strategy.id, source="manual", status="active",
-            decay_score=Decimal("5"), in_sample_metrics="{}",
+            strategy_id=strategy.id,
+            source="manual",
+            status="active",
+            decay_score=Decimal("5"),
+            in_sample_metrics="{}",
         )
         db_session.add(lc)
         db_session.commit()
@@ -205,8 +222,11 @@ class TestRecommendAction:
         user = _create_user(db_session)
         strategy = _create_strategy(db_session, user.id)
         lc = StrategyLifecycleDB(
-            strategy_id=strategy.id, source="manual", status="active",
-            decay_score=Decimal("30"), in_sample_metrics="{}",
+            strategy_id=strategy.id,
+            source="manual",
+            status="active",
+            decay_score=Decimal("30"),
+            in_sample_metrics="{}",
         )
         db_session.add(lc)
         db_session.commit()
@@ -218,8 +238,11 @@ class TestRecommendAction:
         user = _create_user(db_session)
         strategy = _create_strategy(db_session, user.id)
         lc = StrategyLifecycleDB(
-            strategy_id=strategy.id, source="manual", status="active",
-            decay_score=Decimal("55"), in_sample_metrics="{}",
+            strategy_id=strategy.id,
+            source="manual",
+            status="active",
+            decay_score=Decimal("55"),
+            in_sample_metrics="{}",
         )
         db_session.add(lc)
         db_session.commit()
@@ -231,8 +254,11 @@ class TestRecommendAction:
         user = _create_user(db_session)
         strategy = _create_strategy(db_session, user.id)
         lc = StrategyLifecycleDB(
-            strategy_id=strategy.id, source="manual", status="active",
-            decay_score=Decimal("80"), in_sample_metrics="{}",
+            strategy_id=strategy.id,
+            source="manual",
+            status="active",
+            decay_score=Decimal("80"),
+            in_sample_metrics="{}",
         )
         db_session.add(lc)
         db_session.commit()
@@ -261,13 +287,29 @@ class TestDetectDecay:
         strategy = _create_strategy(db_session, user.id)
 
         # Good early backtest
-        _create_backtest_run(db_session, strategy.id, user.id, {
-            "sharpe": 2.5, "profit_factor": 3.0, "win_rate": 0.6, "trade_count": 40,
-        })
+        _create_backtest_run(
+            db_session,
+            strategy.id,
+            user.id,
+            {
+                "sharpe": 2.5,
+                "profit_factor": 3.0,
+                "win_rate": 0.6,
+                "trade_count": 40,
+            },
+        )
         # Degraded late backtest
-        _create_backtest_run(db_session, strategy.id, user.id, {
-            "sharpe": -0.3, "profit_factor": 0.9, "win_rate": 0.25, "trade_count": 10,
-        })
+        _create_backtest_run(
+            db_session,
+            strategy.id,
+            user.id,
+            {
+                "sharpe": -0.3,
+                "profit_factor": 0.9,
+                "win_rate": 0.25,
+                "trade_count": 10,
+            },
+        )
 
         result = StrategyLifecycleManager.detect_decay(db_session, strategy.id)
         # Should detect multiple decay signals
@@ -278,12 +320,28 @@ class TestDetectDecay:
         user = _create_user(db_session)
         strategy = _create_strategy(db_session, user.id)
 
-        _create_backtest_run(db_session, strategy.id, user.id, {
-            "sharpe": 2.0, "profit_factor": 2.5, "win_rate": 0.55, "trade_count": 25,
-        })
-        _create_backtest_run(db_session, strategy.id, user.id, {
-            "sharpe": 2.1, "profit_factor": 2.6, "win_rate": 0.56, "trade_count": 24,
-        })
+        _create_backtest_run(
+            db_session,
+            strategy.id,
+            user.id,
+            {
+                "sharpe": 2.0,
+                "profit_factor": 2.5,
+                "win_rate": 0.55,
+                "trade_count": 25,
+            },
+        )
+        _create_backtest_run(
+            db_session,
+            strategy.id,
+            user.id,
+            {
+                "sharpe": 2.1,
+                "profit_factor": 2.6,
+                "win_rate": 0.56,
+                "trade_count": 24,
+            },
+        )
 
         result = StrategyLifecycleManager.detect_decay(db_session, strategy.id)
         assert result["decay_score"] == 0
@@ -301,11 +359,15 @@ class TestCompareStrategies:
         s_bad = _create_strategy(db_session, user.id, symbol="AU", name="Bad")
 
         StrategyLifecycleManager.register_strategy(
-            db_session, s_good.id, source="evolved",
+            db_session,
+            s_good.id,
+            source="evolved",
             is_metrics={"sharpe": 2.0, "profit_factor": 3.0},
         )
         StrategyLifecycleManager.register_strategy(
-            db_session, s_bad.id, source="manual",
+            db_session,
+            s_bad.id,
+            source="manual",
             is_metrics={"sharpe": 0.5, "profit_factor": 1.2},
         )
 
@@ -347,7 +409,9 @@ class TestLifecycleSummary:
         user = _create_user(db_session)
         strategy = _create_strategy(db_session, user.id)
         StrategyLifecycleManager.register_strategy(
-            db_session, strategy.id, source="evolved",
+            db_session,
+            strategy.id,
+            source="evolved",
             is_metrics={"sharpe": 2.0},
             oos_metrics={"sharpe": 1.5},
         )
@@ -357,6 +421,37 @@ class TestLifecycleSummary:
         assert summary["source"] == "evolved"
         assert summary["in_sample_metrics"]["sharpe"] == 2.0
         assert summary["out_of_sample_metrics"]["sharpe"] == 1.5
+
+    def test_walk_forward_metrics_are_saved_updated_and_returned(self, db_session):
+        user = _create_user(db_session)
+        strategy = _create_strategy(db_session, user.id)
+        initial_report = {
+            "status": "not_run",
+            "validation_status": "not_run",
+            "reason": "insufficient_windows",
+        }
+        StrategyLifecycleManager.register_strategy(
+            db_session,
+            strategy.id,
+            source="manual",
+            walk_forward_metrics=initial_report,
+        )
+        updated_report = {
+            "status": "completed",
+            "validation_status": "stable",
+            "completed_window_count": 3,
+        }
+        StrategyLifecycleManager.register_strategy(
+            db_session,
+            strategy.id,
+            walk_forward_metrics=updated_report,
+        )
+
+        summary = StrategyLifecycleManager.get_lifecycle_summary(db_session, strategy.id)
+
+        assert summary["walk_forward_metrics"] == updated_report
+        lifecycle = db_session.query(StrategyLifecycleDB).filter_by(strategy_id=strategy.id).one()
+        assert json.loads(lifecycle.walk_forward_metrics) == updated_report
 
     def test_without_lifecycle(self, db_session):
         user = _create_user(db_session)

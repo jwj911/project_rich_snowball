@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import { toast } from 'sonner'
-import { useProductDetail, useVariety } from '@/lib/swr-hooks'
-import { useRealtimeQuotes } from './useRealtimeQuotes'
+import { useProductDetail, useRealtime, useVariety } from '@/lib/swr-hooks'
 
 interface ProductPollingResult {
   productDetail: import('@/lib/api').ProductDetail | null
   product: import('@/lib/api').Product | null
   realtime: import('@/lib/api').RealtimeQuote | null
+  realtimeError: string | null
   varietyId: number | null
   loading: boolean
   error: string | null
@@ -26,9 +26,16 @@ export function useProductPolling(productSymbol: string, enabled: boolean): Prod
   const symbol = productDetail?.product?.symbol
 
   const { data: variety } = useVariety(symbol)
+  const {
+    data: realtime,
+    error: realtimeError,
+  } = useRealtime(enabled && symbol ? symbol : '')
 
   const error = detailError
     ? (detailError instanceof Error ? detailError.message : '品种详情加载失败')
+    : null
+  const realtimeErrorMessage = realtimeError
+    ? (realtimeError instanceof Error ? realtimeError.message : '实时行情加载失败')
     : null
 
   useEffect(() => {
@@ -37,16 +44,11 @@ export function useProductPolling(productSymbol: string, enabled: boolean): Prod
     }
   }, [error])
 
-  // 项目未上线，暂不启用实时推送（SSE/轮询）。
-  // 实时接口已预留，恢复时取消下方注释即可：
-  // const realtimeSymbols = useMemo(() => (symbol ? [symbol] : []), [symbol])
-  // const { quotes: realtimeQuotes } = useRealtimeQuotes(realtimeSymbols)
-  // const realtime = useMemo(() => { ... }, [])
-
   return {
     productDetail: productDetail ?? null,
     product: productDetail?.product ?? null,
-    realtime: null,
+    realtime: realtime ?? null,
+    realtimeError: realtimeErrorMessage,
     varietyId: variety?.id ?? null,
     loading: isLoading,
     error,

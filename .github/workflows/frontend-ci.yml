@@ -12,6 +12,10 @@ on:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
   lint-build-test:
     runs-on: ubuntu-latest
@@ -223,12 +227,43 @@ jobs:
           path: frontend/frontend-vitest-ci.log
           if-no-files-found: ignore
 
-      - name: Lighthouse Baseline
+      - name: Restore Lighthouse trend history
+        working-directory: ./frontend
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir -p .lighthouse
+          artifact_id="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts?name=lighthouse-trend-history&per_page=100" --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | .id // empty')"
+          if [ -z "${artifact_id}" ]; then
+            echo "No prior Lighthouse trend artifact found."
+            exit 0
+          fi
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > lighthouse-history.zip
+          if unzip -p lighthouse-history.zip lighthouse-history.json > .lighthouse/lighthouse-history.json; then
+            echo "Restored Lighthouse history artifact ${artifact_id}."
+          else
+            rm -f .lighthouse/lighthouse-history.json
+            echo "Prior Lighthouse artifact did not include a history file."
+          fi
+
+      - name: Lighthouse route trend
         working-directory: ./frontend
         run: |
-          npm run build
-          npm start &
-          sleep 5
-          npm run lighthouse -- http://127.0.0.1:3000
+          npm run lighthouse -- http://127.0.0.1:3200
         env:
           NEXT_PUBLIC_API_BASE: http://127.0.0.1:8401
+          LIGHTHOUSE_ROUTES: home=/,products=/products
+
+      - name: Upload Lighthouse trend artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-trend-history
+          path: |
+            frontend/.lighthouse/lighthouse-trend.json
+            frontend/.lighthouse/lighthouse-history.json
+            frontend/.lighthouse/latest.json
+          retention-days: 90
+          if-no-files-found: ignore

@@ -13,6 +13,10 @@
 - JWT：解码必须捕获 PyJWT 异常，禁止裸 `except:`。
 - CORS：`allow_credentials=True`，因此生产环境不允许通配符 origin。
 - CSRF 防护（2026-05-29）：`dependencies.py` 方法感知鉴权，POST/PUT/PATCH/DELETE 必须携带 `Authorization: Bearer` header，不接受 `access_token` cookie 回退；GET/HEAD 保持兼容。
+- refresh token 仅通过 HttpOnly cookie 轮换；每次 refresh 必须同步轮换 SSE/read-only 兼容所需的
+  HttpOnly access cookie，logout 必须清理两者。
+- access token 当前仍保存于 localStorage 以支持写请求的 Bearer header。cookie-only 写请求需要
+  独立验证 CSRF token/origin、防重放、SSE 和跨域边界，未完成前不得改变 Bearer 要求。
 
 ## XSS 与输入安全
 
@@ -22,7 +26,7 @@
 
 ## 内容安全与 SSRF
 
-- CSP：前端有 Content-Security-Policy 响应头，但当前允许 `unsafe-eval` 和 `unsafe-inline`（为兼容 lightweight-charts 和 Next.js）。
+- CSP：前端有 Content-Security-Policy 响应头，但当前允许 `unsafe-eval` 和 `unsafe-inline`（为兼容 lightweight-charts 和 Next.js）。后续先部署 Report-Only 收集真实违规，再以 nonce/hash 分阶段收紧；不能直接删除来源而破坏运行时。
 - RSS/新闻源：添加外部 RSS URL 时必须校验协议与主机（拒绝 private/local/link-local/file 等危险目标），抓取时设置显式超时，防止 SSRF 与 worker 阻塞。
 - admin 手动触发抓取接口（`/api/news/fetch`、`/api/news/sources/{id}/fetch`）已通过 `BackgroundTasks` 后台化，不再阻塞 HTTP 请求。
 
@@ -37,3 +41,6 @@
 - SSE 不原生水平扩展：`_sse_connections` 为进程内内存，多实例部署需 sticky session 或 Redis pub/sub，详见 `python/docs/sse_scaling_strategy.md`。
 - 生产环境 scheduler：`ENABLE_SCHEDULER=1` 仅作本地便利；生产应运行独立 `python/worker.py`，避免 API 进程混入定时任务。
 - API 版本路径：新接口优先在 `/api/v1/*` 下实现；`ApiVersionMiddleware` 会自动把 `/api/v1/*` 映射到 `/api/*`，未版本化路径仍兼容但将逐步废弃。
+
+完整的 token/CSP 阶段、验收与停止条件见
+[`docs/r5_frontend_quality_observability.md`](../docs/r5_frontend_quality_observability.md)。

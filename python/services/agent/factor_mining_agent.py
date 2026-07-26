@@ -17,6 +17,12 @@ from services.agent.factor_engine.data_loader import extract_factor_universe, lo
 from services.agent.factor_engine.dsl import evaluate_factor, validate_factor_formula
 from services.agent.factor_engine.evaluator import evaluate_factor as evaluate_factor_performance
 from services.data_catalog import DataCatalogService
+from services.research_data import (
+    RAW_CONTRACT_VIEW,
+    ResearchDataSelection,
+    parse_research_data_selection,
+    validate_research_data_selection,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +110,13 @@ class FactorMiningAgent(Agent):
     async def run(self, query: str) -> AgentResult:
         """执行因子评估任务。"""
         self._add_step("thought", f"开始因子评估：{query}")
+        data_selection = parse_research_data_selection(query)
+        try:
+            validate_research_data_selection(data_selection)
+        except ValueError as exc:
+            error_message = str(exc)
+            self._add_step("error", error_message)
+            return AgentResult(status=AgentStatus.FAILED, error_message=error_message, steps=self.get_steps())
 
         # 1. 提取公式
         formula = _extract_formula(query)
@@ -129,6 +142,7 @@ class FactorMiningAgent(Agent):
                 "dataset_count": len(datasets),
                 "required_fields": sorted(required_fields),
                 "supported_panel_fields": sorted(_SUPPORTED_PANEL_FIELDS),
+                "data_selection": _selection_to_dict(data_selection),
             },
         )
         if missing_fields:
@@ -170,8 +184,18 @@ class FactorMiningAgent(Agent):
             "action",
             f"确定评估范围：symbols={symbols}，category={category}",
         )
+        if data_selection.data_view == RAW_CONTRACT_VIEW and (not symbols or len(symbols) != 1):
+            error_message = "raw_contract 因子研究需要明确指定一个品种和具体合约"
+            self._add_step("error", error_message)
+            return AgentResult(status=AgentStatus.FAILED, error_message=error_message, steps=self.get_steps())
 
-        coverage_checks = self._check_factor_data_coverage(catalog, symbols=symbols, category=category, period="1d")
+        coverage_checks = self._check_factor_data_coverage(
+            catalog,
+            symbols=symbols,
+            category=category,
+            period="1d",
+            data_selection=data_selection,
+        )
         blocking_checks = [item for item in coverage_checks if item["status"] == "bad"]
         if blocking_checks:
             error_message = "因子评估前数据检查失败：" + "；".join(
@@ -201,6 +225,7 @@ class FactorMiningAgent(Agent):
                 category=category,
                 period="1d",
                 min_bars=30,
+                data_selection=data_selection,
             )
             self._add_step(
                 "observation",
@@ -254,8 +279,11 @@ class FactorMiningAgent(Agent):
             "datasets": [item["dataset_name"] for item in datasets],
             "required_fields": sorted(required_fields),
             "coverage_checks": coverage_checks,
+            "data_selection": _selection_to_dict(data_selection),
         }
+        report["data_source"] = panel.metadata
         summary = self._build_summary(formula, eval_result)
+        summary += _format_data_selection_summary(panel.metadata)
         if warning_checks:
             summary += "\n\n### 数据检查\n" + "\n".join(
                 f"- {item['symbol']} 覆盖样本 {item['row_count']} 根，低于建议值，结果稳定性需谨慎。"
@@ -275,27 +303,42 @@ class FactorMiningAgent(Agent):
         symbols: list[str] | None,
         category: str | None,
         period: str,
+        data_selection: ResearchDataSelection,
     ) -> list[dict[str, Any]]:
         """在加载因子面板前检查 K 线覆盖。"""
         checks: list[dict[str, Any]] = []
         if not symbols:
             if category:
-                profile = catalog.get_dataset_profile("kline_data", include_columns=False)
+                dataset_name = "agent_market_panel_daily" if data_selection.uses_market_panel else "kline_data"
+                profile = catalog.get_dataset_profile(dataset_name, include_columns=False)
                 self._add_step(
                     "observation",
-                    f"因子品种池为 {category}，使用 kline_data 目录摘要作为覆盖预检",
+                    f"因子品种池为 {category}，使用 {dataset_name} 目录摘要作为覆盖预检",
                     tool_name="DataCatalogService.get_dataset_profile",
                     tool_output=profile,
                 )
             return checks
 
         for symbol in symbols:
-            coverage = catalog.get_symbol_data_coverage(symbol, period=period)
-            kline = coverage["datasets"]["kline_data"]
-            row_count = int(kline.get("row_count") or 0)
-            if row_count <= 0:
+            coverage = catalog.get_symbol_data_coverage(
+                symbol,
+                period=period,
+                data_view=data_selection.data_view or "raw_contract",
+                contract_code=data_selection.contract_code,
+            )
+            dataset_name = "agent_market_panel_daily" if data_selection.uses_market_panel else "kline_data"
+            selected_coverage = coverage["datasets"][dataset_name]
+            quality = catalog.get_data_quality_summary(
+                symbol=symbol,
+                dataset_name=dataset_name,
+                period=period,
+                data_view=data_selection.data_view or "raw_contract",
+                contract_code=data_selection.contract_code,
+            )
+            row_count = int(selected_coverage.get("row_count") or 0)
+            if row_count <= 0 or quality["status"] == "bad":
                 status = "bad"
-            elif row_count < 30:
+            elif row_count < 30 or quality["status"] == "warning":
                 status = "warning"
             else:
                 status = "good"
@@ -303,10 +346,13 @@ class FactorMiningAgent(Agent):
                 {
                     "symbol": coverage["symbol"],
                     "period": coverage["period"],
+                    "dataset_name": dataset_name,
+                    "data_view": data_selection.data_view,
                     "status": status,
                     "row_count": row_count,
-                    "first_date": kline.get("first_date"),
-                    "last_date": kline.get("last_date"),
+                    "first_date": selected_coverage.get("first_date"),
+                    "last_date": selected_coverage.get("last_date"),
+                    "quality": quality,
                 }
             )
 
@@ -314,7 +360,12 @@ class FactorMiningAgent(Agent):
             "action",
             "因子评估前检查品种 K 线覆盖",
             tool_name="DataCatalogService.get_symbol_data_coverage",
-            tool_input={"symbols": symbols, "period": period},
+            tool_input={
+                "symbols": symbols,
+                "period": period,
+                "data_view": data_selection.data_view,
+                "contract_code": data_selection.contract_code,
+            },
             tool_output={"coverage_checks": checks},
         )
         return checks
@@ -426,3 +477,27 @@ class FactorMiningAgent(Agent):
         )
 
         return "\n".join(lines)
+
+
+def _selection_to_dict(selection: ResearchDataSelection) -> dict[str, str | None]:
+    return {
+        "data_view": selection.data_view,
+        "contract_code": selection.contract_code,
+    }
+
+
+def _format_data_selection_summary(metadata: dict[str, Any]) -> str:
+    """在因子报告中保留数据口径、质量和构建追踪信息。"""
+    view = metadata.get("data_view") or "legacy_kline"
+    traces = sorted(
+        {
+            trace_id
+            for details in (metadata.get("symbols") or {}).values()
+            for trace_id in details.get("build_trace_ids", [])
+        }
+    )
+    return (
+        "\n\n### 数据口径\n"
+        f"- 数据集：{metadata.get('dataset_name')}，视图：{view}，周期：{metadata.get('period')}\n"
+        f"- 合约：{metadata.get('contract_code') or '不适用'}，构建 trace：{', '.join(traces) or '不适用'}"
+    )

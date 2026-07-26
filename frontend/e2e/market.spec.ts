@@ -1,8 +1,16 @@
 import { test, expect } from '@playwright/test'
+import {
+  MARKET_PAGE_SIZE,
+  MARKET_VIRTUALIZATION_REVIEW_THRESHOLD,
+} from '@/lib/marketPagination'
 
 const AUTH_STATE = 'playwright/.auth/user.json'
 
 test.describe('行情页面', () => {
+  test('单页容量应保持在虚拟滚动复审阈值以下', () => {
+    expect(MARKET_PAGE_SIZE).toBeLessThan(MARKET_VIRTUALIZATION_REVIEW_THRESHOLD)
+  })
+
   test('未登录访问品种列表应显示登录引导', async ({ page }) => {
     await page.goto('/products')
     await expect(page.getByText('倍增计划是私密交流社区')).toBeVisible()
@@ -22,7 +30,7 @@ test.describe('行情页面', () => {
       await expect(rows.first()).toBeVisible({ timeout: 10000 })
       const count = await rows.count()
       expect(count).toBeGreaterThan(0)
-      expect(count).toBeLessThanOrEqual(20)
+      expect(count).toBeLessThanOrEqual(MARKET_PAGE_SIZE)
     })
 
     test('搜索与清除筛选功能应正常工作', async ({ page }) => {

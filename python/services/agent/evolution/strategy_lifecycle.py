@@ -44,6 +44,7 @@ class StrategyLifecycleManager:
         evolution_run_id: int | None = None,
         is_metrics: dict[str, Any] | None = None,
         oos_metrics: dict[str, Any] | None = None,
+        walk_forward_metrics: dict[str, Any] | None = None,
     ) -> None:
         """注册策略生命周期记录。
 
@@ -54,12 +55,28 @@ class StrategyLifecycleManager:
             evolution_run_id: 关联的进化运行 ID（仅 evolved 来源）。
             is_metrics: 样本内回测指标 dict（可选）。
             oos_metrics: 样本外回测指标 dict（可选）。
+            walk_forward_metrics: Walk-forward 验证报告（可选）。
         """
         from models import StrategyLifecycleDB
 
         existing = db.query(StrategyLifecycleDB).filter(StrategyLifecycleDB.strategy_id == strategy_id).first()
         if existing:
-            logger.info("策略 %d 已有生命周期记录，跳过注册。", strategy_id)
+            updated = False
+            if is_metrics is not None:
+                existing.in_sample_metrics = json.dumps(is_metrics, ensure_ascii=False)
+                updated = True
+            if oos_metrics is not None:
+                existing.out_of_sample_metrics = json.dumps(oos_metrics, ensure_ascii=False)
+                updated = True
+            if walk_forward_metrics is not None:
+                existing.walk_forward_metrics = json.dumps(walk_forward_metrics, ensure_ascii=False)
+                updated = True
+            if updated:
+                existing.last_evaluated_at = datetime.now(UTC)
+                db.commit()
+                logger.info("策略 %d 生命周期验证指标已更新。", strategy_id)
+            else:
+                logger.info("策略 %d 已有生命周期记录，跳过注册。", strategy_id)
             return
 
         lifecycle = StrategyLifecycleDB(
@@ -69,6 +86,9 @@ class StrategyLifecycleManager:
             status="active",
             in_sample_metrics=json.dumps(is_metrics, ensure_ascii=False) if is_metrics else None,
             out_of_sample_metrics=json.dumps(oos_metrics, ensure_ascii=False) if oos_metrics else None,
+            walk_forward_metrics=json.dumps(walk_forward_metrics, ensure_ascii=False)
+            if walk_forward_metrics is not None
+            else None,
             last_evaluated_at=datetime.now(UTC),
             decay_score=0,
         )
@@ -397,11 +417,14 @@ class StrategyLifecycleManager:
 
         is_metrics = None
         oos_metrics = None
+        walk_forward_metrics = None
         with contextlib.suppress(json.JSONDecodeError, TypeError):
             if lifecycle.in_sample_metrics:
                 is_metrics = json.loads(lifecycle.in_sample_metrics)
             if lifecycle.out_of_sample_metrics:
                 oos_metrics = json.loads(lifecycle.out_of_sample_metrics)
+            if lifecycle.walk_forward_metrics:
+                walk_forward_metrics = json.loads(lifecycle.walk_forward_metrics)
 
         return {
             "strategy_id": strategy_id,
@@ -412,6 +435,7 @@ class StrategyLifecycleManager:
             "evolution_run_id": lifecycle.evolution_run_id,
             "in_sample_metrics": is_metrics,
             "out_of_sample_metrics": oos_metrics,
+            "walk_forward_metrics": walk_forward_metrics,
             "decay_score": float(lifecycle.decay_score) if lifecycle.decay_score else None,
             "performance_trend": float(lifecycle.performance_trend) if lifecycle.performance_trend else None,
             "last_evaluated_at": lifecycle.last_evaluated_at.isoformat() if lifecycle.last_evaluated_at else None,

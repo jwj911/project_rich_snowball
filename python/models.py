@@ -647,8 +647,9 @@ class FutMainDailyDataDB(Base):
 class AgentMarketPanelDailyDB(Base):
     """可重建的合约级日频研究宽表。
 
-    第一版只写入 ``raw_contract`` 视图；连续合约和复权视图必须由独立管道生成，
-    不允许直接复用本表的原始合约价格。
+    ``contract_id`` 始终表示该交易日实际提供行情的具体合约。连续和复权视图通过
+    ``rollover_id``、``adjustment_*``、``lineage_json`` 和 ``build_trace_id`` 保留
+    可重放的换月与构建血缘。
     """
 
     __tablename__ = "agent_market_panel_daily"
@@ -676,11 +677,17 @@ class AgentMarketPanelDailyDB(Base):
     intraday_range = Column(Numeric(20, 8), nullable=True)
     volume_ratio_20 = Column(Numeric(20, 8), nullable=True)
     source_flags = Column(Text, nullable=False, default="{}")
+    rollover_id = Column(Integer, ForeignKey("contract_rollovers.id", ondelete="SET NULL"), nullable=True, index=True)
+    adjustment_value = Column(Numeric(20, 8), nullable=False, default=0)
+    adjustment_method = Column(String(30), nullable=False, default="none")
+    lineage_json = Column(Text, nullable=False, default="{}")
+    build_trace_id = Column(String(32), nullable=True, index=True)
     quality_status = Column(String(10), nullable=False, default="good")
     created_at = Column(DateTime(timezone=True), default=_utc_now)
     updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
     variety = relationship("VarietyDB", back_populates="market_panel_daily")
     contract = relationship("FutContractDB")
+    rollover = relationship("ContractRolloverDB")
 
     __table_args__ = (
         UniqueConstraint(
@@ -694,6 +701,7 @@ class AgentMarketPanelDailyDB(Base):
         Index("idx_agent_panel_symbol_date", "symbol", "trading_date"),
         Index("idx_agent_panel_period_symbol_date", "period", "symbol", "trading_date"),
         Index("idx_agent_panel_view_symbol_date", "data_view", "symbol", "trading_date"),
+        Index("idx_agent_panel_view_rollover", "data_view", "rollover_id"),
     )
 
 

@@ -109,8 +109,46 @@ BacktestAgent 的显式 `data_view` 消费。
 - PostgreSQL 模式全量后端：`1017 passed, 1 skipped, 0 failed`；全仓库 Ruff 通过；
 - 详细记录：[`docs/r3_raw_contract_market_panel.md`](../docs/r3_raw_contract_market_panel.md)。
 
-R3 后续：主力连续与复权视图、换月血缘，以及 FactorMiningAgent 与 BacktestAgent 的
-显式 `data_view` 消费。
+### R3：数据基础与可复现性 — R3.3 至 R3.6 完成（2026-07-26）
+
+- 新增 `main_continuous`、`main_back_adjusted`、`main_forward_adjusted`，并以实际合约、
+  换月 ID、调整值、算法、血缘 JSON 与 build trace 支持重放；
+- Data Catalog、DataQualityService 与 DataQualityAgent 均按 `data_view + period` 工作，
+  连续/复权视图检查日期、OHLC、换月和血缘；
+- 因子与回测只有显式 `data_view` 时才消费宽表，默认保持原 K 线语义；`raw_contract`
+  必须指定具体合约，报告和缓存键保留数据口径；
+- worker 独占宽表调度，16:18 在依赖日线完成后运行，至少回建 20 个交易日，迟到换月从
+  最早影响日回推。
+
+R3 已收口，并作为 R4 的数据口径基础。
+
+### R4：策略验证闭环 — 已完成（2026-07-26）
+
+- 策略 compiler、DSL 校验、回测服务、条件引擎与可读解释共享 transform 契约；
+  `multiply_indicator2` 为 canonical 右侧 `indicator2 * value` 变换，历史
+  `multiply_value` 仅保持兼容，未知或参数非法 transform 显式拒绝；
+- 新增基于已观测日线的 expanding / rolling walk-forward 服务，报告每个 IS/OOS 窗口、
+  聚合指标、覆盖和质量提示，并对数据不足、失败窗口和冻结 DSL 的非独立 OOS 边界明确标记；
+- `StrategyLifecycleDB.walk_forward_metrics` 已接入策略进化、策略回测、摘要和 evolution
+  API 查询；`BacktestAgent` 与 `StrategyEvolutionAgent` 统一展示诊断状态；
+- `KlineDataDB` 窗口查询优先使用 `trading_date` 包含边界，旧数据才回退 SQL 日期；
+- 详细记录：[`docs/r4_dsl_walk_forward_validation.md`](../docs/r4_dsl_walk_forward_validation.md)。
+
+下一项：R5 前端质量与观测趋势。
+
+### R5：前端质量与观测趋势 — 已完成（2026-07-26）
+
+- Lighthouse 采集固定为 `home` / `products` 命名路由，记录 commit、ref、CI run/attempt 和
+  同 ref 上一提交的指标 delta；Frontend CI 恢复并上传 90 天趋势 artifact；
+- 行情中心保持服务端每页 20 条，因双响应式 DOM 仍有成本；超过 100 行、无限滚动或可复现
+  性能回归时必须以生产样本重新评估虚拟滚动；
+- 详情页恢复单品种实时行情读取，实时故障保留收盘数据并明确降级；详情、评论和价位标注
+  写入失败均有页面级状态与 Playwright 回归；
+- refresh 轮换同步 access cookie，logout 同时清理 access/refresh cookie；CSP Report-Only、
+  nonce/hash、内存 token 和 cookie-only 写请求的前置/停止条件已记录。
+
+详细记录：[`docs/r5_frontend_quality_observability.md`](../docs/r5_frontend_quality_observability.md)。
+下一项：R6 真实发布窗口，需按发布日重新验证，不能复用工程或历史 CI 结果。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 

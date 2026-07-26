@@ -99,6 +99,78 @@ test.describe.serial('品种详情页', () => {
     await expect(page.getByText(testComment)).toBeVisible({ timeout: 10000 })
   })
 
+  test('详情请求失败时应显示可重试错误态', async ({ page }) => {
+    await page.route('**/api/varieties/*/detail', async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: '详情服务暂不可用' }),
+      })
+    })
+
+    await page.goto('/products/R5_UNAVAILABLE')
+
+    await expect(page.getByRole('heading', { name: '数据加载失败' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('main').getByText('详情服务暂不可用', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '重试' })).toBeVisible()
+  })
+
+  test('实时行情失败时应保留详情并提示降级', async ({ page }) => {
+    await page.route('**/api/realtime/*', async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: '实时行情服务暂不可用' }),
+      })
+    })
+
+    await enterFirstProductDetail(page)
+
+    await expect(page.getByRole('status')).toHaveText('实时行情暂不可用，正在展示最近收盘数据。')
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  })
+
+  test('评论提交失败时应在页面内显示原因', async ({ page }) => {
+    await page.route('**/api/comments', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue()
+        return
+      }
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: '评论服务暂不可用' }),
+      })
+    })
+    await enterFirstProductDetail(page)
+
+    await page.getByLabel('发表评论').fill('无法发送的评论')
+    await page.getByRole('button', { name: '发送' }).click()
+
+    await expect(page.getByText('评论服务暂不可用')).toBeVisible()
+  })
+
+  test('标注写入失败时应说明已回退本地', async ({ page }) => {
+    await page.route('**/api/price-levels*', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue()
+        return
+      }
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: '标注服务暂不可用' }),
+      })
+    })
+    await enterFirstProductDetail(page)
+
+    const supportSection = page.getByRole('heading', { name: '支撑位', exact: true }).locator('..')
+    await supportSection.getByLabel('支撑位').fill('3123.45')
+    await supportSection.getByRole('button', { name: '添加' }).click()
+
+    await expect(page.getByText('添加失败：标注服务暂不可用，已临时保存到本地。')).toBeVisible()
+  })
+
   test('返回行情中心应正常跳转', async ({ page }) => {
     await enterFirstProductDetail(page)
 

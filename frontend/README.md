@@ -20,7 +20,7 @@
 | K 线 | `lightweight-charts` 5.2 |
 | 请求 | 自定义 `ApiService` + `fetch` |
 | 状态 | React Context + 页面/组件本地状态 |
-| 测试 | Vitest 4.1.7（33 个测试文件 / 195 个测试）+ jsdom + Testing Library；Playwright 6 个 spec；Frontend CI #28 已通过 PostgreSQL/Alembic/backend/Chromium smoke |
+| 测试 | Vitest 4.1.7（34 个测试文件 / 200 个测试）+ jsdom + Testing Library；Playwright 6 个 spec；R5 本地行情/详情 smoke 已通过，历史 Frontend CI #28 已通过 PostgreSQL/Alembic/backend/Chromium smoke |
 
 ## 目录职责
 
@@ -104,7 +104,10 @@ npm.cmd run build
 | P2 | 本地 Playwright 受机器负载影响可能启动超时 | CI #28 已通过 PostgreSQL + Chromium smoke；本地需要确认 3200 端口已返回 HTTP，而不只是监听 |
 | P2 | 前端 Lighthouse 尚未形成趋势比较 | backend coverage 门槛已提升到 40%，Lighthouse 仍需建立跨提交趋势 |
 
-Phase 0「可运行性收口」、Phase 1「行情读模型收敛」和 Phase 2「执行可靠性与生产拓扑」已完成：`npm run test` 为 `195 passed`，`npx tsc --noEmit`、`npm run lint`、`npm run build` 均通过。Frontend CI #28（run `29670891119`）已通过 PostgreSQL/Alembic、backend、Chromium Playwright、Vitest 和 Lighthouse；下一阶段进入文档发布治理和页面级覆盖扩展。
+R5 已完成：`npm run test` 为 `200 passed`，`npx tsc --noEmit`、`npm run lint`、`npm run build`、
+行情/详情 Playwright 和双路由 Lighthouse 均通过。Lighthouse 现在关联 route、commit 和 CI run，
+并以 artifact 历史而非源码 JSON 保留；详情失败态、容量决策和 token/CSP 迁移边界见
+[`docs/r5_frontend_quality_observability.md`](../docs/r5_frontend_quality_observability.md)。
 
 ## 下一步迭代规划
 

@@ -40,6 +40,7 @@ from services.agent.evolution.strategy_population import (
 from services.agent.factor_engine.dsl import PanelData, evaluate_factor
 from services.agent.utils import resolve_symbol
 from services.backtest.service import run_dsl_backtest
+from services.backtest.walk_forward import WalkForwardConfig, run_walk_forward_validation
 from services.data_catalog import DataCatalogService
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,12 @@ _DEFAULT_EVOLUTION_CONFIG: dict[str, Any] = {
     "min_kline_bars": 60,
     "early_stop_generations": 5,  # 连续 N 代无提升后提前终止
     "oos_split_ratio": 0.3,  # OOS 验证的数据占比（0=禁用）
+    "walk_forward_enabled": True,
+    "walk_forward_train_bars": 120,
+    "walk_forward_test_bars": 60,
+    "walk_forward_step_bars": 60,
+    "walk_forward_window_mode": "expanding",
+    "walk_forward_min_windows": 2,
     "crossover_rate": 0.7,  # 交叉概率
     # Phase 2B: GP + Pareto + Bayesian Optimization
     "use_gp_factors": False,  # 启用 GP 因子生成
@@ -271,6 +278,21 @@ class StrategyEvolutionAgent(Agent):
         catalog = DataCatalogService(db)
         coverage = catalog.get_symbol_data_coverage(symbol, period=config["period"])
         kline_cov = coverage["datasets"]["kline_data"]
+        quality = catalog.get_data_quality_summary(
+            symbol=symbol,
+            dataset_name="kline_data",
+            period=config["period"],
+        )
+        data_preflight = {
+            "dataset_name": "kline_data",
+            "data_view": None,
+            "contract_code": None,
+            "symbol": coverage["symbol"],
+            "period": coverage["period"],
+            "coverage": kline_cov,
+            "quality": quality,
+            "status": quality["status"],
+        }
         row_count = int(kline_cov.get("row_count") or 0)
         if row_count < config["min_kline_bars"]:
             return AgentResult(
@@ -282,6 +304,12 @@ class StrategyEvolutionAgent(Agent):
             "observation",
             f"数据检查通过：{symbol} K 线 {row_count} 根（{kline_cov.get('first_date')} ~ {kline_cov.get('last_date')}）",
         )
+        if data_preflight["status"] != "good":
+            self._add_step(
+                "observation",
+                f"数据质量提示：状态 {data_preflight['status']}，评分 {quality.get('score', '—')}/100，"
+                "进化与验证结果需谨慎解释",
+            )
 
         # ─── 3. 加载 K 线 ───
         klines = _get_kline_data(db, symbol, period=config["period"], limit=config["limit"])
@@ -566,7 +594,7 @@ class StrategyEvolutionAgent(Agent):
                 self._add_step("observation", f"贝叶斯优化跳过：{exc}")
                 bo_result = None
 
-        # ─── 9. 生成报告 ───
+        # ─── 9. Walk-forward 稳定性诊断 ───
         if best_individual_overall is None:
             return AgentResult(
                 status=AgentStatus.FAILED,
@@ -574,6 +602,47 @@ class StrategyEvolutionAgent(Agent):
                 steps=self.get_steps(),
             )
 
+        walk_forward_result: dict[str, Any] | None = None
+        if config.get("walk_forward_enabled", True):
+            try:
+                walk_forward_result = run_walk_forward_validation(
+                    db,
+                    symbol=symbol,
+                    period=config["period"],
+                    direction=config["direction"],
+                    entry_conditions=best_individual_overall.entry_conditions,
+                    exit_conditions=best_individual_overall.exit_conditions,
+                    initial_cash=float(config.get("initial_cash", 100_000)),
+                    quantity=int(config.get("quantity", 1)),
+                    limit=config["limit"],
+                    custom_columns=factor_columns,
+                    risk=best_individual_overall.risk,
+                    config=WalkForwardConfig(
+                        train_bars=int(config["walk_forward_train_bars"]),
+                        test_bars=int(config["walk_forward_test_bars"]),
+                        step_bars=int(config["walk_forward_step_bars"]),
+                        window_mode=str(config["walk_forward_window_mode"]),
+                        min_windows=int(config["walk_forward_min_windows"]),
+                    ),
+                )
+                self._add_step(
+                    "observation",
+                    "Walk-forward 诊断："
+                    f"{walk_forward_result['status']} / {walk_forward_result['validation_status']}，"
+                    f"完成 {walk_forward_result['completed_window_count']} 个窗口",
+                )
+            except (ValueError, KeyError, TypeError) as exc:
+                logger.warning("Walk-forward 验证失败：%s", exc)
+                walk_forward_result = {
+                    "status": "not_run",
+                    "validation_status": "inconclusive",
+                    "reason": "execution_error",
+                    "error_type": type(exc).__name__,
+                    "warnings": ["Walk-forward 未完成，不能将样本外验证视为通过。"],
+                }
+                self._add_step("observation", "Walk-forward 验证未完成，不能将样本外验证视为通过")
+
+        # ─── 10. 生成报告 ───
         dsl = best_individual_overall.to_dsl(
             name=f"{symbol} 自进化策略 v{best_individual_overall.generation}",
             symbol=symbol,
@@ -591,6 +660,7 @@ class StrategyEvolutionAgent(Agent):
             "oos_result": oos_metrics,
             "oos_fitness": oos_fitness.total if oos_fitness else None,
             "is_oos_validated": oos_result is not None,
+            "walk_forward": walk_forward_result,
             "bo_result": bo_result,
             "is_bo_optimized": bo_result is not None,
             "use_pareto": config.get("use_pareto_fitness", False),
@@ -607,12 +677,14 @@ class StrategyEvolutionAgent(Agent):
             dsl=dsl,
             oos_result=oos_result,
             oos_fitness=oos_fitness,
+            walk_forward_result=walk_forward_result,
+            data_preflight=data_preflight,
             bo_result=bo_result,
         )
 
         self._add_step("system", "进化完成，报告已生成")
 
-        # ─── 10. 持久化进化运行记录与生命周期 ───
+        # ─── 11. 持久化进化运行记录与生命周期 ───
         best_strategy_id = None
 
         if config.get("persist_to_db", True) and self.context.user_id and self.context.task_id:
@@ -650,6 +722,10 @@ class StrategyEvolutionAgent(Agent):
                     "total_evaluations": len(evolution_log) * config["population_size"],
                     "early_stopped": actual_generations < config["generations"],
                     "oos_validated": oos_result is not None,
+                    "walk_forward_status": walk_forward_result.get("status") if walk_forward_result else "not_run",
+                    "walk_forward_validation_status": (
+                        walk_forward_result.get("validation_status") if walk_forward_result else "not_run"
+                    ),
                     "bo_optimized": bo_result is not None,
                 }
                 run_record = StrategyEvolutionRunDB(
@@ -691,6 +767,7 @@ class StrategyEvolutionAgent(Agent):
                     evolution_run_id=run_record.id,
                     is_metrics=is_metrics,
                     oos_metrics=oos_metrics,
+                    walk_forward_metrics=walk_forward_result,
                 )
 
                 db.commit()
@@ -717,6 +794,8 @@ class StrategyEvolutionAgent(Agent):
                 "best_fitness": best_individual_overall.fitness,
                 "evolution_log": evolution_log,
                 "factors_used": len(factors),
+                "data_preflight": data_preflight,
+                "walk_forward": walk_forward_result,
                 "regime": regime.regime if regime else "unknown",
                 "symbol": symbol,
             },
@@ -774,6 +853,8 @@ def _build_evolution_report(
     dsl: dict[str, Any],
     oos_result: dict[str, Any] | None = None,
     oos_fitness: Any = None,
+    walk_forward_result: dict[str, Any] | None = None,
+    data_preflight: dict[str, Any] | None = None,
     bo_result: dict[str, Any] | None = None,
 ) -> str:
     """生成 Markdown 进化报告。"""
@@ -814,8 +895,32 @@ def _build_evolution_report(
         "",
         glossary,
         "",
-        "### 市场状态（进化运行时的快照）",
+        "### 数据口径与质量",
     ]
+    if data_preflight:
+        coverage = data_preflight.get("coverage") or {}
+        quality = data_preflight.get("quality") or {}
+        lines.extend(
+            [
+                f"- 数据集：{data_preflight.get('dataset_name', 'kline_data')}，"
+                f"视图：{data_preflight.get('data_view') or 'legacy_kline'}，质量：{data_preflight.get('status')}",
+                f"- 覆盖：{coverage.get('first_date') or '—'} 至 {coverage.get('last_date') or '—'}，"
+                f"样本 {coverage.get('row_count', 0)} 根 K 线",
+            ]
+        )
+        if quality.get("score") is not None:
+            lines.append(f"- 质量评分：{quality['score']}/100")
+        if data_preflight.get("status") == "warning":
+            lines.append("- 数据质量存在 warning，回测与验证结论需要结合质量问题解释。")
+    else:
+        lines.append("- 数据口径信息不可用。")
+
+    lines.extend(
+        [
+            "",
+            "### 市场状态（进化运行时的快照）",
+        ]
+    )
 
     if regime:
         regime_cn = regime_label.get(regime.regime, regime.regime)
@@ -893,7 +998,7 @@ def _build_evolution_report(
         [
             f"**风控设置**：止损方式 {sl_type_cn}，止损值 {sl.get('value', '')} | 止盈方式 {tp_type_cn}，止盈值 {tp.get('value', '')} | 仓位方式 {pos.get('type', '—')}，仓位值 {pos.get('value', '')}",
             "",
-            "### 样本内回测表现（在训练数据上的结果）",
+            "### 全样本回测表现",
         ]
     )
     if best_individual.backtest_result:
@@ -926,11 +1031,12 @@ def _build_evolution_report(
         lines.extend(
             [
                 "",
-                "### 样本外（OOS）验证——防过拟合的关键测试",
-                "用策略没见过的数据段做独立回测，检验策略是否真的有效：",
-                f"- IS（训练）夏普比率：{is_sharpe_str} → OOS（验证）夏普比率：{oos_sharpe_str} {oos_pass}",
-                f"- OOS 年化收益：{_fmt(oos_metrics.get('annualized_return_pct'))}% | OOS 最大回撤：{_fmt(oos_metrics.get('max_drawdown_pct'))}%",
-                f"- OOS 交易次数：{_fmt(oos_metrics.get('trade_count'))} 次",
+                "### 留出段复测",
+                "当前进化会在完整时间序列上搜索策略；该留出段复测不是独立 OOS 验收。",
+                f"- 全样本 Sharpe：{is_sharpe_str} → 留出段 Sharpe：{oos_sharpe_str} {oos_pass}",
+                f"- 留出段年化收益：{_fmt(oos_metrics.get('annualized_return_pct'))}% | "
+                f"最大回撤：{_fmt(oos_metrics.get('max_drawdown_pct'))}%",
+                f"- 留出段交易次数：{_fmt(oos_metrics.get('trade_count'))} 次",
             ]
         )
         if oos_fitness:
@@ -940,6 +1046,38 @@ def _build_evolution_report(
             consistency_tip = _consistency_tip(consistency)
             lines.append(f"- IS/OOS 一致性评分：{consistency:.1f}（{consistency_tip}）")
             lines.append(f"- 策略稳定性：{stability_str}")
+    else:
+        lines.extend(
+            [
+                "",
+                "### 留出段复测",
+                "- 未完成留出段复测，不能将策略视为已通过独立样本外检验。",
+            ]
+        )
+
+    # Walk-forward 验证结果
+    lines.extend(["", "### Walk-forward 稳定性诊断"])
+    if walk_forward_result:
+        status = walk_forward_result.get("status", "not_run")
+        validation_status = walk_forward_result.get("validation_status", "not_run")
+        completed = walk_forward_result.get("completed_window_count", 0)
+        planned = walk_forward_result.get("planned_window_count", 0)
+        lines.append(f"- 状态：{status} / {validation_status}，完成窗口 {completed}/{planned}")
+        lines.append(
+            "- 解释：固定 DSL 的滚动时间窗口诊断；若策略在完整历史上被挑选或调参，不能将此结果作为独立 OOS 验收。"
+        )
+        summary = walk_forward_result.get("summary") or {}
+        if summary:
+            lines.append(
+                f"- OOS 平均收益：{_fmt(summary.get('oos_total_return_pct_mean'))}% | "
+                f"中位 Sharpe：{_fmt(summary.get('oos_sharpe_median'))} | "
+                f"正收益窗口占比：{_fmt(summary.get('positive_oos_return_rate', 0) * 100)}%"
+            )
+            lines.append(f"- IS/OOS Sharpe 一致性：{_fmt(summary.get('is_oos_sharpe_consistency_score'))}/100")
+        for warning in walk_forward_result.get("warnings", [])[:3]:
+            lines.append(f"- 提示：{warning}")
+    else:
+        lines.append("- 未运行 walk-forward，不能将策略视为已通过滚动样本外检验。")
 
     # BO 优化结果
     if bo_result:

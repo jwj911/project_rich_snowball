@@ -6,7 +6,7 @@ import json
 import os
 import sys
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import inspect
@@ -21,6 +21,7 @@ from models import (
     KlineDataDB,
     VarietyDB,
 )
+from services.agent.data_tools import _get_kline_data
 from services.market_panel import (
     PANEL_BUILD_JOB_NAME,
     rebuild_raw_contract_daily_panel,
@@ -133,6 +134,23 @@ def test_postgres_market_panel_schema_and_rebuild(pg_market_panel_data):
         and constraint["column_names"] == ["data_view", "variety_id", "contract_id", "period", "trading_date"]
         for constraint in inspector.get_unique_constraints("agent_market_panel_daily")
     )
+    assert {
+        "rollover_id",
+        "adjustment_value",
+        "adjustment_method",
+        "lineage_json",
+        "build_trace_id",
+    } <= {column["name"] for column in inspector.get_columns("agent_market_panel_daily")}
+    assert any(
+        foreign_key["name"] == "fk_agent_market_panel_daily_rollover_id"
+        and foreign_key["constrained_columns"] == ["rollover_id"]
+        and foreign_key["referred_table"] == "contract_rollovers"
+        for foreign_key in inspector.get_foreign_keys("agent_market_panel_daily")
+    )
+    assert {
+        "idx_agent_panel_view_rollover",
+        "ix_agent_market_panel_daily_build_trace_id",
+    } <= {index["name"] for index in inspector.get_indexes("agent_market_panel_daily")}
 
     assert rebuild_raw_contract_daily_panel(db, variety_id=variety.id)["written_rows"] == 2
     db.commit()
@@ -170,3 +188,19 @@ def test_postgres_market_panel_build_run_persists_quality_snapshot(pg_market_pan
     finally:
         db.query(DataIngestionRunDB).filter(DataIngestionRunDB.id == result["run_id"]).delete(synchronize_session=False)
         db.commit()
+
+
+def test_postgres_kline_date_window_includes_boundary_day(pg_market_panel_data):
+    db, variety, _ = pg_market_panel_data
+
+    rows = _get_kline_data(
+        db,
+        variety.symbol,
+        period="1d",
+        limit=10,
+        start_date=date(2099, 1, 3),
+        end_date=date(2099, 1, 3),
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["time"].startswith("2099-01-03")

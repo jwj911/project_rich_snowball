@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from services.agent.factor_engine.filters import FilterCondition, FilterPipeline
+from services.backtest.transform_contract import transform_multiplier
 
 logger = logging.getLogger(__name__)
 
@@ -242,11 +243,12 @@ def _eval_conditions(data: pd.DataFrame, conditions: list[dict[str, Any]], logic
         return pd.Series(False, index=data.index)
 
     results: list[pd.Series] = []
-    for cond in conditions:
+    for index, cond in enumerate(conditions):
         indicator = cond.get("indicator", "")
         operator = cond.get("operator", "")
         indicator2 = cond.get("indicator2", "")
         value = cond.get("value")
+        multiplier = transform_multiplier(cond, context=f"conditions[{index}]")
 
         col1 = _compute_indicator(data, indicator)
         prev_col1 = col1.shift(1)
@@ -264,13 +266,8 @@ def _eval_conditions(data: pd.DataFrame, conditions: list[dict[str, Any]], logic
 
         if indicator2:
             col2 = _compute_indicator(data, indicator2)
-            # 支持对 indicator2 进行变换，例如 volume > volume_sma * 1.5
-            transform = cond.get("transform")
-            if transform == "multiply_value" and value is not None:
-                col2 = col2 * float(value)
-            elif transform == "multiply_indicator2":
-                # 语义同 multiply_value：col1 > col2 * value
-                col2 = col2 * (float(value) if value is not None else 1.0)
+            # Transform contract: indicator2 * value is the executable RHS.
+            col2 = col2 * multiplier
             prev_col2 = col2.shift(1)
         elif value is not None:
             col2 = pd.Series(float(value), index=data.index)

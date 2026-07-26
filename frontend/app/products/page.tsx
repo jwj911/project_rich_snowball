@@ -15,6 +15,7 @@ import RefreshStatus from '@/components/activity/RefreshStatus'
 import QuoteTable, { QuoteSortField, QuoteSortOrder } from '@/components/market/QuoteTable'
 import { Product } from '@/lib/api'
 import { formatInteger } from '@/lib/format'
+import { MARKET_PAGE_SIZE } from '@/lib/marketPagination'
 import { useProductListRealtime } from '@/hooks/useProductListRealtime'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { ChevronLeft, ChevronRight, Filter, Search, X } from 'lucide-react'
@@ -22,8 +23,6 @@ import { ChevronLeft, ChevronRight, Filter, Search, X } from 'lucide-react'
 type DirectionFilter = 'all' | 'up' | 'down'
 
 const EMPTY_PRODUCTS: Product[] = []
-
-const PAGE_SIZE = 20
 
 export default function ProductsPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
@@ -36,8 +35,8 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1)
 
   const query = useMemo(() => ({
-    skip: (page - 1) * PAGE_SIZE,
-    limit: PAGE_SIZE,
+    skip: (page - 1) * MARKET_PAGE_SIZE,
+    limit: MARKET_PAGE_SIZE,
     search: debouncedSearchText.trim() || undefined,
     category: categoryFilter !== 'all' ? categoryFilter : undefined,
     direction: directionFilter,
@@ -59,7 +58,7 @@ export default function ProductsPage() {
   } = useProductListRealtime(!authLoading && isAuthenticated, query)
 
   const hasActiveFilter = searchText.trim() !== '' || categoryFilter !== 'all' || directionFilter !== 'all'
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(total / MARKET_PAGE_SIZE))
 
   const handleSort = (field: QuoteSortField) => {
     if (sortBy === field) {
@@ -196,7 +195,7 @@ export default function ProductsPage() {
             <section className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3 text-label-13 text-gray-700">
                 <span>
-                  共 {total} 个品种 · 当前显示 {(page - 1) * PAGE_SIZE + 1} – {Math.min(page * PAGE_SIZE, total)}
+                  共 {total} 个品种 · 当前显示 {(page - 1) * MARKET_PAGE_SIZE + 1} – {Math.min(page * MARKET_PAGE_SIZE, total)}
                 </span>
                 <span>行情数据</span>
               </div>

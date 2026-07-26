@@ -57,11 +57,14 @@
    - AnalysisPipelineAgent 已在 DataAgent / TechAnalysisAgent / RiskManagementAgent 前增加数据可用性检查；`bad` 时停止流水线，`warning` 时继续并在最终报告保留风险提示。
    - 已增加 `tests/test_agent_data_preflight.py` 覆盖回测 bad 拒绝、因子缺字段失败、流水线 bad 停止，并修复 `test_factor_mining_agent.py` 测试夹具的数据复用问题。
 
-5. **Milestone D：数据宽表审计与 raw_contract 最小实现**
+5. **Milestone D/E：多视图研究宽表与连续数据接入**
    - 已新增 `docs/data_wide_table_audit.md`。
-   - 已新增 `agent_market_panel_daily`，完成 `raw_contract` 日级宽表、字段血缘、质量状态、幂等重建和 Data Catalog 接入。
-   - 已复用 `data_ingestion_runs` 记录构建批次、可恢复重试和质量快照；主力连续/复权与因子/
-     回测消费侧待后续实现，详见 `docs/r3_raw_contract_market_panel.md`。
+   - 已新增 `agent_market_panel_daily`，完成 `raw_contract`、主力连续、前复权和后复权日频视图、
+     换月/复权/build trace 血缘、质量状态与幂等重建。
+   - 已复用 `data_ingestion_runs` 记录构建批次、可恢复重试和质量快照；Data Catalog、
+     DataQualityAgent、FactorMiningAgent 与 BacktestAgent 已支持显式 `data_view` 消费。
+   - 仅独立 worker 注册日频宽表任务，常规 20 交易日预热且迟到换月从最早影响日回推，
+     详见 `docs/r3_raw_contract_market_panel.md`。
 
 最近一次后端 targeted 验证：
 
@@ -84,8 +87,8 @@ cd python
 | P0 | Data Catalog | **已完成最小闭环** | Agent 知道可用表、覆盖范围、更新时间、质量状态 | 当前线程/Agent |
 | P0 | LLM 配置 API | **已完成最小闭环** | 用户可配置自己的 OpenAI 兼容 API，系统默认可兜底 | 当前线程/Agent |
 | P1 | Agent 数据前置检查 | **已完成最小闭环** | 回测/因子/技术分析前自动检查数据可用性 | 当前线程/Agent |
-| P1 | 数据宽表审计与 raw_contract 实现 | **第一项已完成** | 原始合约日频宽表可重建、可追溯、可被目录和质量服务发现 | 当前线程 |
-| P1 | 主力连续数据管道 | 待开始 | 生成可复权、可重跑、可审计的连续合约数据 | 分配给数据管道 Agent |
+| P1 | 数据宽表审计与多视图实现 | **已完成** | 四种日频视图可重建、可追溯、可被目录和 Agent 显式选择 | 当前线程 |
+| P1 | 主力连续数据管道 | **已完成** | 主力连续/前后复权、换月血缘、独立 worker 调度 | 当前线程 |
 
 ---
 
@@ -572,7 +575,7 @@ DataQualityAgent → DataAgent → TechAnalysisAgent → RiskManagementAgent
 - 已验证因子评估缺字段时返回明确错误，而不是在计算阶段隐式失败。
 - 已验证完整分析流水线第一步能展示数据检查结果。
 
-### Milestone D：数据宽表审计与 raw_contract 实现（第一项已完成）
+### Milestone D/E：数据宽表审计与连续数据接入（已完成）
 
 交付：
 
@@ -581,32 +584,19 @@ DataQualityAgent → DataAgent → TechAnalysisAgent → RiskManagementAgent
 - 已交付刷新机制审计
 - 已交付索引和性能建议
 - 已交付质量门禁建议
-- 已交付 `agent_market_panel_daily` 的 `raw_contract` / `1d` 宽表、幂等重建服务与 dry-run 脚本
+- 已交付 `agent_market_panel_daily` 的 `raw_contract`、`main_continuous`、
+  `main_back_adjusted`、`main_forward_adjusted` / `1d` 宽表、幂等重建服务与 dry-run 脚本
 - 已接入 Data Catalog 和 DataQualityService
 - 已接入构建批次、连接类错误重试和无原始行情样本的质量快照
+- 已接入换月、复权和 build trace 血缘；DataQualityAgent 检查连续日期、换月与血缘
+- 已接入 FactorMiningAgent、BacktestAgent 的显式 `data_view`，原始合约要求具体合约
+- 已接入独立 worker 调度、20 交易日预热和迟到换月回推
 
 验收：
 
-- raw_contract 视图已可构建、重建和解释字段血缘，但不包含连续/复权口径。
-- 尚不满足“宽表可被 FactorMiningAgent 和 BacktestAgent 安全使用”：消费侧仍未显式选择 `data_view`。
-- C+ 保护继续有效：因子缺字段会明确失败，回测/流水线会先检查 K 线质量。
-
-### Milestone E：主力连续数据接入
-
-交付：
-
-- 连续合约数据管道
-- 换月标记
-- 复权口径
-- 回测/因子数据口径参数
-- DataQualityAgent 连续合约检查
-
-验收：
-
-- 回测可选择主力连续口径。
-- 换月断点可解释。
-
----
+- 四种视图均可构建、重建和解释字段/换月/复权血缘。
+- 因子和回测只有显式选择时才使用宽表，保留历史 K 线默认语义。
+- C+ 保护继续有效：因子缺字段会明确失败，回测/流水线会先检查所选数据口径质量。
 
 ## 10. 风险与注意事项
 
@@ -621,15 +611,8 @@ DataQualityAgent → DataAgent → TechAnalysisAgent → RiskManagementAgent
 
 ## 11. 建议下一步
 
-下一次实现建议进入 **宽表最小实现 / Milestone E**：
+宽表最小实现与主力连续数据接入已由 R3 完成；DSL transform 契约、日频
+walk-forward、报告与生命周期持久化已由 R4 完成，见
+[`r4_dsl_walk_forward_validation.md`](r4_dsl_walk_forward_validation.md)。
 
-1. **宽表最小实现**
-   - 先实现 `raw_contract` 日级宽表。
-   - 覆盖基础 OHLCV、`amount/open_interest`、常用派生字段和 `source_flags`。
-   - 接入 Data Catalog 与 DataQualityAgent。
-
-2. **Milestone E：主力连续数据接入**
-   - 实现可重跑的连续合约数据管道。
-   - 标记换月日、跳空和复权口径。
-   - 将 `raw_contract/main_continuous/main_back_adjusted/main_forward_adjusted` 数据口径接入回测和因子流程。
-   - 扩展 DataQualityAgent 检查连续合约断点。
+后续进入 R5：以前端页面级质量、Lighthouse 趋势、实际规模的行情列表和错误态测试为重点。

@@ -9,6 +9,7 @@ import logging
 from datetime import UTC, date, datetime
 from typing import Any
 
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from models import (
@@ -437,9 +438,25 @@ def _get_kline_data(
     # 日内周期或无日线数据时的 fallback
     klines_query = db.query(KlineDataDB).filter(KlineDataDB.variety_id == variety.id, KlineDataDB.period == mapped)
     if start_date is not None:
-        klines_query = klines_query.filter(KlineDataDB.trading_time >= start_date)
+        klines_query = klines_query.filter(
+            or_(
+                KlineDataDB.trading_date >= start_date,
+                and_(
+                    KlineDataDB.trading_date.is_(None),
+                    func.date(KlineDataDB.trading_time) >= start_date.isoformat(),
+                ),
+            )
+        )
     if end_date is not None:
-        klines_query = klines_query.filter(KlineDataDB.trading_time <= end_date)
+        klines_query = klines_query.filter(
+            or_(
+                KlineDataDB.trading_date <= end_date,
+                and_(
+                    KlineDataDB.trading_date.is_(None),
+                    func.date(KlineDataDB.trading_time) <= end_date.isoformat(),
+                ),
+            )
+        )
     klines = klines_query.order_by(KlineDataDB.trading_time.desc()).limit(limit).all()
 
     return [

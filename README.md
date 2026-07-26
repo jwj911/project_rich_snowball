@@ -16,8 +16,8 @@
 - 价格预警：用户为品种设置 above/below 价格预警，实时行情刷新时自动检测触发
 - 模拟持仓：用户创建虚拟交易记录，支持做多/做空、盈亏计算与复盘统计
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
-- 当前工程基线：后端本地 `1017 passed, 1 skipped, 0 failed`，前端 Vitest `195 passed, 0 failed`；Backend CI #22、Frontend CI #28 和 Phase 4 SQL AST CI 的 PostgreSQL、Alembic、Ruff、覆盖率、`pip-audit`、Playwright 和 Lighthouse 证据已记录
-- 当前迭代：Phase 3 文档与发布治理已完成，Phase 4 SQL AST、PostgreSQL owner-scope 回归和私有数据访问边界收敛已完成；R3 已交付带构建批次、失败重试和质量快照的 [raw_contract 日频研究宽表](docs/r3_raw_contract_market_panel.md)
+- 当前工程基线：本轮 SQLite 后端 `1026 passed, 15 skipped, 0 failed`，R5 前端 Vitest `200 passed, 0 failed`；TypeScript、ESLint、production build、行情/详情 Playwright 和双路由 Lighthouse 均已本地验证；历史 CI 证据仍见 Backend CI #22、Frontend CI #28 和 Phase 4 SQL AST CI。
+- 当前迭代：R3 已完成 [四种日频研究宽表视图、换月/复权血缘、显式因子/回测消费和独立 worker 调度](docs/r3_raw_contract_market_panel.md)；R4 已完成 [DSL transform 执行契约与 walk-forward 验证](docs/r4_dsl_walk_forward_validation.md)；R5 已完成 [Lighthouse 路由趋势、详情失败态与 token/CSP 迁移边界](docs/r5_frontend_quality_observability.md)，下一项为 R6 真实发布窗口。
 
 ---
 
@@ -58,7 +58,7 @@ project_rich_snowball/
 │   ├── data_collector/           # 数据采集流水线与调度器
 │   ├── middleware/               # 中间件（限流、API 版本映射）
 │   ├── scripts/                  # 工具脚本（回填、迁移、验收）
-│   ├── tests/                    # pytest 测试（1017 passed, 1 skipped）
+│   ├── tests/                    # pytest 测试（本轮 SQLite：1026 passed, 15 skipped）
 │   └── alembic/                  # 数据库迁移
 │
 ├── quantative_tools/             # 量化分析工具集
@@ -71,7 +71,7 @@ project_rich_snowball/
 │   ├── release_checklist_20260719.md # 当前发布检查与回滚清单
 │   ├── iteration_plan_20260724_follow_up.md # Phase 4 后续迭代队列
 │   ├── phase4_private_data_access_boundary.md # Agent 私有数据访问边界
-│   ├── r3_raw_contract_market_panel.md # raw_contract 日频研究宽表
+│   ├── r3_raw_contract_market_panel.md # 多视图日频研究宽表
 │   ├── releases/                  # 逐版本工程基线与生产发布记录
 │   ├── phase4_sql_ast_readonly.md # Agent SQL AST 只读校验记录
 │   ├── guides/                   # 技术参考（API 参考、数据管道、版本指南）
@@ -245,7 +245,10 @@ $env:ENABLE_SCHEDULER="0"
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-前端已配置 Vitest + Playwright 自动化测试（33 个 Vitest 文件 / 195 个测试，6 个 Playwright spec）。`.github/workflows/frontend-ci.yml` 在 PR 时执行 lint + type-check + build + Vitest + Lighthouse，并由独立 job 执行 PostgreSQL + Alembic + backend + Chromium Playwright smoke。Frontend CI #28 已完成全链路验收。修改前端后至少运行：
+前端已配置 Vitest + Playwright 自动化测试（34 个 Vitest 文件 / 200 个测试，6 个 Playwright spec）。
+`.github/workflows/frontend-ci.yml` 在 PR 时执行 lint、type-check、build、Vitest 和 Lighthouse
+路由趋势 artifact，并由独立 job 执行 PostgreSQL、Alembic、backend 和 Chromium Playwright
+smoke。Frontend CI #28 是历史全链路验收，R5 的生产验证仍需新 CI。修改前端后至少运行：
 
 ```powershell
 cd D:\Code\project_rich_snowball\frontend
@@ -265,6 +268,8 @@ npm run lighthouse
 ```
 
 Lighthouse 输出核心 Web Vitals（FCP、LCP、TBT、CLS、SI）到 `.lighthouse/latest.json`。
+同时写入可按路由和提交聚合的 `.lighthouse/lighthouse-trend.json` 与
+`.lighthouse/lighthouse-history.json`；CI artifact 保留 90 天。
 
 ---
 
@@ -290,7 +295,7 @@ cd D:\Code\project_rich_snowball\python
 alembic upgrade head
 ```
 
-当前 Alembic head 为 `a1c2d3e4f5a6`，共 60 个迁移版本；其中
+当前 Alembic head 为 `c0d1e2f3a4b5`，共 61 个迁移版本；其中
 `fut_main_daily_data` 使用 `(variety_id, ts_code, period, trade_date)` 作为幂等唯一键，
 `agent_market_panel_daily` 使用 `(data_view, variety_id, contract_id, period, trading_date)` 作为重建唯一键。
 

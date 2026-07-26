@@ -1,7 +1,7 @@
 # 前端安全风险记录
 
 > 记录当前前端已知安全风险和已接受的折中方案。
-> 最后更新：2026-06-04
+> 最后更新：2026-07-26
 
 ---
 
@@ -23,16 +23,19 @@
 2. 短期内（Sprint 2 期间）迁移到 HttpOnly cookie 需要同步修改后端认证中间件和 SSE 连接逻辑，成本较高
 3. refresh token 已采用 HttpOnly cookie，即使 access token 泄露，攻击窗口受限于 token 有效期
 
-### 可选方案（中长期规划）
+### 当前约束
 
-| 方案 | 描述 | 优先级 |
-|------|------|--------|
-| 方案 A | access token 改为 HttpOnly cookie，API 请求自动带 cookie | 推荐（未来实施） |
-| 方案 B | 短 access token（内存）+ refresh token（HttpOnly cookie），登录后先换 token | 高安全性 |
-| 方案 C | 保留 localStorage，在 CSP + XSS 防护上加强投入 | 现状 |
+- 写请求目前必须使用 `Authorization: Bearer`，不接受 access cookie 回退；直接改为
+  HttpOnly cookie 会扩大 CSRF 攻击面。
+- EventSource 无法设置 Bearer header，因此 SSE 使用 HttpOnly `access_token` cookie。
+- refresh 轮换时必须同步轮换 access cookie；logout 必须清理两种 cookie，避免 SSE 保留过期会话。
 
-### 后续行动
+### 分阶段迁移
 
-- [ ] 实施 CSP（Content Security Policy）策略，减少 XSS 入口
-- [ ] 定期审查前端依赖，避免引入含已知漏洞的库
-- [ ] 在引入第三方脚本（如分析、客服插件）时评估 XSS 风险
+1. 先用 CSP Report-Only 收集违规，不在没有真实报告的情况下移除 `unsafe-inline` / `unsafe-eval`。
+2. 使用 nonce/hash 收紧脚本来源，验证 Next runtime、图表、登录、API、SSE 和详情页写操作。
+3. 将 access token 收敛到内存，使用 HttpOnly refresh cookie 恢复会话，保留所有写请求的 Bearer 要求。
+4. 只有服务端具备可验证的 CSRF token/origin 策略后，才评审 cookie-only 写请求。
+
+完整迁移门槛、停止条件和回退边界见
+[`docs/r5_frontend_quality_observability.md`](../../docs/r5_frontend_quality_observability.md)。

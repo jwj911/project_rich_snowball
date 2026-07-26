@@ -21,7 +21,7 @@ Agent 系统按「功能能力」拆分，每个 Agent 有清晰边界、稳定�
 | **RiskManagementAgent** | ✅ 已完成 | 风控方案生成 | 仓位管理（固定风险比例法，保守/中等/激进）、5 种止损、5 种止盈、回撤控制规则、交易纪律；使用品种真实 multiplier / tick_size |
 | **AnalysisPipelineAgent** | ✅ 已完成 | 完整分析流水线 | 并行 Data + Tech，串行 Risk，数据 bad 时降级 |
 | **StrategyCompilerAgent** | ✅ 已完成 | 自然语言策略 DSL | 把「突破 20 日高点且放量做多，跌破 10 日线止损」转成结构化 JSON + 可读解释 |
-| **BacktestAgent** | ✅ 已完成 | 策略回测 | 解析口头策略、历史回测、收益/回撤/胜率/评分 |
+| **BacktestAgent** | ✅ 已完成 | 策略回测 | 解析口头策略、历史回测、数据口径/质量提示、walk-forward 稳定性诊断 |
 | **FactorMiningAgent** | ✅ 已完成 | 因子评估与筛选 | IC / Rank IC / 分层回测 / IC 衰减 / 稳定性统计 |
 | **TraderAgent** | ✅ 已完成 | 交易研判与计划 | 多周期趋势识别、K线形态与多空力量、交易计划生成（方向/入场/止损/止盈/仓位）、风控校验；支持剥头皮、日内波段、中短趋势、中期趋势 |
 | **OrchestratorAgent** | 🔄 P2 远期 | 复杂任务编排 | 自动拆解多 Agent 任务、串行/并行执行、子任务状态汇总（已从能力列表中移除，避免悬空能力） |
@@ -58,7 +58,9 @@ Agent 系统按「功能能力」拆分，每个 Agent 有清晰边界、稳定�
 - `tests/test_backtest_agent.py`、`tests/test_strategy_compiler.py`、`tests/test_factor_mining_agent.py`、`tests/test_data_quality_agent.py`：对应 Agent 核心链路
 - `tests/test_trader_modules.py`、`tests/test_trader_agent.py`：TraderAgent 子模块与集成测试
 
-当前 Agent 相关 pytest 已新增 trader 专项 18 个；项目已补齐 `scikit-learn` lock，最近一次全量后端测试为 `1017 passed, 1 skipped, 0 failed`，前端 Vitest 为 `195 passed, 0 failed`。Backend CI #22、Frontend CI #28 和 Phase 4 Backend CI 均已通过。
+当前 Agent 相关 pytest 已新增 trader 专项 18 个；项目已补齐 `scikit-learn` lock，本轮 SQLite
+全量后端测试为 `1026 passed, 15 skipped, 0 failed`，R5 前端 Vitest 为 `200 passed, 0 failed`。
+Backend CI #22、Frontend CI #28 和 Phase 4 Backend CI 均为历史远程证据。
 
 ## 数据库模型
 
@@ -79,5 +81,6 @@ Agent 系统按「功能能力」拆分，每个 Agent 有清晰边界、稳定�
 - Agent 执行步骤必须写入 `agent_task_steps`（role ∈ {thought, action, observation, system, error}）。
 - 流式事件类型新增时，前后端 `AgentEvent` 枚举必须同步更新；当前事件类型：`start`、`progress`、`thought`、`action`、`observation`、`result`、`error`、`done`。
 - 涉及 Agent 改动至少运行 `python -m py_compile` 和相关 pytest。
-- 策略 DSL 新增 `transform` 字段（如 `multiply_indicator2`）时，需同步更新策略编译器、DSL schema 校验与回测引擎消费侧；当前回测引擎尚未消费 `multiply_indicator2`，仅验证 DSL 生成。
+- 策略 DSL 的 transform 必须定义在 `services/backtest/transform_contract.py`，并同步经由 compiler 校验、回测服务与引擎执行；`multiply_indicator2` 是 canonical 的 `indicator2 * value` 右侧变换，未知 transform 必须显式拒绝，不能降级为无信号。
+- Walk-forward 当前仅支持日线，输出必须保留状态、窗口、数据覆盖、质量提示及 `independent_oos=false` 的冻结 DSL 解释边界；窗口不足或失败不得报告为验证通过。
 - `services/agent/database_tools.py` 的查询入口已使用 `sqlglot` AST 做单语句、只读节点、危险函数、表白名单和私有数据 owner 谓词改写；PostgreSQL 专项回归已覆盖复杂关联，owner policy 集中在 `_PRIVATE_TABLE_USER_COLUMNS`，用户自建新闻数据不开放给通用 SQL。

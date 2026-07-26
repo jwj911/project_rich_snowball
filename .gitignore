@@ -87,6 +87,9 @@ frontend/tsconfig.tsbuildinfo
 # Playwright test results
 frontend/test-results/
 
+# Lighthouse local reports
+frontend/.lighthouse/
+
 # Temporary data / reports
 python/*.csv
 *_REVIEW_*.md

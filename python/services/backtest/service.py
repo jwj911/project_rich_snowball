@@ -28,7 +28,9 @@ from services.backtest.futures import (
     signals_to_target_lots,
 )
 from services.backtest.parser import StrategyIntent
+from services.backtest.transform_contract import validate_condition_transform
 from services.cache import get_cached
+from services.research_data import ResearchDataSelection, load_market_panel_data, validate_research_data_selection
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,8 @@ def _backtest_cache_key(
     initial_cash: float | None = None,
     quantity: int | None = None,
     risk: dict[str, Any] | None = None,
+    data_view: str | None = None,
+    contract_code: str | None = None,
 ) -> str:
     """生成回测缓存 key。"""
     cond_str = json.dumps(
@@ -59,6 +63,8 @@ def _backtest_cache_key(
             "initial_cash": initial_cash,
             "quantity": quantity,
             "risk": risk,
+            "data_view": data_view,
+            "contract_code": contract_code,
         },
         sort_keys=True,
     )
@@ -66,7 +72,10 @@ def _backtest_cache_key(
     return f"backtest:v2:{symbol}:{period}:{direction}:{cond_hash}"
 
 
-def _prepare_dataframe(db: Session, intent: StrategyIntent) -> tuple[pd.DataFrame, dict[str, Any], VarietyDB | None]:
+def _prepare_dataframe(
+    db: Session,
+    intent: StrategyIntent,
+) -> tuple[pd.DataFrame, dict[str, Any], VarietyDB | None, dict[str, Any]]:
     """加载 K 线数据并返回 DataFrame + 品种信息。"""
     variety_info = _get_variety_info(db, intent.symbol)
     if not variety_info:
@@ -74,18 +83,25 @@ def _prepare_dataframe(db: Session, intent: StrategyIntent) -> tuple[pd.DataFram
 
     variety = db.query(VarietyDB).filter(VarietyDB.symbol == intent.symbol).first()
 
-    klines = _get_kline_data(db, intent.symbol, period=intent.period, limit=intent.limit)
+    klines, data_source = _load_backtest_data(
+        db,
+        symbol=intent.symbol,
+        period=intent.period,
+        limit=intent.limit,
+        data_view=intent.data_view,
+        contract_code=intent.contract_code,
+    )
     if len(klines) < max(intent.long_window + 2, 30):
         raise ValueError(f"{intent.symbol} 可用 K 线不足，至少需要 {max(intent.long_window + 2, 30)} 根")
 
     df = pd.DataFrame(klines)
     df["time"] = pd.to_datetime(df["time"], format="mixed")
-    return df, variety_info, variety
+    return df, variety_info, variety, data_source
 
 
 def run_strategy_backtest(db: Session, intent: StrategyIntent) -> dict[str, Any]:
     """Load market data and run a parsed strategy backtest."""
-    df, variety_info, variety = _prepare_dataframe(db, intent)
+    df, variety_info, variety, data_source = _prepare_dataframe(db, intent)
 
     multiplier = float(variety.multiplier) if variety and variety.multiplier else 1.0
     commission = float(variety.commission) if variety and variety.commission else 0.0001
@@ -104,6 +120,9 @@ def run_strategy_backtest(db: Session, intent: StrategyIntent) -> dict[str, Any]
     )
     result = run_backtest(df, config).to_dict()
     result["variety"] = variety_info
+    result["data_source"] = data_source
+    result["config"]["data_view"] = intent.data_view
+    result["config"]["contract_code"] = intent.contract_code
     result["data_window"] = {
         "start": df["time"].iloc[0].isoformat()
         if hasattr(df["time"].iloc[0], "isoformat")
@@ -272,6 +291,47 @@ def _data_window(df: pd.DataFrame) -> dict[str, Any]:
     }
 
 
+def _load_backtest_data(
+    db: Session,
+    *,
+    symbol: str,
+    period: str,
+    limit: int,
+    data_view: str | None,
+    contract_code: str | None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """按明确宽表视图或既有默认 K 线路径加载回测数据。"""
+    selection = ResearchDataSelection(data_view=data_view, contract_code=contract_code)
+    validate_research_data_selection(selection, period=period)
+    if selection.uses_market_panel:
+        research_slice = load_market_panel_data(
+            db,
+            symbol=symbol,
+            data_view=selection.data_view or "",
+            period=period,
+            contract_code=selection.contract_code,
+            limit=limit,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        return research_slice.rows, research_slice.metadata
+
+    rows = _get_kline_data(db, symbol, period=period, limit=limit, start_date=start_date, end_date=end_date)
+    return rows, {
+        "dataset_name": "kline_data",
+        "data_view": None,
+        "period": period,
+        "contract_code": None,
+        "build_trace_ids": [],
+        "quality_statuses": [],
+        "first_date": rows[0]["time"] if rows else None,
+        "last_date": rows[-1]["time"] if rows else None,
+        "row_count": len(rows),
+    }
+
+
 def _run_dsl_backtest_inner(
     db: Session,
     symbol: str,
@@ -287,6 +347,8 @@ def _run_dsl_backtest_inner(
     end_date: date | None = None,
     risk: dict[str, Any] | None = None,
     engine_mode: str = "legacy",
+    data_view: str | None = None,
+    contract_code: str | None = None,
 ) -> dict[str, Any]:
     """无缓存版本的 DSL 回测执行（供 get_cached 调用）。"""
     variety_info = _get_variety_info(db, symbol)
@@ -297,7 +359,16 @@ def _run_dsl_backtest_inner(
     multiplier = float(variety.multiplier) if variety and variety.multiplier else 1.0
     commission = float(variety.commission) if variety and variety.commission else 0.0001
 
-    klines = _get_kline_data(db, symbol, period=period, limit=limit, start_date=start_date, end_date=end_date)
+    klines, data_source = _load_backtest_data(
+        db,
+        symbol=symbol,
+        period=period,
+        limit=limit,
+        data_view=data_view,
+        contract_code=contract_code,
+        start_date=start_date,
+        end_date=end_date,
+    )
     if len(klines) < 30:
         raise ValueError(f"{symbol} 可用 K 线不足，至少需要 30 根")
 
@@ -335,6 +406,9 @@ def _run_dsl_backtest_inner(
         )
         result["variety"] = variety_info
         result["data_window"] = _data_window(df)
+        result["data_source"] = data_source
+        result["config"]["data_view"] = data_view
+        result["config"]["contract_code"] = contract_code
         return result
 
     config = BacktestConfig(
@@ -354,6 +428,9 @@ def _run_dsl_backtest_inner(
     result = run_backtest(df, config, entry_conditions=entry_conditions, exit_conditions=exit_conditions).to_dict()
     result["variety"] = variety_info
     result["data_window"] = _data_window(df)
+    result["data_source"] = data_source
+    result["config"]["data_view"] = data_view
+    result["config"]["contract_code"] = contract_code
     return result
 
 
@@ -372,6 +449,8 @@ def run_dsl_backtest(
     end_date: date | None = None,
     risk: dict[str, Any] | None = None,
     engine_mode: str = "legacy",
+    data_view: str | None = None,
+    contract_code: str | None = None,
 ) -> dict[str, Any]:
     """根据 DSL 条件执行回测（带 5 分钟 LRU 缓存）。
 
@@ -379,6 +458,7 @@ def run_dsl_backtest(
         start_date: 可选，K 线起始日期（含），用于 OOS 验证。
         end_date: 可选，K 线结束日期（含），用于 OOS 验证。
     """
+    _validate_dsl_transforms(entry_conditions, exit_conditions)
     start_str = start_date.isoformat() if start_date else ""
     end_str = end_date.isoformat() if end_date else ""
     cache_key = _backtest_cache_key(
@@ -394,6 +474,8 @@ def run_dsl_backtest(
         initial_cash=initial_cash,
         quantity=quantity,
         risk=risk,
+        data_view=data_view,
+        contract_code=contract_code,
     )
     result = get_cached(
         cache_key,
@@ -412,6 +494,8 @@ def run_dsl_backtest(
             end_date=end_date,
             risk=risk,
             engine_mode=engine_mode,
+            data_view=data_view,
+            contract_code=contract_code,
         ),
         ttl=300,  # 5 分钟缓存
     )
@@ -429,3 +513,13 @@ def run_dsl_backtest(
         },
     )
     return result
+
+
+def _validate_dsl_transforms(
+    entry_conditions: list[dict[str, Any]],
+    exit_conditions: list[dict[str, Any]],
+) -> None:
+    """Reject unexecutable DSL transforms before data access or cache lookup."""
+    for group_name, conditions in (("entry", entry_conditions), ("exit", exit_conditions)):
+        for index, condition in enumerate(conditions):
+            validate_condition_transform(condition, context=f"{group_name}.conditions[{index}]")

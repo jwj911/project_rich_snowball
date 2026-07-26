@@ -17,9 +17,11 @@
   - 5-6 全量测试 + 提交到 master（历史基线）
 - **Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 8 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理 / 分析流水线 / 回测 / 策略编排 / 因子挖掘），执行过程通过 SSE 流式展示。
 - 近期新增：策略工作台（`/strategies`）、策略参数优化（`/strategies/{id}/optimize`）、回测信号可视化（K 线叠加标记）、预警中心（`/alerts`）、Agent 工作台（`/agents`）。
-- **当前质量基线（2026-07-25）**：后端本地 `1017 passed, 1 skipped, 0 failed`；覆盖率历史基线 `71.97%`；前端 Vitest `195 passed, 0 failed`；Python Ruff、TypeScript、ESLint 和 production build 均通过。
+- **当前质量基线（2026-07-26）**：本轮 SQLite 后端 `1026 passed, 15 skipped, 0 failed`；
+  覆盖率历史基线 `71.97%`；R5 前端 Vitest `200 passed, 0 failed`，TypeScript、ESLint、
+  production build、行情/详情 Playwright 和 Lighthouse 已通过。
 - **远程验收**：Backend CI #22 与 Frontend CI #28（run `29670891119`）的 Alembic、PostgreSQL pytest、API smoke、Ruff、`pip-audit`、Chromium Playwright、Vitest 和 Lighthouse 全部通过。
-- **当前迭代**：Phase 3 文档与发布治理已完成；Phase 4 SQL AST、PostgreSQL owner-scope 回归和私有数据访问边界收敛已完成；R3 已交付 raw_contract 日频研究宽表及批次、失败重试和质量快照，连续/复权视图与 Agent 消费侧待续，详见 [`docs/r3_raw_contract_market_panel.md`](../docs/r3_raw_contract_market_panel.md)。
+- **当前迭代**：Phase 3 文档与发布治理、Phase 4 SQL AST、PostgreSQL owner-scope 回归和私有数据访问边界收敛已完成；R3 已交付四种日频研究宽表视图、换月/复权血缘、显式 Agent 消费和独立 worker 调度；R4 已交付 DSL transform 执行契约、日频 walk-forward 诊断和生命周期持久化；R5 已交付 Lighthouse 路由趋势、详情错误态与认证/CSP 迁移边界，详见 [`docs/r5_frontend_quality_observability.md`](../docs/r5_frontend_quality_observability.md)。下一项为 R6 发布窗口。
 
 ## 主要功能模块
 
@@ -58,7 +60,7 @@
 | 后端服务器 | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.25 |
 | 数据库 | SQLite / PostgreSQL | SQLite 开发零配置；PG 16 通过 compose 提供，映射端口 15432 |
-| **迁移** | Alembic | 1.13.1，当前 60 个迁移文件；head 为 `a1c2d3e4f5a6` |
+| **迁移** | Alembic | 1.13.1，当前 61 个迁移文件；head 为 `c0d1e2f3a4b5` |
 | 认证 | JWT + OAuth2 密码流 | PyJWT 2.13.0，passlib bcrypt，access token 默认 15 分钟，refresh token 默认 7 天 |
 | 数据校验 | Pydantic v2 | 2.9.0 |
 | 数据采集 | Mock / AkShare / Tushare | `DATA_SOURCE` 控制，非生产可降级 Mock |

@@ -3,23 +3,21 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import numpy as np
 import pytest
 
-from models import AgentTaskDB, FutContractDB, KlineDataDB, RealtimeQuoteDB, UserDB, VarietyDB
+from models import FutContractDB, KlineDataDB, RealtimeQuoteDB, UserDB, VarietyDB
 from services.agent.analysis_pipeline_agent import AnalysisPipelineAgent
 from services.agent.backtest_agent import BacktestAgent
 from services.agent.context import AgentContext
-from services.agent.core import AgentEventType, AgentResult, AgentStatus
 from services.agent.data_quality_agent import DataQualityAgent
 from services.agent.executor import AgentExecutor
-from services.agent.factor_mining_agent import FactorMiningAgent
 from services.agent.risk_management_agent import RiskManagementAgent
 from services.agent.strategy_compiler_agent import StrategyCompilerAgent
 from services.agent.tech_analysis_agent import TechAnalysisAgent
-import numpy as np
-from datetime import datetime, timezone, timedelta
 
 
 def _create_user(db_session) -> UserDB:
@@ -110,8 +108,8 @@ def _create_test_variety(
             variety_id=variety.id,
             contract_id=contract.id,
             period="1d",
-            trading_time=datetime.now(timezone.utc) - timedelta(days=50 - i),
-            trading_date=(datetime.now(timezone.utc) - timedelta(days=50 - i)).date(),
+            trading_time=datetime.now(UTC) - timedelta(days=50 - i),
+            trading_date=(datetime.now(UTC) - timedelta(days=50 - i)).date(),
             open_price=round(open_p, 2),
             high_price=round(high, 2),
             low_price=round(low, 2),
@@ -144,7 +142,7 @@ async def _collect_stream(agent, query: str) -> list[dict[str, Any]]:
 )
 def test_agent_run_stream_yields_events(db_session, agent_cls, query):
     user = _create_user(db_session)
-    variety = _create_test_variety(db_session)
+    _create_test_variety(db_session)
     task_id = AgentExecutor(db_session, user.id).create_task(agent_cls.name, query)
     agent = agent_cls(AgentContext(db_session, user.id, task_id))
 
@@ -161,7 +159,7 @@ def test_agent_run_stream_yields_events(db_session, agent_cls, query):
 def test_tech_analysis_stream_steps_in_real_time(db_session):
     """验证 TechAnalysisAgent 的流式事件按分析阶段逐步产生。"""
     user = _create_user(db_session)
-    variety = _create_test_variety(db_session)
+    _create_test_variety(db_session)
     task_id = AgentExecutor(db_session, user.id).create_task("tech_analysis", "分析螺纹钢日线")
     agent = TechAnalysisAgent(AgentContext(db_session, user.id, task_id))
 
@@ -176,7 +174,7 @@ def test_tech_analysis_stream_steps_in_real_time(db_session):
 def test_strategy_compiler_macd_volume_transform(db_session):
     """验证 MACD+成交量策略生成 volume > volume_sma * mult 的转换条件。"""
     user = _create_user(db_session)
-    variety = _create_test_variety(db_session)
+    _create_test_variety(db_session)
     task_id = AgentExecutor(db_session, user.id).create_task("strategy_compiler", "螺纹钢 MACD 金叉放量 1.5 倍做多策略")
     agent = StrategyCompilerAgent(AgentContext(db_session, user.id, task_id))
 
@@ -189,13 +187,13 @@ def test_strategy_compiler_macd_volume_transform(db_session):
     assert volume_cond is not None
     assert volume_cond.get("indicator2") == "volume_sma20"
     assert volume_cond.get("value") == 1.5
-    assert volume_cond.get("transform") == "multiply_value"
+    assert volume_cond.get("transform") == "multiply_indicator2"
 
 
 def test_risk_management_uses_variety_multiplier_and_tick_size(db_session):
     """验证风控 Agent 使用品种真实合约乘数和最小变动价位。"""
     user = _create_user(db_session)
-    variety = _create_test_variety(db_session, symbol="CU", multiplier=5.0, tick_size=10.0)
+    _create_test_variety(db_session, symbol="CU", multiplier=5.0, tick_size=10.0)
     task_id = AgentExecutor(db_session, user.id).create_task("risk_management", "铜 CU 做多风控方案")
     agent = RiskManagementAgent(AgentContext(db_session, user.id, task_id))
 
@@ -228,7 +226,7 @@ def test_analysis_pipeline_degrades_on_bad_data(db_session, monkeypatch):
 def test_analysis_pipeline_full_run_on_good_data(db_session):
     """验证完整分析在数据质量良好时返回完整报告。"""
     user = _create_user(db_session)
-    variety = _create_test_variety(db_session, symbol="ZN", name="锌")
+    _create_test_variety(db_session, symbol="ZN", name="锌")
     task_id = AgentExecutor(db_session, user.id).create_task("analysis_pipeline", "完整分析锌 ZN")
     agent = AnalysisPipelineAgent(AgentContext(db_session, user.id, task_id))
 

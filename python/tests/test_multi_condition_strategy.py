@@ -80,6 +80,7 @@ def _create_variety(db_session, symbol, name, exchange="SHFE", category="黑色�
 # Multi-condition AND tests
 # ------------------------------------------------------------------
 
+
 class TestMultiConditionAnd:
     """Test AND-combined conditions (且/并且/同时)."""
 
@@ -141,14 +142,12 @@ class TestMultiConditionAnd:
 
         assert result.success is True, result.error_message
         dsl = result.data["dsl"]
-        vol_cond = next(
-            (c for c in dsl["entry"]["conditions"] if c.get("indicator") == "volume"), None
-        )
+        vol_cond = next((c for c in dsl["entry"]["conditions"] if c.get("indicator") == "volume"), None)
         assert vol_cond is not None
         assert vol_cond["operator"] == "greater_than"
         assert vol_cond.get("indicator2") == "volume_sma20"
         assert vol_cond.get("value") == 2.0
-        assert vol_cond.get("transform") == "multiply_value"
+        assert vol_cond.get("transform") == "multiply_indicator2"
 
     def test_ma_cross_with_price_above_ma_filter(self, db_session):
         """均线交叉 且 价格在20日均线上方."""
@@ -197,6 +196,7 @@ class TestMultiConditionAnd:
 # Multi-condition OR tests
 # ------------------------------------------------------------------
 
+
 class TestMultiConditionOr:
     """Test OR-combined conditions (或/或者)."""
 
@@ -234,6 +234,7 @@ class TestMultiConditionOr:
 # ------------------------------------------------------------------
 # Multi-symbol universe tests (GAP-01a)
 # ------------------------------------------------------------------
+
 
 class TestMultiSymbolUniverse:
     """Test multi-symbol universe resolution."""
@@ -320,6 +321,7 @@ class TestMultiSymbolUniverse:
 # ------------------------------------------------------------------
 # Validation edge cases
 # ------------------------------------------------------------------
+
 
 class TestMultiConditionValidation:
     """Test validator for multi-condition DSL."""

@@ -2,10 +2,10 @@
 
 **日期**：2026-07-04  
 **范围**：因子评估、回测、技术分析可复用的数据宽表/面板能力  
-**结论（2026-07-24 更新）**：已落地独立物理宽表
-`agent_market_panel_daily` 的 `raw_contract` 日频最小闭环；连续/复权视图与
-FactorMiningAgent、BacktestAgent 的直接消费尚未实现，因此仍不应标记为“可被因子和
-回测安全使用的完整宽表体系”。实施记录见
+**结论（2026-07-26 更新）**：已落地独立物理宽表
+`agent_market_panel_daily` 的 `raw_contract`、主力连续、前复权和后复权日频视图；
+FactorMiningAgent 与 BacktestAgent 已支持显式 `data_view` 选择，默认路径仍保持
+既有 K 线语义。实施记录见
 [`r3_raw_contract_market_panel.md`](r3_raw_contract_market_panel.md)。
 
 ---
@@ -23,7 +23,7 @@ FactorMiningAgent、BacktestAgent 的直接消费尚未实现，因此仍不应�
 | `fut_holding` | 持仓排名 | `symbol`、`broker`、成交/多空持仓及变化 | 可聚合为 `holding_rank` 或多空集中度指标 |
 | `fut_price_limits` | 涨跌停与保证金 | `ts_code`、`up_limit`、`down_limit`、`m_ratio` | 可补充 `limit_up/limit_down`，需合约映射 |
 | `contract_rollovers` | 主力换月 | `variety_id`、新旧合约、`effective_date` | 是连续合约和 `data_view` 口径的必要来源 |
-| `agent_market_panel_daily` | 合约日频研究宽表 | `raw_contract`、OHLCV、扩展字段、派生字段、`source_flags`、`quality_status` | 第一版已完成，连续/复权视图待实现 |
+| `agent_market_panel_daily` | 多视图日频研究宽表 | 四种 `data_view`、OHLCV、扩展字段、派生字段、换月/复权/build trace 血缘、质量状态 | 已可由因子与回测显式选择 |
 
 ### 1.2 当前因子面板限制
 
@@ -165,17 +165,15 @@ updated_at
 
 ## 7. 审计结论
 
-Milestone D 已完成第一版实现：`raw_contract` 日级宽表已具备基础 OHLCV、`amount`、
-`open_interest`、常用派生字段、字段血缘、质量状态、幂等重建和 Data Catalog 可发现性。
+Milestone D/E 已形成可重建的多口径日频研究面板：`raw_contract` 保留原始具体合约，
+`main_continuous`、`main_back_adjusted`、`main_forward_adjusted` 从换月链物化，并保留
+实际合约、换月 ID、累计价差、算法和 build trace。
 
-已完成构建批次、失败重试和质量快照。尚未完成的是主力连续/复权，以及因子和回测的
-显式 `data_view` 消费。因此它不能替代现有 K 线数据，也不能被误认为完整的多口径研究
-面板。
+构建批次、失败重试、质量快照、视图级目录/质量检查、显式因子/回测消费和独立 worker
+调度均已完成。既有 K 线读取仍是默认路径，避免历史数据未回填时隐式改变回测语义；
+`raw_contract` 消费必须指定具体合约。
 
-后续建议：
+R4 已完成：DSL transform 契约、日频 walk-forward、报告和生命周期持久化见
+[`r4_dsl_walk_forward_validation.md`](r4_dsl_walk_forward_validation.md)。
 
-1. 已将宽表构建接入批次记录、失败重试和质量快照。
-2. 实现主力连续与复权视图，并保留换月血缘。
-3. 在因子和回测中显式选择 `data_view`，禁止隐式混用原始合约与连续价格。
-
-主力连续与复权口径仍应进入 Milestone E，不与 raw_contract 第一版混在同一个提交。
+下一步进入 R5：前端质量与观测趋势。

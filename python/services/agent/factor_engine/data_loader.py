@@ -14,6 +14,12 @@ from sqlalchemy.orm import Session
 
 from models import KlineDataDB, VarietyDB
 from services.agent.utils import resolve_symbol, resolve_symbols
+from services.research_data import (
+    RAW_CONTRACT_VIEW,
+    ResearchDataSelection,
+    load_market_panel_data,
+    validate_research_data_selection,
+)
 
 if TYPE_CHECKING:
     from services.agent.factor_engine.dsl import PanelData
@@ -29,6 +35,7 @@ def load_panel_data(
     end_date: date | datetime | None = None,
     period: str = "1d",
     min_bars: int = 30,
+    data_selection: ResearchDataSelection | None = None,
 ) -> PanelData:
     """加载因子面板数据。
 
@@ -40,6 +47,7 @@ def load_panel_data(
         end_date: 结束日期（包含），默认今天。
         period: K 线周期，默认 1d。
         min_bars: 单个品种至少需要的 K 线数量，不足则丢弃。
+        data_selection: 显式研究宽表视图；为空时保留既有 ``kline_data`` 路径。
 
     Returns:
         PanelData 对象，包含 open/high/low/close/volume 五个 DataFrame。
@@ -76,27 +84,51 @@ def load_panel_data(
     # 周期标准化
     period_map = {"1d": "1d", "D": "1d", "1h": "1h", "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1w": "1w"}
     mapped_period = period_map.get(period, period)
+    selection = data_selection or ResearchDataSelection()
+    validate_research_data_selection(selection, period=mapped_period)
+    if selection.data_view == RAW_CONTRACT_VIEW and len(varieties) != 1:
+        raise ValueError("raw_contract 因子研究一次只能评估一个明确品种和合约")
 
     # 为每个品种加载 K 线
     symbol_frames: dict[str, pd.DataFrame] = {}
+    source_metadata: dict[str, dict] = {}
     for v in varieties:
-        klines = (
-            db.query(KlineDataDB)
-            .filter(
-                KlineDataDB.variety_id == v.id,
-                KlineDataDB.period == mapped_period,
-                KlineDataDB.trading_date >= start_date,
-                KlineDataDB.trading_date <= end_date,
+        if selection.uses_market_panel:
+            research_slice = load_market_panel_data(
+                db,
+                symbol=v.symbol,
+                data_view=selection.data_view or "",
+                period=mapped_period,
+                contract_code=selection.contract_code,
+                start_date=start_date,
+                end_date=end_date,
+                limit=5000,
             )
-            .order_by(KlineDataDB.trading_date.asc())
-            .all()
-        )
-        if len(klines) < min_bars:
-            logger.debug("品种 %s K 线数量 %d 不足 %d，跳过", v.symbol, len(klines), min_bars)
-            continue
-
-        df = pd.DataFrame(
-            [
+            records = [
+                {
+                    "date": row["time"],
+                    "open": row["open"],
+                    "high": row["high"],
+                    "low": row["low"],
+                    "close": row["close"],
+                    "volume": row["volume"],
+                }
+                for row in research_slice.rows
+            ]
+            source_metadata[v.symbol] = research_slice.metadata
+        else:
+            klines = (
+                db.query(KlineDataDB)
+                .filter(
+                    KlineDataDB.variety_id == v.id,
+                    KlineDataDB.period == mapped_period,
+                    KlineDataDB.trading_date >= start_date,
+                    KlineDataDB.trading_date <= end_date,
+                )
+                .order_by(KlineDataDB.trading_date.asc())
+                .all()
+            )
+            records = [
                 {
                     "date": k.trading_date,
                     "open": float(k.open_price),
@@ -107,7 +139,24 @@ def load_panel_data(
                 }
                 for k in klines
             ]
-        )
+            source_metadata[v.symbol] = {
+                "dataset_name": "kline_data",
+                "data_view": None,
+                "period": mapped_period,
+                "contract_code": None,
+                "build_trace_ids": [],
+                "quality_statuses": [],
+                "first_date": records[0]["date"].isoformat() if records else None,
+                "last_date": records[-1]["date"].isoformat() if records else None,
+                "row_count": len(records),
+            }
+
+        if len(records) < min_bars:
+            logger.debug("品种 %s 行情数量 %d 不足 %d，跳过", v.symbol, len(records), min_bars)
+            source_metadata.pop(v.symbol, None)
+            continue
+
+        df = pd.DataFrame(records)
         df = df.set_index("date").sort_index()
         symbol_frames[v.symbol] = df
 
@@ -131,6 +180,13 @@ def load_panel_data(
         low=_build_field("low"),
         close=_build_field("close"),
         volume=_build_field("volume"),
+        metadata={
+            "dataset_name": "agent_market_panel_daily" if selection.uses_market_panel else "kline_data",
+            "data_view": selection.data_view,
+            "period": mapped_period,
+            "contract_code": selection.contract_code,
+            "symbols": source_metadata,
+        },
     )
 
 

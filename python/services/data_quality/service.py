@@ -6,7 +6,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from models import AgentMarketPanelDailyDB, KlineDataDB, RealtimeQuoteDB, VarietyDB
@@ -16,6 +16,14 @@ from services.data_quality.coverage import get_kline_coverage, get_realtime_cove
 from services.data_quality.scoring import score_issues
 from services.data_quality.types import DataQualityIssue, DataQualityReport
 
+_MARKET_PANEL_VIEWS = {
+    "raw_contract",
+    "main_continuous",
+    "main_back_adjusted",
+    "main_forward_adjusted",
+}
+_DERIVED_MARKET_PANEL_VIEWS = _MARKET_PANEL_VIEWS - {"raw_contract"}
+
 
 class DataQualityService:
     """面向 Agent 和路由的数据质量检查服务。"""
@@ -23,16 +31,25 @@ class DataQualityService:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def inspect(self, query: str, symbol: str | None = None, period: str | None = None) -> DataQualityReport:
+    def inspect(
+        self,
+        query: str,
+        symbol: str | None = None,
+        period: str | None = None,
+        data_view: str | None = None,
+    ) -> DataQualityReport:
         """根据查询意图执行数据质量检查。"""
         resolved_symbol = (symbol or resolve_symbol(self.db, query) or "").upper() or None
         resolved_period = period or _resolve_period(query)
+        resolved_view = data_view or _resolve_market_panel_view(query)
 
         if _looks_like_inventory_query(query) and not resolved_symbol:
             return self.inventory()
         if _looks_like_realtime_query(query) and not _looks_like_kline_query(query):
             return self.check_realtime(resolved_symbol)
         if resolved_symbol:
+            if resolved_view is not None:
+                return self.check_market_panel(resolved_symbol, data_view=resolved_view, period=resolved_period)
             return self.check_kline(resolved_symbol, resolved_period)
 
         return self.inventory()
@@ -192,8 +209,17 @@ class DataQualityService:
             recommendations=_recommendations(status, f"{symbol} {period} K 线"),
         )
 
-    def check_market_panel(self, symbol: str | None = None) -> DataQualityReport:
-        """检查 raw_contract 日频研究宽表的可用性与物化质量状态。"""
+    def check_market_panel(
+        self,
+        symbol: str | None = None,
+        *,
+        data_view: str = "raw_contract",
+        period: str = "1d",
+        contract_code: str | None = None,
+    ) -> DataQualityReport:
+        """检查指定日频研究宽表视图的可用性、换月血缘与物化质量。"""
+        if data_view not in _MARKET_PANEL_VIEWS:
+            raise ValueError(f"不支持的研究宽表视图：{data_view}")
         query = (
             self.db.query(AgentMarketPanelDailyDB)
             .join(
@@ -201,17 +227,19 @@ class DataQualityService:
                 AgentMarketPanelDailyDB.variety_id == VarietyDB.id,
             )
             .filter(
-                AgentMarketPanelDailyDB.data_view == "raw_contract",
-                AgentMarketPanelDailyDB.period == "1d",
+                AgentMarketPanelDailyDB.data_view == data_view,
+                AgentMarketPanelDailyDB.period == period,
             )
         )
         if symbol:
             query = query.filter(VarietyDB.symbol == symbol.upper())
+        if contract_code:
+            query = query.filter(AgentMarketPanelDailyDB.contract_code == contract_code.upper())
 
         row_count = query.count()
         issues: list[DataQualityIssue] = []
         if row_count == 0:
-            issues.append(DataQualityIssue("bad", "MARKET_PANEL_NO_DATA", "未找到 raw_contract 日频研究宽表数据"))
+            issues.append(DataQualityIssue("bad", "MARKET_PANEL_NO_DATA", f"未找到 {data_view} {period} 研究宽表数据"))
 
         bad_count = query.filter(AgentMarketPanelDailyDB.quality_status == "bad").count()
         warning_count = query.filter(AgentMarketPanelDailyDB.quality_status == "warning").count()
@@ -226,6 +254,60 @@ class DataQualityService:
                 )
             )
 
+        invalid_rows = (
+            query.filter(
+                or_(
+                    AgentMarketPanelDailyDB.open_price <= 0,
+                    AgentMarketPanelDailyDB.high_price <= 0,
+                    AgentMarketPanelDailyDB.low_price <= 0,
+                    AgentMarketPanelDailyDB.close_price <= 0,
+                    AgentMarketPanelDailyDB.volume < 0,
+                    AgentMarketPanelDailyDB.high_price < AgentMarketPanelDailyDB.open_price,
+                    AgentMarketPanelDailyDB.high_price < AgentMarketPanelDailyDB.close_price,
+                    AgentMarketPanelDailyDB.high_price < AgentMarketPanelDailyDB.low_price,
+                    AgentMarketPanelDailyDB.low_price > AgentMarketPanelDailyDB.open_price,
+                    AgentMarketPanelDailyDB.low_price > AgentMarketPanelDailyDB.close_price,
+                    AgentMarketPanelDailyDB.low_price > AgentMarketPanelDailyDB.high_price,
+                )
+            )
+            .order_by(AgentMarketPanelDailyDB.trading_date.asc())
+            .limit(5)
+            .all()
+        )
+        if invalid_rows:
+            issues.append(
+                DataQualityIssue(
+                    "bad",
+                    "MARKET_PANEL_INVALID_OHLC",
+                    "宽表存在 OHLC 或成交量异常",
+                    sample=[_panel_row_sample(row) for row in invalid_rows],
+                )
+            )
+
+        distinct_dates = [
+            value
+            for (value,) in (
+                query.with_entities(AgentMarketPanelDailyDB.trading_date)
+                .distinct()
+                .order_by(AgentMarketPanelDailyDB.trading_date.asc())
+                .all()
+            )
+        ]
+        if period == "1d":
+            gap_issue = check_daily_date_gaps(distinct_dates)
+            if gap_issue is not None:
+                issues.append(
+                    DataQualityIssue(
+                        "warning",
+                        "MARKET_PANEL_MISSING_DATES",
+                        gap_issue.message,
+                        sample=gap_issue.sample,
+                    )
+                )
+
+        if data_view in _DERIVED_MARKET_PANEL_VIEWS:
+            _append_derived_panel_issues(query, issues)
+
         first_date, last_date = query.with_entities(
             func.min(AgentMarketPanelDailyDB.trading_date),
             func.max(AgentMarketPanelDailyDB.trading_date),
@@ -234,8 +316,10 @@ class DataQualityService:
         return DataQualityReport(
             scope={
                 "dataset": "agent_market_panel_daily",
-                "data_view": "raw_contract",
+                "data_view": data_view,
                 "symbol": symbol.upper() if symbol else None,
+                "period": period,
+                "contract_code": contract_code.upper() if contract_code else None,
             },
             status=status,
             score=score,
@@ -247,7 +331,7 @@ class DataQualityService:
                 "warning_row_count": warning_count,
             },
             issues=issues,
-            recommendations=_recommendations(status, "raw_contract 日频研究宽表"),
+            recommendations=_recommendations(status, f"{data_view} {period} 研究宽表"),
         )
 
     def _dataset_summary(self, dataset_name: str) -> dict[str, Any]:
@@ -284,6 +368,20 @@ def _resolve_period(query: str) -> str:
     return "1d"
 
 
+def _resolve_market_panel_view(query: str) -> str | None:
+    """从质检查询中解析连续/复权研究视图意图。"""
+    text = query.lower()
+    if any(term in text for term in ("前复权", "forward_adjusted", "forward adjusted")):
+        return "main_forward_adjusted"
+    if any(term in text for term in ("后复权", "backward", "back_adjusted", "back adjusted")):
+        return "main_back_adjusted"
+    if any(term in text for term in ("连续", "主连", "主力连续", "main_continuous")):
+        return "main_continuous"
+    if any(term in text for term in ("宽表", "raw_contract", "合约日频")):
+        return "raw_contract"
+    return None
+
+
 def _looks_like_inventory_query(query: str) -> bool:
     return any(keyword in query for keyword in ("有哪些数据", "数据资产", "库里", "盘点", "数据目录", "可用数据"))
 
@@ -294,6 +392,92 @@ def _looks_like_realtime_query(query: str) -> bool:
 
 def _looks_like_kline_query(query: str) -> bool:
     return any(keyword in query for keyword in ("K", "k", "日线", "日 K", "K线", "k线", "回测"))
+
+
+def _append_derived_panel_issues(query, issues: list[DataQualityIssue]) -> None:
+    """补充连续/复权视图特有的血缘、换月和价格安全检查。"""
+    missing_lineage = (
+        query.filter(
+            or_(
+                AgentMarketPanelDailyDB.lineage_json.is_(None),
+                AgentMarketPanelDailyDB.lineage_json == "{}",
+                AgentMarketPanelDailyDB.build_trace_id.is_(None),
+                AgentMarketPanelDailyDB.adjustment_method.is_(None),
+            )
+        )
+        .order_by(AgentMarketPanelDailyDB.trading_date.asc())
+        .limit(5)
+        .all()
+    )
+    if missing_lineage:
+        issues.append(
+            DataQualityIssue(
+                "bad",
+                "MARKET_PANEL_LINEAGE_MISSING",
+                "连续或复权宽表存在缺失的构建或调整血缘",
+                sample=[_panel_row_sample(row) for row in missing_lineage],
+            )
+        )
+
+    invalid_adjusted = (
+        query.filter(
+            AgentMarketPanelDailyDB.adjustment_method != "none",
+            or_(
+                AgentMarketPanelDailyDB.open_price <= 0,
+                AgentMarketPanelDailyDB.high_price <= 0,
+                AgentMarketPanelDailyDB.low_price <= 0,
+                AgentMarketPanelDailyDB.close_price <= 0,
+            ),
+        )
+        .order_by(AgentMarketPanelDailyDB.trading_date.asc())
+        .limit(5)
+        .all()
+    )
+    if invalid_adjusted:
+        issues.append(
+            DataQualityIssue(
+                "bad",
+                "MARKET_PANEL_NONPOSITIVE_ADJUSTED_PRICE",
+                "复权后价格不能为非正数",
+                sample=[_panel_row_sample(row) for row in invalid_adjusted],
+            )
+        )
+
+    previous_by_variety: dict[int, AgentMarketPanelDailyDB] = {}
+    rollover_samples: list[dict[str, Any]] = []
+    rows = query.order_by(
+        AgentMarketPanelDailyDB.variety_id.asc(),
+        AgentMarketPanelDailyDB.trading_date.asc(),
+    ).all()
+    for row in rows:
+        previous = previous_by_variety.get(row.variety_id)
+        changed_contract = previous is not None and previous.contract_id != row.contract_id
+        invalid_rollover = changed_contract and (
+            row.rollover_id is None or row.rollover is None or row.rollover.new_contract_id != row.contract_id
+        )
+        if invalid_rollover:
+            rollover_samples.append(_panel_row_sample(row))
+            if len(rollover_samples) >= 5:
+                break
+        previous_by_variety[row.variety_id] = row
+    if rollover_samples:
+        issues.append(
+            DataQualityIssue(
+                "bad",
+                "MARKET_PANEL_ROLLOVER_LINEAGE_MISSING",
+                "主力合约切换行未关联正确的换月记录",
+                sample=rollover_samples,
+            )
+        )
+
+
+def _panel_row_sample(row: AgentMarketPanelDailyDB) -> dict[str, Any]:
+    return {
+        "contract_id": row.contract_id,
+        "data_view": row.data_view,
+        "rollover_id": row.rollover_id,
+        "trading_date": row.trading_date.isoformat(),
+    }
 
 
 def _recommendations(status: str, target: str) -> list[str]:

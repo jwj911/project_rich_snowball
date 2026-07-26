@@ -1,12 +1,14 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from config import ACCESS_TOKEN_EXPIRE_MINUTES, ENV, REFRESH_TOKEN_EXPIRE_DAYS
 from dependencies import get_current_user_dependency, get_db
-from middleware.rate_limit import _get_client_ip
+from errors import ErrorCode
+from middleware.rate_limit import _get_client_ip, check_rate_limit
+from middleware.rate_limit import clear_rate_limit_store as _middleware_clear_rate_limit
 from models import RefreshTokenDB, UserDB
 from schemas import (
     MessageResponse,
@@ -16,6 +18,8 @@ from schemas import (
     UserCreate,
     UserResponse,
 )
+from services.domain.exceptions import ConflictError, UnauthorizedError
+from services.metrics import auth_operations_total
 from utils import (
     create_access_token,
     generate_refresh_token,
@@ -23,12 +27,9 @@ from utils import (
     hash_refresh_token,
     verify_password,
 )
-from errors import ErrorCode
-from middleware.rate_limit import check_rate_limit, clear_rate_limit_store as _middleware_clear_rate_limit
-from services.domain.exceptions import ConflictError, ServiceError, UnauthorizedError
-from services.metrics import auth_operations_total
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
+ACCESS_TOKEN_COOKIE_NAME = "access_token"
 REFRESH_TOKEN_COOKIE_NAME = "refresh_token"
 
 # Auth 专用限流配置（比全局限流更严格）
@@ -40,12 +41,37 @@ def clear_rate_limit_store():
     """清空限流计数器，供测试使用。"""
     _middleware_clear_rate_limit()
 
+
 # 恒定时间比较用的 dummy hash（有效 bcrypt hash，确保计算耗时与真实 hash 接近）
 _DUMMY_HASH = "$2b$12$cPBBd9OrTIWiStqUdReQ9OJxJiPTUD.ux8DZ7UN8b4sEbmKn5jXL."
 
 
+def _set_access_cookie(response: Response, access_token: str) -> None:
+    """Set the cookie used by SSE and compatible read-only requests."""
+    response.set_cookie(
+        key=ACCESS_TOKEN_COOKIE_NAME,
+        value=access_token,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        httponly=True,
+        secure=ENV == "production",
+        samesite="lax",
+        path="/",
+    )
+
+
+def _clear_access_cookie(response: Response) -> None:
+    """Clear the SSE/read-only access token cookie."""
+    response.delete_cookie(
+        key=ACCESS_TOKEN_COOKIE_NAME,
+        httponly=True,
+        secure=ENV == "production",
+        samesite="lax",
+        path="/",
+    )
+
+
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
-    """Set the JS-inaccessible refresh token cookie."""
+    """Set the JavaScript-inaccessible refresh token cookie."""
     response.set_cookie(
         key=REFRESH_TOKEN_COOKIE_NAME,
         value=refresh_token,
@@ -79,10 +105,11 @@ def _extract_refresh_token(request: Request, body: RefreshTokenRequest | None) -
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
-def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
+def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):  # noqa: B008
     client_ip = _get_client_ip(request)
     if not check_rate_limit(
-        client_ip, "auth:register",
+        client_ip,
+        "auth:register",
         window_seconds=_AUTH_RATE_LIMIT_WINDOW,
         max_requests=_AUTH_RATE_LIMIT_MAX,
     ):
@@ -92,24 +119,19 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
             headers={"Retry-After": str(_AUTH_RATE_LIMIT_WINDOW)},
         )
 
-    existing = db.query(UserDB).filter(
-        (UserDB.username == user.username) | (UserDB.email == user.email)
-    ).first()
+    existing = db.query(UserDB).filter((UserDB.username == user.username) | (UserDB.email == user.email)).first()
     if existing:
         auth_operations_total.labels(operation="register", result="failure").inc()
         raise ConflictError("用户名或邮箱已存在", code=ErrorCode.USERNAME_TAKEN)
 
-    db_user = UserDB(
-        username=user.username,
-        email=user.email,
-        password_hash=hash_password(user.password)
-    )
+    db_user = UserDB(username=user.username, email=user.email, password_hash=hash_password(user.password))
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
 
     # 自动创建默认用户偏好
     from models import UserPreferenceDB
+
     db.add(UserPreferenceDB(user_id=db_user.id))
     db.commit()
 
@@ -121,12 +143,13 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
 def login(
     request: Request,
     response: Response,
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db),
+    form_data: OAuth2PasswordRequestForm = Depends(),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     client_ip = _get_client_ip(request)
     if not check_rate_limit(
-        client_ip, "auth:login",
+        client_ip,
+        "auth:login",
         window_seconds=_AUTH_RATE_LIMIT_WINDOW,
         max_requests=_AUTH_RATE_LIMIT_MAX,
     ):
@@ -149,21 +172,13 @@ def login(
     access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
     auth_operations_total.labels(operation="login", result="success").inc()
 
-    # 设置 access token cookie（支持 SSE 等无 Header 场景）
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        httponly=True,
-        secure=ENV == "production",
-        samesite="lax",
-        path="/",
-    )
+    # Access token cookie supports SSE, which cannot send a bearer header.
+    _set_access_cookie(response, access_token)
 
     # 生成 refresh token 并持久化
     raw_refresh = generate_refresh_token()
     refresh_hash = hash_refresh_token(raw_refresh)
-    expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    expires_at = datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     rt = RefreshTokenDB(
         user_id=user.id,
         token_hash=refresh_hash,
@@ -187,7 +202,7 @@ def refresh_token(
     request: Request,
     response: Response,
     body: RefreshTokenRequest | None = None,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """用 HttpOnly refresh cookie 换取新的 access token（refresh token 轮转）。
 
@@ -199,11 +214,15 @@ def refresh_token(
     """
     raw_refresh = _extract_refresh_token(request, body)
     token_hash = hash_refresh_token(raw_refresh)
-    rt = db.query(RefreshTokenDB).filter(
-        RefreshTokenDB.token_hash == token_hash,
-        RefreshTokenDB.revoked_at.is_(None),
-        RefreshTokenDB.expires_at > datetime.now(timezone.utc),
-    ).first()
+    rt = (
+        db.query(RefreshTokenDB)
+        .filter(
+            RefreshTokenDB.token_hash == token_hash,
+            RefreshTokenDB.revoked_at.is_(None),
+            RefreshTokenDB.expires_at > datetime.now(UTC),
+        )
+        .first()
+    )
 
     if not rt:
         auth_operations_total.labels(operation="refresh", result="failure").inc()
@@ -212,7 +231,7 @@ def refresh_token(
     # Refresh token 轮转：生成新 token，吊销旧 token
     new_raw_refresh = generate_refresh_token()
     new_refresh_hash = hash_refresh_token(new_raw_refresh)
-    new_expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    new_expires_at = datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     new_rt = RefreshTokenDB(
         user_id=rt.user_id,
         token_hash=new_refresh_hash,
@@ -220,10 +239,11 @@ def refresh_token(
         device_info=rt.device_info,
     )
     db.add(new_rt)
-    rt.revoked_at = datetime.now(timezone.utc)
+    rt.revoked_at = datetime.now(UTC)
     db.commit()
 
     access_token = create_access_token(data={"sub": str(rt.user_id)})
+    _set_access_cookie(response, access_token)
     _set_refresh_cookie(response, new_raw_refresh)
     auth_operations_total.labels(operation="refresh", result="success").inc()
     return {
@@ -238,25 +258,30 @@ def logout(
     request: Request,
     response: Response,
     body: RefreshTokenRequest | None = None,
-    db: Session = Depends(get_db),
-    current_user: UserDB = Depends(get_current_user_dependency),
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: UserDB = Depends(get_current_user_dependency),  # noqa: B008
 ):
     """吊销当前 refresh token（logout）。"""
     raw_refresh = _extract_refresh_token(request, body)
     token_hash = hash_refresh_token(raw_refresh)
-    rt = db.query(RefreshTokenDB).filter(
-        RefreshTokenDB.token_hash == token_hash,
-        RefreshTokenDB.user_id == current_user.id,
-    ).first()
+    rt = (
+        db.query(RefreshTokenDB)
+        .filter(
+            RefreshTokenDB.token_hash == token_hash,
+            RefreshTokenDB.user_id == current_user.id,
+        )
+        .first()
+    )
 
     if rt:
-        rt.revoked_at = datetime.now(timezone.utc)
+        rt.revoked_at = datetime.now(UTC)
         db.commit()
 
     _clear_refresh_cookie(response)
+    _clear_access_cookie(response)
     return {"detail": "已退出登录"}
 
 
 @router.get("/me", response_model=UserResponse)
-def get_me(current_user: UserDB = Depends(get_current_user_dependency)):
+def get_me(current_user: UserDB = Depends(get_current_user_dependency)):  # noqa: B008
     return current_user

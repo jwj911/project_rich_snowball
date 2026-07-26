@@ -9,7 +9,7 @@ from __future__ import annotations
 import ast
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -30,6 +30,7 @@ class PanelData:
     low: pd.DataFrame
     close: pd.DataFrame
     volume: pd.DataFrame
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, pd.DataFrame]:
         return {

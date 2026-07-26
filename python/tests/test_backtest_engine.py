@@ -13,6 +13,7 @@ import pandas as pd
 
 from models import FutContractDB, KlineDataDB, RealtimeQuoteDB, VarietyDB
 from services.agent.data_tools import _get_kline_data
+from services.agent.strategy_compiler_agent import StrategyParser
 from services.backtest.engine import _compute_indicator
 from services.backtest.service import run_dsl_backtest
 
@@ -155,6 +156,30 @@ class TestIndicatorComputation:
         assert len(valid_upper) > 0
         assert len(valid_lower) > 0
         assert (valid_upper > valid_lower).all()
+
+    def test_compiler_transform_reaches_dsl_backtest_engine(self, db_session):
+        variety, contract = _create_variety_and_contract(db_session)
+        _seed_klines(db_session, variety, contract, rows=_baseline_rows(50))
+        dsl = StrategyParser(db_session).parse(f"{variety.symbol} MACD 金叉放量 1.5 倍做多")
+
+        assert dsl is not None
+        volume_condition = next(
+            condition for condition in dsl.entry["conditions"] if condition.get("indicator") == "volume"
+        )
+        assert volume_condition["transform"] == "multiply_indicator2"
+
+        result = run_dsl_backtest(
+            db_session,
+            symbol=variety.symbol,
+            period=dsl.timeframe,
+            direction=dsl.direction,
+            entry_conditions=dsl.entry["conditions"],
+            exit_conditions=dsl.exit["conditions"],
+            risk=dsl.risk,
+            limit=60,
+        )
+
+        assert result["config"]["strategy_type"] == "dsl"
 
 
 class TestStopLossAndTakeProfit:

@@ -54,6 +54,7 @@ def build_job_configs(
     sync_fut_wsr_func: Callable | None = None,
     sync_fut_holding_func: Callable | None = None,
     sync_fut_price_limit_func: Callable | None = None,
+    sync_market_panel_daily_func: Callable | None = None,
 ) -> list[JobConfig]:
     """构建所有调度任务配置列表。
 
@@ -114,6 +115,18 @@ def build_job_configs(
                 func=sync_fut_main_daily_func,
                 trigger=CronTrigger(hour=16, minute=12, timezone="Asia/Shanghai"),
                 misfire_grace_time=300,
+            )
+        )
+    if sync_market_panel_daily_func:
+        jobs.append(
+            JobConfig(
+                id="market_panel_daily",
+                func=sync_market_panel_daily_func,
+                # 依赖日线、主力日线和结算补充字段全部完成后执行。
+                trigger=CronTrigger(hour=16, minute=18, timezone="Asia/Shanghai"),
+                max_instances=1,
+                coalesce=True,
+                misfire_grace_time=900,
             )
         )
     if sync_fut_settle_func:
