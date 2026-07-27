@@ -52,6 +52,10 @@ npm run lighthouse -- http://127.0.0.1:3200
 三个 JSON 文件并保留 90 天。没有历史 artifact、artifact 不可读或 API 权限不足只会让比较从空历史
 重新开始，不能跳过当前 Lighthouse 运行。
 
+CI 对每条路由采集 3 个样本，按 LCP 排序后选取中位样本作为阈值和趋势记录，同时在当前记录的
+`samples` 中保留全部样本指标。该策略用于降低共享 runner 的瞬时抖动，不取最好值；本地默认仍采集
+1 次，可通过 `LIGHTHOUSE_RUNS=1..5` 显式覆盖。
+
 阈值保持已有 CI baseline：
 
 ```text

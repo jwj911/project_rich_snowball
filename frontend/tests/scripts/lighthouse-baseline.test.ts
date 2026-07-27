@@ -5,6 +5,8 @@ import {
   mergeHistory,
   parseRouteConfig,
   resolveRoutes,
+  resolveSampleCount,
+  selectMedianLcpRecord,
 } from '../../scripts/lighthouse-baseline.js'
 
 function makeRecord(
@@ -118,5 +120,33 @@ describe('lighthouse trend collector', () => {
       timestamp: '2026-07-25T13:00:00.000Z',
       metrics: { performanceScore: 91 },
     })
+  })
+
+  it('uses three Lighthouse samples in CI and validates explicit overrides', () => {
+    expect(resolveSampleCount({ NODE_ENV: 'test', CI: 'true' })).toBe(3)
+    expect(resolveSampleCount({ NODE_ENV: 'test', LIGHTHOUSE_RUNS: '1' })).toBe(1)
+    expect(() => resolveSampleCount({ NODE_ENV: 'test', LIGHTHOUSE_RUNS: '0' })).toThrow('between 1 and 5')
+  })
+
+  it('selects the median LCP sample while retaining all sample metrics', () => {
+    const records = [
+      makeRecord('commit-a', '2026-07-25T12:00:00.000Z', {
+        metrics: { ...makeRecord('commit-a', '').metrics, largestContentfulPaint: 6000 },
+      }),
+      makeRecord('commit-a', '2026-07-25T12:01:00.000Z', {
+        metrics: { ...makeRecord('commit-a', '').metrics, largestContentfulPaint: 2000 },
+      }),
+      makeRecord('commit-a', '2026-07-25T12:02:00.000Z', {
+        metrics: { ...makeRecord('commit-a', '').metrics, largestContentfulPaint: 3000 },
+      }),
+    ]
+
+    const selected = selectMedianLcpRecord(records)
+
+    expect(selected.metrics.largestContentfulPaint).toBe(3000)
+    expect(selected.aggregation).toBe('median_lcp_sample')
+    expect(selected.samples.map((sample: { metrics: { largestContentfulPaint: number } }) => (
+      sample.metrics.largestContentfulPaint
+    ))).toEqual([6000, 2000, 3000])
   })
 })

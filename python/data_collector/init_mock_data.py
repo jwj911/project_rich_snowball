@@ -152,14 +152,59 @@ _MOCK_PRODUCTS = [
 ]
 
 
-# 模拟评论数据（按 symbol 索引，映射到 variety_id）
-_MOCK_COMMENTS = [
-    {"symbol": "AU", "user_id": 1, "content": "黄金近期走势强劲，受避险情绪影响明显，建议关注450美元阻力位。"},
-    {"symbol": "AU", "user_id": 2, "content": "美联储加息预期降温，金价有望继续上攻。"},
-    {"symbol": "CU", "user_id": 3, "content": "铜价突破68000，需求端预期改善，短期内看好。"},
-    {"symbol": "SC", "user_id": 1, "content": "原油回落至520附近，OPEC+减产消息需持续关注。"},
-    {"symbol": "RB", "user_id": 2, "content": "螺纹钢库存下降，基本面转好信号出现。"},
+_MOCK_USER_SPECS = [
+    {
+        "username": "trader001",
+        "email": "trader001@example.com",
+    },
+    {
+        "username": "investor_wang",
+        "email": "wang@example.com",
+    },
+    {
+        "username": "futures_master",
+        "email": "master@example.com",
+    },
 ]
+
+
+# 模拟评论数据（按 symbol/username 映射到真实外键）
+_MOCK_COMMENTS = [
+    {
+        "symbol": "AU",
+        "username": "trader001",
+        "content": "黄金近期走势强劲，受避险情绪影响明显，建议关注450美元阻力位。",
+    },
+    {"symbol": "AU", "username": "investor_wang", "content": "美联储加息预期降温，金价有望继续上攻。"},
+    {"symbol": "CU", "username": "futures_master", "content": "铜价突破68000，需求端预期改善，短期内看好。"},
+    {"symbol": "SC", "username": "trader001", "content": "原油回落至520附近，OPEC+减产消息需持续关注。"},
+    {"symbol": "RB", "username": "investor_wang", "content": "螺纹钢库存下降，基本面转好信号出现。"},
+]
+
+
+def _ensure_mock_users_and_comments(db: Session, variety_map: dict[str, VarietyDB]) -> None:
+    expected_usernames = {user["username"] for user in _MOCK_USER_SPECS}
+    existing_usernames = {
+        username for (username,) in db.query(UserDB.username).filter(UserDB.username.in_(expected_usernames)).all()
+    }
+    for user in _MOCK_USER_SPECS:
+        if user["username"] not in existing_usernames:
+            db.add(UserDB(**user, password_hash=hash_password("password123")))
+    db.commit()
+
+    user_map = {user.username: user for user in db.query(UserDB).filter(UserDB.username.in_(expected_usernames)).all()}
+    if db.query(CommentDB).count() == 0:
+        for comment in _MOCK_COMMENTS:
+            variety = variety_map.get(comment["symbol"])
+            user = user_map.get(comment["username"])
+            if variety and user:
+                db.add(
+                    CommentDB(
+                        variety_id=variety.id,
+                        user_id=user.id,
+                        content=comment["content"],
+                    )
+                )
 
 
 def init_mock_data():
@@ -167,41 +212,8 @@ def init_mock_data():
     try:
         variety_map = {v.symbol: v for v in db.query(VarietyDB).all()}
 
-        # 1. 初始化用户
-        if db.query(UserDB).count() == 0:
-            users = [
-                {
-                    "username": "trader001",
-                    "email": "trader001@example.com",
-                    "password_hash": hash_password("password123"),
-                },
-                {
-                    "username": "investor_wang",
-                    "email": "wang@example.com",
-                    "password_hash": hash_password("password123"),
-                },
-                {
-                    "username": "futures_master",
-                    "email": "master@example.com",
-                    "password_hash": hash_password("password123"),
-                },
-            ]
-            for u in users:
-                db.add(UserDB(**u))
-            db.commit()
-
-        # 3. 初始化评论（仅使用 variety_id）
-        if db.query(CommentDB).count() == 0:
-            for c in _MOCK_COMMENTS:
-                variety = variety_map.get(c["symbol"])
-                if variety:
-                    db.add(
-                        CommentDB(
-                            variety_id=variety.id,
-                            user_id=c["user_id"],
-                            content=c["content"],
-                        )
-                    )
+        # 1. 初始化用户和评论，按自然键解析真实外键，不能假设序列从 1 开始。
+        _ensure_mock_users_and_comments(db, variety_map)
 
         # 4. 初始化实时行情（直接从 mock 数据写入 RealtimeQuoteDB，不再依赖 ProductDB 作为数据源）
         if db.query(RealtimeQuoteDB).count() == 0:

@@ -132,6 +132,34 @@ function createRouteRecord(route, lhr, run) {
   }
 }
 
+function resolveSampleCount(environment = process.env) {
+  const defaultCount = environment.CI || environment.GITHUB_ACTIONS ? 3 : 1
+  const value = Number.parseInt(environment.LIGHTHOUSE_RUNS ?? String(defaultCount), 10)
+  if (!Number.isInteger(value) || value < 1 || value > 5) {
+    throw new Error(`LIGHTHOUSE_RUNS must be an integer between 1 and 5: ${environment.LIGHTHOUSE_RUNS}`)
+  }
+  return value
+}
+
+function selectMedianLcpRecord(records) {
+  if (records.length === 0) {
+    throw new Error('Cannot select a Lighthouse record from an empty sample')
+  }
+  const ordered = [...records].sort((left, right) => (
+    left.metrics.largestContentfulPaint - right.metrics.largestContentfulPaint
+  ))
+  const selected = ordered[Math.floor(ordered.length / 2)]
+  return {
+    ...selected,
+    aggregation: 'median_lcp_sample',
+    samples: records.map((record) => ({
+      timestamp: record.timestamp,
+      metrics: record.metrics,
+      thresholdFailures: record.thresholdFailures,
+    })),
+  }
+}
+
 function readHistory(historyPath) {
   if (!fs.existsSync(historyPath)) return []
   try {
@@ -255,6 +283,7 @@ function printRecord(record) {
 async function run() {
   const baseUrl = normalizeBaseUrl(process.argv[2] || 'http://127.0.0.1:3200')
   const routes = resolveRoutes(baseUrl)
+  const sampleCount = resolveSampleCount()
   const runMetadata = createRunMetadata()
   const historyPath = path.join(OUTPUT_DIR, 'lighthouse-history.json')
   const existingHistory = readHistory(historyPath)
@@ -263,17 +292,22 @@ async function run() {
   try {
     const routeRecords = []
     for (const route of routes) {
-      const runnerResult = await lighthouse(route.url, {
-        port: chrome.port,
-        output: 'json',
-        onlyCategories: ['performance'],
-      })
-      if (!runnerResult) {
-        throw new Error(`Lighthouse failed for route ${route.name}: no result`)
+      const samples = []
+      for (let attempt = 1; attempt <= sampleCount; attempt += 1) {
+        const runnerResult = await lighthouse(route.url, {
+          port: chrome.port,
+          output: 'json',
+          onlyCategories: ['performance'],
+        })
+        if (!runnerResult) {
+          throw new Error(`Lighthouse failed for route ${route.name}, sample ${attempt}: no result`)
+        }
+        samples.push(createRouteRecord(route, runnerResult.lhr, runMetadata))
       }
-      const record = createRouteRecord(route, runnerResult.lhr, runMetadata)
+      const record = selectMedianLcpRecord(samples)
       routeRecords.push(record)
       printRecord(record)
+      console.log(`LCP samples: ${samples.map((sample) => `${sample.metrics.largestContentfulPaint}ms`).join(', ')}`)
     }
 
     const report = buildTrendReport({
@@ -307,6 +341,8 @@ module.exports = {
   mergeHistory,
   parseRouteConfig,
   resolveRoutes,
+  resolveSampleCount,
+  selectMedianLcpRecord,
 }
 
 if (require.main === module) {

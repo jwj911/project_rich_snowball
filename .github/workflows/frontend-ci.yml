@@ -255,6 +255,7 @@ jobs:
         env:
           NEXT_PUBLIC_API_BASE: http://127.0.0.1:8401
           LIGHTHOUSE_ROUTES: home=/,products=/products
+          LIGHTHOUSE_RUNS: "3"
 
       - name: Upload Lighthouse trend artifact
         if: always()
