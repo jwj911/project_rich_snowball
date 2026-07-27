@@ -720,5 +720,8 @@ def start_scheduler(*, include_market_panel: bool = False):
 
 
 def shutdown_scheduler():
-    scheduler.shutdown(wait=True, timeout=10)
+    if not scheduler.running:
+        logger.info("Scheduler already stopped")
+        return
+    scheduler.shutdown(wait=True)
     logger.info("Scheduler shutdown")

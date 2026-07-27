@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # PostgreSQL 数据库（推荐用于生产/多用户场景）
   postgres:
@@ -46,7 +44,9 @@ services:
     environment:
       - DATABASE_URL=postgresql://futures:futures123@postgres:5432/futures_community
       - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set}
+      - CORS_ORIGINS=${CORS_ORIGINS:?CORS_ORIGINS must be set}
+      - DATA_SOURCE=${DATA_SOURCE:?DATA_SOURCE must be set}
       - ENV=production
       - ENABLE_SCHEDULER=0
       - HOST=0.0.0.0
@@ -75,7 +75,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://futures:futures123@postgres:5432/futures_community
       - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set}
+      - DATA_SOURCE=${DATA_SOURCE:?DATA_SOURCE must be set}
       - ENV=production
       - ENABLE_SCHEDULER=1
       - HOST=0.0.0.0

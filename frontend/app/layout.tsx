@@ -3,11 +3,9 @@ import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import './globals.css'
 import { AuthProvider } from '@/components/auth/AuthProvider'
+import DynamicToaster from '@/components/DynamicToaster'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import WebVitalsReporter from '@/components/WebVitalsReporter'
-import dynamic from 'next/dynamic'
-
-const DynamicToaster = dynamic(() => import('@/components/DynamicToaster'), { ssr: false })
 
 export const metadata: Metadata = {
   title: '倍增计划',

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { useParams } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 
 import LoginRequired from '@/components/auth/LoginRequired'
@@ -33,8 +34,8 @@ const KlineSection = dynamic(() => import('@/components/product/KlineSection'), 
 import LevelEditor from '@/components/product/LevelEditor'
 import CommentSection from '@/components/product/CommentSection'
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
-  const symbol = params.id
+export default function ProductDetailPage() {
+  const { id: symbol } = useParams<{ id: string }>()
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
 
   const {

@@ -118,6 +118,36 @@ def test_market_panel_job_is_registered_only_when_worker_function_is_supplied():
     assert "minute='18'" in str(panel_job.trigger)
 
 
+def test_scheduler_shutdown_uses_supported_apscheduler_contract(monkeypatch):
+    class FakeScheduler:
+        running = True
+
+        def __init__(self):
+            self.shutdown_calls = []
+
+        def shutdown(self, **kwargs):
+            self.shutdown_calls.append(kwargs)
+
+    fake_scheduler = FakeScheduler()
+    monkeypatch.setattr(market_scheduler, "scheduler", fake_scheduler)
+
+    market_scheduler.shutdown_scheduler()
+
+    assert fake_scheduler.shutdown_calls == [{"wait": True}]
+
+
+def test_scheduler_shutdown_is_idempotent_when_already_stopped(monkeypatch):
+    class FakeScheduler:
+        running = False
+
+        def shutdown(self, **kwargs):
+            raise AssertionError(f"shutdown should not be called: {kwargs}")
+
+    monkeypatch.setattr(market_scheduler, "scheduler", FakeScheduler())
+
+    market_scheduler.shutdown_scheduler()
+
+
 def test_worker_sync_passes_the_computed_window_to_market_panel_builder(db_session, monkeypatch):
     start_date = date(2026, 7, 1)
     end_date = date(2026, 7, 31)
