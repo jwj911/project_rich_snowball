@@ -148,7 +148,20 @@ R3 已收口，并作为 R4 的数据口径基础。
   nonce/hash、内存 token 和 cookie-only 写请求的前置/停止条件已记录。
 
 详细记录：[`docs/r5_frontend_quality_observability.md`](../docs/r5_frontend_quality_observability.md)。
-下一项：R6 真实发布窗口，需按发布日重新验证，不能复用工程或历史 CI 结果。
+后续已进入 R6 发布候选验证；真实发布仍需按发布日重新执行，不能复用工程或历史 CI 结果。
+
+### R6：发布候选基线 — 已完成（2026-07-27）
+
+- 隔离 PostgreSQL 候选库从空库迁移到 `c0d1e2f3a4b5`，完成逻辑备份、恢复演练和核心计数核对；
+- readiness、scheduler owner、行情/实时、管理员与普通用户权限 smoke 已通过；
+- scheduler 使用 APScheduler 支持的优雅停止契约，Compose 强制生产密钥、CORS 和数据源；
+- Next.js 升级到 15.5.22，PostCSS/sharp 固定安全版本；production build、Vitest 202 项、
+  Playwright 40 项、双路由 Lighthouse 和生产依赖审计通过；
+- 候选提交 `c5e1a545` 已推送；Backend CI #31 与 Frontend CI #33 已通过，发布记录见
+  [`docs/releases/20260727_r6_release_candidate.md`](../docs/releases/20260727_r6_release_candidate.md)。
+
+当前下一项：取得真实生产凭据与 HTTPS CORS，指定发布/回滚负责人，并在真实生产窗口重新执行
+迁移、备份、部署、readiness、权限与前端 smoke。完成前不得标记为生产已发布。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 

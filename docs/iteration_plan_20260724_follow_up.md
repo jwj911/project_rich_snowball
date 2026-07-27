@@ -1,7 +1,7 @@
 # 后续迭代计划：安全边界、数据基础与发布收口
 
 > 计划日期：2026-07-24
-> 当前状态：R1、R2、R3、R4、R5 已完成；下一项为 R6 真实发布窗口
+> 当前状态：R1 至 R5 已完成；R6 隔离环境发布候选已完成，真实生产发布仍待执行
 > 适用范围：Phase 4 后续安全回归、数据基础、策略验证、前端质量和生产发布治理
 > 上一份事实源：[`iteration_plan_20260718_project_audit.md`](iteration_plan_20260718_project_audit.md)
 
@@ -16,9 +16,9 @@
 
 当前可复现工程基线：
 
-- 后端：本轮 SQLite `1026 passed, 15 skipped, 0 failed`，coverage 历史基线 `71.97%`；
-- 前端：R5 Vitest `200 passed, 0 failed`；TypeScript、ESLint、production build、行情/详情
-  Playwright 与双路由 Lighthouse 均通过；
+- 后端：R6 本轮 SQLite `1031 passed, 15 skipped, 0 failed`，coverage 历史基线 `71.97%`；
+- 前端：Next.js 15.5.22、Vitest `202 passed, 0 failed`、Playwright `40 passed`；
+  TypeScript、ESLint、production build、双路由 Lighthouse 和生产依赖审计均通过；
 - 本轮关联文件 Ruff、Python 编译和既有 TypeScript、ESLint、production build/CI 证据均通过；
 - 以上均为工程基线，不等同于生产发布。生产发布仍需逐项执行
   [`release_checklist_20260719.md`](release_checklist_20260719.md)。
@@ -167,7 +167,7 @@ R3.3 至 R3.6 实施结果：
 
 执行记录见 [`r5_frontend_quality_observability.md`](r5_frontend_quality_observability.md)。
 
-### R6：真实发布窗口（P1，按需）
+### R6：真实发布窗口（P1，发布候选已完成）
 
 **目标**：将工程基线转化为可审计的生产发布记录。
 
@@ -178,6 +178,21 @@ R3.3 至 R3.6 实施结果：
 - 从 [`release_checklist_20260719.md`](release_checklist_20260719.md) 复制清单，新增
   `docs/releases/YYYYMMDD_<short-slug>.md`；
 - 未执行的生产项保持未勾选，不能用历史 CI 结果替代。
+
+发布候选实施结果：
+
+- 隔离 PostgreSQL 候选库从空库迁移到 `c0d1e2f3a4b5`，并完成 `pg_dump -Fc` /
+  `pg_restore` 恢复演练与核心表计数核对；
+- readiness、scheduler 禁用、行情、实时数据、管理员与普通用户权限 smoke 通过；
+- scheduler 停止改用 APScheduler 支持的 `shutdown(wait=True)`，并增加重复停止回归；
+- Compose 强制提供生产密钥、CORS 来源与真实数据源，API/worker 维持单 scheduler owner；
+- Next.js 升级到 15.5.22，安全版本 override、production build、40 项 Playwright、
+  双路由 Lighthouse 和生产依赖审计通过；
+- 记录见
+  [`releases/20260727_r6_release_candidate.md`](releases/20260727_r6_release_candidate.md)。
+
+真实生产凭据、HTTPS CORS、生产迁移/备份/部署、回滚负责人和生产 SSE 多实例策略仍未验证，
+因此 R6 只能标记为发布候选，不能标记为生产已发布。
 
 ## 4. 本轮执行拆分
 
@@ -206,7 +221,7 @@ R1 与 R2 保持原子化执行：
 | R3 数据基础与可复现性 | 已完成 | `r3_raw_contract_market_panel.md` |
 | R4 策略验证闭环 | 已完成 | `r4_dsl_walk_forward_validation.md` |
 | R5 前端质量与观测趋势 | 已完成 | `r5_frontend_quality_observability.md` |
-| R6 真实发布窗口 | 按需 | 依赖发布窗口和前置证据 |
+| R6 真实发布窗口 | 发布候选已完成 | `releases/20260727_r6_release_candidate.md`；生产部署待执行 |
 
 ## 7. R1 执行记录（2026-07-24）
 
@@ -295,3 +310,16 @@ R1 与 R2 保持原子化执行：
   CSP 和 localStorage access token 的 Report-Only、nonce/hash、内存 token 与 cookie-only
   写请求边界已形成分阶段迁移与停止条件；
 - 详细记录：[`r5_frontend_quality_observability.md`](r5_frontend_quality_observability.md)。
+
+## 14. R6 发布候选执行记录（2026-07-27）
+
+- 候选代码提交为 `c5e1a545544e602c24f2e31ca256c37a7511b8ef`；
+- 空 PostgreSQL 候选库迁移、逻辑备份、隔离恢复和 API/权限 smoke 已完成；
+- 本轮后端全量回归为 `1031 passed, 15 skipped, 0 failed`，全仓 Ruff 通过；
+- Next.js 15.5.22 production build 的最大 First Load JS 为 157 kB；Vitest 202 项、
+  Playwright 40 项及 `home` / `products` Lighthouse 均通过；
+- `npm audit --omit=dev` 为 0；本地 `pip-audit` 因 Windows 进程异常内存申请失败，
+  以后端 CI 的同锁文件结果为远程门禁；
+- 完整证据、CI 链接、回滚点和未完成生产项见
+  [`releases/20260727_r6_release_candidate.md`](releases/20260727_r6_release_candidate.md)。
+- Backend CI #31 与 Frontend CI #33 均成功，Lighthouse 趋势 artifact 已上传。

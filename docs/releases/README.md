@@ -16,3 +16,4 @@
 - [20260721_engineering_baseline.md](20260721_engineering_baseline.md)：Phase 3 文档治理基线，非生产发布。
 - [20260721_phase4_sql_ast.md](20260721_phase4_sql_ast.md)：Phase 4 SQL AST 安全迭代基线，非生产发布。
 - [20260722_phase4_user_scope.md](20260722_phase4_user_scope.md)：Phase 4 私有数据 owner 谓词改写基线，非生产发布。
+- [20260727_r6_release_candidate.md](20260727_r6_release_candidate.md)：R6 隔离环境发布候选基线，非生产发布。

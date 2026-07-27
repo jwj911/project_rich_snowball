@@ -59,8 +59,9 @@ Agent 系统按「功能能力」拆分，每个 Agent 有清晰边界、稳定�
 - `tests/test_trader_modules.py`、`tests/test_trader_agent.py`：TraderAgent 子模块与集成测试
 
 当前 Agent 相关 pytest 已新增 trader 专项 18 个；项目已补齐 `scikit-learn` lock，本轮 SQLite
-全量后端测试为 `1026 passed, 15 skipped, 0 failed`，R5 前端 Vitest 为 `200 passed, 0 failed`。
-Backend CI #22、Frontend CI #28 和 Phase 4 Backend CI 均为历史远程证据。
+全量后端测试为 `1031 passed, 15 skipped, 0 failed`，前端 Vitest 为 `202 passed, 0 failed`。
+R6 候选提交 `c5e1a545` 的 Backend CI #31 与 Frontend CI #33 已通过；更早 CI
+仅作为历史证据。
 
 ## 数据库模型
 

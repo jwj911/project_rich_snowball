@@ -20,10 +20,14 @@
 - [ ] 后端 pytest 失败数为 `0`，跳过项有明确原因。
 - [ ] 前端 Vitest 失败数为 `0`。
 
-当前工程基线（2026-07-26）：
+当前发布候选基线（2026-07-27）：
 
-- 后端：本轮 SQLite `1026 passed, 15 skipped, 0 failed`，coverage 历史基线 `71.97%`。
-- 前端：R5 本地基线 `200 passed, 0 failed`；生产发布窗口仍需重新执行。
+- 后端：本轮 SQLite `1031 passed, 15 skipped, 0 failed`，全仓 Ruff 通过。
+- 前端：Next.js 15.5.22 production build、Vitest `202 passed`、Playwright `40 passed`，
+  双路由 Lighthouse 和 `npm audit --omit=dev` 均通过。
+- 详细证据见
+  [`releases/20260727_r6_release_candidate.md`](releases/20260727_r6_release_candidate.md)；
+  该记录仍是隔离环境工程基线，不是生产发布。
 
 ## 3. 数据库与数据
 
@@ -53,8 +57,10 @@
 
 当前远程证据：
 
-- [Backend CI #22](https://github.com/jwj911/project_rich_snowball/actions/runs/29661326225)
-- [Frontend CI #28](https://github.com/jwj911/project_rich_snowball/actions/runs/29670891119)
+- [Backend CI #31](https://github.com/jwj911/project_rich_snowball/actions/runs/30234789780)
+- [Frontend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30233956592)
+
+两条远程门禁均已成功，详细步骤与 artifact 证据写入对应发布记录。
 
 ## 6. 回滚
 

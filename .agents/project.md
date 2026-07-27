@@ -17,11 +17,14 @@
   - 5-6 全量测试 + 提交到 master（历史基线）
 - **Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 8 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理 / 分析流水线 / 回测 / 策略编排 / 因子挖掘），执行过程通过 SSE 流式展示。
 - 近期新增：策略工作台（`/strategies`）、策略参数优化（`/strategies/{id}/optimize`）、回测信号可视化（K 线叠加标记）、预警中心（`/alerts`）、Agent 工作台（`/agents`）。
-- **当前质量基线（2026-07-26）**：本轮 SQLite 后端 `1026 passed, 15 skipped, 0 failed`；
-  覆盖率历史基线 `71.97%`；R5 前端 Vitest `200 passed, 0 failed`，TypeScript、ESLint、
-  production build、行情/详情 Playwright 和 Lighthouse 已通过。
-- **远程验收**：Backend CI #22 与 Frontend CI #28（run `29670891119`）的 Alembic、PostgreSQL pytest、API smoke、Ruff、`pip-audit`、Chromium Playwright、Vitest 和 Lighthouse 全部通过。
-- **当前迭代**：Phase 3 文档与发布治理、Phase 4 SQL AST、PostgreSQL owner-scope 回归和私有数据访问边界收敛已完成；R3 已交付四种日频研究宽表视图、换月/复权血缘、显式 Agent 消费和独立 worker 调度；R4 已交付 DSL transform 执行契约、日频 walk-forward 诊断和生命周期持久化；R5 已交付 Lighthouse 路由趋势、详情错误态与认证/CSP 迁移边界，详见 [`docs/r5_frontend_quality_observability.md`](../docs/r5_frontend_quality_observability.md)。下一项为 R6 发布窗口。
+- **当前质量基线（2026-07-27）**：本轮 SQLite 后端 `1031 passed, 15 skipped, 0 failed`；
+  覆盖率历史基线 `71.97%`；前端 Vitest `202 passed`、Playwright `40 passed`，TypeScript、
+  ESLint、Next.js 15.5.22 production build、Lighthouse 和生产依赖审计已通过。
+- **远程验收**：R6 候选提交 `c5e1a545` 已推送；Backend CI #31 与 Frontend CI #33 全部通过。
+- **当前迭代**：R3 至 R5 已完成；R6 已完成隔离 PostgreSQL 迁移/恢复、运行拓扑、API/权限、
+  浏览器、性能和依赖安全验证。完整证据见
+  [`docs/releases/20260727_r6_release_candidate.md`](../docs/releases/20260727_r6_release_candidate.md)；
+  真实生产凭据、部署和回滚负责人仍待确认。
 
 ## 主要功能模块
 
@@ -44,7 +47,7 @@
 
 | 层级 | 技术 | 版本/说明 |
 |------|------|-----------|
-| 前端框架 | Next.js App Router | 14.2.35，`output: 'standalone'` |
+| 前端框架 | Next.js App Router | 15.5.22，`output: 'standalone'` |
 | 前端 UI | React | 18.2.0，TypeScript 5.3.3 |
 | 前端样式 | Tailwind CSS | 3.4.1，自定义暗色界面，上涨红色/下跌绿色 |
 | 字体/图标 | geist / lucide-react | ^1.7.2 / ^0.312.0 |

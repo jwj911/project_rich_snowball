@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-- 前端：Next.js 14 App Router，默认开发地址 `http://127.0.0.1:3200`
+- 前端：Next.js 15 App Router，默认开发地址 `http://127.0.0.1:3200`
 - 后端：FastAPI，默认开发地址 `http://127.0.0.1:8401`
 - 数据库：开发可用 SQLite；PostgreSQL 16 通过 `docker-compose.yml` 提供
 - K 线：前端使用 `lightweight-charts`，后端支持 `1m/5m/15m/30m/1h/1d/1w`
@@ -16,8 +16,8 @@
 - 价格预警：用户为品种设置 above/below 价格预警，实时行情刷新时自动检测触发
 - 模拟持仓：用户创建虚拟交易记录，支持做多/做空、盈亏计算与复盘统计
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
-- 当前工程基线：本轮 SQLite 后端 `1026 passed, 15 skipped, 0 failed`，R5 前端 Vitest `200 passed, 0 failed`；TypeScript、ESLint、production build、行情/详情 Playwright 和双路由 Lighthouse 均已本地验证；历史 CI 证据仍见 Backend CI #22、Frontend CI #28 和 Phase 4 SQL AST CI。
-- 当前迭代：R3 已完成 [四种日频研究宽表视图、换月/复权血缘、显式因子/回测消费和独立 worker 调度](docs/r3_raw_contract_market_panel.md)；R4 已完成 [DSL transform 执行契约与 walk-forward 验证](docs/r4_dsl_walk_forward_validation.md)；R5 已完成 [Lighthouse 路由趋势、详情失败态与 token/CSP 迁移边界](docs/r5_frontend_quality_observability.md)，下一项为 R6 真实发布窗口。
+- 当前发布候选基线：本轮 SQLite 后端 `1031 passed, 15 skipped, 0 failed`；前端 Vitest `202 passed`、Playwright `40 passed`，TypeScript、ESLint、Next.js 15.5.22 production build、双路由 Lighthouse 和生产依赖审计均已验证。
+- 当前迭代：R3 至 R5 已完成；R6 已完成 [隔离环境发布候选验证](docs/releases/20260727_r6_release_candidate.md)。真实生产凭据、HTTPS CORS、生产部署和回滚负责人仍待确认，当前不是生产已发布状态。
 
 ---
 
@@ -25,7 +25,7 @@
 
 | 层级 | 技术 |
 |------|------|
-| 前端 | Next.js 14.2.35 + React 18.2 + TypeScript 5.3 + Tailwind CSS 3.4 |
+| 前端 | Next.js 15.5.22 + React 18.2 + TypeScript 5.3 + Tailwind CSS 3.4 |
 | 图表与图标 | `lightweight-charts`、`lucide-react` |
 | 后端 | Python 3.12 + FastAPI 0.136.3 + Uvicorn 0.30.6 |
 | ORM / 迁移 | SQLAlchemy 2.0 + Alembic |
@@ -41,7 +41,7 @@
 
 ```text
 project_rich_snowball/
-├── frontend/                     # Next.js 14 前端
+├── frontend/                     # Next.js 15 前端
 │   ├── app/                      # 页面路由
 │   ├── components/               # React 组件（图表、行情、工作区、UI）
 │   ├── hooks/                    # 自定义 Hooks（行情轮询、K线、实时推送）
@@ -58,7 +58,7 @@ project_rich_snowball/
 │   ├── data_collector/           # 数据采集流水线与调度器
 │   ├── middleware/               # 中间件（限流、API 版本映射）
 │   ├── scripts/                  # 工具脚本（回填、迁移、验收）
-│   ├── tests/                    # pytest 测试（本轮 SQLite：1026 passed, 15 skipped）
+│   ├── tests/                    # pytest 测试（本轮 SQLite：1031 passed, 15 skipped）
 │   └── alembic/                  # 数据库迁移
 │
 ├── quantative_tools/             # 量化分析工具集
@@ -245,10 +245,11 @@ $env:ENABLE_SCHEDULER="0"
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-前端已配置 Vitest + Playwright 自动化测试（34 个 Vitest 文件 / 200 个测试，6 个 Playwright spec）。
+前端已配置 Vitest + Playwright 自动化测试（34 个 Vitest 文件 / 202 个测试，6 个 Playwright spec）。
 `.github/workflows/frontend-ci.yml` 在 PR 时执行 lint、type-check、build、Vitest 和 Lighthouse
 路由趋势 artifact，并由独立 job 执行 PostgreSQL、Alembic、backend 和 Chromium Playwright
-smoke。Frontend CI #28 是历史全链路验收，R5 的生产验证仍需新 CI。修改前端后至少运行：
+smoke。R6 候选门禁 Backend CI #31 与 Frontend CI #33 已通过；真实生产验证仍需在部署窗口执行。
+修改前端后至少运行：
 
 ```powershell
 cd D:\Code\project_rich_snowball\frontend

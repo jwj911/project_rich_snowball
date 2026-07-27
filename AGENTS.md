@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-07-26（R5 前端质量与观测趋势）
+> **最后更新**：2026-07-27（R6 发布候选基线）
 
 ---
 
@@ -16,9 +16,9 @@
 - **Agent 系统 Phase 0~2 已完成**并接入真实 SSE 进度流：DataAgent、DataQualityAgent、TechAnalysisAgent、RiskManagementAgent、AnalysisPipelineAgent、StrategyCompilerAgent、BacktestAgent、FactorMiningAgent、TraderAgent 已上线。
 - **策略进化（Strategy Evolution）已落地**：GA 进化循环、GP 因子生成、Pareto 适应度、贝叶斯优化、策略生命周期追踪。
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
-- **测试状态**：本轮 SQLite 全量后端测试为 `1026 passed, 15 skipped, 0 failed`，覆盖率历史基线为 `71.97%`；R5 前端 Vitest 为 `200 passed, 0 failed`，TypeScript、ESLint、production build、行情/详情 Playwright（18 passed）和 Lighthouse 均通过。
-- **远程验收**：Backend CI #22 与 Frontend CI #28（run `29670891119`）的 Alembic、PostgreSQL pytest、API smoke、Ruff、`pip-audit`、Chromium Playwright、Vitest 和 Lighthouse 全部通过。
-- **当前迭代**：Phase 3 文档与发布治理、Phase 4 SQL AST、PostgreSQL owner-scope 回归和私有数据访问边界收敛已完成；R3 已完成四种日频研究视图、换月/复权血缘、显式 Agent 消费和独立 worker 调度；R4 已完成共享 DSL transform 契约、日频 walk-forward 诊断和生命周期持久化；R5 已完成 Lighthouse 路由趋势、详情页失败态和 token/CSP 迁移边界，下一项为 R6 发布窗口。
+- **测试状态**：R6 本轮 SQLite 全量后端测试为 `1031 passed, 15 skipped, 0 failed`，覆盖率历史基线为 `71.97%`；前端 Vitest 为 `202 passed`，Playwright 为 `40 passed`，TypeScript、ESLint、Next.js 15.5.22 production build、Lighthouse 和生产依赖审计均通过。
+- **远程验收**：R6 候选提交 `c5e1a545` 已推送；[Backend CI #31](https://github.com/jwj911/project_rich_snowball/actions/runs/30234789780) 与 [Frontend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30233956592) 全部通过。
+- **当前迭代**：R3 至 R5 已完成；R6 已完成隔离 PostgreSQL 迁移/恢复、运行拓扑、API/权限、浏览器、性能和依赖安全的发布候选验证。真实生产凭据、HTTPS CORS、生产部署与回滚负责人仍待确认，当前不是生产已发布状态。
 - **文件审计**：2026-07-05 完成 Phase 1/2 清理，根目录精简至 7 个文件，文档迁入 `docs/guides/`、`docs/archive/` 与 `quantative_tools/reports/`，详见 [docs/audit_cleanup_20260705.md](docs/audit_cleanup_20260705.md)。
 
 ### 主要功能模块
@@ -111,7 +111,7 @@
 
 | 层级 | 技术 | 版本/说明 |
 |------|------|-----------|
-| 框架 | Next.js App Router | 14.2.35，`output: 'standalone'` |
+| 框架 | Next.js App Router | 15.5.22，`output: 'standalone'` |
 | UI | React + TypeScript | React 18.2.0，TypeScript 5.3.3 |
 | 样式 | Tailwind CSS | 3.4.1，自定义暗色主题，上涨红色/下跌绿色 |
 | 字体/图标 | geist / lucide-react | ^1.7.2 / ^0.312.0 |
@@ -120,7 +120,7 @@
 | 表单 | react-hook-form | ^7.76.0 |
 | 消息提示 | sonner | ^2.0.7 |
 | 性能采集 | web-vitals | ^5.2.0 |
-| 单元测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，34 个测试文件，200 个测试 |
+| 单元测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，34 个测试文件，202 个测试 |
 | E2E 测试 | Playwright | ^1.60.0，6 个 spec 文件 + `auth.setup.ts` |
 | 性能基线 | Lighthouse | `npm run lighthouse`，路由/提交/CI 趋势 artifact |
 
@@ -142,7 +142,7 @@ d:\Code\project_rich_snowball/
 ├── .agents/                  # AI 助手分册文档（8 个 md）
 ├── .github/workflows/        # CI/CD（backend-ci / frontend-ci / update-calendar）
 ├── docs/                     # 项目文档：guides / archive / 审计与迭代计划
-├── frontend/                 # Next.js 14 前端
+├── frontend/                 # Next.js 15 前端
 ├── python/                   # FastAPI 后端
 ├── quantative_tools/         # 量化因子/信号/策略/报告
 ├── AGENTS.md                 # 本文件

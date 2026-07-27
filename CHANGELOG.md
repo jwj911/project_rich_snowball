@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-07-27
+
+- 完成 R6 隔离环境发布候选验证：空 PostgreSQL 迁移至 `c0d1e2f3a4b5`，逻辑备份与恢复
+  演练、readiness、权限和 scheduler owner smoke 均通过。
+- 修复 scheduler 关闭时向 APScheduler 传入不支持参数的问题；Compose 强制部署方提供
+  `SECRET_KEY`、`CORS_ORIGINS` 与真实 `DATA_SOURCE`。
+- 前端升级至 Next.js 15.5.22，并固定安全版本的 PostCSS/sharp；production build、
+  Vitest 202 项、Playwright 40 项、双路由 Lighthouse 和生产依赖审计通过。
+- Mock 用户与评论改为按用户名解析真实外键，消除 PostgreSQL 序列前移后的启动失败；
+  Lighthouse CI 改用 3 个样本的 LCP 中位样本，并保留全部样本指标。
+- Backend CI #31 与 Frontend CI #33 全部通过，后者生成 5.42 KB 趋势 artifact。
+- 新增
+  [`docs/releases/20260727_r6_release_candidate.md`](docs/releases/20260727_r6_release_candidate.md)，
+  明确真实生产凭据、部署、CORS 和回滚负责人仍未验证，当前不是生产发布。
+
 ## 2026-07-26
 
 - R5 完成：Lighthouse 改为 `home` / `products` 命名路由趋势，记录 commit 和 CI 元数据、
