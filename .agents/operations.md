@@ -89,6 +89,19 @@ ruff check .
 ruff format .
 ```
 
+### 生产发布只读预检
+
+在已注入真实生产配置和发布元数据的受控环境中执行：
+
+```powershell
+cd python
+.venv/Scripts/python.exe scripts/release_preflight.py --report-path release_preflight_report.json
+```
+
+预检固定执行 11 项检查并输出带独立 `trace_id` 的脱敏 JSON。退出码 `0` 表示通过，`1`
+表示门禁失败，`2` 表示报告写入失败。命令除写入指定报告外，不连接或修改数据库、Redis、
+部署状态及发布清单。CI 使用 placeholder 输入只验证 CLI/报告契约，不得作为生产证据。
+
 ## 关键环境变量
 
 | 变量 | 必需 | 默认值 | 说明 |
@@ -97,11 +110,12 @@ ruff format .
 | `DATABASE_URL` | 否 | `sqlite:///./futures_community.db` | 数据库连接串 |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | 否 | `15` | Access token 过期时间（分钟） |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | 否 | `7` | Refresh token 过期时间（天） |
-| `CORS_ORIGINS` | 生产建议必填 | `localhost/127.0.0.1:3000,3200` | CORS 白名单，兼容旧变量 `ALLOW_ORIGINS` |
-| `DATA_SOURCE` | 否 | `mock` | `mock` / `akshare` / `tushare` / `auto` |
+| `CORS_ORIGINS` | 生产必填 | `localhost/127.0.0.1:3000,3200` | 生产只允许显式 HTTPS 来源，禁止通配符、localhost 和 loopback；兼容旧变量 `ALLOW_ORIGINS` |
+| `DATA_SOURCE` | 生产必填 | `mock` | `mock` / `akshare` / `tushare` / `auto`；生产预检拒绝 `mock` |
 | `TUSHARE_TOKEN` | Tushare 必填 | — | Tushare Pro Token |
 | `ENABLE_SCHEDULER` | 否 | `0` | `1` 启用，`0` 禁用（API 默认禁用） |
 | `ENV` | 否 | `development` | `development` / `production` |
+| `SSE_DEPLOYMENT_MODE` | 生产必填 | 非生产默认 `single` | 生产只接受 `single` 或 `sticky`；不代表已具备跨实例连接管理 |
 | `HOST` | 否 | `127.0.0.1` | 后端监听地址 |
 | `PORT` | 否 | `8401` | 后端监听端口 |
 | `REALTIME_REFRESH_INTERVAL_SECONDS` | 否 | `60` | 实时行情刷新间隔（秒） |
@@ -111,7 +125,12 @@ ruff format .
 | `RATE_LIMIT_MAX_REQUESTS` | 否 | `100` | 限流窗口内最大请求数 |
 | `PIPELINE_COMMIT_BATCH_SIZE` | 否 | `50` | Pipeline 批量提交大小 |
 | `CIRCUIT_FAILURE_THRESHOLD` | 否 | `0.5` | 熔断器失败阈值比例 |
-| `REDIS_URL` | 否 | — | Redis 连接串，留空则使用内存 LRU 降级 |
+| `REDIS_URL` | 生产必填 | — | 缓存及 realtime UTC 时间戳共享标记；运行中不可用时 SSE 每 60 秒有界刷新 |
+| `RELEASE_COMMIT` | 发布预检必填 | — | 待发布 Git 提交 |
+| `RELEASE_WINDOW_UTC` | 发布预检必填 | — | UTC 时间点或 `start/end` 区间 |
+| `RELEASE_OWNER` | 发布预检必填 | — | 发布负责人 |
+| `ROLLBACK_OWNER` | 发布预检必填 | — | 回滚负责人 |
+| `RELEASE_PREFLIGHT_REPORT_PATH` | 否 | `release_preflight_report.json` | 脱敏预检报告输出路径 |
 | `NEXT_PUBLIC_API_BASE` | 前端可选 | `http://127.0.0.1:8401` | 前端请求后端地址 |
 | `OPENAI_API_KEY` | AI 可选 | — | OpenAI 兼容 API Key |
 | `OPENAI_BASE_URL` | AI 可选 | `https://api.openai.com/v1` | OpenAI 兼容 Base URL |
@@ -143,8 +162,11 @@ ruff format .
 
 ### GitHub Actions
 
-- `.github/workflows/backend-ci.yml`：pytest + ruff + pip-audit + Alembic 迁移一致性检查 + pytest-cov（阈值 40%），使用 `requirements.lock`，Python 3.12，CI 内嵌 PostgreSQL service；Backend CI #22 已全绿。
-- `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → Vitest → Lighthouse 基线；独立 job 执行 PostgreSQL/Alembic/backend/Chromium Playwright smoke。Test 与 Lighthouse 均显式使用 `frontend/` 工作目录，并上传 Vitest 失败日志；Frontend CI #28 已全绿。
+- `.github/workflows/backend-ci.yml`：依赖锁检查 + R7 placeholder preflight 契约门禁 + Alembic +
+  PostgreSQL pytest/API smoke + Ruff check/format + `pip-audit`，pytest-cov 阈值为 40%；
+  [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
+  已成功。placeholder preflight 不是生产证据。
+- `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → Vitest → Lighthouse 基线；独立 job 执行 PostgreSQL/Alembic/backend/Chromium Playwright smoke。R7 无前端变更且未重跑，R6 Frontend CI 结果仅为历史证据。
 - Lighthouse 采集 `home` / `products` 命名路由，记录 commit 和 CI 元数据；workflow 会恢复最近的
   `lighthouse-trend-history` artifact，并上传新的趋势/历史/最新 JSON，保留 90 天。
 - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发。
@@ -165,7 +187,8 @@ ruff format .
 
 - `postgres`：PostgreSQL 16-alpine，端口 15432，用户 `futures`/`futures123`
 - `redis`：Redis 7-alpine，端口 6379，AOF 持久化
-- `backend`：FastAPI 服务，端口 8401，依赖 postgres 和 redis，带健康检查
+- `backend`：FastAPI 服务，端口 8401，依赖 postgres 和 redis，带健康检查，scheduler 关闭
+- `worker`：唯一 scheduler owner；与 backend 显式共享 `REDIS_URL` 和 `SSE_DEPLOYMENT_MODE`
 
 ## 代码风格
 

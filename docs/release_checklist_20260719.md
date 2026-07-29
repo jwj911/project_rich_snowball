@@ -9,7 +9,13 @@
 - [ ] 发布提交：`<commit>`
 - [ ] 发布窗口：`<UTC time>`
 - [ ] 变更范围：`<summary>`
+- [ ] 发布负责人：`<owner>`
 - [ ] 回滚负责人：`<owner>`
+- [ ] 使用真实生产输入执行 `python/scripts/release_preflight.py`，11 项检查全部通过。
+- [ ] 保存带独立 `trace_id` 的脱敏 JSON 报告；确认报告、stdout/stderr 和日志无原始凭据。
+
+预检是只读门禁，只允许写指定报告文件，不修改数据库、Redis、部署状态或本清单。CI
+placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项。
 
 ## 2. 代码与依赖
 
@@ -20,14 +26,16 @@
 - [ ] 后端 pytest 失败数为 `0`，跳过项有明确原因。
 - [ ] 前端 Vitest 失败数为 `0`。
 
-当前发布候选基线（2026-07-27）：
+当前工程基线（2026-07-30）：
 
-- 后端：本轮 SQLite `1031 passed, 15 skipped, 0 failed`，全仓 Ruff 通过。
-- 前端：Next.js 15.5.22 production build、Vitest `202 passed`、Playwright `40 passed`，
-  双路由 Lighthouse 和 `npm audit --omit=dev` 均通过。
+- 后端：R7 本地全量 `1103 passed, 15 skipped, 0 failed`；两轮聚焦回归分别为
+  `106 passed` 和补强后的 `90 passed`，Ruff check/format、diff check 与 Compose config
+  均通过。
+- 前端：R7 无变更且未重跑。Next.js 15.5.22 production build、Vitest `202 passed`、
+  Playwright `40 passed`、双路由 Lighthouse 和 `npm audit --omit=dev` 均为 R6 历史基线。
 - 详细证据见
-  [`releases/20260727_r6_release_candidate.md`](releases/20260727_r6_release_candidate.md)；
-  该记录仍是隔离环境工程基线，不是生产发布。
+  [`releases/20260730_r7_release_gates.md`](releases/20260730_r7_release_gates.md)；
+  该记录是发布门禁工程基线，不是生产发布。
 
 ## 3. 数据库与数据
 
@@ -45,8 +53,17 @@
 - [ ] `CORS_ORIGINS` 仅包含实际前端来源。
 - [ ] API 使用 `ENABLE_SCHEDULER=0`。
 - [ ] 仅一个独立 worker 使用 `ENABLE_SCHEDULER=1`。
+- [ ] backend 与 worker 使用相同 `REDIS_URL`，worker 成功刷新后 Redis
+  `futures:realtime:update_time` 仅包含 UTC 时间戳。
+- [ ] `SSE_DEPLOYMENT_MODE` 明确设置为 `single` 或 `sticky`；`sticky` 的会话亲和已在
+  负载均衡层验证。
+- [ ] Redis 中断时 SSE 60 秒有界刷新及恢复路径在目标环境验证。
 - [ ] `/health/ready`、`/health/scheduler` 和关键 API smoke 通过。
 - [ ] 管理页面和普通用户权限各验证一次。
+
+当前 Redis 标记不包含行情内容，只解决 worker/API 更新感知。Redis Pub/Sub、跨实例连接
+注册、全局连接上限和跨实例旧连接取消尚未实现，不得把 `single|sticky` 表述为完整的
+多实例 SSE 能力。
 
 ## 5. 浏览器与性能
 
@@ -57,10 +74,13 @@
 
 当前远程证据：
 
-- [Backend CI #31](https://github.com/jwj911/project_rich_snowball/actions/runs/30234789780)
-- [Frontend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30233956592)
+- [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)：
+  R7 当前成功门禁。
+- [Frontend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30233956592)：
+  R6 历史基线，本轮未重跑。
 
-两条远程门禁均已成功，详细步骤与 artifact 证据写入对应发布记录。
+Backend CI #33 覆盖依赖锁、R7 placeholder preflight、Alembic、PostgreSQL pytest/API
+smoke、Ruff 和 `pip-audit`。远程 CI 不替代真实生产凭据、部署、备份恢复或负责人确认。
 
 ## 6. 回滚
 

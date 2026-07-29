@@ -58,10 +58,11 @@ Agent 系统按「功能能力」拆分，每个 Agent 有清晰边界、稳定�
 - `tests/test_backtest_agent.py`、`tests/test_strategy_compiler.py`、`tests/test_factor_mining_agent.py`、`tests/test_data_quality_agent.py`：对应 Agent 核心链路
 - `tests/test_trader_modules.py`、`tests/test_trader_agent.py`：TraderAgent 子模块与集成测试
 
-当前 Agent 相关 pytest 已新增 trader 专项 18 个；项目已补齐 `scikit-learn` lock，本轮 SQLite
-全量后端测试为 `1031 passed, 15 skipped, 0 failed`，前端 Vitest 为 `202 passed, 0 failed`。
-R6 候选提交 `c5e1a545` 的 Backend CI #31 与 Frontend CI #33 已通过；更早 CI
-仅作为历史证据。
+当前 Agent 相关 pytest 已新增 trader 专项 18 个；项目已补齐 `scikit-learn` lock。R7
+本地全量后端为 `1103 passed, 15 skipped, 0 failed`，两轮 R7 聚焦回归分别为
+`106 passed` 和补强后的 `90 passed`。[Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
+已通过。R7 未改前端且未重跑前端测试；R6 的 Vitest `202 passed`、Playwright `40 passed`
+和 Frontend CI 仅作为历史证据。
 
 ## 数据库模型
 

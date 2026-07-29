@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-07-30
+
+- R7 新增 11 项只读生产发布预检，覆盖生产环境、PostgreSQL、强密钥、安全 CORS、真实数据源、
+  Redis、发布提交/UTC 窗口/负责人及 `SSE_DEPLOYMENT_MODE`；每次输出独立 `trace_id`
+  和脱敏结构化 JSON，不修改数据库、Redis、部署状态或发布清单。
+- realtime quotes 成功刷新后由 worker 更新本地状态并向 Redis 写入仅含 UTC 时间戳的共享标记；
+  API 使用本地/共享标记中的较新值驱动 SSE，Redis 不可用时按 60 秒有界周期刷新并记录脱敏
+  降级/恢复事件。
+- 生产 SSE 部署模式仅接受 `single` 或 `sticky`；本轮未实现 Redis Pub/Sub、跨实例连接注册、
+  全局连接上限或跨实例旧连接取消。
+- R7 主提交为 `753a599bab95ffc7205823f445f2b980d3c3e1fc`，Ruff CI 修复后的最终提交为
+  `b6cd75756b960eeba169c92531dbcfc3cd6b706a`。本地全量后端为
+  `1103 passed, 15 skipped, 0 failed`；两轮聚焦回归分别为 `106 passed` 和 `90 passed`，
+  Ruff check/format、diff check 与 Compose config 均通过。
+- [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
+  成功，覆盖依赖锁、R7 placeholder preflight、Alembic、PostgreSQL pytest/API smoke、Ruff
+  和 `pip-audit`；placeholder preflight 只验证契约，不是生产凭据或生产发布证据。
+- 前端本轮无变更且未重跑；R6 前端结果仅保留为历史基线。新增
+  [`docs/releases/20260730_r7_release_gates.md`](docs/releases/20260730_r7_release_gates.md)，
+  明确真实生产凭据、部署、备份恢复、发布/回滚负责人仍未完成，当前不是生产已发布。
+
 ## 2026-07-27
 
 - 完成 R6 隔离环境发布候选验证：空 PostgreSQL 迁移至 `c0d1e2f3a4b5`，逻辑备份与恢复

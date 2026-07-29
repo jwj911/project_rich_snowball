@@ -160,8 +160,33 @@ R3 已收口，并作为 R4 的数据口径基础。
 - 候选提交 `c5e1a545` 已推送；Backend CI #31 与 Frontend CI #33 已通过，发布记录见
   [`docs/releases/20260727_r6_release_candidate.md`](../docs/releases/20260727_r6_release_candidate.md)。
 
-当前下一项：取得真实生产凭据与 HTTPS CORS，指定发布/回滚负责人，并在真实生产窗口重新执行
-迁移、备份、部署、readiness、权限与前端 smoke。完成前不得标记为生产已发布。
+R6 后续已进入 R7 发布门禁加固；R6 前端结果继续作为历史基线，不替代 R7 或真实生产窗口验证。
+
+### R7：生产发布门禁与 SSE 更新信号 — 工程基线已完成（2026-07-30）
+
+- 新增 11 项只读生产预检，覆盖 `ENV`、PostgreSQL、强密钥、安全 HTTPS CORS、真实数据源、
+  Redis、发布提交、UTC 窗口、发布/回滚负责人及 `SSE_DEPLOYMENT_MODE`；
+- 每次预检生成独立 `trace_id` 和脱敏结构化 JSON；CLI 不修改数据库、Redis、部署状态或
+  发布清单；
+- worker 成功刷新 realtime quotes 后更新本地状态，并向 Redis 写入只含 UTC 时间戳的共享
+  标记；API 使用本地/共享标记中的较新值驱动 SSE；
+- Redis 不可用时保留本地状态，并按 60 秒有界周期强制刷新；恢复后自动重新读取共享标记；
+- 生产 SSE 模式仅允许 `single|sticky`。连接注册、每用户旧连接取消和全局连接上限仍为
+  实例内状态，本轮未实现 Redis Pub/Sub 或跨实例连接管理；
+- R7 主提交为 `753a599bab95ffc7205823f445f2b980d3c3e1fc`，Ruff CI 修复后的最终提交为
+  `b6cd75756b960eeba169c92531dbcfc3cd6b706a`；
+- 本地全量后端 `1103 passed, 15 skipped, 0 failed`；两轮聚焦回归分别为
+  `106 passed` 和补强后的 `90 passed`，Ruff check/format、diff check 与 Compose config
+  均通过；
+- [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
+  成功。CI placeholder preflight 只验证契约，不是生产证据；
+- 前端无变更且本轮未重跑；R6 前端验证只作为历史证据。
+
+发布记录见
+[`docs/releases/20260730_r7_release_gates.md`](../docs/releases/20260730_r7_release_gates.md)。
+当前规格下一项为 Task 7 的文档原子提交与远程同步，本次文档任务不执行提交或推送。生产侧下一项
+仍是取得真实生产凭据，指定发布/回滚负责人，并在真实生产窗口完成备份恢复、部署和 smoke；
+完成前不得标记为生产已发布。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 
@@ -189,7 +214,8 @@ R3 已收口，并作为 R4 的数据口径基础。
 
 - 方案 B：废弃 stream-token，SSE 鉴权统一走 cookie-only 路径
 - `/api/realtime/stream-token` endpoint 标记 `deprecated=True`
-- SSE 连接为进程内状态，单实例或 sticky session 部署
+- SSE 连接管理仍为进程内状态，生产只允许 `single|sticky`；R7 已增加 worker/API Redis
+  时间戳共享标记，但未实现 Pub/Sub 或跨实例连接注册/取消
 
 ### 交易时段 badge 后端权威化 — 已完成（2026-05-29）
 

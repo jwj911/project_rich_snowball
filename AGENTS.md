@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-07-27（R6 发布候选基线）
+> **最后更新**：2026-07-30（R7 生产发布门禁工程基线）
 
 ---
 
@@ -16,9 +16,9 @@
 - **Agent 系统 Phase 0~2 已完成**并接入真实 SSE 进度流：DataAgent、DataQualityAgent、TechAnalysisAgent、RiskManagementAgent、AnalysisPipelineAgent、StrategyCompilerAgent、BacktestAgent、FactorMiningAgent、TraderAgent 已上线。
 - **策略进化（Strategy Evolution）已落地**：GA 进化循环、GP 因子生成、Pareto 适应度、贝叶斯优化、策略生命周期追踪。
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
-- **测试状态**：R6 本轮 SQLite 全量后端测试为 `1031 passed, 15 skipped, 0 failed`，覆盖率历史基线为 `71.97%`；前端 Vitest 为 `202 passed`，Playwright 为 `40 passed`，TypeScript、ESLint、Next.js 15.5.22 production build、Lighthouse 和生产依赖审计均通过。
-- **远程验收**：R6 候选提交 `c5e1a545` 已推送；[Backend CI #31](https://github.com/jwj911/project_rich_snowball/actions/runs/30234789780) 与 [Frontend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30233956592) 全部通过。
-- **当前迭代**：R3 至 R5 已完成；R6 已完成隔离 PostgreSQL 迁移/恢复、运行拓扑、API/权限、浏览器、性能和依赖安全的发布候选验证。真实生产凭据、HTTPS CORS、生产部署与回滚负责人仍待确认，当前不是生产已发布状态。
+- **测试状态**：R7 本地全量后端为 `1103 passed, 15 skipped, 0 failed`；两轮聚焦回归分别为 `106 passed` 和补强后的 `90 passed`，Ruff check/format、diff check 与 Compose config 均通过。前端本轮无变更且未重跑；R6 的 Vitest `202 passed`、Playwright `40 passed`、TypeScript、ESLint、Next.js 15.5.22 build 与 Lighthouse 仅为历史基线。
+- **远程验收**：R7 主提交为 `753a599b`，Ruff CI 修复后的最终提交为 `b6cd7575`；[Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137) 成功，覆盖依赖锁、R7 placeholder preflight、Alembic、PostgreSQL pytest/API smoke、Ruff 和 `pip-audit`。placeholder preflight 不是生产证据。
+- **当前迭代**：R7 已完成 11 项只读预检、脱敏 `trace_id` JSON、worker/API Redis 时间戳共享标记、Redis 降级 60 秒有界刷新，以及生产 `single|sticky` SSE 模式门禁。本轮未实现 Pub/Sub 或跨实例连接管理；真实生产凭据、部署、备份恢复和发布/回滚负责人仍待完成，当前不是生产已发布状态。
 - **文件审计**：2026-07-05 完成 Phase 1/2 清理，根目录精简至 7 个文件，文档迁入 `docs/guides/`、`docs/archive/` 与 `quantative_tools/reports/`，详见 [docs/audit_cleanup_20260705.md](docs/audit_cleanup_20260705.md)。
 
 ### 主要功能模块
@@ -66,6 +66,7 @@
 | [docs/r4_dsl_walk_forward_validation.md](docs/r4_dsl_walk_forward_validation.md) | DSL transform 语义、walk-forward 窗口、报告和生命周期查询规则 |
 | [docs/r5_frontend_quality_observability.md](docs/r5_frontend_quality_observability.md) | Lighthouse 趋势、页面失败态、虚拟滚动决策和 CSP/token 迁移边界 |
 | [docs/releases/README.md](docs/releases/README.md) | 按版本维护的工程基线与生产发布记录 |
+| [docs/releases/20260730_r7_release_gates.md](docs/releases/20260730_r7_release_gates.md) | R7 生产发布门禁工程基线，非生产发布 |
 | [docs/phase4_sql_ast_readonly.md](docs/phase4_sql_ast_readonly.md) | Phase 4 Agent SQL AST 只读校验实施记录 |
 | [docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md](docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md) | 数据管道与 PostgreSQL 配置 |
 | [docs/guides/TUSHARE_POSTGRES_VERIFICATION.md](docs/guides/TUSHARE_POSTGRES_VERIFICATION.md) | Tushare 数据验证 |
@@ -398,7 +399,10 @@ npm run lighthouse
 
 ### 部署安全
 
-- SSE 连接状态为进程内内存，多实例需 sticky session 或 Redis pub/sub。
+- 生产必须显式设置 `SSE_DEPLOYMENT_MODE=single|sticky`。Redis 只共享 realtime quotes
+  更新时间戳；SSE 连接注册、单用户旧连接取消和全局上限仍由实例本地管理。
+- 本轮未实现 Redis Pub/Sub 或跨实例连接管理；`sticky` 必须由负载均衡保证会话亲和，
+  `single` 只允许一个 API 实例承载 SSE。
 - 生产环境 scheduler 应运行独立 `python/worker.py`，避免 API 进程混入定时任务。
 - Docker 镜像使用非 root 用户 `app`，带健康检查。
 
@@ -410,14 +414,15 @@ npm run lighthouse
 
 | Workflow | 触发条件 | 内容 |
 |----------|----------|------|
-| `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，安装 `requirements.lock`，依赖锁漂移检查，Alembic `upgrade head`，pytest + coverage（阈值 40%），PostgreSQL API smoke，ruff lint，pip-audit 安全扫描 |
+| `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，安装 `requirements.lock`，依赖锁漂移检查，R7 placeholder preflight 契约门禁、Alembic `upgrade head`、pytest + coverage（阈值 40%）、PostgreSQL API smoke、Ruff check/format、pip-audit |
 | `.github/workflows/frontend-ci.yml` | `frontend/**`、workflow 本身变更 | Node 20，`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test` → Lighthouse 路由趋势 artifact；独立 job 执行 PostgreSQL + Alembic + backend + Playwright Chromium smoke |
 | `.github/workflows/update-calendar.yml` | 每年 1 月 1 日 cron + manual | 更新交易日历 `python/data/trading_calendar.json` 并提交 |
 
 ### Docker
 
 - **`python/Dockerfile`**：基于 `python:3.11-slim`，非 root `app` 用户，健康检查 `curl -f http://localhost:8401/health`，默认 `uvicorn main:app --host 0.0.0.0 --port 8401`。
-- **`docker-compose.yml`**：PG + Redis + backend + worker；backend 关闭 scheduler，worker 独占定时采集，backend 带健康检查与依赖条件。
+- **`docker-compose.yml`**：PG + Redis + backend + worker；backend 关闭 scheduler，worker 独占定时采集，
+  两者显式共享 `REDIS_URL` 和 `SSE_DEPLOYMENT_MODE`，backend 带健康检查与依赖条件。
 
 ---
 

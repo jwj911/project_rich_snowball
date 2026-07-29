@@ -1,13 +1,13 @@
 # 后续迭代计划：安全边界、数据基础与发布收口
 
 > 计划日期：2026-07-24
-> 当前状态：R1 至 R5 已完成；R6 隔离环境发布候选已完成，真实生产发布仍待执行
+> 当前状态：R1 至 R7 工程项已完成；R7 为生产发布门禁工程基线，真实生产发布仍待执行
 > 适用范围：Phase 4 后续安全回归、数据基础、策略验证、前端质量和生产发布治理
 > 上一份事实源：[`iteration_plan_20260718_project_audit.md`](iteration_plan_20260718_project_audit.md)
 
 ## 1. 当前基线
 
-截至 2026-07-26，项目已经完成：
+截至 2026-07-30，项目已经完成：
 
 - Phase 0 可运行性收口、Phase 1 行情读模型收敛、Phase 2 执行可靠性与生产拓扑；
 - Phase 3 文档与发布治理，包括发布清单、工程基线记录和历史计划归档；
@@ -16,10 +16,15 @@
 
 当前可复现工程基线：
 
-- 后端：R6 本轮 SQLite `1031 passed, 15 skipped, 0 failed`，coverage 历史基线 `71.97%`；
-- 前端：Next.js 15.5.22、Vitest `202 passed, 0 failed`、Playwright `40 passed`；
-  TypeScript、ESLint、production build、双路由 Lighthouse 和生产依赖审计均通过；
-- 本轮关联文件 Ruff、Python 编译和既有 TypeScript、ESLint、production build/CI 证据均通过；
+- 后端：R7 本地全量 `1103 passed, 15 skipped, 0 failed`，两轮聚焦回归分别为
+  `106 passed` 和补强后的 `90 passed`；
+- Ruff check/format、diff check 与 Compose config 均通过；
+- [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
+  成功，覆盖依赖锁、R7 placeholder preflight、Alembic、PostgreSQL pytest/API smoke、
+  Ruff 和 `pip-audit`；placeholder preflight 不是生产证据；
+- 前端本轮无变更且未重跑。Next.js 15.5.22、Vitest `202 passed, 0 failed`、Playwright
+  `40 passed`、TypeScript、ESLint、production build、双路由 Lighthouse 和生产依赖审计
+  均为 R6 历史基线；
 - 以上均为工程基线，不等同于生产发布。生产发布仍需逐项执行
   [`release_checklist_20260719.md`](release_checklist_20260719.md)。
 
@@ -194,6 +199,31 @@ R3.3 至 R3.6 实施结果：
 真实生产凭据、HTTPS CORS、生产迁移/备份/部署、回滚负责人和生产 SSE 多实例策略仍未验证，
 因此 R6 只能标记为发布候选，不能标记为生产已发布。
 
+### R7：生产发布门禁与 SSE 更新信号（P1，工程基线已完成）
+
+**目标**：把生产发布输入转化为只读、可审计门禁，并让独立 worker 与 API 共享 realtime
+quotes 更新信号，同时保持不具备分布式连接管理时的部署边界。
+
+实施结果：
+
+1. 新增 11 项只读预检：`ENV=production`、PostgreSQL、至少 32 字符密钥、安全 HTTPS
+   CORS、非 mock 数据源、Redis、发布提交、UTC 发布窗口、发布负责人、回滚负责人和
+   `SSE_DEPLOYMENT_MODE=single|sticky`；
+2. 每次预检输出独立 `trace_id` 和脱敏结构化 JSON；除报告文件外，不修改数据库、Redis、
+   部署状态或发布清单；
+3. worker 成功刷新 realtime quotes 后更新本地状态，并向 Redis 写入仅含 UTC 时间戳的
+   共享标记；API 使用本地/共享标记中的较新值决定 SSE 查询和推送；
+4. Redis 不可用时保留本地状态，按 60 秒有界周期重新查询；恢复后自动回到共享标记路径；
+5. 生产 SSE 只支持 `single|sticky`。本轮未实现 Redis Pub/Sub、跨实例连接注册、全局连接
+   上限或跨实例旧连接取消；
+6. 主提交为 `753a599bab95ffc7205823f445f2b980d3c3e1fc`，Ruff CI 修复后的最终提交为
+   `b6cd75756b960eeba169c92531dbcfc3cd6b706a`；
+7. 完整证据见
+   [`releases/20260730_r7_release_gates.md`](releases/20260730_r7_release_gates.md)。
+
+真实生产凭据、生产部署、发布前备份与恢复验证、发布/回滚负责人仍未完成，因此 R7
+只能标记为工程基线或发布候选，不能标记为生产已发布。
+
 ## 4. 本轮执行拆分
 
 R1 与 R2 保持原子化执行：
@@ -222,6 +252,10 @@ R1 与 R2 保持原子化执行：
 | R4 策略验证闭环 | 已完成 | `r4_dsl_walk_forward_validation.md` |
 | R5 前端质量与观测趋势 | 已完成 | `r5_frontend_quality_observability.md` |
 | R6 真实发布窗口 | 发布候选已完成 | `releases/20260727_r6_release_candidate.md`；生产部署待执行 |
+| R7 生产发布门禁与 SSE 更新信号 | 工程基线已完成 | `releases/20260730_r7_release_gates.md`；真实生产操作待执行 |
+
+当前规格下一项为 Task 7 的文档原子提交与远程同步，本次 Task 6 文档更新不执行提交或推送。
+生产侧下一项为取得真实生产凭据和负责人，在真实窗口完成备份恢复、部署与 smoke。
 
 ## 7. R1 执行记录（2026-07-24）
 
@@ -323,3 +357,20 @@ R1 与 R2 保持原子化执行：
 - 完整证据、CI 链接、回滚点和未完成生产项见
   [`releases/20260727_r6_release_candidate.md`](releases/20260727_r6_release_candidate.md)。
 - Backend CI #31 与 Frontend CI #33 均成功，Lighthouse 趋势 artifact 已上传。
+
+## 15. R7 生产发布门禁执行记录（2026-07-30）
+
+- 主提交：`753a599bab95ffc7205823f445f2b980d3c3e1fc`；
+- Ruff CI 修复及最终验证提交：`b6cd75756b960eeba169c92531dbcfc3cd6b706a`；
+- R7 聚焦回归：`106 passed`；补强后的另一轮聚焦回归：`90 passed`；
+- 本地全量后端：`1103 passed, 15 skipped, 0 failed`；
+- Ruff check/format、diff check 与 Compose config：通过；
+- [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
+  成功，包含依赖锁、R7 placeholder preflight、Alembic、PostgreSQL pytest/API smoke、
+  Ruff 和 `pip-audit`；
+- CI placeholder preflight 只验证 11 项门禁的 CLI/报告契约，不提供真实生产凭据、部署或
+  发布证据；
+- 前端无变更且本轮未重跑；R6 前端基线只作为历史证据；
+- 当前未完成：真实生产凭据、发布窗口部署、发布前备份恢复验证、发布/回滚负责人，以及
+  Pub/Sub/跨实例 SSE 连接管理。完整边界见
+  [`releases/20260730_r7_release_gates.md`](releases/20260730_r7_release_gates.md)。

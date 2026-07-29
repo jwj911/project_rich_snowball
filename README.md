@@ -16,8 +16,9 @@
 - 价格预警：用户为品种设置 above/below 价格预警，实时行情刷新时自动检测触发
 - 模拟持仓：用户创建虚拟交易记录，支持做多/做空、盈亏计算与复盘统计
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
-- 当前发布候选基线：本轮 SQLite 后端 `1031 passed, 15 skipped, 0 failed`；前端 Vitest `202 passed`、Playwright `40 passed`，TypeScript、ESLint、Next.js 15.5.22 production build、双路由 Lighthouse 和生产依赖审计均已验证。
-- 当前迭代：R3 至 R5 已完成；R6 已完成 [隔离环境发布候选验证](docs/releases/20260727_r6_release_candidate.md)。真实生产凭据、HTTPS CORS、生产部署和回滚负责人仍待确认，当前不是生产已发布状态。
+- 当前后端工程基线：R7 本地全量 `1103 passed, 15 skipped, 0 failed`；两轮聚焦回归分别为 `106 passed` 和补强后的 `90 passed`，Ruff check/format、diff check 与 Compose config 均通过。
+- 当前迭代：R7 已完成 [只读生产发布门禁与 SSE 更新信号加固](docs/releases/20260730_r7_release_gates.md)。[Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137) 已成功；CI placeholder preflight 只验证契约，不是生产证据。
+- 前端本轮无变更且未重跑；R6 的 Vitest `202 passed`、Playwright `40 passed`、Next.js 15.5.22 build 与 Lighthouse 仅为历史基线。真实生产凭据、部署、备份恢复和发布/回滚负责人仍未完成，当前不是生产已发布状态。
 
 ---
 
@@ -58,7 +59,7 @@ project_rich_snowball/
 │   ├── data_collector/           # 数据采集流水线与调度器
 │   ├── middleware/               # 中间件（限流、API 版本映射）
 │   ├── scripts/                  # 工具脚本（回填、迁移、验收）
-│   ├── tests/                    # pytest 测试（本轮 SQLite：1031 passed, 15 skipped）
+│   ├── tests/                    # pytest 测试（R7 全量：1103 passed, 15 skipped）
 │   └── alembic/                  # 数据库迁移
 │
 ├── quantative_tools/             # 量化分析工具集
@@ -98,6 +99,8 @@ SECRET_KEY=change-this-to-a-real-secret
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:3200,http://127.0.0.1:3200
 DATA_SOURCE=mock
 ENABLE_SCHEDULER=1
+REDIS_URL=redis://localhost:6379/0
+SSE_DEPLOYMENT_MODE=single
 ENV=development
 HOST=127.0.0.1
 PORT=8401
@@ -108,6 +111,8 @@ PORT=8401
 - 后端优先读取 `CORS_ORIGINS`，也兼容旧变量 `ALLOW_ORIGINS`。
 - 前端 API 地址由 `NEXT_PUBLIC_API_BASE` 控制，代码默认是 `http://127.0.0.1:8401`。
 - 若使用 `DATA_SOURCE=tushare`，需要提供 `TUSHARE_TOKEN`。
+- 生产必须显式提供 `REDIS_URL` 和 `SSE_DEPLOYMENT_MODE=single|sticky`。Redis 只共享
+  realtime quotes 更新时间戳；本轮未实现 Pub/Sub 或跨实例连接管理。
 
 ---
 
@@ -245,10 +250,17 @@ $env:ENABLE_SCHEDULER="0"
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-前端已配置 Vitest + Playwright 自动化测试（34 个 Vitest 文件 / 202 个测试，6 个 Playwright spec）。
+R7 本地全量后端为 `1103 passed, 15 skipped, 0 failed`；两轮聚焦回归分别为
+`106 passed` 和补强后的 `90 passed`。
+
+前端已配置 Vitest + Playwright 自动化测试（R6 历史基线：34 个 Vitest 文件 / 202 个测试，
+6 个 Playwright spec）。
 `.github/workflows/frontend-ci.yml` 在 PR 时执行 lint、type-check、build、Vitest 和 Lighthouse
 路由趋势 artifact，并由独立 job 执行 PostgreSQL、Alembic、backend 和 Chromium Playwright
-smoke。R6 候选门禁 Backend CI #31 与 Frontend CI #33 已通过；真实生产验证仍需在部署窗口执行。
+smoke。R7 未修改前端且本轮未重跑前端门禁；R6 Frontend CI 仅为历史证据。
+[Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
+覆盖依赖锁、R7 placeholder preflight、Alembic、PostgreSQL pytest/API smoke、Ruff 和
+`pip-audit`，但 placeholder preflight 不是生产验证。
 修改前端后至少运行：
 
 ```powershell
@@ -308,7 +320,10 @@ Tushare 历史回填脚本位于 `python/tushare_pg_ingest/`，包含日线、�
 
 - `python/init_data.py` 已不是当前主流程的一部分，启动初始化在 `data_collector/init_mock_data.py` 和 `init_varieties.py`。
 - `docker-compose.yml` 提供 backend + 独立 worker；backend 使用 `ENABLE_SCHEDULER=0`，worker 是生产环境唯一的 scheduler owner。
-- 缓存层已实现 Redis 优先 + 内存 LRU 降级，生产环境建议强制 Redis。
+- worker 成功刷新 realtime quotes 后向 Redis 写入只含 UTC 时间戳的共享标记；API 使用本地/
+  共享标记中的较新值驱动 SSE。Redis 不可用时按 60 秒有界周期刷新。
+- SSE 连接注册、每用户旧连接取消和全局连接上限仍为实例内状态；生产只支持
+  `single|sticky`，尚未实现 Pub/Sub 或跨实例连接管理。
 - `DATA_SOURCE=auto` 或真实数据源初始化失败时，非生产环境会降级到 Mock；生产环境不允许降级 Mock。
 - 数据管道与 PostgreSQL 配置详见 [docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md](docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md)。
 - Tushare 验证指南详见 [docs/guides/TUSHARE_POSTGRES_VERIFICATION.md](docs/guides/TUSHARE_POSTGRES_VERIFICATION.md)。

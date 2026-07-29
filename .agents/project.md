@@ -17,14 +17,18 @@
   - 5-6 全量测试 + 提交到 master（历史基线）
 - **Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 8 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理 / 分析流水线 / 回测 / 策略编排 / 因子挖掘），执行过程通过 SSE 流式展示。
 - 近期新增：策略工作台（`/strategies`）、策略参数优化（`/strategies/{id}/optimize`）、回测信号可视化（K 线叠加标记）、预警中心（`/alerts`）、Agent 工作台（`/agents`）。
-- **当前质量基线（2026-07-27）**：本轮 SQLite 后端 `1031 passed, 15 skipped, 0 failed`；
-  覆盖率历史基线 `71.97%`；前端 Vitest `202 passed`、Playwright `40 passed`，TypeScript、
-  ESLint、Next.js 15.5.22 production build、Lighthouse 和生产依赖审计已通过。
-- **远程验收**：R6 候选提交 `c5e1a545` 已推送；Backend CI #31 与 Frontend CI #33 全部通过。
-- **当前迭代**：R3 至 R5 已完成；R6 已完成隔离 PostgreSQL 迁移/恢复、运行拓扑、API/权限、
-  浏览器、性能和依赖安全验证。完整证据见
-  [`docs/releases/20260727_r6_release_candidate.md`](../docs/releases/20260727_r6_release_candidate.md)；
-  真实生产凭据、部署和回滚负责人仍待确认。
+- **当前质量基线（2026-07-30）**：R7 本地全量后端 `1103 passed, 15 skipped, 0 failed`；
+  两轮聚焦回归分别为 `106 passed` 和补强后的 `90 passed`，Ruff check/format、diff check
+  与 Compose config 均通过。前端无变更且本轮未重跑；R6 的 Vitest `202 passed`、
+  Playwright `40 passed`、Next.js 15.5.22 build 与 Lighthouse 仅为历史基线。
+- **远程验收**：R7 主提交 `753a599b`、最终提交 `b6cd7575` 已推送；
+  [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
+  成功。CI 中的 placeholder preflight 只验证只读 CLI/报告契约，不是生产证据。
+- **当前迭代**：R7 已完成 11 项只读生产预检、脱敏 `trace_id` JSON、worker/API Redis
+  时间戳共享标记、Redis 降级 60 秒有界刷新，以及生产 `single|sticky` SSE 模式门禁。
+  完整证据见
+  [`docs/releases/20260730_r7_release_gates.md`](../docs/releases/20260730_r7_release_gates.md)；
+  Pub/Sub、跨实例连接管理、真实生产凭据/部署/备份恢复和负责人仍未完成。
 
 ## 主要功能模块
 
@@ -68,7 +72,7 @@
 | 数据校验 | Pydantic v2 | 2.9.0 |
 | 数据采集 | Mock / AkShare / Tushare | `DATA_SOURCE` 控制，非生产可降级 Mock |
 | 定时任务 | APScheduler | BackgroundScheduler |
-| 缓存 | Redis 优先 + 内存 LRU 降级 | `services/cache.py` 线程安全实现；Redis 可接入，内存作为降级 |
+| 缓存/实时信号 | Redis 优先 + 本地降级 | `services/cache.py` 提供缓存；`services/realtime_state.py` 以 Redis UTC 时间戳标记连接 worker/API，异常时 60 秒有界刷新 |
 | 可观测性 | Prometheus 风格指标 + structlog 结构化日志 | `services/metrics.py` + `services/logging_config.py` |
 | 限流 | 内存/Redis 滑动窗口 | `middleware/rate_limit.py`，覆盖所有写入端点 |
 | **Agent 技术指标** | **numpy + pandas** | **后端纯 numpy/pandas 指标库（`python/lib/technical_indicators.py`）：SMA/EMA/RSI/MACD/BOLL/KDJ/ATR/CCI/OBV/ADX/WR/量比 + 万因子精选27个** |
@@ -115,6 +119,8 @@ project_rich_snowball/
 │   ├── services/                   # 业务服务层
 │   │   ├── agent/                  # Agent 系统核心模块
 │   │   ├── backtest/               # 回测引擎
+│   │   ├── release_preflight.py    # 11 项只读生产发布预检与脱敏 JSON
+│   │   ├── realtime_state.py       # 本地/Redis realtime 更新时间戳标记
 │   │   └── domain/                 # 领域服务层
 │   ├── data_collector/             # 在线采集、清洗、upsert、调度器
 │   ├── lib/                        # 技术指标库

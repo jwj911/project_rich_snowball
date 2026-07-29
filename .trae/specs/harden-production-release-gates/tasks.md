@@ -29,11 +29,11 @@
   - [x] SubTask 5.4: 回归现有 SSE 鉴权、限流、连接清理和 scheduler 测试。
   - [x] SubTask 5.5: 在 Backend CI 中执行 R7 专项门禁，并运行 Ruff 与后端全量 pytest。
 
-- [ ] Task 6: 维护迭代和发布文档，保持工程基线与生产发布状态一致。
-  - [ ] SubTask 6.1: 更新 `CHANGELOG.md`、`AGENTS.md`、`.agents/`、README 和迭代计划。
-  - [ ] SubTask 6.2: 更新发布清单与 `python/docs/sse_scaling_strategy.md`，说明共享标记和剩余边界。
-  - [ ] SubTask 6.3: 新增 R7 非生产发布记录，填写提交、测试、CI、回滚点和未完成生产项。
-  - [ ] SubTask 6.4: 校验变更文档的相对链接、测试计数、提交哈希和状态表述。
+- [x] Task 6: 维护迭代和发布文档，保持工程基线与生产发布状态一致。
+  - [x] SubTask 6.1: 更新 `CHANGELOG.md`、`AGENTS.md`、`.agents/`、README 和迭代计划。
+  - [x] SubTask 6.2: 更新发布清单与 `python/docs/sse_scaling_strategy.md`，说明共享标记和剩余边界。
+  - [x] SubTask 6.3: 新增 R7 非生产发布记录，填写提交、测试、CI、回滚点和未完成生产项。
+  - [x] SubTask 6.4: 校验变更文档的相对链接、测试计数、提交哈希和状态表述。
 
 - [ ] Task 7: 原子提交并推送本轮迭代。
   - [ ] SubTask 7.1: 检查工作区，只暂存 R7 相关代码、测试、规格和文档。
