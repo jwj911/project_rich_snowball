@@ -32,6 +32,14 @@ if ENV == "production" and len(SECRET_KEY) < 32:
 if ENV == "production" and DATABASE_URL.startswith("sqlite"):
     raise ValueError("SQLite is not allowed in production. Use PostgreSQL.")
 
+# SSE 部署模式：生产环境必须显式声明，避免误判为支持跨实例连接管理
+_raw_sse_deployment_mode = os.getenv("SSE_DEPLOYMENT_MODE", "")
+SSE_DEPLOYMENT_MODE = _raw_sse_deployment_mode.strip().casefold() or "single"
+if ENV == "production" and not _raw_sse_deployment_mode.strip():
+    raise ValueError("SSE_DEPLOYMENT_MODE must be explicitly set to single or sticky in production")
+if ENV == "production" and SSE_DEPLOYMENT_MODE not in {"single", "sticky"}:
+    raise ValueError("SSE_DEPLOYMENT_MODE must be single or sticky in production")
+
 # 数据源配置
 DATA_SOURCE = os.getenv("DATA_SOURCE", "mock")
 TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN", "")

@@ -43,10 +43,10 @@ def _create_redis_client() -> redis.Redis | None:
     try:
         client = redis.from_url(redis_url, decode_responses=True, socket_connect_timeout=2)
         client.ping()
-        logger.info("Redis connected: %s", redis_url.split("@")[-1])
+        logger.info("Redis connected")
         return client
-    except Exception as e:
-        logger.warning("Redis connection failed (%s), fallback to in-memory", e)
+    except Exception:
+        logger.warning("Redis connection failed, fallback to in-memory")
         return None
 
 

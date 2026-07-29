@@ -21,9 +21,20 @@ def test_api_and_worker_have_single_scheduler_owner():
     backend_env = _environment_map(services["backend"])
     worker_env = _environment_map(services["worker"])
 
+    assert backend_env["ENV"] == worker_env["ENV"] == "production"
     assert backend_env["ENABLE_SCHEDULER"] == "0"
     assert worker_env["ENABLE_SCHEDULER"] == "1"
     assert services["worker"]["command"] == ["python", "worker.py"]
+
+
+def test_api_and_worker_share_required_sse_mode_and_redis():
+    services = _compose_services()
+    backend_env = _environment_map(services["backend"])
+    worker_env = _environment_map(services["worker"])
+
+    required_sse_mode = "${SSE_DEPLOYMENT_MODE:?SSE_DEPLOYMENT_MODE must be set}"
+    assert backend_env["SSE_DEPLOYMENT_MODE"] == worker_env["SSE_DEPLOYMENT_MODE"] == required_sse_mode
+    assert backend_env["REDIS_URL"] == worker_env["REDIS_URL"] == "redis://redis:6379/0"
 
 
 def test_production_secrets_cors_and_data_source_are_required():

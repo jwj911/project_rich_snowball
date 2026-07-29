@@ -5,6 +5,7 @@ SSE 实时行情推送测试
 SSE 鉴权统一走 cookie-only 路径，stream-token 已废弃。
 """
 
+import asyncio
 import os
 import sys
 
@@ -14,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 from models import RealtimeQuoteDB
+from routers import realtime as realtime_router
 
 
 @pytest.fixture
@@ -116,3 +118,52 @@ class TestRealtimeSse:
         r = client.get("/api/realtime/stream?symbols=AU&token=invalid-token")
         assert r.status_code == 200
         assert "text/event-stream" in r.headers.get("content-type", "")
+
+    def test_stream_rejects_more_than_fifty_symbols(self, client, seed_user):
+        client = self._login_and_get_cookie(client)
+        query = "&".join(f"symbols=S{index}" for index in range(51))
+
+        response = client.get(f"/api/realtime/stream?{query}")
+
+        assert response.status_code == 400
+        assert response.json()["code"] == "TOO_MANY_SYMBOLS"
+
+    def test_stream_rejects_new_user_at_global_connection_limit(self, client, seed_user, monkeypatch):
+        client = self._login_and_get_cookie(client)
+        occupied_connections = {
+            10_000 + index: None for index in range(realtime_router.SSE_MAX_GLOBAL_CONNECTIONS)
+        }
+        monkeypatch.setattr(realtime_router, "_sse_connections", occupied_connections)
+
+        response = client.get("/api/realtime/stream?symbols=AU")
+
+        assert response.status_code == 503
+        assert response.json()["code"] == "SERVICE_UNAVAILABLE"
+
+    def test_same_user_connection_cancels_old_task_and_registers_new_task(self, monkeypatch):
+        user_id = 42
+        access_token = realtime_router._create_stream_token(user_id)
+
+        async def replace_connection() -> None:
+            connection_store: dict[int, asyncio.Task] = {}
+            monkeypatch.setattr(realtime_router, "_sse_connections", connection_store)
+            monkeypatch.setattr(realtime_router, "_sse_connections_lock", asyncio.Lock())
+            old_task = asyncio.create_task(asyncio.sleep(3600))
+            connection_store[user_id] = old_task
+            try:
+                response = await realtime_router.get_realtime_stream(
+                    symbols=["AU"],
+                    token="",
+                    access_token=access_token,
+                )
+                await asyncio.sleep(0)
+
+                assert old_task.cancelled()
+                assert connection_store[user_id] is asyncio.current_task()
+                assert response.media_type == "text/event-stream"
+            finally:
+                connection_store.pop(user_id, None)
+                old_task.cancel()
+                await asyncio.gather(old_task, return_exceptions=True)
+
+        asyncio.run(replace_connection())

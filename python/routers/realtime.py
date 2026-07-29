@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 from datetime import UTC, datetime, timedelta
+from time import monotonic
 
 import jwt
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query
@@ -20,7 +21,7 @@ from models import RealtimeQuoteDB, SessionLocal, UserDB, VarietyDB
 from schemas import RealtimeBatchResponse, RealtimeResponse
 from services.domain.exceptions import NotFoundError, ServiceError, UnauthorizedError
 from services.domain.market_data_service import MarketDataService
-from services.realtime_state import get_last_update_time
+from services.realtime_state import get_realtime_update_state
 
 router = APIRouter(prefix="/api/realtime", tags=["实时行情"])
 
@@ -136,18 +137,26 @@ def _sse_fetch_once(symbols: list[str], token: str):
         db.close()
 
 
-async def _sse_realtime_generator(symbols: list[str], token: str, user_id: int):
+async def _sse_realtime_generator(
+    symbols: list[str],
+    token: str,
+    user_id: int,
+    connection_task: asyncio.Task | None = None,
+):
     """SSE 推送生成器：基于数据变更感知的智能推送。
 
     - 首次连接无条件推送初始数据
-    - 后续只在 scheduler 更新 realtime_quotes 后才查询并推送
+    - 后续在本地或 Redis 共享标记更新后查询并推送
+    - Redis 降级时至少每 60 秒强制查询并推送
     - 心跳每 30 秒发送一次，保持连接活跃
     - 所有同步 DB 调用均通过 run_in_threadpool 放入线程池
 
     效果：将数据库查询频率从"每 5 秒"降到"每 60 秒 + 新连接时"。
     """
     push_count = 0
-    last_sent_time = datetime.min.replace(tzinfo=UTC)
+    last_seen_update_time = datetime.min.replace(tzinfo=UTC)
+    last_refresh_monotonic: float | None = None
+    last_shared_available: bool | None = None
     last_heartbeat_time = datetime.now(UTC)
     try:
         while push_count < SSE_MAX_PUSHES:
@@ -158,9 +167,17 @@ async def _sse_realtime_generator(symbols: list[str], token: str, user_id: int):
                 yield ":heartbeat\n\n"
                 last_heartbeat_time = now
 
-            last_update = get_last_update_time()
-            # 首次连接 或 数据已更新 时才查询推送
-            if last_update > last_sent_time or last_sent_time == datetime.min.replace(tzinfo=UTC):
+            seconds_since_refresh = None if last_refresh_monotonic is None else monotonic() - last_refresh_monotonic
+            update_state = await run_in_threadpool(get_realtime_update_state, seconds_since_refresh)
+            shared_recovered = last_shared_available is False and update_state.shared_available
+            last_shared_available = update_state.shared_available
+            should_refresh = (
+                last_refresh_monotonic is None
+                or update_state.last_update_time > last_seen_update_time
+                or update_state.force_refresh
+                or shared_recovered
+            )
+            if should_refresh:
                 try:
                     user, quotes, not_found = await run_in_threadpool(_sse_fetch_once, symbols, token)
                 except HTTPException:
@@ -169,7 +186,8 @@ async def _sse_realtime_generator(symbols: list[str], token: str, user_id: int):
 
                 payload = json.dumps({"quotes": quotes, "not_found": not_found}, default=str)
                 yield f"data: {payload}\n\n"
-                last_sent_time = now
+                last_seen_update_time = max(last_seen_update_time, update_state.last_update_time)
+                last_refresh_monotonic = monotonic()
                 push_count += 1
 
                 # 测试模式下只推送一次，避免 TestClient 无限等待
@@ -182,7 +200,8 @@ async def _sse_realtime_generator(symbols: list[str], token: str, user_id: int):
         pass
     finally:
         async with _sse_connections_lock:
-            _sse_connections.pop(user_id, None)
+            if connection_task is not None and _sse_connections.get(user_id) is connection_task:
+                _sse_connections.pop(user_id, None)
 
 
 @router.get("/stream")
@@ -230,6 +249,14 @@ async def get_realtime_stream(
     except PyJWTError:
         raise UnauthorizedError("未登录或 token 无效")
 
+    connection_task = asyncio.current_task()
+    if connection_task is None:
+        raise ServiceError(
+            message="无法登记 SSE 连接",
+            status_code=503,
+            code=ErrorCode.SERVICE_UNAVAILABLE,
+        )
+
     # 全局并发连接上限
     async with _sse_connections_lock:
         if len(_sse_connections) >= SSE_MAX_GLOBAL_CONNECTIONS and user_id not in _sse_connections:
@@ -243,10 +270,10 @@ async def get_realtime_stream(
         if old_task and not old_task.done():
             old_task.cancel()
         # 预占位（生成器内部会在 finally 中清理）
-        _sse_connections[user_id] = asyncio.current_task()
+        _sse_connections[user_id] = connection_task
 
     return StreamingResponse(
-        _sse_realtime_generator(symbols, effective_token, user_id),
+        _sse_realtime_generator(symbols, effective_token, user_id, connection_task),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

@@ -1,0 +1,24 @@
+# R7 验收清单
+
+- [ ] 生产发布预检覆盖 `ENV`、PostgreSQL、强密钥、HTTPS CORS、真实数据源、Redis 和发布元数据。
+- [ ] `SSE_DEPLOYMENT_MODE` 在生产环境必填，且只接受 `single` 或 `sticky`。
+- [ ] 合法输入返回退出码 0；缺失或不安全输入返回非 0 和稳定检查代码。
+- [ ] 每次预检生成独立 `trace_id` 和结构化 JSON 诊断报告。
+- [ ] stdout、stderr、日志和报告均不包含原始密钥、数据库/Redis 密码、Provider Token 或行情数据。
+- [ ] 预检为只读操作，不修改数据库、Redis、部署状态或发布清单。
+- [ ] worker 成功刷新 realtime quotes 后会更新本地及 Redis 共享标记。
+- [ ] API 进程能够感知另一个进程写入的共享标记，并在下一个检查周期触发 SSE 推送。
+- [ ] 行情刷新失败时不会写入共享更新标记。
+- [ ] Redis 未配置、断开和恢复场景均有自动化覆盖。
+- [ ] Redis 降级期间 SSE 使用有界周期刷新，不会无限期保留初始行情。
+- [ ] Redis 降级日志已脱敏，并可区分共享标记与本地回退状态。
+- [ ] 既有 SSE access cookie 鉴权、单用户连接、全局连接、50 个 symbol 上限和心跳契约无回归。
+- [ ] Compose 中 backend 与 worker 共享一致的 Redis 和 SSE 部署模式配置，scheduler owner 仍唯一。
+- [ ] R7 专项测试、现有 SSE/scheduler/生产配置测试、后端全量 pytest 和 Ruff 全部通过。
+- [ ] Backend CI 执行 R7 门禁并成功，远程证据链接已写入发布记录。
+- [ ] `CHANGELOG.md`、`AGENTS.md`、`.agents/`、README、迭代计划和发布清单已同步更新。
+- [ ] `python/docs/sse_scaling_strategy.md` 准确区分共享更新标记与尚未实现的分布式连接注册。
+- [ ] 新增 R7 发布记录，明确其为工程基线或发布候选，不表述为真实生产已发布。
+- [ ] 文档链接、测试计数、提交哈希、回滚点和未完成生产项已完成一致性检查。
+- [ ] 最终提交仅包含 R7 相关变更，pre-commit 和 `git diff --check` 通过。
+- [ ] 迭代提交已推送至 GitHub `origin/master`，本地与远程提交一致且工作区干净。

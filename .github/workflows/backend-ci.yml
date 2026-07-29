@@ -75,6 +75,35 @@ jobs:
           print(f"Verified {len(direct)} direct dependencies are present in requirements.lock")
           PY
 
+      - name: R7 release preflight contract gate (placeholder inputs only)
+        # This read-only gate validates the CLI/report contract. Placeholder values are not production evidence.
+        env:
+          ENV: production
+          DATABASE_URL: postgresql://ci-placeholder.invalid/r7_contract
+          SECRET_KEY: ci-placeholder-secret-key-not-for-production-use-0001
+          CORS_ORIGINS: https://ci-placeholder.invalid
+          DATA_SOURCE: ci-contract-placeholder
+          REDIS_URL: redis://ci-placeholder.invalid:6379/15
+          RELEASE_COMMIT: ${{ github.sha }}
+          RELEASE_WINDOW_UTC: 2099-01-01T00:00:00Z/2099-01-01T01:00:00Z
+          RELEASE_OWNER: ci-contract-placeholder
+          ROLLBACK_OWNER: ci-contract-placeholder
+          SSE_DEPLOYMENT_MODE: single
+        run: |
+          report_path="$RUNNER_TEMP/r7-release-preflight-contract.json"
+          python scripts/release_preflight.py --report-path "$report_path"
+          python - "$report_path" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          assert report["status"] == "passed", report
+          assert report["summary"]["failed"] == 0, report
+          assert report["trace_id"], report
+          print("R7 placeholder contract passed; this is not production release evidence.")
+          PY
+
       - name: Run Alembic migrations
         env:
           SECRET_KEY: test-secret-key-for-ci-local-development-42
@@ -150,7 +179,9 @@ jobs:
         run: pip install ruff
 
       - name: Lint with ruff
-        run: ruff check .
+        run: |
+          ruff check .
+          ruff format --check .
 
       - name: Security audit with pip-audit
         # 基于 requirements.lock（精确版本）执行依赖漏洞扫描。

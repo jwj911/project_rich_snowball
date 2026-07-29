@@ -155,7 +155,22 @@ def refresh_realtime_quotes():
                 "stats": stats,
             },
         )
-        mark_realtime_updated()
+        refresh_completed = (
+            stats.get("processed", 0) > 0
+            and stats.get("failed", 0) == 0
+            and not stats.get("circuit_open", False)
+        )
+        if refresh_completed:
+            mark_realtime_updated()
+        else:
+            logger.warning(
+                "realtime_update_marker_not_published",
+                extra={
+                    "failed_count": stats.get("failed", 0),
+                    "processed_count": stats.get("processed", 0),
+                    "reason": "refresh_incomplete",
+                },
+            )
         MarketDataService.invalidate_realtime_cache()
         _check_price_alerts(db)
         data_collection_runs_total.labels(task_name="refresh_realtime", status="success").inc()

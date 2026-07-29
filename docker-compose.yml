@@ -47,6 +47,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set}
       - CORS_ORIGINS=${CORS_ORIGINS:?CORS_ORIGINS must be set}
       - DATA_SOURCE=${DATA_SOURCE:?DATA_SOURCE must be set}
+      - SSE_DEPLOYMENT_MODE=${SSE_DEPLOYMENT_MODE:?SSE_DEPLOYMENT_MODE must be set}
       - ENV=production
       - ENABLE_SCHEDULER=0
       - HOST=0.0.0.0
@@ -77,6 +78,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set}
       - DATA_SOURCE=${DATA_SOURCE:?DATA_SOURCE must be set}
+      - SSE_DEPLOYMENT_MODE=${SSE_DEPLOYMENT_MODE:?SSE_DEPLOYMENT_MODE must be set}
       - ENV=production
       - ENABLE_SCHEDULER=1
       - HOST=0.0.0.0

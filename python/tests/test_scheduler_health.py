@@ -112,6 +112,7 @@ def test_scheduler_check_denied_in_production_for_untrusted_ip():
     env["ENV"] = "production"
     env["DATABASE_URL"] = "postgresql://user:pass@localhost/db"
     env["SECRET_KEY"] = "this-is-a-very-long-secret-key-for-production-testing"
+    env["SSE_DEPLOYMENT_MODE"] = "single"
     env["DOTENV_PATH"] = "/nonexistent/.env"
     env["CORS_ORIGINS"] = "https://example.com"
     env.pop("ALLOW_ORIGINS", None)
