@@ -77,6 +77,8 @@ stdout、stderr、日志或报告。退出码 `0`、`1`、`2` 分别表示通过
 
 - [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
   成功。
+- [Backend CI #34](https://github.com/jwj911/project_rich_snowball/actions/runs/30501052153)
+  对文档提交 `d4ce35198625e516aab16112cb058f6cc6883e36` 的最终复验成功。
 - 覆盖步骤：直接依赖锁检查、R7 placeholder preflight、Alembic、PostgreSQL pytest、
   PostgreSQL API smoke、Ruff check/format 和 `pip-audit`。
 - CI preflight 使用占位数据库、Redis、CORS、负责人和未来 UTC 窗口，只验证只读 CLI、
