@@ -10,8 +10,16 @@
 const withBundleAnalyzer = require('@next/bundle-analyzer')({
   enabled: process.env.ANALYZE === 'true',
 })
+const {
+  DEFAULT_API_BASE,
+  buildCspHeaders,
+} = require('./config/security-headers')
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8401'
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || DEFAULT_API_BASE
+const CSP_HEADERS = buildCspHeaders({
+  apiBase: API_BASE,
+  reportUrl: process.env.CSP_REPORT_URL,
+})
 
 const nextConfig = {
   reactStrictMode: true,
@@ -42,20 +50,7 @@ const nextConfig = {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
           },
-          {
-            key: 'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' blob: data:",
-              `connect-src 'self' ${API_BASE}`,
-              "font-src 'self'",
-              "frame-ancestors 'none'",
-              "base-uri 'self'",
-              "form-action 'self'",
-            ].join('; '),
-          },
+          ...CSP_HEADERS,
         ],
       },
     ]

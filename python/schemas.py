@@ -5,7 +5,16 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 
 def sanitize_html_text(v: str | None) -> str | None:
@@ -636,6 +645,121 @@ class FrontendLogResponse(BaseModel):
             except (json.JSONDecodeError, TypeError):
                 return {}
         return v
+
+
+class CSPViolationReport(BaseModel):
+    """Allowlisted fields shared by legacy CSP and Reporting API payloads."""
+
+    document_url: str = Field(
+        ...,
+        min_length=1,
+        max_length=2048,
+        validation_alias=AliasChoices("document-uri", "documentURL", "document_url"),
+    )
+    blocked_url: str | None = Field(
+        default=None,
+        max_length=2048,
+        validation_alias=AliasChoices("blocked-uri", "blockedURL", "blocked_url"),
+    )
+    source_file: str | None = Field(
+        default=None,
+        max_length=2048,
+        validation_alias=AliasChoices("source-file", "sourceFile", "source_file"),
+    )
+    referrer: str | None = Field(default=None, max_length=2048)
+    effective_directive: str | None = Field(
+        default=None,
+        max_length=64,
+        validation_alias=AliasChoices(
+            "effective-directive",
+            "effectiveDirective",
+            "effective_directive",
+        ),
+    )
+    violated_directive: str | None = Field(
+        default=None,
+        max_length=64,
+        validation_alias=AliasChoices(
+            "violated-directive",
+            "violatedDirective",
+            "violated_directive",
+        ),
+    )
+    disposition: str = Field(default="report", max_length=16)
+    line_number: int | None = Field(
+        default=None,
+        ge=0,
+        le=10_000_000,
+        validation_alias=AliasChoices("line-number", "lineNumber", "line_number"),
+    )
+    column_number: int | None = Field(
+        default=None,
+        ge=0,
+        le=10_000_000,
+        validation_alias=AliasChoices("column-number", "columnNumber", "column_number"),
+    )
+    status_code: int | None = Field(
+        default=None,
+        ge=0,
+        le=599,
+        validation_alias=AliasChoices("status-code", "statusCode", "status_code"),
+    )
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    @field_validator("effective_directive", "violated_directive", mode="before")
+    @classmethod
+    def _normalize_directive(cls, value):
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("directive must be a string")
+        directive = value.strip().lower().split(maxsplit=1)[0]
+        if not directive or len(directive) > 64:
+            raise ValueError("directive is invalid")
+        if not all(char.isascii() and (char.isalnum() or char == "-") for char in directive):
+            raise ValueError("directive is invalid")
+        return directive
+
+    @field_validator("disposition", mode="before")
+    @classmethod
+    def _normalize_disposition(cls, value):
+        if not isinstance(value, str):
+            raise ValueError("disposition must be a string")
+        disposition = value.strip().lower()
+        if disposition not in {"enforce", "report"}:
+            raise ValueError("disposition is invalid")
+        return disposition
+
+    @model_validator(mode="after")
+    def _require_directive(self):
+        if not self.effective_directive and not self.violated_directive:
+            raise ValueError("a CSP directive is required")
+        return self
+
+
+class LegacyCSPReportEnvelope(BaseModel):
+    """Legacy application/csp-report request body."""
+
+    csp_report: CSPViolationReport = Field(validation_alias="csp-report")
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+
+class ReportingAPICSPEnvelope(BaseModel):
+    """Single Reporting API CSP violation item."""
+
+    type: str = Field(..., max_length=32)
+    body: CSPViolationReport
+
+    model_config = ConfigDict(extra="ignore")
+
+    @field_validator("type")
+    @classmethod
+    def _require_csp_violation(cls, value: str) -> str:
+        if value != "csp-violation":
+            raise ValueError("unsupported report type")
+        return value
 
 
 def _validate_safe_url(v: str) -> str:

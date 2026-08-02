@@ -189,6 +189,18 @@ jobs:
               engine.dispose()
           PY
 
+      - name: R9 CSP reporting contract gate
+        env:
+          SECRET_KEY: test-secret-key-for-ci-local-development-42
+          ENABLE_SCHEDULER: "0"
+          CSP_REPORT_SAMPLE_RATE: "1"
+          DATABASE_URL: postgresql://futures:futures123@localhost:15432/futures_community
+        run: |
+          pytest \
+            tests/test_csp_reports.py \
+            tests/test_csp_reports_postgres.py \
+            -q
+
       - name: Run tests with coverage
         env:
           SECRET_KEY: test-secret-key-for-ci-local-development-42

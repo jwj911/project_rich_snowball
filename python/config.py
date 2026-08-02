@@ -1,3 +1,4 @@
+import math
 import os
 from pathlib import Path
 
@@ -54,6 +55,24 @@ CACHE_DEFAULT_TTL_SECONDS = int(os.getenv("CACHE_DEFAULT_TTL_SECONDS", "5"))
 # 限流配置
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 RATE_LIMIT_MAX_REQUESTS = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "100"))
+
+
+def _parse_unit_interval(raw_value: str, *, name: str) -> float:
+    """Parse a finite probability in the inclusive [0, 1] range."""
+    try:
+        value = float(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a number between 0 and 1") from exc
+    if not math.isfinite(value) or not 0 <= value <= 1:
+        raise ValueError(f"{name} must be a number between 0 and 1")
+    return value
+
+
+# CSP violation report sampling. Keep the default deterministic and explicit.
+CSP_REPORT_SAMPLE_RATE = _parse_unit_interval(
+    os.getenv("CSP_REPORT_SAMPLE_RATE", "1"),
+    name="CSP_REPORT_SAMPLE_RATE",
+)
 
 # Pipeline 批量提交配置
 PIPELINE_COMMIT_BATCH_SIZE = int(os.getenv("PIPELINE_COMMIT_BATCH_SIZE", "50"))

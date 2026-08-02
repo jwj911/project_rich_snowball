@@ -68,6 +68,13 @@ watchlist_operations_total = Counter(
     ["action", "result"],
 )
 
+# CSP report outcomes use a fixed, low-cardinality label set.
+csp_reports_total = Counter(
+    "csp_reports_total",
+    "Total CSP violation report outcomes",
+    ["outcome"],
+)
+
 # 外部 API 调用延迟
 external_api_duration_seconds = Histogram(
     "external_api_duration_seconds",
