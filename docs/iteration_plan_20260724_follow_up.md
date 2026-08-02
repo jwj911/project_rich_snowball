@@ -1,13 +1,13 @@
 # 后续迭代计划：安全边界、数据基础与发布收口
 
 > 计划日期：2026-07-24
-> 当前状态：R1 至 R7 工程项已完成；R7 为生产发布门禁工程基线，真实生产发布仍待执行
+> 当前状态：R1 至 R8 工程项已完成；R8 为 K 线分区生命周期准备，活动表尚未切换
 > 适用范围：Phase 4 后续安全回归、数据基础、策略验证、前端质量和生产发布治理
 > 上一份事实源：[`iteration_plan_20260718_project_audit.md`](iteration_plan_20260718_project_audit.md)
 
 ## 1. 当前基线
 
-截至 2026-07-30，项目已经完成：
+截至 2026-08-02，项目已经完成：
 
 - Phase 0 可运行性收口、Phase 1 行情读模型收敛、Phase 2 执行可靠性与生产拓扑；
 - Phase 3 文档与发布治理，包括发布清单、工程基线记录和历史计划归档；
@@ -16,12 +16,10 @@
 
 当前可复现工程基线：
 
-- 后端：R7 本地全量 `1103 passed, 15 skipped, 0 failed`，两轮聚焦回归分别为
-  `106 passed` 和补强后的 `90 passed`；
-- Ruff check/format、diff check 与 Compose config 均通过；
-- [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
-  成功，覆盖依赖锁、R7 placeholder preflight、Alembic、PostgreSQL pytest/API smoke、
-  Ruff 和 `pip-audit`；placeholder preflight 不是生产证据；
+- 后端：R8 本地全量 `1157 passed, 18 skipped, 0 failed`；
+- Ruff check/format 与 diff check 均通过；
+- Backend CI 已加入 R8 PostgreSQL 16 的只读容量预检、全部周期别名/DEFAULT 路由、影子
+  复制、失败回滚和资源残留门禁；首次结果在实现提交推送后回填；
 - 前端本轮无变更且未重跑。Next.js 15.5.22、Vitest `202 passed, 0 failed`、Playwright
   `40 passed`、TypeScript、ESLint、production build、双路由 Lighthouse 和生产依赖审计
   均为 R6 历史基线；
@@ -224,6 +222,36 @@ quotes 更新信号，同时保持不具备分布式连接管理时的部署边�
 真实生产凭据、生产部署、发布前备份与恢复验证、发布/回滚负责人仍未完成，因此 R7
 只能标记为工程基线或发布候选，不能标记为生产已发布。
 
+### R8：K 线分区生命周期准备（P2，工程实现已完成）
+
+**目标**：在不切换活动表、不删除冷数据的前提下，用真实容量证据和隔离 PostgreSQL 演练
+建立可审计的分区生命周期准备能力。
+
+实施结果：
+
+1. 新增只读容量预检，采集方言、版本、行数、表/索引大小、周期分布、时间边界、分区状态、
+   未来月份覆盖和 `EXPLAIN` 摘要；固定阈值为 1 亿行、100 GiB 和分钟查询 P99 500 ms；
+2. 每次预检输出独立 `trace_id` 和脱敏 JSON；SQLite 返回基础统计及
+   `unsupported_for_partitioning`，不执行 PostgreSQL 专有 SQL；
+3. benchmark 默认只读，空库明确失败；只有非生产隔离环境显式 `--seed` 才生成 BENCH 数据；
+4. 影子 DDL 与当前 `KlineDataDB` 字段、精度、时区、`trading_date`、非空条件和级联外键
+   一致，按周期 LIST、分钟月份 RANGE 和 DEFAULT 组织；
+5. 生命周期命令和迁移演练默认 dry-run；活动表、非法标识符、非 PostgreSQL 和缺失确认参数
+   均被硬拒绝；
+6. 演练验证总数、周期计数、时间边界、自然键、sequence、外键、核心查询、
+   `ON CONFLICT DO NOTHING`、级联及实际 `EXPLAIN` 裁剪；失败由事务回滚；
+7. 管理员存储概况使用 60 秒 TTL 和 PostgreSQL 系统目录估算，Prometheus scrape 不触发
+   容量统计；
+8. Backend CI 使用 PostgreSQL 16 执行 R8 专项门禁，并断言没有影子表或 sequence 残留。
+
+本地证据为 `1157 passed, 18 skipped, 0 failed`，Ruff check/format 与 diff check 通过。
+其中新增的 3 个真实 PostgreSQL 用例在本机明确 skip，不以 SQLite 或 fake 结果替代远程
+PostgreSQL 证据。
+
+完整记录见
+[`releases/20260802_r8_kline_partition_lifecycle.md`](releases/20260802_r8_kline_partition_lifecycle.md)。
+活动表切换、冷数据导出/删除、对象存储归档及生产恢复演练不属于 R8。
+
 ## 4. 本轮执行拆分
 
 R1 与 R2 保持原子化执行：
@@ -253,9 +281,10 @@ R1 与 R2 保持原子化执行：
 | R5 前端质量与观测趋势 | 已完成 | `r5_frontend_quality_observability.md` |
 | R6 真实发布窗口 | 发布候选已完成 | `releases/20260727_r6_release_candidate.md`；生产部署待执行 |
 | R7 生产发布门禁与 SSE 更新信号 | 工程基线已完成 | `releases/20260730_r7_release_gates.md`；真实生产操作待执行 |
+| R8 K 线分区生命周期准备 | 工程实现已完成 | `releases/20260802_r8_kline_partition_lifecycle.md`；生产切换/归档待执行 |
 
-当前规格下一项为 Task 7 的文档原子提交与远程同步，本次 Task 6 文档更新不执行提交或推送。
-生产侧下一项为取得真实生产凭据和负责人，在真实窗口完成备份恢复、部署与 smoke。
+工程侧下一项是推送 R8 并取得 PostgreSQL 16 CI 证据。生产侧仍需取得真实生产凭据和负责人，
+在真实窗口完成备份恢复、部署与 smoke；K 线达到阈值后另立活动表切换和冷归档规格。
 
 ## 7. R1 执行记录（2026-07-24）
 
@@ -374,3 +403,16 @@ R1 与 R2 保持原子化执行：
 - 当前未完成：真实生产凭据、发布窗口部署、发布前备份恢复验证、发布/回滚负责人，以及
   Pub/Sub/跨实例 SSE 连接管理。完整边界见
   [`releases/20260730_r7_release_gates.md`](releases/20260730_r7_release_gates.md)。
+
+## 16. R8 K 线分区生命周期执行记录（2026-08-02）
+
+- 实现提交：`41c79f1ed70b90cfe46f163f3e5af80b5f93d3d6`；
+- R8 聚焦回归：`79 passed, 3 skipped, 0 failed`；3 个 skip 均为真实 PostgreSQL 专项；
+- 本地全量后端：`1157 passed, 18 skipped, 0 failed`；
+- Ruff check/format 与 diff check：通过；
+- Backend CI 已增加 PostgreSQL 16 容量预检、分区别名/DEFAULT 路由、影子复制、事务回滚、
+  分区裁剪及资源残留断言，首次运行链接在实现提交推送后回填；
+- 前端无变更且本轮未重跑；R6 前端基线只作为历史证据；
+- 当前未完成：活动 `kline_data` 切换、真实冷数据导出/删除、对象存储归档、生产备份恢复和
+  维护窗口演练。完整边界见
+  [`releases/20260802_r8_kline_partition_lifecycle.md`](releases/20260802_r8_kline_partition_lifecycle.md)。

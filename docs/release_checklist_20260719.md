@@ -26,16 +26,16 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 - [ ] 后端 pytest 失败数为 `0`，跳过项有明确原因。
 - [ ] 前端 Vitest 失败数为 `0`。
 
-当前工程基线（2026-07-30）：
+当前工程基线（2026-08-02）：
 
-- 后端：R7 本地全量 `1103 passed, 15 skipped, 0 failed`；两轮聚焦回归分别为
-  `106 passed` 和补强后的 `90 passed`，Ruff check/format、diff check 与 Compose config
-  均通过。
-- 前端：R7 无变更且未重跑。Next.js 15.5.22 production build、Vitest `202 passed`、
+- 后端：R8 本地全量 `1157 passed, 18 skipped, 0 failed`，Ruff check/format 与 diff
+  check 均通过。新增的 3 个 PostgreSQL 分区专项用例因本机没有隔离 PostgreSQL 而明确
+  skip，等待远程 PostgreSQL 16 门禁。
+- 前端：R8 无变更且未重跑。Next.js 15.5.22 production build、Vitest `202 passed`、
   Playwright `40 passed`、双路由 Lighthouse 和 `npm audit --omit=dev` 均为 R6 历史基线。
 - 详细证据见
-  [`releases/20260730_r7_release_gates.md`](releases/20260730_r7_release_gates.md)；
-  该记录是发布门禁工程基线，不是生产发布。
+  [`releases/20260802_r8_kline_partition_lifecycle.md`](releases/20260802_r8_kline_partition_lifecycle.md)；
+  该记录是 K 线分区生命周期工程基线，不是生产分区或生产发布。
 
 ## 3. 数据库与数据
 
@@ -46,6 +46,12 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 - [ ] Mock、主力日线、具体合约日线和实时快照路径均有可解释结果。
 - [ ] 发布前完成逻辑备份；恢复流程参考
   [`python/docs/postgres_backup_runbook.md`](../python/docs/postgres_backup_runbook.md)。
+- [ ] 在目标实例执行只读 `kline_storage_preflight.py`，保存脱敏 `trace_id` 报告并确认是否
+  达到 1 亿行、100 GiB 或分钟查询 P99 500 ms 阈值。
+- [ ] 若需生产分区，先在隔离库使用显式 shadow 表完成迁移演练、资源清理和恢复验证。
+- [ ] 活动表切换方案已单独评审，包含停写/追平、权限、sequence、依赖对象、回滚时限和旧表
+  保留期；不得直接使用 R8 命令替换 `kline_data`。
+- [ ] 冷数据导出、对象存储校验、恢复抽检和删除审批已完成；R8 尚未执行这些生产动作。
 
 ## 4. 认证、权限与运行拓扑
 
@@ -75,12 +81,13 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 当前远程证据：
 
 - [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)：
-  R7 当前成功门禁。
+  R7 历史成功门禁。
 - [Frontend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30233956592)：
   R6 历史基线，本轮未重跑。
 
-Backend CI #33 覆盖依赖锁、R7 placeholder preflight、Alembic、PostgreSQL pytest/API
-smoke、Ruff 和 `pip-audit`。远程 CI 不替代真实生产凭据、部署、备份恢复或负责人确认。
+R8 Backend CI 已增加只读容量预检、真实 PostgreSQL 分区路由/迁移演练和影子资源残留断言，
+首次链接在实现提交推送后回填。远程 CI 不替代真实生产容量、活动表切换、冷归档、备份恢复
+或负责人确认。
 
 ## 6. 回滚
 

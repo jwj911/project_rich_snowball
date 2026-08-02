@@ -16,9 +16,17 @@
 - 价格预警：用户为品种设置 above/below 价格预警，实时行情刷新时自动检测触发
 - 模拟持仓：用户创建虚拟交易记录，支持做多/做空、盈亏计算与复盘统计
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
-- 当前后端工程基线：R7 本地全量 `1103 passed, 15 skipped, 0 failed`；两轮聚焦回归分别为 `106 passed` 和补强后的 `90 passed`，Ruff check/format、diff check 与 Compose config 均通过。
-- 当前迭代：R7 已完成 [只读生产发布门禁与 SSE 更新信号加固](docs/releases/20260730_r7_release_gates.md)。[Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137) 已成功；CI placeholder preflight 只验证契约，不是生产证据。
-- 前端本轮无变更且未重跑；R6 的 Vitest `202 passed`、Playwright `40 passed`、Next.js 15.5.22 build 与 Lighthouse 仅为历史基线。真实生产凭据、部署、备份恢复和发布/回滚负责人仍未完成，当前不是生产已发布状态。
+- K 线存储：R8 已提供只读容量门禁、默认 dry-run 的影子分区 DDL、隔离迁移演练和管理员
+  存储概况；活动 `kline_data` 仍未分区。
+- 当前后端工程基线：R8 本地全量 `1157 passed, 18 skipped, 0 failed`，Ruff check/format
+  与 diff check 均通过。新增的 3 个 PostgreSQL 专项用例因本机没有隔离 PostgreSQL 而
+  明确跳过，等待 Backend CI 的 PostgreSQL 16 证据。
+- 当前迭代：R8 已完成
+  [K 线分区生命周期准备](docs/releases/20260802_r8_kline_partition_lifecycle.md)的本地工程
+  验证；实现提交为 `41c79f1e`，首次远程 CI 链接将在推送后回填。
+- 前端本轮无变更且未重跑；R6 的 Vitest `202 passed`、Playwright `40 passed`、
+  Next.js 15.5.22 build 与 Lighthouse 仅为历史基线。R8 未切换活动表、未归档或删除冷数据，
+  也未执行生产恢复演练，当前不是生产已分区或生产已发布状态。
 
 ---
 
@@ -59,7 +67,7 @@ project_rich_snowball/
 │   ├── data_collector/           # 数据采集流水线与调度器
 │   ├── middleware/               # 中间件（限流、API 版本映射）
 │   ├── scripts/                  # 工具脚本（回填、迁移、验收）
-│   ├── tests/                    # pytest 测试（R7 全量：1103 passed, 15 skipped）
+│   ├── tests/                    # pytest 测试（R8 全量：1157 passed, 18 skipped）
 │   └── alembic/                  # 数据库迁移
 │
 ├── quantative_tools/             # 量化分析工具集
@@ -250,17 +258,18 @@ $env:ENABLE_SCHEDULER="0"
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-R7 本地全量后端为 `1103 passed, 15 skipped, 0 failed`；两轮聚焦回归分别为
-`106 passed` 和补强后的 `90 passed`。
+R8 本地全量后端为 `1157 passed, 18 skipped, 0 failed`。其中新增的 3 个 PostgreSQL
+分区专项用例在本机明确 skip，由 Backend CI 的 PostgreSQL 16 service 执行；Ruff
+check/format 与 diff check 均通过。
 
 前端已配置 Vitest + Playwright 自动化测试（R6 历史基线：34 个 Vitest 文件 / 202 个测试，
 6 个 Playwright spec）。
 `.github/workflows/frontend-ci.yml` 在 PR 时执行 lint、type-check、build、Vitest 和 Lighthouse
 路由趋势 artifact，并由独立 job 执行 PostgreSQL、Alembic、backend 和 Chromium Playwright
-smoke。R7 未修改前端且本轮未重跑前端门禁；R6 Frontend CI 仅为历史证据。
-[Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
-覆盖依赖锁、R7 placeholder preflight、Alembic、PostgreSQL pytest/API smoke、Ruff 和
-`pip-audit`，但 placeholder preflight 不是生产验证。
+smoke。R8 未修改前端且本轮未重跑前端门禁；R6 Frontend CI 仅为历史证据。
+Backend CI 现覆盖依赖锁、R7 placeholder preflight、Alembic、R8 K 线只读容量预检与影子
+分区演练、PostgreSQL pytest/API smoke、Ruff 和 `pip-audit`。首次 R8 远程结果将在实现
+提交推送后回填；任何 CI 结果都不替代生产容量、备份恢复或活动表切换验证。
 修改前端后至少运行：
 
 ```powershell

@@ -184,9 +184,29 @@ R6 后续已进入 R7 发布门禁加固；R6 前端结果继续作为历史基�
 
 发布记录见
 [`docs/releases/20260730_r7_release_gates.md`](../docs/releases/20260730_r7_release_gates.md)。
-当前规格下一项为 Task 7 的文档原子提交与远程同步，本次文档任务不执行提交或推送。生产侧下一项
-仍是取得真实生产凭据，指定发布/回滚负责人，并在真实生产窗口完成备份恢复、部署和 smoke；
-完成前不得标记为生产已发布。
+生产侧仍需取得真实生产凭据，指定发布/回滚负责人，并在真实生产窗口完成备份恢复、部署和
+smoke；完成前不得标记为生产已发布。
+
+### R8：K 线分区生命周期准备 — 工程实现已完成（2026-08-02）
+
+- 新增只读容量预检，固定使用 1 亿行、100 GiB 和分钟查询 P99 500 ms 阈值，输出脱敏
+  `trace_id` JSON；SQLite 返回 `unsupported_for_partitioning`；
+- benchmark 默认只读，显式 `--seed` 仅允许非生产隔离环境；
+- 影子表按 `LIST (period)` 和分钟 `RANGE (trading_time)` 分区，覆盖全部现有周期别名及
+  DEFAULT；DDL 与当前 `KlineDataDB` 字段、精度、外键、主键和自然唯一键一致；
+- 生命周期与迁移命令默认 dry-run，硬拒绝活动表、非法标识符、非 PostgreSQL 和缺失确认；
+- 隔离演练使用 `REPEATABLE READ` 和 advisory lock，验证复制计数、周期计数、时间边界、
+  自然键、序列、外键、冲突写入、级联和 `EXPLAIN` 分区裁剪；
+- 管理员存储概况使用 60 秒 TTL 和 PostgreSQL 系统目录估算，Prometheus scrape 不执行
+  容量统计；
+- R8 实现提交为 `41c79f1ed70b90cfe46f163f3e5af80b5f93d3d6`；
+- 本地全量后端 `1157 passed, 18 skipped, 0 failed`，Ruff check/format 与 diff check
+  通过；新增的 3 个真实 PostgreSQL 用例由 Backend CI PostgreSQL 16 门禁执行。
+
+完整记录见
+[`docs/releases/20260802_r8_kline_partition_lifecycle.md`](../docs/releases/20260802_r8_kline_partition_lifecycle.md)。
+R8 未切换活动表，未导出或删除冷数据，也未执行生产备份恢复；达到容量阈值后必须另立生产
+切换和归档规格。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 
@@ -445,7 +465,9 @@ R6 后续已进入 R7 发布门禁加固；R6 前端结果继续作为历史基�
 以下问题已被识别，但在当前阶段作为**风险接受项**处理，不影响当前产品形态上线；后续可按业务增长逐步推进：
 
 1. ~~**API 版本治理**：当前所有接口统一在 `/api/` 前缀下，无 `/api/v1` 版本隔离。~~ **已修复（2026-06-24）**：新增 `ApiVersionMiddleware`，`/api/v1/*` 透明映射到 `/api/*`，`/api/` 继续兼容；前端可逐步迁移，详见 `BACKEND_API_VERSIONING_GUIDE.md`。
-2. **`kline_data` 表分区/归档**：K 线数据目前单表存储，PostgreSQL 大数据量场景下需按 `trading_time` + `period` 做 range partition 并冷数据归档。方案已记录在 `python/docs/kline_partitioning.md`。
+2. **`kline_data` 生产切换/归档**：R8 已完成容量门禁、影子 LIST+RANGE DDL、隔离演练和
+   存储观测；活动表仍是单表。真实切换、冷数据导出/删除和生产恢复演练待达到阈值后另立规格，
+   详见 `python/docs/kline_partitioning.md`。
 3. ~~**RSS fetch 后台化**：`/api/news/sources/{id}/fetch` 在 API 请求内同步执行，慢源可能导致请求超时。~~ **已修复（2026-06-24）**：手动触发接口改为 `BackgroundTasks` 异步执行。
 4. ~~**自动备份/恢复演练**：`python/docs/postgres_backup_runbook.md` 已提供手动 runbook，但尚未自动化。~~ **已修复（2026-06-24）**：新增 `python/scripts/backup_postgres.py`（逻辑/物理备份 + 过期清理）与 `python/scripts/restore_postgres.py`（恢复演练 + 核心表行数校验），支持 `DATABASE_URL` / `PG*` 环境变量与 `--dry-run`。
 5. ~~**`database_tools.py` SQL 安全加固**：当前使用正则白名单 + 字符串匹配做 SQL 校验，存在被绕过的理论风险。~~ **已完成 AST 只读校验和 owner 谓词改写（2026-07-22）；PostgreSQL 专项语义回归见后续迭代 R1。**

@@ -18,3 +18,4 @@
 - [20260722_phase4_user_scope.md](20260722_phase4_user_scope.md)：Phase 4 私有数据 owner 谓词改写基线，非生产发布。
 - [20260727_r6_release_candidate.md](20260727_r6_release_candidate.md)：R6 隔离环境发布候选基线，非生产发布。
 - [20260730_r7_release_gates.md](20260730_r7_release_gates.md)：R7 生产发布门禁与 SSE 更新信号工程基线，非生产发布。
+- [20260802_r8_kline_partition_lifecycle.md](20260802_r8_kline_partition_lifecycle.md)：R8 K 线分区生命周期准备工程基线，活动表未切换。

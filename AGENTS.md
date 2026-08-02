@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-07-30（R7 生产发布门禁工程基线）
+> **最后更新**：2026-08-02（R8 K 线分区生命周期工程基线）
 
 ---
 
@@ -16,9 +16,16 @@
 - **Agent 系统 Phase 0~2 已完成**并接入真实 SSE 进度流：DataAgent、DataQualityAgent、TechAnalysisAgent、RiskManagementAgent、AnalysisPipelineAgent、StrategyCompilerAgent、BacktestAgent、FactorMiningAgent、TraderAgent 已上线。
 - **策略进化（Strategy Evolution）已落地**：GA 进化循环、GP 因子生成、Pareto 适应度、贝叶斯优化、策略生命周期追踪。
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
-- **测试状态**：R7 本地全量后端为 `1103 passed, 15 skipped, 0 failed`；两轮聚焦回归分别为 `106 passed` 和补强后的 `90 passed`，Ruff check/format、diff check 与 Compose config 均通过。前端本轮无变更且未重跑；R6 的 Vitest `202 passed`、Playwright `40 passed`、TypeScript、ESLint、Next.js 15.5.22 build 与 Lighthouse 仅为历史基线。
-- **远程验收**：R7 主提交为 `753a599b`，Ruff CI 修复后的最终提交为 `b6cd7575`；[Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137) 成功，覆盖依赖锁、R7 placeholder preflight、Alembic、PostgreSQL pytest/API smoke、Ruff 和 `pip-audit`。placeholder preflight 不是生产证据。
-- **当前迭代**：R7 已完成 11 项只读预检、脱敏 `trace_id` JSON、worker/API Redis 时间戳共享标记、Redis 降级 60 秒有界刷新，以及生产 `single|sticky` SSE 模式门禁。本轮未实现 Pub/Sub 或跨实例连接管理；真实生产凭据、部署、备份恢复和发布/回滚负责人仍待完成，当前不是生产已发布状态。
+- **测试状态**：R8 本地全量后端为 `1157 passed, 18 skipped, 0 failed`，Ruff
+  check/format 与 diff check 均通过。新增的 3 个 PostgreSQL 分区专项用例在本机明确
+  skip，等待 Backend CI PostgreSQL 16 证据。前端本轮无变更且未重跑；R6 的 Vitest
+  `202 passed`、Playwright `40 passed`、TypeScript、ESLint、Next.js 15.5.22 build 与
+  Lighthouse 仅为历史基线。
+- **远程验收**：R8 实现提交为 `41c79f1e`。Backend CI 已加入只读容量预检、真实
+  别名/DEFAULT 路由、影子迁移、事务回滚和资源残留门禁；首次 R8 CI 链接在推送后回填。
+- **当前迭代**：R8 已完成容量门禁、默认 dry-run 的影子 LIST + RANGE DDL、隔离复制演练、
+  benchmark 只读契约和管理员存储概况。活动 `kline_data` 未切换，冷数据未导出/删除，
+  生产备份恢复未执行，因此当前只是非生产工程基线。
 - **文件审计**：2026-07-05 完成 Phase 1/2 清理，根目录精简至 7 个文件，文档迁入 `docs/guides/`、`docs/archive/` 与 `quantative_tools/reports/`，详见 [docs/audit_cleanup_20260705.md](docs/audit_cleanup_20260705.md)。
 
 ### 主要功能模块
@@ -66,7 +73,8 @@
 | [docs/r4_dsl_walk_forward_validation.md](docs/r4_dsl_walk_forward_validation.md) | DSL transform 语义、walk-forward 窗口、报告和生命周期查询规则 |
 | [docs/r5_frontend_quality_observability.md](docs/r5_frontend_quality_observability.md) | Lighthouse 趋势、页面失败态、虚拟滚动决策和 CSP/token 迁移边界 |
 | [docs/releases/README.md](docs/releases/README.md) | 按版本维护的工程基线与生产发布记录 |
-| [docs/releases/20260730_r7_release_gates.md](docs/releases/20260730_r7_release_gates.md) | R7 生产发布门禁工程基线，非生产发布 |
+| [docs/releases/20260802_r8_kline_partition_lifecycle.md](docs/releases/20260802_r8_kline_partition_lifecycle.md) | R8 K 线分区生命周期准备，非生产发布 |
+| [python/docs/kline_partitioning.md](python/docs/kline_partitioning.md) | K 线容量门禁、影子分区、演练和生产切换边界 |
 | [docs/phase4_sql_ast_readonly.md](docs/phase4_sql_ast_readonly.md) | Phase 4 Agent SQL AST 只读校验实施记录 |
 | [docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md](docs/guides/DATA_PIPELINE_AND_POSTGRES_GUIDE.md) | 数据管道与 PostgreSQL 配置 |
 | [docs/guides/TUSHARE_POSTGRES_VERIFICATION.md](docs/guides/TUSHARE_POSTGRES_VERIFICATION.md) | Tushare 数据验证 |
@@ -414,7 +422,7 @@ npm run lighthouse
 
 | Workflow | 触发条件 | 内容 |
 |----------|----------|------|
-| `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，安装 `requirements.lock`，依赖锁漂移检查，R7 placeholder preflight 契约门禁、Alembic `upgrade head`、pytest + coverage（阈值 40%）、PostgreSQL API smoke、Ruff check/format、pip-audit |
+| `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，依赖锁漂移检查，R7 placeholder preflight、Alembic `upgrade head`、R8 K 线只读预检/影子分区门禁、pytest + coverage（阈值 40%）、PostgreSQL API smoke、Ruff check/format、pip-audit |
 | `.github/workflows/frontend-ci.yml` | `frontend/**`、workflow 本身变更 | Node 20，`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test` → Lighthouse 路由趋势 artifact；独立 job 执行 PostgreSQL + Alembic + backend + Playwright Chromium smoke |
 | `.github/workflows/update-calendar.yml` | 每年 1 月 1 日 cron + manual | 更新交易日历 `python/data/trading_calendar.json` 并提交 |
 

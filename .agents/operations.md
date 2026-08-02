@@ -102,6 +102,31 @@ cd python
 表示门禁失败，`2` 表示报告写入失败。命令除写入指定报告外，不连接或修改数据库、Redis、
 部署状态及发布清单。CI 使用 placeholder 输入只验证 CLI/报告契约，不得作为生产证据。
 
+### K 线存储与影子分区
+
+容量预检默认只读，只允许写显式报告文件：
+
+```powershell
+cd python
+.venv/Scripts/python.exe scripts/kline_storage_preflight.py `
+  --report-path "$env:TEMP\r8-kline-storage.json"
+```
+
+分区规划和迁移演练默认 dry-run：
+
+```powershell
+.venv/Scripts/python.exe scripts/manage_kline_partitions.py `
+  --shadow-table kline_data_shadow_r8
+.venv/Scripts/python.exe scripts/rehearse_kline_partition.py `
+  --source-table kline_data `
+  --shadow-table kline_data_shadow_rehearsal
+```
+
+实际执行必须使用隔离 PostgreSQL，并显式增加 `--apply --confirm`；演练通常同时使用
+`--cleanup`。活动表 `kline_data` 不能作为 DDL 目标。R8 不提供 rename/swap 或冷数据删除
+命令，完整边界见
+[`python/docs/kline_partitioning.md`](../python/docs/kline_partitioning.md)。
+
 ## 关键环境变量
 
 | 变量 | 必需 | 默认值 | 说明 |
@@ -162,10 +187,10 @@ cd python
 
 ### GitHub Actions
 
-- `.github/workflows/backend-ci.yml`：依赖锁检查 + R7 placeholder preflight 契约门禁 + Alembic +
-  PostgreSQL pytest/API smoke + Ruff check/format + `pip-audit`，pytest-cov 阈值为 40%；
-  [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
-  已成功。placeholder preflight 不是生产证据。
+- `.github/workflows/backend-ci.yml`：依赖锁检查 + R7 placeholder preflight 契约门禁 +
+  Alembic + R8 K 线只读容量预检/影子分区 PostgreSQL 门禁 + PostgreSQL pytest/API smoke +
+  Ruff check/format + `pip-audit`，pytest-cov 阈值为 40%。R8 门禁最后断言没有
+  `kline_data_shadow_*` 表或序列残留；首次远程结果在实现提交推送后回填。
 - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → Vitest → Lighthouse 基线；独立 job 执行 PostgreSQL/Alembic/backend/Chromium Playwright smoke。R7 无前端变更且未重跑，R6 Frontend CI 结果仅为历史证据。
 - Lighthouse 采集 `home` / `products` 命名路由，记录 commit 和 CI 元数据；workflow 会恢复最近的
   `lighthouse-trend-history` artifact，并上传新的趋势/历史/最新 JSON，保留 90 天。

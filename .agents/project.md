@@ -17,18 +17,17 @@
   - 5-6 全量测试 + 提交到 master（历史基线）
 - **Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 8 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理 / 分析流水线 / 回测 / 策略编排 / 因子挖掘），执行过程通过 SSE 流式展示。
 - 近期新增：策略工作台（`/strategies`）、策略参数优化（`/strategies/{id}/optimize`）、回测信号可视化（K 线叠加标记）、预警中心（`/alerts`）、Agent 工作台（`/agents`）。
-- **当前质量基线（2026-07-30）**：R7 本地全量后端 `1103 passed, 15 skipped, 0 failed`；
-  两轮聚焦回归分别为 `106 passed` 和补强后的 `90 passed`，Ruff check/format、diff check
-  与 Compose config 均通过。前端无变更且本轮未重跑；R6 的 Vitest `202 passed`、
-  Playwright `40 passed`、Next.js 15.5.22 build 与 Lighthouse 仅为历史基线。
-- **远程验收**：R7 主提交 `753a599b`、最终提交 `b6cd7575` 已推送；
-  [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)
-  成功。CI 中的 placeholder preflight 只验证只读 CLI/报告契约，不是生产证据。
-- **当前迭代**：R7 已完成 11 项只读生产预检、脱敏 `trace_id` JSON、worker/API Redis
-  时间戳共享标记、Redis 降级 60 秒有界刷新，以及生产 `single|sticky` SSE 模式门禁。
-  完整证据见
-  [`docs/releases/20260730_r7_release_gates.md`](../docs/releases/20260730_r7_release_gates.md)；
-  Pub/Sub、跨实例连接管理、真实生产凭据/部署/备份恢复和负责人仍未完成。
+- **当前质量基线（2026-08-02）**：R8 本地全量后端
+  `1157 passed, 18 skipped, 0 failed`，Ruff check/format 与 diff check 均通过。新增的 3 个
+  PostgreSQL 分区专项用例因本机没有隔离 PostgreSQL 而明确 skip。前端无变更且本轮未重跑；
+  R6 的 Vitest `202 passed`、Playwright `40 passed`、Next.js 15.5.22 build 与 Lighthouse
+  仅为历史基线。
+- **远程验收**：R8 实现提交为 `41c79f1e`。Backend CI 已加入 PostgreSQL 16 容量预检、
+  分区路由、隔离演练和资源清理门禁；首次结果在推送后回填。
+- **当前迭代**：R8 已完成只读容量门禁、影子 LIST + RANGE DDL、隔离复制演练、
+  benchmark 默认只读和管理员存储概况。完整边界见
+  [`docs/releases/20260802_r8_kline_partition_lifecycle.md`](../docs/releases/20260802_r8_kline_partition_lifecycle.md)；
+  活动表切换、冷数据导出/删除和生产恢复演练仍未执行。
 
 ## 主要功能模块
 
@@ -121,6 +120,9 @@ project_rich_snowball/
 │   │   ├── backtest/               # 回测引擎
 │   │   ├── release_preflight.py    # 11 项只读生产发布预检与脱敏 JSON
 │   │   ├── realtime_state.py       # 本地/Redis realtime 更新时间戳标记
+│   │   ├── kline_storage.py        # K 线容量预检、管理员低成本摘要与 TTL 缓存
+│   │   ├── kline_partitioning.py   # PostgreSQL 影子分区 DDL 与安全命名门禁
+│   │   ├── kline_rehearsal.py      # 影子复制、一致性/裁剪校验与脱敏报告
 │   │   └── domain/                 # 领域服务层
 │   ├── data_collector/             # 在线采集、清洗、upsert、调度器
 │   ├── lib/                        # 技术指标库

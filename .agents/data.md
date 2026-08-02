@@ -91,7 +91,8 @@ API 进程不注册该任务。
 `python/docs/` 存放架构决策、运维手册和 API 契约文档：
 
 - `api_error_contract.md`：统一业务错误码契约（`errors.py` 配套文档）
-- `kline_partitioning.md`：K 线表 LIST+RANGE 分区策略与冷数据归档方案
+- `kline_partitioning.md`：R8 K 线容量门禁、LIST+RANGE 影子 DDL、隔离复制演练、
+  管理员观测及生产切换/冷归档边界
 - `sse_scaling_strategy.md`：SSE 单实例限制、sticky session、cookie-only 鉴权部署约束
 - `observability_runbook.md`：可观测性运维手册（指标、日志、告警）
 - `postgres_acceptance.md` / `postgres_backup_runbook.md`：PostgreSQL 验收与备份手册

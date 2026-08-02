@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-08-02
+
+- R8 新增 K 线存储容量预检，固定使用 1 亿行、100 GiB 和分钟查询 P99 500 ms 阈值；
+  PostgreSQL 报告覆盖容量、周期分布、时间边界、分区状态和查询计划，SQLite 明确返回
+  `unsupported_for_partitioning`，每次生成脱敏 `trace_id` JSON。
+- `benchmark_kline.py` 改为默认只读；只有显式 `--seed` 且非生产环境才允许生成 BENCH
+  数据，并支持包含样本数、p50、p95、p99 和阈值结论的稳定 JSON。
+- 新增当前模型兼容的 PostgreSQL LIST + RANGE 影子分区 DDL、未来 3 个月维护命令和隔离
+  复制演练。命令默认 dry-run，拒绝活动表、非法标识符、非 PostgreSQL 和缺少确认参数；
+  演练验证聚合一致性、自然键、序列、外键、冲突写入及分区裁剪，失败由事务回滚。
+- 管理员新增 `/metrics/dashboard/kline-storage` 低成本概况，使用 60 秒 TTL；Prometheus
+  常规抓取不执行 K 线容量统计。
+- R8 实现提交为 `41c79f1ed70b90cfe46f163f3e5af80b5f93d3d6`。
+- Backend CI 增加 PostgreSQL 16 的 R8 只读预检、全部周期别名/DEFAULT 路由、幂等 DDL、
+  成功清理、失败回滚和影子资源残留门禁。本地全量后端为
+  `1157 passed, 18 skipped, 0 failed`，Ruff check/format 和 diff check 通过；新增的 3 个
+  PostgreSQL 用例因本机无隔离 PostgreSQL 而明确跳过，远程结果在实现提交推送后回填。
+- 新增
+  [`docs/releases/20260802_r8_kline_partition_lifecycle.md`](docs/releases/20260802_r8_kline_partition_lifecycle.md)。
+  R8 未替换活动 `kline_data`，未导出或删除冷数据，也未执行生产备份恢复，因此是非生产
+  工程基线。
+
 ## 2026-07-30
 
 - R7 新增 11 项只读生产发布预检，覆盖生产环境、PostgreSQL、强密钥、安全 CORS、真实数据源、

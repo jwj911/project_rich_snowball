@@ -1,0 +1,33 @@
+# R8 验收清单
+
+- [ ] 容量预检覆盖方言、版本、行数、表/索引/总大小、周期分布、时间边界和分区状态。
+- [ ] 分区建议严格使用 1 亿行、100 GiB、分钟查询 P99 500 ms 阈值，并记录稳定触发代码。
+- [ ] PostgreSQL 未达到阈值时返回 `not_required`，不会误报为已完成分区。
+- [ ] SQLite 返回基础统计和 `unsupported_for_partitioning`，不执行 PostgreSQL 专有 SQL。
+- [ ] 每次预检生成独立 `trace_id` 和结构化 JSON 报告。
+- [ ] 报告、stdout、stderr 和日志均不包含数据库凭据、Provider Token、原始 OHLCV 或 SQL 参数值。
+- [ ] 默认预检不执行写入、`ANALYZE`、DDL、锁表或 benchmark 造数。
+- [ ] benchmark 默认只读，空数据时不写表并返回明确非 0 状态。
+- [ ] benchmark 只有显式 `--seed` 才能造数，且生产环境受硬门禁保护。
+- [ ] benchmark JSON 稳定包含样本数、p50、p95、p99 和阈值结论。
+- [ ] 影子 DDL 与当前 `KlineDataDB` 字段、精度、非空、外键和时区契约一致。
+- [ ] PostgreSQL 主键和自然唯一键包含必要分区键，`id` 使用共享序列。
+- [ ] 全部当前周期别名进入预期分区，未知周期进入默认分区。
+- [ ] 分钟分区按月范围创建，长期周期分区和未来 3 个月覆盖符合计划。
+- [ ] 分区命令默认 dry-run，重复运行输出稳定，apply 幂等。
+- [ ] 活动表名、非法标识符、非 PostgreSQL、缺少确认参数均被拒绝。
+- [ ] 影子迁移总行数、周期计数、时间边界、自然键和序列校验一致。
+- [ ] 影子迁移支持 ORM 核心查询、批量 `ON CONFLICT DO NOTHING` 和级联外键。
+- [ ] PostgreSQL `EXPLAIN` 证明分钟范围查询能够裁剪无关月份分区。
+- [ ] 演练失败会回滚或清理本轮影子资源，并生成脱敏 `trace_id` 诊断。
+- [ ] 管理员可读取缓存的 K 线存储概况，普通用户访问返回 403。
+- [ ] Prometheus 常规 scrape 不执行 K 线高成本容量统计。
+- [ ] R8 专项 PostgreSQL 集成、既有 K 线 API/采集回归、全量 pytest 和 Ruff 全部通过。
+- [ ] Alembic head 和 PostgreSQL API smoke 通过，活动 `kline_data` 未被自动替换。
+- [ ] Backend CI 执行 R8 只读预检与影子分区契约并成功，且无残留影子资源。
+- [ ] `CHANGELOG.md`、`AGENTS.md`、`.agents/`、README、迭代计划和发布清单已同步。
+- [ ] `python/docs/kline_partitioning.md` 已使用当前模型、周期别名、真实约束和安全切换边界。
+- [ ] 新增 R8 非生产发布记录，明确活动表切换、冷数据导出/删除和生产恢复演练尚未执行。
+- [ ] 文档链接、测试计数、提交哈希、CI 链接、回滚点和状态表述一致。
+- [ ] 迭代提交已推送 GitHub，本地与远程一致，临时数据库/schema、报告和 benchmark 数据已清理。
+- [ ] 最终工作区干净，`tasks.md` 与本清单全部勾选。
