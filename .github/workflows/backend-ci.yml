@@ -132,18 +132,30 @@ jobs:
           DATABASE_URL: postgresql://futures:futures123@localhost:15432/futures_community
         run: |
           report_path="$RUNNER_TEMP/r8-kline-storage-preflight.json"
+          set +e
           python scripts/kline_storage_preflight.py \
             --minute-query-p99-ms 0 \
             --report-path "$report_path"
-          python - "$report_path" <<'PY'
+          preflight_exit=$?
+          set -e
+          python - "$report_path" "$preflight_exit" <<'PY'
           import json
           import sys
           from pathlib import Path
 
           report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          exit_code = int(sys.argv[2])
+          if exit_code != 0:
+              error = report.get("error") or {}
+              print(
+                  "::error title=R8 storage preflight failed::"
+                  f"status={report.get('status', 'unknown')}; "
+                  f"error_type={error.get('error_type', 'unknown')}"
+              )
+              raise SystemExit(exit_code)
           assert report["status"] == "not_required", report
           assert report["trace_id"], report
-          assert report["database"]["dialect"] == "postgresql", report
+          assert report["evidence"]["dialect"] == "postgresql", report
           print("R8 read-only storage preflight passed.")
           PY
           pytest \
