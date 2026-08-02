@@ -1,8 +1,15 @@
 # 数据与 Agent 能力后续迭代计划
 
-**日期**：2026-07-04  
-**适用范围**：数据质量、数据目录、Agent 可用数据上下文、LLM 配置、主力连续数据、数据宽表审计  
+**日期**：2026-07-04
+
+**适用范围**：数据质量、数据目录、Agent 可用数据上下文、LLM 配置、主力连续数据、数据宽表审计
+
 **目标**：让 Agent 在回答、回测、因子评估、策略编排前，明确知道“有哪些数据、数据是否可信、该用哪种数据口径、LLM 是否可用”。
+
+> **当前状态校正（2026-08-02）**：本文记录的 Milestone A-E 与后续 R3/R4 已完成，主体保留为
+> 历史设计和交付记录，不再承载当前“下一步”。当前唯一迭代事实源是
+> [`Post-R9 迭代路线图`](iteration_plan_20260802_post_r9.md)。Data Catalog 后端与质量上下文
+> 已实现；用户可见的只读 Data Catalog 前端仅为 Post-R9 产品候选，未排期且必须另立规格。
 
 ---
 
@@ -66,7 +73,7 @@
    - 仅独立 worker 注册日频宽表任务，常规 20 交易日预热且迟到换月从最早影响日回推，
      详见 `docs/r3_raw_contract_market_panel.md`。
 
-最近一次后端 targeted 验证：
+以下 targeted 计数是 2026-07-04 前后各里程碑的历史验证记录，不是当前全量测试基线：
 
 ```powershell
 cd python
@@ -609,10 +616,19 @@ DataQualityAgent → DataAgent → TechAnalysisAgent → RiskManagementAgent
 
 ---
 
-## 11. 建议下一步
+## 11. 当前下一步（Post-R9 状态校正）
 
 宽表最小实现与主力连续数据接入已由 R3 完成；DSL transform 契约、日频
 walk-forward、报告与生命周期持久化已由 R4 完成，见
 [`r4_dsl_walk_forward_validation.md`](r4_dsl_walk_forward_validation.md)。
 
-后续进入 R5：以前端页面级质量、Lighthouse 趋势、实际规模的行情列表和错误态测试为重点。
+原“后续进入 R5”的表述是 2026-07-04 历史计划，R5-R9 后续均已闭环，不再作为当前入口。
+当前项目级下一步由
+[`Post-R9 迭代路线图`](iteration_plan_20260802_post_r9.md) 统一管理：先为 R10“CSP 脱敏
+证据归类与 S2 准入报告”创建并批准独立规格，不从本文直接启动新的数据工程实施。
+
+Data Catalog 方向仅保留 P-C2 候选：为授权用户提供只读目录和质量上下文。后端现状见
+[`data_catalog.py`](../python/services/data_catalog.py)，回归证据见
+[`test_data_catalog.py`](../python/tests/test_data_catalog.py) 与
+[`R3 多视图研究宽表`](r3_raw_contract_market_panel.md)。前端候选必须先明确可见范围、只读
+权限、质量语义、缓存分页、隐私边界和测试成本，再建立独立规格；当前状态为候选、未排期。

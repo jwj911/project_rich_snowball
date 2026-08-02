@@ -1,8 +1,14 @@
 # 发布清单（2026-07-19）
 
 > 当前发布治理清单。项目现状以
-> [iteration_plan_20260724_follow_up.md](iteration_plan_20260724_follow_up.md)
-> 为唯一迭代事实源；本文件只记录发布前后可执行的检查项。
+> [iteration_plan_20260802_post_r9.md](iteration_plan_20260802_post_r9.md)
+> 为唯一当前迭代事实源；R1 至 R9 历史证据见
+> [iteration_plan_20260724_follow_up.md](iteration_plan_20260724_follow_up.md)。本文件只记录
+> 发布前后可执行的检查项。
+>
+> 当前状态：R9 工程门禁已闭环但尚未生产部署，当前处于 Post-R9 规划且 R10 待立项。
+> R11 仍受真实生产凭据、窗口和发布/回滚负责人门禁约束；下列真实生产项在实际执行前必须
+> 保持未勾选。
 
 ## 1. 发布元数据
 
@@ -117,8 +123,9 @@ Alembic、全量 pytest/API smoke、Ruff 和 `pip-audit`。R9 远程 CI 也不�
 生产部署、活动表切换、冷归档、备份恢复或负责人确认。
 
 本地和 CI synthetic CSP 报告只验证契约，不构成生产 SLO。只有取得并归类真实完整业务周期
-报告后，才允许启动 S2 专项评审；在此之前不得移除强制 CSP 的 `unsafe-inline` /
-`unsafe-eval`。
+报告，并由 R10 evidence-only 准入报告和 R11 operator gate 提供完整证据后，才允许启动
+R12 S2 专项评审；在此之前不得移除强制 CSP 的 `unsafe-inline` / `unsafe-eval`。R13 S3
+内存 access token 必须在 R12 稳定退出后另立规格，所有写请求继续要求 Bearer。
 
 ## 6. 回滚
 

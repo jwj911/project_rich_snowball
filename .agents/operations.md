@@ -127,6 +127,22 @@ cd python
 命令，完整边界见
 [`python/docs/kline_partitioning.md`](../python/docs/kline_partitioning.md)。
 
+### Post-R9 执行门禁
+
+当前处于 Post-R9 规划，R10 待建立独立规格；唯一当前迭代事实源为
+[`docs/iteration_plan_20260802_post_r9.md`](../docs/iteration_plan_20260802_post_r9.md)。
+
+- R10 是 evidence-only：只用 R9 已脱敏记录生成有界只读归类和 S2 准入报告，不修改 CSP，
+  不部署到生产；只有本地或 CI synthetic 流量时只能判定 `insufficient_evidence`。
+- R11 是 operator gate：真实目标环境、凭据、发布窗口、发布/回滚负责人和发布清单任一缺失
+  即阻塞，不得用历史 CI 替代完整业务周期观测。
+- R12 才实施 S2 nonce/hash 与 `script-src` 收紧，必须具备 R10/R11 证据、无未知违规并经
+  人工批准。
+- R13 才实施 S3 内存 access token，必须在 R12 稳定退出后另立认证专项；POST/PUT/PATCH/
+  DELETE 继续要求 `Authorization: Bearer`，不启用 cookie-only 写请求。
+- R8 生产分区/冷归档和 R7 Redis Pub/Sub/跨实例连接管理继续按容量、并发或高可用阈值触发，
+  当前均未触发、未排期。
+
 ### CSP Report-Only 观测
 
 R9 实际暴露的计数器为 `csp_reports_total{outcome}`，固定 outcome 为 `received`、
@@ -251,6 +267,9 @@ clamp_min(
 - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发。
 - 发布前按 [`docs/release_checklist_20260719.md`](../docs/release_checklist_20260719.md) 执行质量、迁移、权限、备份和回滚检查。
 - 每次工程基线或生产发布都在 [`docs/releases/README.md`](../docs/releases/README.md) 下新增记录；工程基线不得替代生产发布验收。
+- Post-R9 当前状态、准入和停止条件统一以
+  [`docs/iteration_plan_20260802_post_r9.md`](../docs/iteration_plan_20260802_post_r9.md)
+  为准。
 
 ### Dockerfile
 

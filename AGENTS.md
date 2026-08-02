@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-08-02（R9 CSP Report-Only S1 工程门禁闭环）
+> **最后更新**：2026-08-02（Post-R9 规划，R10 待立项）
 
 ---
 
@@ -32,7 +32,9 @@
   [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
   成功，Vitest、build、R9 E2E `3 passed`、全量 Playwright `43 passed` 和 Lighthouse 均通过。
   应用回滚点为 R9 启动文档提交 `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
-- **当前迭代**：R9 已完成
+- **当前迭代**：处于
+  [Post-R9 规划](docs/iteration_plan_20260802_post_r9.md)，R10“CSP 脱敏证据归类与 S2
+  准入报告”待建立独立规格，尚无 Post-R9 工程项进入实施。R9 已完成
   [CSP Report-Only S1 工程实现、审查修复和工程门禁闭环](docs/releases/20260802_r9_csp_report_only_observability.md)。
   强制 CSP 原值不变；legacy/Reporting API 报告接收具备 8 KiB、批量、采样、限流、脱敏、
   独立 `trace_id` 和低基数指标。`localStorage` access token、Bearer 写请求和 CSRF 拒绝
@@ -82,7 +84,8 @@
 | 文档 | 说明 |
 |------|------|
 | [docs/release_checklist_20260719.md](docs/release_checklist_20260719.md) | 当前发布前检查、CI 证据、备份与回滚清单 |
-| [docs/iteration_plan_20260724_follow_up.md](docs/iteration_plan_20260724_follow_up.md) | Phase 4 后续安全回归、数据基础、策略验证与发布队列 |
+| [docs/iteration_plan_20260802_post_r9.md](docs/iteration_plan_20260802_post_r9.md) | Post-R9 唯一当前迭代事实源；R10 待立项 |
+| [docs/iteration_plan_20260724_follow_up.md](docs/iteration_plan_20260724_follow_up.md) | R1 至 R9 已完成历史事实源 |
 | [.trae/specs/add-csp-reporting-observability/spec.md](.trae/specs/add-csp-reporting-observability/spec.md) | R9 CSP Report-Only 观测闭环规格、认证边界和停止条件 |
 | [docs/phase4_private_data_access_boundary.md](docs/phase4_private_data_access_boundary.md) | Agent 通用 SQL 的私有数据访问边界与 owner policy |
 | [docs/r3_raw_contract_market_panel.md](docs/r3_raw_contract_market_panel.md) | 多视图日频研究宽表的 schema、血缘、消费和调度规则 |

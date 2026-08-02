@@ -21,6 +21,19 @@
   access/refresh cookie、Bearer 写请求和 CSRF 拒绝 cookie-only 写请求的边界不变。内存
   access token 属于后续 S3。
 
+## Post-R9 安全顺序
+
+- 当前处于 Post-R9 规划，R10 待建立独立规格；当前事实源为
+  [`docs/iteration_plan_20260802_post_r9.md`](../docs/iteration_plan_20260802_post_r9.md)。
+- R10 是 evidence-only：只对 R9 已脱敏记录做有界只读归类并生成 S2 准入报告，不部署 R9，
+  不修改强制 CSP，也不把本地或 CI synthetic 流量当作生产证据。
+- R11 受生产操作者门禁约束：只有具备真实目标环境、凭据、窗口、发布/回滚负责人和发布清单，
+  才能部署 S1 并完成至少一个真实完整业务周期观测。
+- R12 才实施 S2 nonce/hash 与 `script-src` 收紧，前提是 R10/R11 证据完整、无未知违规且
+  经过人工安全评审；证据不足时继续运行 S1 Report-Only。
+- R13 才实施 S3 内存 access token，且必须在 R12 稳定退出后另立认证专项。所有写请求继续
+  要求 `Authorization: Bearer`，cookie-only 写请求和 S4 CSRF/origin 设计不属于 R13。
+
 ## XSS 与输入安全
 
 - 评论内容通过 Pydantic validator + `html.escape()` 过滤，长度限制在 schema 中维护。
@@ -72,5 +85,7 @@
 - 生产环境 scheduler：`ENABLE_SCHEDULER=1` 仅作本地便利；生产应运行独立 `python/worker.py`，避免 API 进程混入定时任务。
 - API 版本路径：新接口优先在 `/api/v1/*` 下实现；`ApiVersionMiddleware` 会自动把 `/api/v1/*` 映射到 `/api/*`，未版本化路径仍兼容但将逐步废弃。
 
-完整的 token/CSP 阶段、验收与停止条件见
+当前 token/CSP 阶段、验收与停止条件见
+[`docs/iteration_plan_20260802_post_r9.md`](../docs/iteration_plan_20260802_post_r9.md)；R5
+历史设计见
 [`docs/r5_frontend_quality_observability.md`](../docs/r5_frontend_quality_observability.md)。

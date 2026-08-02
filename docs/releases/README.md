@@ -4,6 +4,12 @@
 [`../release_checklist_20260719.md`](../release_checklist_20260719.md) 复制检查项，
 并保留提交、验证结果、备份、回滚和遗留风险。
 
+当前处于
+[`Post-R9` 规划](../iteration_plan_20260802_post_r9.md)：R9 工程门禁已闭环但尚未生产部署，
+R10 待建立独立规格，尚无 Post-R9 工程项或生产发布进入实施。R1 至 R9 历史执行证据见
+[`../iteration_plan_20260724_follow_up.md`](../iteration_plan_20260724_follow_up.md)。R8
+生产分区/冷归档与 R7 分布式 SSE 仍是阈值触发、未排期的条件轨道。
+
 ## 记录规则
 
 - 文件名使用 `YYYYMMDD_<short-slug>.md`，日期按发布窗口的 UTC 日期。

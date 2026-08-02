@@ -34,8 +34,10 @@
   与
   [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
   均成功。应用回滚点为 R9 启动文档提交 `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
-- **当前迭代**：R9 已完成 CSP Report-Only S1 工程实现、审查修复、本地验证、增强版浏览器
-  回归和远端 CI。完整记录见
+- **当前迭代**：处于
+  [`Post-R9` 规划](../docs/iteration_plan_20260802_post_r9.md)，R10“CSP 脱敏证据归类与 S2
+  准入报告”待建立独立规格，尚无 Post-R9 工程项进入实施。R9 已完成 CSP Report-Only S1
+  工程实现、审查修复、本地验证、增强版浏览器回归和远端 CI；完整记录见
   [`docs/releases/20260802_r9_csp_report_only_observability.md`](../docs/releases/20260802_r9_csp_report_only_observability.md)。
   R9 尚未生产部署，真实完整业务周期观测未完成，S2/S3 未启动；强制 CSP 未收紧，
   `localStorage` token 风险未关闭，Bearer 写请求与 CSRF 边界保持不变。R8 的活动表切换、

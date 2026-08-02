@@ -1,7 +1,7 @@
 # 前端安全风险记录
 
 > 记录当前前端已知安全风险和已接受的折中方案。
-> 最后更新：2026-07-26
+> 最后更新：2026-08-02（Post-R9 规划，R10 待立项）
 
 ---
 
@@ -32,10 +32,18 @@
 
 ### 分阶段迁移
 
-1. 先用 CSP Report-Only 收集违规，不在没有真实报告的情况下移除 `unsafe-inline` / `unsafe-eval`。
-2. 使用 nonce/hash 收紧脚本来源，验证 Next runtime、图表、登录、API、SSE 和详情页写操作。
-3. 将 access token 收敛到内存，使用 HttpOnly refresh cookie 恢复会话，保留所有写请求的 Bearer 要求。
-4. 只有服务端具备可验证的 CSRF token/origin 策略后，才评审 cookie-only 写请求。
+1. **R10（evidence-only，待立项）**：只对 R9 已脱敏记录做有界只读归类并生成 S2 准入
+   报告，不修改 CSP；只有本地或 CI synthetic 流量时必须判定 `insufficient_evidence`。
+2. **R11（operator gate）**：只有具备真实目标环境、凭据、发布窗口、发布/回滚负责人和
+   发布清单，才部署 S1 并完成至少一个真实完整业务周期观测。
+3. **R12（S2）**：R10/R11 证据完整、无未知违规并经人工批准后，才使用 nonce/hash 收紧
+   `script-src`，并验证 Next runtime、图表、登录、API、SSE 和详情页写操作。
+4. **R13（S3）**：R12 稳定退出后才将 access token 收敛到内存，使用 HttpOnly refresh
+   cookie 恢复会话；POST/PUT/PATCH/DELETE 继续要求 `Authorization: Bearer`。
+5. cookie-only 写请求属于后续 S4，只有服务端具备可验证的 CSRF token/origin 策略后才评审，
+   不属于 R13。
 
-完整迁移门槛、停止条件和回退边界见
+当前迁移门槛、停止条件和回退边界见
+[`docs/iteration_plan_20260802_post_r9.md`](../../docs/iteration_plan_20260802_post_r9.md)；
+R5 历史设计见
 [`docs/r5_frontend_quality_observability.md`](../../docs/r5_frontend_quality_observability.md)。

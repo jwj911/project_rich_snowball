@@ -18,11 +18,15 @@
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
 - K 线存储：R8 已提供只读容量门禁、默认 dry-run 的影子分区 DDL、隔离迁移演练和管理员
   存储概况；活动 `kline_data` 仍未分区。
-- 当前迭代：R9
+- 当前迭代：处于
+  [Post-R9 规划](docs/iteration_plan_20260802_post_r9.md)，R10“CSP 脱敏证据归类与 S2
+  准入报告”待建立独立规格，尚无 Post-R9 工程项进入实施。
+- R9 工程状态：
   [CSP Report-Only 观测闭环](docs/releases/20260802_r9_csp_report_only_observability.md)
   已完成 S1 工程实现、审查修复、本地验证、增强版浏览器回归和远端 CI 工程门禁。页面同时
   返回原值不变的强制 CSP 与只上报的候选策略；报告端点支持 legacy/Reporting API、8 KiB
-  上限、20 条批量、采样、限流、URL 脱敏、独立 `trace_id` 和低基数指标。
+  上限、20 条批量、采样、限流、URL 脱敏、独立 `trace_id` 和低基数指标。R9 尚未生产
+  部署，也未完成真实完整业务周期观测。
 - 当前本地质量基线：独立审查修复前的后端全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
@@ -104,7 +108,8 @@ project_rich_snowball/
 │
 ├── docs/                         # 项目文档
 │   ├── release_checklist_20260719.md # 当前发布检查与回滚清单
-│   ├── iteration_plan_20260724_follow_up.md # Phase 4 后续迭代队列
+│   ├── iteration_plan_20260802_post_r9.md # Post-R9 唯一当前迭代事实源
+│   ├── iteration_plan_20260724_follow_up.md # R1-R9 已完成历史事实源
 │   ├── phase4_private_data_access_boundary.md # Agent 私有数据访问边界
 │   ├── r3_raw_contract_market_panel.md # 多视图日频研究宽表
 │   ├── releases/                  # 逐版本工程基线与生产发布记录

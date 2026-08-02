@@ -1,5 +1,14 @@
 <!-- .agents/roadmap.md — 模块演进状态与待处理事项 -->
 
+> 当前状态：R1 至 R9 工程项已闭环，当前处于
+> [`Post-R9` 规划](../docs/iteration_plan_20260802_post_r9.md)，R10 待建立独立规格。R9 尚未
+> 生产部署，也未完成真实完整业务周期观测。R10 仅做 evidence-only 归类与准入报告；R11
+> 受生产操作者门禁约束；R12 才实施 S2 nonce/hash；R13 才实施 S3 内存 access token，且
+> Bearer 写请求保持不变。R8 生产分区/冷归档与 R7 分布式 SSE 均为未触发、未排期的条件轨道。
+>
+> R1 至 R9 历史执行证据见
+> [`docs/iteration_plan_20260724_follow_up.md`](../docs/iteration_plan_20260724_follow_up.md)。
+
 ## 主要模块演进状态
 
 ### Phase 0：可运行性收口 — 已完成（2026-07-18）
@@ -37,8 +46,10 @@
 
 ### Phase 3：文档与发布治理 — 首批完成（2026-07-19）
 
-- `docs/iteration_plan_20260718_project_audit.md` 记录已完成审计基线；后续执行以
-  [`docs/iteration_plan_20260724_follow_up.md`](../docs/iteration_plan_20260724_follow_up.md) 为事实源
+- `docs/iteration_plan_20260718_project_audit.md` 记录已完成审计基线；
+  [`docs/iteration_plan_20260724_follow_up.md`](../docs/iteration_plan_20260724_follow_up.md)
+  现保留为 R1 至 R9 已完成历史事实源，当前执行入口已切换到
+  [`docs/iteration_plan_20260802_post_r9.md`](../docs/iteration_plan_20260802_post_r9.md)
 - 新增 [`docs/release_checklist_20260719.md`](../docs/release_checklist_20260719.md)，统一代码、迁移、数据、权限、浏览器、备份和回滚检查
 - ProductDB 退场计划、旧前端质量清单和旧前端路线图移动到 `docs/archive/`，并标记为历史记录
 - 已完成的 Agent/项目审计、P0-P2、Phase 5 及 2026-07-05 修复记录移动到 `docs/archive/`，保留历史上下文但不再作为当前执行入口
@@ -493,7 +504,7 @@ R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验�
 6. ~~交易观点 reason 字段清洗~~：请求 schema 层执行 HTML 清洗。
 
 后续未完成项统一以
-[`docs/iteration_plan_20260724_follow_up.md`](../docs/iteration_plan_20260724_follow_up.md)
+[`docs/iteration_plan_20260802_post_r9.md`](../docs/iteration_plan_20260802_post_r9.md)
 为执行入口，不再从本节拆分平行待办。
 
 ## 待处理 P2 风险接受项

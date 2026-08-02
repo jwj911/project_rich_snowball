@@ -1,8 +1,17 @@
 # Trader Agent 设计文档
 
-> 角色：交易员 Agent  
-> 状态：设计稿，待 review 后进入开发  
+> 角色：交易员 Agent
+>
+> 状态：已上线；本文主体保留为 2026-07-04 的历史设计与 2026-07-05 的交付记录
+>
 > 创建时间：2026-07-04
+>
+> 当前路线以 [`Post-R9 迭代路线图`](iteration_plan_20260802_post_r9.md) 为准。后续仅保留
+> 交易计划持久化、结果追踪及与回测/持仓显式关联的产品候选，未排期且必须另立规格。
+> 上线证据见
+> [`trader_agent.py`](../python/services/agent/trader_agent.py)、
+> [`test_trader_agent.py`](../python/tests/test_trader_agent.py) 和
+> [`test_trader_modules.py`](../python/tests/test_trader_modules.py)。
 
 ---
 
@@ -398,6 +407,9 @@ SSE 流式返回交易研判过程与最终结果。
 
 ## 8. 实现步骤
 
+> 以下 Phase 1-4 是上线前的历史实施路线，已于 2026-07-05 完成；当前不再按本节重新开发
+> TraderAgent。
+
 ### Phase 1：核心模块开发
 
 1. 创建 `python/services/agent/trader/` 目录与 5 个子模块；
@@ -431,6 +443,8 @@ SSE 流式返回交易研判过程与最终结果。
 ---
 
 ## 9. 测试计划
+
+> 本节是上线前测试设计。第 12 节中的专项计数保留为历史交付记录，不代表当前全量测试基线。
 
 ### 9.1 单元测试
 
@@ -495,7 +509,7 @@ SSE 流式返回交易研判过程与最终结果。
 
 ### 2026-07-05 第一次迭代：核心功能开发与接入完成
 
-**状态**：已完成 ✅  
+**状态**：已完成 ✅
 **提交目标**：本地 master 分支
 
 #### 本迭代完成内容
@@ -535,13 +549,15 @@ SSE 流式返回交易研判过程与最终结果。
 - [x] 前后端类型一致，`tsc --noEmit` 通过
 - [x] 后端 trader 专项 pytest 全部通过
 
-#### 待后续迭代处理的问题
+#### Post-R9 产品候选（未排期）
 
-- [ ] 全量后端 pytest 结果待确认（后台运行中）
-- [ ] 是否需要与 `backtest` Agent 联动，自动验证生成的交易计划
-- [ ] 是否需要支持用户自定义风险偏好参数（如单笔风险 1% vs 2%，已部分支持 query 解析）
-- [ ] 是否需要保存历史交易计划并追踪后续表现
-- [ ] 是否需要支持"交易系统"模式（制定一套规则，而非单次交易计划）
+- [ ] 持久化交易计划及其状态转换，定义 owner、权限、审计、保留和删除策略。
+- [ ] 追踪计划执行结果和复盘信息，覆盖并发更新、失败恢复和迁移成本。
+- [ ] 将交易计划与来源回测、目标持仓或实际持仓建立显式、可审计关联。
+
+以上内容统一归入 Post-R9 的 Trader 交易计划生命周期候选。实施前必须核对用户价值、数据模型、
+权限、保留策略和测试成本，并建立只覆盖一个完整用户闭环的独立规格；不在本设计文档中直接
+排期。附录中的交易系统模式和风险参数问题保留为历史讨论，不构成当前承诺。
 
 
 ### 2026-07-05 第一次迭代补充：测试冲突修复
@@ -555,14 +571,19 @@ SSE 流式返回交易研判过程与最终结果。
 
 **验证**：
 - trader 专项测试：`18 passed` ✅
-- 全量测试（排除 `test_strategy_evolution_agent.py`，该文件依赖未安装的 `sklearn`）：待确认
+- 全量测试“待确认”仅是当时状态，已由后续完整门禁关闭；下方保留 2026-07-05 历史结果
 
-### 已知环境问题
+### 历史环境问题（已关闭）
 
-- `test_strategy_evolution_agent.py` 全部 10 个测试失败，原因是环境缺少 `scikit-learn` 包：`ModuleNotFoundError: No module named 'sklearn'`。
-- 该问题与 TraderAgent 无关，属于已有依赖环境问题，建议后续安装 `scikit-learn` 或将其加入 `requirements.lock`。
+2026-07-05 的测试环境曾缺少 `scikit-learn`，导致 `test_strategy_evolution_agent.py` 10 个测试
+报 `ModuleNotFoundError: No module named 'sklearn'`。这不是 TraderAgent 缺陷，且后续已经
+关闭：[`requirements.lock`](../python/requirements.lock) 已锁定 `scikit-learn==1.5.2`；
+R9 后端完整 CI、依赖审计和工程门禁均已通过，证据见
+[`R9 发布记录`](releases/20260802_r9_csp_report_only_observability.md) 和
+[`Post-R9 迭代路线图`](iteration_plan_20260802_post_r9.md)。
 
+以下计数仅保留为 2026-07-05 历史现场，不作为当前全量基线：
 
-**全量测试结果**：
-- 排除 `test_strategy_evolution_agent.py`（依赖未安装的 `sklearn`）：`812 passed, 7 skipped, 0 failed` ✅
-- 完整全量测试（含 strategy_evolution）：`887 passed, 7 skipped, 12 failed`；其中 10 个失败为 strategy_evolution 的 sklearn 依赖缺失，2 个已修复为 trader 测试冲突
+- 排除 `test_strategy_evolution_agent.py`：`812 passed, 7 skipped, 0 failed`
+- 完整全量测试（含 strategy_evolution）：`887 passed, 7 skipped, 12 failed`；其中 10 个失败
+  来自当时的 sklearn 依赖缺失，另 2 个 Trader 测试冲突已在同次迭代修复

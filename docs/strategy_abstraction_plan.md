@@ -3,6 +3,12 @@
 > 分析日期：2026-07-04
 > 源系统：`D:\Code\stock-quant\flagship_stock_strategy\凌烟阁中市值选股策略精心随机_26_v3_original`
 > 目标系统：`D:\Code\project_rich_snowball`
+>
+> **当前状态校正（2026-08-02）**：多因子组合 `compositor`、过滤 DSL `filters`、因子注册表
+> `registry`、因子中性化 `neutralization` 和增强回测指标均已实现，不再作为待办排期。本文
+> 以下差距分析、P0/P1 建议和按周路线保留为 2026-07-04 的历史设计，不代表当前实现状态或
+> 当前迭代入口。当前路线以
+> [`Post-R9 迭代路线图`](iteration_plan_20260802_post_r9.md) 为准。
 
 ---
 
@@ -134,6 +140,9 @@ def stock_signal(stock_timing, stock_df):
 
 ### 2.1 能力矩阵
 
+> **历史快照**：下表记录 2026-07-04 调研时的能力判断，其中多因子组合、过滤 DSL、注册表、
+> 中性化和增强指标的“缺失”结论均已失效；当前证据见第四节状态表。
+
 | 能力维度 | 凌烟阁 | rich_snowball | 差距评估 |
 |----------|--------|---------------|----------|
 | **因子 DSL 求值** | ❌ 无 | ✅ `factor_engine/dsl.py` | rich_snowball 领先 |
@@ -169,7 +178,7 @@ rich_snowball 已有的以下模块可直接作为基础设施被新功能使用
 
 ---
 
-## 三、建议抽象的功能（按优先级）
+## 三、历史建议抽象的功能（按优先级）
 
 ### 3.1 P0：核心价值，应立即落地
 
@@ -196,7 +205,7 @@ class CompositeConfig:
 
 class FactorCompositor:
     """将多个因子组合为复合评分"""
-    
+
     def compute_composite_score(
         self, panel: PanelData, config: CompositeConfig
     ) -> CompositeScoreResult:
@@ -242,10 +251,10 @@ class FilterCondition:
     params: Any                          # 因子参数
     expression: str                      # 表达式，如 "val:==0", "val:<20", "pct:>=0.05"
     is_and: bool = True                  # True=AND, False=OR
-    
+
 class FilterPipeline:
     """过滤流水线"""
-    
+
     def apply(
         self, df: pd.DataFrame, conditions: list[FilterCondition]
     ) -> pd.DataFrame:
@@ -292,7 +301,7 @@ class FactorDefinition:
 
 class FactorRegistry:
     """因子注册中心"""
-    
+
     def register(self, definition: FactorDefinition): ...
     def get(self, name: str) -> FactorDefinition: ...
     def list_by_category(self, category: str) -> list[FactorDefinition]: ...
@@ -347,7 +356,7 @@ class EnhancedBacktestMetrics:
     sharpe: float
     trade_count: int
     score: int
-    
+
     # 新增指标
     information_ratio: float | None       # 信息比率（相对基准的超额收益/跟踪误差）
     excess_return_pct: float | None       # 超额收益（相对基准）
@@ -357,7 +366,7 @@ class EnhancedBacktestMetrics:
     quantile_returns: list[float]         # 分层回测各分位收益
     ic_decay: list[float]                 # IC 衰减曲线（各提前期的 IC）
     monthly_returns: list[dict]           # 月度收益明细
-    
+
     # 选股回测特有
     avg_hold_stocks: float | None         # 平均持仓数量
     selection_alpha: float | None         # 选股超额 alpha
@@ -448,7 +457,19 @@ class RebalanceConfig:
 
 ---
 
-## 四、实施路线图
+## 四、实施路线图（历史设计与当前状态）
+
+原按周路线已完成 P0/P1 能力交付，现仅作为设计演进记录，不再用于排期：
+
+| 历史路线项 | 当前状态 | 实现与测试证据 |
+|---|---|---|
+| P0-1 多因子组合 | 已实现 | [`compositor.py`](../python/services/agent/factor_engine/compositor.py)、[`test_compositor.py`](../python/tests/services/agent/factor_engine/test_compositor.py) |
+| P0-2 过滤 DSL | 已实现 | [`filters.py`](../python/services/agent/factor_engine/filters.py)、[`test_filters.py`](../python/tests/services/agent/factor_engine/test_filters.py) |
+| P1-1 因子注册表 | 已实现 | [`registry.py`](../python/services/agent/factor_engine/registry.py)、[`test_registry.py`](../python/tests/services/agent/factor_engine/test_registry.py) |
+| P1-2 因子中性化 | 已实现 | [`neutralization.py`](../python/services/agent/factor_engine/neutralization.py)、[`test_neutralization.py`](../python/tests/services/agent/factor_engine/test_neutralization.py) |
+| P1-3 增强回测指标 | 已实现 | [`metrics.py`](../python/services/backtest/metrics.py)、[`test_enhanced_metrics.py`](../python/tests/services/backtest/test_enhanced_metrics.py) |
+
+以下时间轴是 2026-07-04 的原始实施设想：
 
 ```
 Week 1-2 ─── P0-1 多因子组合框架 ─────────────────────────┐

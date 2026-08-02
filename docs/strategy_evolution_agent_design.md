@@ -1,6 +1,14 @@
 # 自进化策略 Agent — 架构设计文档
 
-> **状态**：Phase 1-3 已完成 ✅ | **日期**：2026-07-05 | **作者**：AI Agent
+> **当前状态（2026-08-02）**：Phase 1-3 后端能力已上线；日频 walk-forward 已由 R4 完成，
+> 支持 expanding/rolling 窗口、报告和生命周期持久化。策略进化已有后端 Agent 事件流，
+> 工作台实时进度与断线恢复仍是 Post-R9 产品候选，未排期，实施前必须另立规格。
+>
+> **文档性质**：本文主体保留 2026-07-05 的架构设计和阶段交付记录。当前路线以
+> [`Post-R9 迭代路线图`](iteration_plan_20260802_post_r9.md) 为准；walk-forward 完成证据见
+> [`R4 DSL Transform 与 Walk-Forward 验证`](r4_dsl_walk_forward_validation.md)。
+>
+> **原设计日期**：2026-07-05 | **作者**：AI Agent
 
 ---
 
@@ -54,7 +62,8 @@
 ### 2.2 设计原则（与现有 Agent 系统一致）
 
 1. **确定性计算优先** — 因子求值、回测、适应度计算全部用 numpy/pandas；LLM 仅负责意图理解与报告生成
-2. **可观测** — 每一代进化状态持久化到 DB，前端 SSE 流式展示
+2. **可观测** — 每一代进化状态持久化到 DB，并由后端 Agent 事件流输出；工作台实时展示与
+   断线恢复属于 Post-R9 候选
 3. **安全沙箱** — 因子公式生成后必须通过 `validate_factor_formula()` 校验
 4. **风险提示默认包含** — 所有输出附带过拟合警告
 
@@ -193,7 +202,7 @@ StrategyEvolutionAgent.run(query)
     ├─[7] 最终评估
     │    ├─ 样本外 (out-of-sample) 验证
     │    ├─ 贝叶斯优化参数精调（可选）
-    │    └─ Walk-forward 分析（✅ Phase 3 — DB 字段 + schema 已就绪，Walk-forward 分析逻辑待后续补充）
+    │    └─ Walk-forward 分析（✅ R4 已实现日频 expanding/rolling 验证）
     │
     ├─[8] 策略生命周期更新
     │    └─ evolution/strategy_lifecycle.py
@@ -227,22 +236,22 @@ def detect_regime(df: pd.DataFrame) -> MarketRegime:
     """基于多维度指标识别市场状态"""
     # 1. 趋势强度：ADX (14)
     adx = compute_adx(df, 14)
-    
+
     # 2. 趋势方向：MA 斜率 (20, 60)
     ma20_slope = linear_slope(df.close.rolling(20).mean(), 5)
     ma60_slope = linear_slope(df.close.rolling(60).mean(), 10)
-    
+
     # 3. 波动率：ATR / close 百分位 (252 天)
     atr_pct = compute_atr(df, 14) / df.close
     vol_percentile = atr_pct.rank(pct=True).iloc[-1]
-    
+
     # 4. 区间化程度：Bollinger 带宽百分位
     bb_width = (boll_upper - boll_lower) / boll_mid
     bb_percentile = bb_width.rank(pct=True).iloc[-1]
-    
+
     # 5. Hurst 指数（趋势持续性）
     hurst = compute_hurst(df.close, max_lag=20)
-    
+
     # 综合判断
     ...
 ```
@@ -266,37 +275,37 @@ def detect_regime(df: pd.DataFrame) -> MarketRegime:
 FACTOR_TEMPLATES = [
     # 动量类
     ("close / ts_delay(close, {lookback}) - 1", {"lookback": [1,3,5,10,20,60]}),
-    ("ts_mean(close, {fast}) / ts_mean(close, {slow}) - 1", 
+    ("ts_mean(close, {fast}) / ts_mean(close, {slow}) - 1",
      {"fast": [3,5,10], "slow": [10,20,60]}),
-    ("ts_delta(close, {lookback}) / ts_std(close, {lookback})", 
+    ("ts_delta(close, {lookback}) / ts_std(close, {lookback})",
      {"lookback": [10,20]}),
-    
+
     # 波动率类
-    ("ts_std(close, {window}) / ts_mean(close, {window})", 
+    ("ts_std(close, {window}) / ts_mean(close, {window})",
      {"window": [5,10,20,60]}),
-    ("(high - low) / ts_mean(close, {window})", 
+    ("(high - low) / ts_mean(close, {window})",
      {"window": [5,10,20]}),
-    
+
     # 量价关系
-    ("volume / ts_mean(volume, {window}) - 1", 
+    ("volume / ts_mean(volume, {window}) - 1",
      {"window": [5,20,60]}),
-    ("ts_corr(close, volume, {window})", 
+    ("ts_corr(close, volume, {window})",
      {"window": [10,20,60]}),
-    
+
     # 反转类
-    ("-1 * (close / ts_delay(close, {lookback}) - 1)", 
+    ("-1 * (close / ts_delay(close, {lookback}) - 1)",
      {"lookback": [1,3,5]}),
-    ("-1 * ts_zscore(close, {window})", 
+    ("-1 * ts_zscore(close, {window})",
      {"window": [5,10,20]}),
-    
+
     # 突破类
-    ("close / ts_max(high, {window}) - 1", 
+    ("close / ts_max(high, {window}) - 1",
      {"window": [10,20,60,120]}),
-    ("close / ts_min(low, {window}) - 1", 
+    ("close / ts_min(low, {window}) - 1",
      {"window": [10,20,60,120]}),
-    
+
     # 复合类
-    ("ts_mean(close, {fast}) / ts_mean(close, {slow}) * ts_std(volume, {vol_window})", 
+    ("ts_mean(close, {fast}) / ts_mean(close, {slow}) * ts_std(volume, {vol_window})",
      {"fast": [5,10], "slow": [20,60], "vol_window": [5,20]}),
 ]
 ```
@@ -339,7 +348,7 @@ GP_ARITHMETIC = ["+", "-", "*", "/"]
 
 def generate_random_factor(max_depth: int = 3) -> str:
     """随机生成一棵表达式树，返回合法因子公式。
-    
+
     depth=1: 终结符 或 简单一元函数调用
     depth=2: 一元嵌套 或 二元运算
     depth=3: 复杂嵌套表达式
@@ -420,7 +429,7 @@ def initialize_population(
     direction: str = "long",
 ) -> list[StrategyIndividual]:
     """从因子池初始化策略种群。
-    
+
     每个策略 = 入场条件（1-3 个因子） + 出场条件（1-2 个因子） + 风控参数
     """
 ```
@@ -499,7 +508,7 @@ def crossover(
     parent_b: StrategyIndividual,
 ) -> tuple[StrategyIndividual, StrategyIndividual]:
     """策略交叉：随机选择交叉点交换基因。
-    
+
     四种交叉点（等概率）：
     - entry: 交换一个入场条件
     - exit: 交换一个出场条件
@@ -543,7 +552,7 @@ def next_generation(
     fresh_blood_count: int = 3,
 ) -> list[StrategyIndividual]:
     """产生下一代种群。
-    
+
     流程：
     1. 精英保留（Top-N 直接进入下一代）
     2. 剩余填充：选择两个父本 → 交叉(70%概率) → 变异(30%概率)
@@ -581,7 +590,7 @@ def compute_fitness(
     weights: dict | None = None,
 ) -> FitnessScore:
     """标量加权适应度。
-    
+
     各维度映射函数：
     - _sharpe_score(): 0→25, 1.5→75, 2.0→90, 3.0→100
     - _return_drawdown_score(): Calmar > 3 → 100
@@ -603,7 +612,7 @@ def compute_fitness_with_oos(
     oos_consistency_weight: float = 0.25,
 ) -> FitnessScore:
     """在 IS 标量适应度的基础上，用 OOS Sharpe 一致性调整 stability 维度。
-    
+
     stability = max(0, min(100, (oos_sharpe / is_sharpe) × 100))
     当 OOS 表现严重退化时，stability 分数被大幅压低。
     """
@@ -671,17 +680,17 @@ class BOParams:
 
 class BayesianOptimizer:
     """贝叶斯优化器。
-    
+
     GP 核 = ConstantKernel × RBF + Matern(nu=2.5) + WhiteKernel
     采集函数 = Expected Improvement (EI)
     """
-    
+
     def __init__(
         self, n_dim=5, n_initial=10, n_iterations=30,
         exploration_xi=0.01, random_state=42,
     ):
         ...
-    
+
     def optimize(self, objective_fn) -> tuple[np.ndarray, float, list[dict]]:
         """运行 BO：初始 LHS 采样 → 迭代 GP 拟合 + EI 最大化。"""
 
@@ -695,7 +704,7 @@ def optimize_strategy_params_bayesian(
     n_initial: int = 10,
 ) -> tuple[dict, float, list[dict]]:
     """策略参数贝叶斯优化高级封装。
-    
+
     Returns: (最优参数字典, 最优适应度, 优化历史)
     """
 ```
@@ -711,23 +720,23 @@ def optimize_strategy_params_bayesian(
 ```python
 class StrategyLifecycleManager:
     """策略生命周期管理器"""
-    
-    def register_strategy(self, strategy_id: int, backtest_result: dict, 
+
+    def register_strategy(self, strategy_id: int, backtest_result: dict,
                           source: str, evolution_run_id: int = None):
         """注册新策略（人工创建或进化生成）"""
-    
+
     def evaluate_decay(self, strategy_id: int) -> dict:
         """评估策略退化程度。
-        
+
         比较最近 N 根 K 线的表现与历史回测表现：
         - 如果近 20 日信号频率显著下降 → 市场状态变化
         - 如果近 20 日模拟收益为负且持续 → 策略失效
         - 滚动窗口 Sharpe 趋势向下 → 退化预警
         """
-    
+
     def recommend_action(self, strategy_id: int) -> str:
         """推荐动作：keep / paper_trade / re_optimize / retire"""
-    
+
     def compare_strategies(self, strategy_ids: list[int]) -> dict:
         """多策略对比：相关性、互补性、组合建议"""
 ```
@@ -742,27 +751,27 @@ def detect_decay(strategy_id: int, recent_window: int = 20) -> dict:
     # 3. 计算滚动窗口指标
     # 4. 与历史回测指标对比
     # 5. 返回退化评分 (0=健康, 1=完全失效)
-    
+
     decay_signals = []
-    
+
     # 信号频率下降 > 50%
     if recent_signal_count < historical_avg_signal_count * 0.5:
         decay_signals.append("信号频率显著下降")
-    
+
     # 滚动 Sharpe < 0 持续超过 2 个窗口
     if rolling_sharpe_trend == "declining" and recent_sharpe < 0:
         decay_signals.append("滚动 Sharpe 持续为负")
-    
+
     # 盈亏比恶化 > 30%
     if recent_profit_factor < historical_profit_factor * 0.7:
         decay_signals.append("盈亏比显著恶化")
-    
+
     decay_score = len(decay_signals) / 3  # 0-1
     return {
         "decay_score": decay_score,
         "signals": decay_signals,
-        "recommendation": "retire" if decay_score > 0.66 
-                     else "re_optimize" if decay_score > 0.33 
+        "recommendation": "retire" if decay_score > 0.66
+                     else "re_optimize" if decay_score > 0.33
                      else "keep"
     }
 ```
@@ -776,23 +785,23 @@ def detect_decay(strategy_id: int, recent_window: int = 20) -> dict:
 ```python
 class StrategyEvolutionAgent(Agent):
     """自进化策略发现 Agent。
-    
+
     从价格数据中自动生成和进化交易策略。
     支持单品种深度优化和跨品种泛化验证。
     """
-    
+
     name = "strategy_evolution"
     description = "自进化策略引擎：自动从价格变化中发现、进化、优化交易策略"
-    
+
     async def run(self, query: str) -> AgentResult:
         """执行自进化策略发现。
-        
+
         用户查询示例：
         - "为螺纹钢日线自动发现策略，进化 10 代"
         - "分析 AU 近一年的价格特征，找出最优均线策略"
         - "批量优化黑色系所有品种的策略参数"
         """
-    
+
     async def run_stream(self, query: str) -> AsyncIterator[dict]:
         """流式执行进化过程，SSE 推送每代进度。"""
 ```
@@ -965,6 +974,11 @@ async def weekly_strategy_evolution():
 
 ## 6.1 实际完成进度
 
+> 下表的测试数是各阶段在 2026-07-04 至 2026-07-05 的历史交付记录，不是当前全量测试基线。
+> 后续 R4 与 R9 验证分别见
+> [`r4_dsl_walk_forward_validation.md`](r4_dsl_walk_forward_validation.md) 和
+> [`Post-R9 迭代路线图`](iteration_plan_20260802_post_r9.md)。
+
 | 阶段 | 状态 | 测试数 | 日期 |
 |------|------|--------|------|
 | Phase 1 | ✅ 完成 | 39 | 2026-07-04 |
@@ -1019,11 +1033,17 @@ async def weekly_strategy_evolution():
 - ✅ `test_evolution_router.py`：路由集成测试（8 用例）
 - ✅ `test_strategy_evolution_agent.py`：87 个已有测试保持通过（无回归）
 
-### 延期至后续迭代
-- ⏳ Walk-forward 分析引擎实现（DB 字段 + Schema 已预留，分析逻辑待后补）
-- ⏳ 前端 Dashboard 实时 SSE 流式进化进度（后端 Agent 层 SSE 已支持）
+### 2026-07-05 延期项的当前状态校正
 
-### 配置参数速查（当前版本）
+- **历史项已关闭**：日频 walk-forward 分析已由 R4 实现，并接入策略进化、报告和生命周期
+  持久化；实现见
+  [`walk_forward.py`](../python/services/backtest/walk_forward.py)，回归见
+  [`test_walk_forward.py`](../python/tests/test_walk_forward.py)。
+- **Post-R9 候选，未排期**：前端工作台实时进度与断线恢复体验。现有后端事件流见
+  [`strategy_evolution_agent.py`](../python/services/agent/strategy_evolution_agent.py)；
+  候选必须先明确事件契约、恢复语义、权限、保留和并发成本，再建立独立规格。
+
+### 配置参数速查（2026-07-05 历史版本）
 
 ```python
 _DEFAULT_EVOLUTION_CONFIG = {
