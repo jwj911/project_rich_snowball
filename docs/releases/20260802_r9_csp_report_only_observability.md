@@ -154,7 +154,7 @@ clamp_min(
 ## 远程门禁
 
 - Backend CI [run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
-  成功：R9 PostgreSQL 16 CSP 持久化专项 `21 passed`，完整后端测试约
+  成功：`R9 CSP contract gate 39 passed`，包含 PostgreSQL 持久化集成测试；完整后端测试约
   `1195 passed, 1 skipped`，Alembic、API smoke、Ruff 与依赖审计均通过；
 - Frontend CI 首次运行
   [run 30739553574](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553574)

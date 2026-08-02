@@ -82,6 +82,16 @@
   - [x] SubTask 11.3: 重新检查 CSP 报告、测试数据库、Playwright/Lighthouse 本地产物和日志，
     区分并保留用户开发数据库与工具缓存，确认无其他临时 R9 产物。
 
+- [x] Task 12: 修复最终独立验收发现的 R9 CI 测试计数漂移并重新验收。
+  - [x] SubTask 12.1: Backend CI run `30739553595` 的门禁步骤执行
+    `tests/test_csp_reports.py` 与 `tests/test_csp_reports_postgres.py`；门禁源码自 CI head
+    `37fc8008a74c1b74c48f74aac5e3267c8a29e5b6` 后未变。当前相同源码本地结果为
+    `38 passed, 1 skipped`，唯一 skip 源于本地非 PostgreSQL；PostgreSQL 16 CI 启用该
+    持久化集成测试，因此成功 run 的准确结果为 `R9 CSP contract gate 39 passed`。原
+    `21 passed` 是将 workflow 的 21 个步骤误作 pytest 计数。
+  - [x] SubTask 12.2: 同步 R9 发布记录和受影响事实源中的准确计数，重新检查无过期 CI
+    表述、链接、提交哈希和测试结果后，再执行最终 checklist 闭环。
+
 # Task Dependencies
 
 - Task 2 depends on Task 1.
@@ -93,3 +103,4 @@
 - Task 9 depends on Task 6，且 Task 7 的最终校验与 Task 8 depend on Task 9.
 - Task 10 depends on Task 9，且 Task 7.5、Task 8 和最终 checklist depend on Task 10.
 - Task 11 depends on Task 10，且 Task 8.5 和最终 checklist depend on Task 11.
+- Task 12 depends on Task 11，且 Task 8、最终 checklist 和 `progress.md` depend on Task 12.

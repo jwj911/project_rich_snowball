@@ -27,7 +27,8 @@
   提交为 `37fc8008a74c1b74c48f74aac5e3267c8a29e5b6`，CI 稳定性修复提交为
   `c7a721a04f58caa51860be67d870855663186a14`。
   [Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
-  成功，PostgreSQL CSP 专项 `21 passed`、完整后端测试约 `1195 passed, 1 skipped`；
+  成功，`R9 CSP contract gate 39 passed`，包含 PostgreSQL 持久化集成测试；完整后端测试约
+  `1195 passed, 1 skipped`；
   [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
   成功，Vitest、build、R9 E2E `3 passed`、全量 Playwright `43 passed` 和 Lighthouse 均通过。
   应用回滚点为 R9 启动文档提交 `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。

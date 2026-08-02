@@ -225,8 +225,9 @@ R8 未切换活动表，未导出或删除冷数据，也未执行生产备份�
 - 独立审查修复前的 R9 后端全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过；唯一 skip 是新增 PostgreSQL
-  持久化专项，本地无隔离 PostgreSQL；该专项已在 Backend CI 的 PostgreSQL 16 环境以
-  `21 passed` 通过，远端全量约 `1195 passed, 1 skipped`；
+  持久化专项，本地无隔离 PostgreSQL；Backend CI 的 PostgreSQL 16
+  `R9 CSP contract gate 39 passed` 包含该持久化集成测试，远端全量约
+  `1195 passed, 1 skipped`；
 - 审查增强前的基础版 R9 Playwright 为 `3 passed`；增加并发 401 单飞刷新和 SSE 首次断线
   重连后，本地 Playwright `--list`、TypeScript 与 ESLint 通过；Frontend CI 的增强版 R9
   E2E `3 passed`、全量 Playwright `43 passed`，Vitest、build 与 Lighthouse 均成功；

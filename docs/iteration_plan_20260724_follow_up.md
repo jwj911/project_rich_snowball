@@ -20,8 +20,9 @@
 - 后端：独立审查修复前的 R9 全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
-  持久化专项，本地无隔离 PostgreSQL；该专项已在 Backend CI 的 PostgreSQL 16 环境以
-  `21 passed` 通过，远端全量约 `1195 passed, 1 skipped`；
+  持久化专项，本地无隔离 PostgreSQL；Backend CI 的 PostgreSQL 16
+  `R9 CSP contract gate 39 passed` 包含该持久化集成测试，远端全量约
+  `1195 passed, 1 skipped`；
 - 前端：审查增强前的 CSP 配置 `21 passed`、全量 Vitest `35 files / 223 passed`、
   production build 和基础版 R9 Playwright `3 passed` 均通过，最大 First Load JS 为
   `157 kB`；增加并发 401 单飞刷新和 SSE 首次断线重连后，增强版已通过 Playwright
@@ -291,8 +292,9 @@ R8 的非生产工程基线属性。
 - 两种报告格式均可安全接收，非法类型、结构、批量和超大请求稳定拒绝；
 - 持久化和日志不包含原始请求体、敏感 URL 部分、Cookie、Authorization 或页面内容；
 - 强制 CSP 值保持不变，Report-Only 违规只上报而不阻断登录、SSE、页面和写操作；
-- 审查修复后的后端聚焦回归与 Ruff 已通过；Backend CI 的 PostgreSQL CSP 专项
-  `21 passed`，远端全量约 `1195 passed, 1 skipped`；
+- 审查修复后的后端聚焦回归与 Ruff 已通过；Backend CI 的
+  `R9 CSP contract gate 39 passed` 包含 PostgreSQL 持久化集成测试，远端全量约
+  `1195 passed, 1 skipped`；
 - Frontend CI 的 Vitest、production build、增强版 R9 E2E `3 passed`、全量 Playwright
   `43 passed` 与 Lighthouse 均成功。
 
@@ -497,7 +499,8 @@ R8 工程侧已完成并取得 PostgreSQL 16 CI 证据。生产侧仍需取得�
   重连后，增强版 Playwright `--list`、TypeScript 与 ESLint：通过；
 - `git diff --check`：通过；
 - [Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
-  成功：PostgreSQL CSP 专项 `21 passed`，完整后端测试约 `1195 passed, 1 skipped`；
+  成功：`R9 CSP contract gate 39 passed`，包含 PostgreSQL 持久化集成测试；完整后端测试约
+  `1195 passed, 1 skipped`；
 - [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
   成功：Vitest、production build、增强版 R9 E2E `3 passed`、全量 Playwright
   `43 passed` 与 Lighthouse 均通过；

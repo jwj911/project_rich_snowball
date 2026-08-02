@@ -233,7 +233,8 @@ clamp_min(
   R8 K 线 PostgreSQL 门禁 + R9 CSP 接收契约 + PostgreSQL pytest/API smoke + Ruff
   check/format + `pip-audit`，pytest-cov 阈值为 40%。
   [R9 Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
-  成功，PostgreSQL CSP 专项 `21 passed`，远端全量约 `1195 passed, 1 skipped`。
+  成功，`R9 CSP contract gate 39 passed`，包含 PostgreSQL 持久化集成测试；远端全量约
+  `1195 passed, 1 skipped`。
 - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → ESLint → R9 双 CSP
   响应头门禁 → build → Vitest → Lighthouse；独立 job 执行 PostgreSQL/Alembic/backend、
   R9 认证/刷新/SSE/Bearer 定向浏览器门禁及完整 Chromium Playwright smoke。

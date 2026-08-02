@@ -31,8 +31,9 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 - 后端：独立审查修复前的 R9 全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
-  持久化专项，本地无隔离 PostgreSQL；该专项已在 Backend CI 的 PostgreSQL 16 环境以
-  `21 passed` 通过，远端全量约 `1195 passed, 1 skipped`。
+  持久化专项，本地无隔离 PostgreSQL；Backend CI 的 PostgreSQL 16
+  `R9 CSP contract gate 39 passed` 包含该持久化集成测试，远端全量约
+  `1195 passed, 1 skipped`。
 - 前端：审查增强前的基础版 R9 Playwright 为 `3 passed`。增加并发 401 单飞刷新和 SSE
   首次断线重连后，增强版已通过 Playwright `--list`、TypeScript 与 ESLint；Frontend CI
   中增强版 R9 E2E `3 passed`、全量 Playwright `43 passed`，Vitest、production build 与
@@ -98,7 +99,7 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 当前远程证据：
 
 - [R9 Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)：
-  成功；PostgreSQL CSP 持久化专项 `21 passed`，完整后端测试约
+  成功；`R9 CSP contract gate 39 passed`，包含 PostgreSQL 持久化集成测试；完整后端测试约
   `1195 passed, 1 skipped`，Alembic、API smoke、Ruff 与依赖审计均通过。
 - [R9 Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)：
   成功；Vitest、production build、增强版 R9 E2E `3 passed`、全量 Playwright

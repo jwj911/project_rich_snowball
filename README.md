@@ -37,7 +37,8 @@
   `c7a721a04f58caa51860be67d870855663186a14`。回滚点为 R9 启动文档提交
   `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
 - [Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
-  成功：PostgreSQL CSP 专项 `21 passed`，完整后端测试约 `1195 passed, 1 skipped`。
+  成功：`R9 CSP contract gate 39 passed`，包含 PostgreSQL 持久化集成测试；完整后端测试约
+  `1195 passed, 1 skipped`。
 - [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
   成功：Vitest、production build、R9 E2E `3 passed`、全量 Playwright `43 passed` 和
   Lighthouse 均通过。
@@ -295,7 +296,8 @@ R9 独立审查修复前的后端全量为
 `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过；唯一 skip 是新增 PostgreSQL
 CSP 持久化专项，本地无隔离 PostgreSQL。审查修复后的完整后端全量由
 [Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
-复核，PostgreSQL CSP 专项 `21 passed`，完整后端测试约 `1195 passed, 1 skipped`。
+复核，`R9 CSP contract gate 39 passed`，包含 PostgreSQL 持久化集成测试；完整后端测试约
+`1195 passed, 1 skipped`。
 
 前端已配置 Vitest + Playwright 自动化测试。R9 CSP 配置测试为 `21 passed`；全量 Vitest
 为 `35 files / 223 passed`，TypeScript、ESLint 和 production build 通过，最大 First Load JS

@@ -156,7 +156,7 @@ Vitest full before review                   35 files, 223 passed
 production build before review              passed; maximum First Load JS 157 kB
 Playwright R9 before review enhancements    3 passed
 enhanced Playwright --list / TS / ESLint    passed
-Backend CI PostgreSQL CSP persistence       21 passed
+R9 CSP contract gate 39 passed              includes PostgreSQL persistence integration test
 Backend CI full pytest                      about 1195 passed, 1 skipped
 Frontend CI R9 enhanced E2E                 3 passed
 Frontend CI full Playwright                 43 passed
