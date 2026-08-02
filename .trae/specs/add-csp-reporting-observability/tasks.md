@@ -74,6 +74,14 @@
   - [x] SubTask 10.4: 全文检索并消除与当前 CI 状态冲突的“待补/待验证”表述，重新校验链接、
     测试计数、提交哈希和 `git diff --check`。
 
+- [x] Task 11: 清理最终验收发现的已确认本地临时产物，并保留用户开发数据。
+  - [x] SubTask 11.1: 确认 `frontend/debug.log` 和 `python/backend-e2e.log` 均为临时日志；
+    `python/dev.db` 是用户开发数据，必须保留且不得修改或删除。
+  - [x] SubTask 11.2: 仅删除上述两份临时日志，以及只读检查生成的 `python/dev.db-shm` /
+    `python/dev.db-wal` 检查 sidecar，不删除其他文件。
+  - [x] SubTask 11.3: 重新检查 CSP 报告、测试数据库、Playwright/Lighthouse 本地产物和日志，
+    区分并保留用户开发数据库与工具缓存，确认无其他临时 R9 产物。
+
 # Task Dependencies
 
 - Task 2 depends on Task 1.
@@ -84,3 +92,4 @@
 - Task 8 depends on Task 6 and Task 7.
 - Task 9 depends on Task 6，且 Task 7 的最终校验与 Task 8 depend on Task 9.
 - Task 10 depends on Task 9，且 Task 7.5、Task 8 和最终 checklist depend on Task 10.
+- Task 11 depends on Task 10，且 Task 8.5 和最终 checklist depend on Task 11.
