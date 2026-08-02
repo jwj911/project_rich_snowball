@@ -32,6 +32,11 @@ class TestMetricsDashboardAuth:
         r = client.get("/metrics/dashboard/collection")
         assert r.status_code == 401
 
+    def test_kline_storage_requires_auth(self, client):
+        """未登录访问 K 线存储概况应沿用现有 401 契约。"""
+        r = client.get("/metrics/dashboard/kline-storage")
+        assert r.status_code == 401
+
     def test_dashboard_forbids_normal_user(self, client, auth_headers):
         """普通登录用户访问 /metrics/dashboard 应返回 403。"""
         r = client.get("/metrics/dashboard", headers=auth_headers)
@@ -45,6 +50,11 @@ class TestMetricsDashboardAuth:
     def test_collection_forbids_normal_user(self, client, auth_headers):
         """普通登录用户访问 /metrics/dashboard/collection 应返回 403。"""
         r = client.get("/metrics/dashboard/collection", headers=auth_headers)
+        assert r.status_code == 403
+
+    def test_kline_storage_forbids_normal_user(self, client, auth_headers):
+        """普通登录用户访问 K 线存储概况应返回 403。"""
+        r = client.get("/metrics/dashboard/kline-storage", headers=auth_headers)
         assert r.status_code == 403
 
     def test_dashboard_allows_admin(self, client, admin_headers):
@@ -61,6 +71,27 @@ class TestMetricsDashboardAuth:
         """admin 用户访问 /metrics/dashboard/collection 应返回 200。"""
         r = client.get("/metrics/dashboard/collection", headers=admin_headers)
         assert r.status_code == 200
+
+    def test_kline_storage_allows_admin_with_sqlite_summary(self, client, admin_headers):
+        """admin 用户应获得不含连接信息的 SQLite 基础摘要。"""
+        r = client.get("/metrics/dashboard/kline-storage", headers=admin_headers)
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["dialect"] == "sqlite"
+        assert isinstance(data["row_count"], int)
+        assert data["row_estimate"] is None
+        assert data["partitioning_supported"] is False
+        assert data["is_partitioned"] is False
+        assert data["partition_count"] == 0
+        assert data["future_coverage"]["complete"] is None
+        assert data["storage_bytes"] == {
+            "table": None,
+            "indexes": None,
+            "total": None,
+        }
+        assert "database_url" not in data
+        assert "connection" not in data
 
 
 class TestMetricsDashboardOverview:

@@ -124,6 +124,56 @@ jobs:
           path: python/alembic-migration.log
           if-no-files-found: ignore
 
+      - name: R8 K-line storage and shadow partition gate
+        env:
+          SECRET_KEY: test-secret-key-for-ci-local-development-42
+          ENABLE_SCHEDULER: "0"
+          DATABASE_URL: postgresql://futures:futures123@localhost:15432/futures_community
+        run: |
+          report_path="$RUNNER_TEMP/r8-kline-storage-preflight.json"
+          python scripts/kline_storage_preflight.py --report-path "$report_path"
+          python - "$report_path" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          assert report["status"] == "not_required", report
+          assert report["trace_id"], report
+          assert report["database"]["dialect"] == "postgresql", report
+          print("R8 read-only storage preflight passed.")
+          PY
+          pytest \
+            tests/test_kline_storage.py \
+            tests/test_kline_partitioning.py \
+            tests/test_kline_rehearsal.py \
+            tests/test_kline_partitioning_postgres.py \
+            -q
+          python - <<'PY'
+          import os
+
+          from sqlalchemy import create_engine, text
+
+          engine = create_engine(os.environ["DATABASE_URL"])
+          try:
+              with engine.connect() as connection:
+                  resources = connection.execute(
+                      text(
+                          """
+                          SELECT relname
+                          FROM pg_class
+                          WHERE relnamespace = to_regnamespace(current_schema())
+                            AND relname LIKE 'kline_data_shadow_%'
+                          ORDER BY relname
+                          """
+                      )
+                  ).scalars().all()
+              assert not resources, f"R8 shadow resources were not cleaned: {resources}"
+              print("R8 shadow resource cleanup passed.")
+          finally:
+              engine.dispose()
+          PY
+
       - name: Run tests with coverage
         env:
           SECRET_KEY: test-secret-key-for-ci-local-development-42

@@ -20,6 +20,7 @@ from models import (
     WatchlistDB,
 )
 from services.circuit_breaker import get_circuit_status
+from services.kline_storage import get_kline_storage_overview
 
 router = APIRouter(prefix="/metrics", tags=["指标面板"])
 
@@ -193,3 +194,12 @@ def get_dashboard_collection(
         "circuit_breakers": circuit_status,
         "timestamp": datetime.now(UTC).isoformat(),
     }
+
+
+@router.get("/dashboard/kline-storage")
+def get_dashboard_kline_storage(
+    _=Depends(require_admin_user),
+    db: Session = Depends(get_db),  # noqa: B008
+):
+    """低成本 K 线存储概况。"""
+    return get_kline_storage_overview(db.get_bind()).to_dict()

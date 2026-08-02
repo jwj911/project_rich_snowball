@@ -68,6 +68,21 @@ class TestMetricsEndpoint:
         r = client.get("/metrics")
         assert r.status_code == 403
 
+    def test_metrics_does_not_collect_kline_storage_overview(self, client, monkeypatch):
+        """Prometheus scrape 不得触发 K 线容量或分区统计。"""
+        monkeypatch.setattr("main._is_trusted_proxy", lambda host: True)
+
+        def fail_if_called(*args, **kwargs):
+            raise AssertionError("Prometheus scrape called K-line storage overview")
+
+        monkeypatch.setattr(
+            "routers.metrics_dashboard.get_kline_storage_overview",
+            fail_if_called,
+        )
+
+        r = client.get("/metrics")
+        assert r.status_code == 200
+
 
 class TestAuthMetrics:
     def test_login_success_increments_auth_metric(self, client):
