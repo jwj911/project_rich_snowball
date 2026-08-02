@@ -1,7 +1,7 @@
 # 后续迭代计划：安全边界、数据基础与发布收口
 
 > 计划日期：2026-07-24
-> 当前状态：R1 至 R8 工程项已完成；R8 为 K 线分区生命周期准备，活动表尚未切换
+> 当前状态：R1 至 R8 工程项已完成；R9 CSP Report-Only 观测闭环已启动，尚未实施
 > 适用范围：Phase 4 后续安全回归、数据基础、策略验证、前端质量和生产发布治理
 > 上一份事实源：[`iteration_plan_20260718_project_audit.md`](iteration_plan_20260718_project_audit.md)
 
@@ -26,6 +26,8 @@
   均为 R6 历史基线；
 - 以上均为工程基线，不等同于生产发布。生产发布仍需逐项执行
   [`release_checklist_20260719.md`](release_checklist_20260719.md)。
+- R8 已通过最终文档提交 `57bc6131` 在 GitHub `origin/master` 闭环，仍是非生产工程基线；
+  R9 只启动 R5 安全迁移的 S1 CSP Report-Only 观测闭环，当前没有实现、测试或 CI 结论。
 
 ## 2. 已完成项与旧清单校正
 
@@ -252,24 +254,54 @@ PostgreSQL 证据。
 完整记录见
 [`releases/20260802_r8_kline_partition_lifecycle.md`](releases/20260802_r8_kline_partition_lifecycle.md)。
 活动表切换、冷数据导出/删除、对象存储归档及生产恢复演练不属于 R8。
+R8 的测试、CI、状态和未完成生产项已由最终文档提交 `57bc6131` 完成远端闭环；该提交不改变
+R8 的非生产工程基线属性。
+
+### R9：CSP Report-Only 观测闭环（P2，已启动）
+
+**目标**：实施 R5 分阶段安全迁移的 S1，只建立不会阻断业务的 CSP Report-Only 报告、脱敏、
+限流和低基数观测闭环，为后续 nonce/hash 强制策略提供真实证据。
+
+计划范围：
+
+1. 兼容 legacy CSP 与 Reporting API 报告格式，并限制请求大小、批量数量、采样率和客户端
+   IP 速率；
+2. 对 URL、字段和持久化失败日志执行严格脱敏，每条持久化报告使用独立 `trace_id`；
+3. 前端保留现有强制 CSP，同时增加更严格但只上报、不阻断的候选策略；
+4. 覆盖登录、刷新、退出、SSE、Bearer 写请求和 CSRF 边界，并增加后端、前端与 CI 门禁；
+5. 取得完整业务周期的真实 Report-Only 数据后，才能评审后续 S2。
+
+验收：
+
+- 两种报告格式均可安全接收，非法类型、结构、批量和超大请求稳定拒绝；
+- 持久化和日志不包含原始请求体、敏感 URL 部分、Cookie、Authorization 或页面内容；
+- 强制 CSP 值保持不变，Report-Only 违规只上报而不阻断登录、SSE、页面和写操作；
+- 认证/CSRF 回归、后端与前端全量门禁、远端 CI 全部通过后才建立 R9 工程基线记录。
+
+本轮不收紧现有强制 CSP，不移除 `localStorage` access token，不允许 cookie-only 写请求。
+nonce/hash 强制 CSP 属于后续 S2；内存 access token 属于后续 S3，二者必须独立立项和验收。
+R9 当前仅完成规格与启动文档，不得描述为已实现、已测试或已通过 CI。
 
 ## 4. 本轮执行拆分
 
-R1 与 R2 保持原子化执行：
+R9 保持文档、实现和验证记录边界清晰：
 
-1. `test(security): add PostgreSQL owner-scope regressions`
-2. `test(security): close generic SQL private-table policy gaps`
-3. `docs: record PostgreSQL owner-scope and private-boundary evidence`
+1. `docs: start R9 CSP reporting iteration`
+2. `feat(security): add CSP report-only observability`
+3. `test(ci): gate R9 CSP reporting contracts`
+4. `docs: close R9 verification`
 
-每个提交都要先通过对应定向测试和 Ruff；R3 的数据 schema 与采集管道不与本轮
-安全边界改动混在同一批。
+启动文档必须先推送；实现提交不得夹带 R8 生产切换、token 迁移或强制 CSP 收紧。
 
 ## 5. 风险与停止条件
 
-- PostgreSQL 专项测试依赖已迁移到 head 的目标数据库；未满足时只能记录为阻塞，不能改成 SQLite 伪回归；
-- 测试数据使用唯一用户名和 symbol，并在 fixture teardown 中显式清理；
-- 日志和测试输出不得记录原始行情代码、价格或 Provider Token；
-- 发现 AST 改写在 PostgreSQL 与 SQLite 语义不一致时，暂停 R2，先修复并补齐安全回归。
+- 任一报告路径可能持久化或输出原始凭据、URL 查询参数、fragment、脚本或页面内容时停止；
+- Report-Only 候选策略改变强制 CSP，或使登录、刷新、SSE、写请求回归时停止；
+- 指标标签不得使用完整 URL、用户标识、原始 directive 或 `trace_id`；
+- CI 和本地合成报告不能替代完整业务周期的生产 Report-Only 证据；
+- 未完成独立 CSRF token/origin、防重放和跨域评审前，不移除 `localStorage` access token，
+  不启用 cookie-only 写请求；
+- R8 仍是非生产工程基线，活动表切换、冷归档和生产恢复不纳入 R9。
 
 ## 6. 状态记录
 
@@ -283,9 +315,11 @@ R1 与 R2 保持原子化执行：
 | R6 真实发布窗口 | 发布候选已完成 | `releases/20260727_r6_release_candidate.md`；生产部署待执行 |
 | R7 生产发布门禁与 SSE 更新信号 | 工程基线已完成 | `releases/20260730_r7_release_gates.md`；真实生产操作待执行 |
 | R8 K 线分区生命周期准备 | 工程实现已完成 | `releases/20260802_r8_kline_partition_lifecycle.md`；生产切换/归档待执行 |
+| R9 CSP Report-Only 观测闭环 | 已启动 | 仅进入 S1 实施阶段；强制 CSP 和认证/CSRF 边界暂不改变 |
 
 R8 工程侧已完成并取得 PostgreSQL 16 CI 证据。生产侧仍需取得真实生产凭据和负责人，在真实
-窗口完成备份恢复、部署与 smoke；K 线达到阈值后另立活动表切换和冷归档规格。
+窗口完成备份恢复、部署与 smoke；K 线达到阈值后另立活动表切换和冷归档规格。R9 必须先完成
+Report-Only 工程验证和完整业务周期观测，后续才能分别评审 S2 强制 CSP 与 S3 内存 token。
 
 ## 7. R1 执行记录（2026-07-24）
 
@@ -419,3 +453,13 @@ R8 工程侧已完成并取得 PostgreSQL 16 CI 证据。生产侧仍需取得�
 - 当前未完成：活动 `kline_data` 切换、真实冷数据导出/删除、对象存储归档、生产备份恢复和
   维护窗口演练。完整边界见
   [`releases/20260802_r8_kline_partition_lifecycle.md`](releases/20260802_r8_kline_partition_lifecycle.md)。
+- 最终文档提交 `57bc6131` 已推送至 `origin/master`，用于闭环上述证据和边界，不代表生产
+  已分区或已发布。
+
+## 17. R9 CSP Report-Only 启动记录（2026-08-02）
+
+- R9 仅启动 R5 S1 CSP Report-Only 观测闭环；代码、测试、CI 和发布记录尚未完成；
+- 现有强制 CSP 保持不变，仍不把 Report-Only 描述为 nonce/hash 强制策略；
+- `localStorage` access token、HttpOnly refresh/access cookie、Bearer 写请求和 CSRF 拒绝
+  cookie-only 写请求的边界保持不变；
+- S2 nonce/hash 强制 CSP 与 S3 内存 access token 后续分别立项，不与本轮启动文档混合。

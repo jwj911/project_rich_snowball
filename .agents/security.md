@@ -17,6 +17,8 @@
   HttpOnly access cookie，logout 必须清理两者。
 - access token 当前仍保存于 localStorage 以支持写请求的 Bearer header。cookie-only 写请求需要
   独立验证 CSRF token/origin、防重放、SSE 和跨域边界，未完成前不得改变 Bearer 要求。
+- R9 不迁移 token：S1 只增加 CSP Report-Only 观测。内存 access token 属于后续 S3，
+  cookie-only 写请求不在当前范围。
 
 ## XSS 与输入安全
 
@@ -26,7 +28,15 @@
 
 ## 内容安全与 SSRF
 
-- CSP：前端有 Content-Security-Policy 响应头，但当前允许 `unsafe-eval` 和 `unsafe-inline`（为兼容 lightweight-charts 和 Next.js）。后续先部署 Report-Only 收集真实违规，再以 nonce/hash 分阶段收紧；不能直接删除来源而破坏运行时。
+- CSP：前端有 Content-Security-Policy 响应头，但当前允许 `unsafe-eval` 和 `unsafe-inline`
+  （为兼容 lightweight-charts 和 Next.js）。R9 已启动 S1 规格，计划保留该强制策略并增加
+  更严格但只上报、不阻断的 Report-Only 候选策略；代码尚未实施。
+- CSP 报告接收必须限制 8 KiB 请求体、Reporting API 批量数量、允许字段、采样率和每 IP
+  速率。document URL、blocked URL、source file 和 referrer 必须在持久化前移除 userinfo、
+  query 与 fragment；sample、脚本片段、DOM 内容、Cookie 和 Authorization 一律丢弃。
+- 每条持久化 CSP 报告必须使用独立 `trace_id`；失败日志只允许异常类型和安全计数，指标标签
+  只允许低基数 outcome。完整业务周期的真实报告未归类前，禁止移除强制策略中的
+  `unsafe-inline` 或 `unsafe-eval`。
 - RSS/新闻源：添加外部 RSS URL 时必须校验协议与主机（拒绝 private/local/link-local/file 等危险目标），抓取时设置显式超时，防止 SSRF 与 worker 阻塞。
 - admin 手动触发抓取接口（`/api/news/fetch`、`/api/news/sources/{id}/fetch`）已通过 `BackgroundTasks` 后台化，不再阻塞 HTTP 请求。
 

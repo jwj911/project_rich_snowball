@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-08-02（R8 K 线分区生命周期工程基线）
+> **最后更新**：2026-08-02（R9 CSP Report-Only 观测闭环启动）
 
 ---
 
@@ -25,9 +25,14 @@
   [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
   成功，R8 专项 `45 passed`，全量 PostgreSQL `1174 passed, 1 skipped`，覆盖率
   `75.98%`；影子资源残留断言、API smoke、Ruff 和 `pip-audit` 均通过。
-- **当前迭代**：R8 已完成容量门禁、默认 dry-run 的影子 LIST + RANGE DDL、隔离复制演练、
-  benchmark 只读契约和管理员存储概况。活动 `kline_data` 未切换，冷数据未导出/删除，
-  生产备份恢复未执行，因此当前只是非生产工程基线。
+- **当前迭代**：R9 已完成
+  [CSP Report-Only 观测闭环规格](.trae/specs/add-csp-reporting-observability/spec.md)和启动
+  文档，代码、测试、CI 与最终发布记录尚未完成。本轮只实施 R5 的 S1 报告模式；现有强制
+  CSP、`localStorage` access token、Bearer 写请求和 CSRF 拒绝 cookie-only 写请求的边界
+  保持不变。
+- **上一迭代边界**：R8 已完成容量门禁、默认 dry-run 的影子 LIST + RANGE DDL、隔离复制
+  演练、benchmark 只读契约和管理员存储概况。活动 `kline_data` 未切换，冷数据未导出/删除，
+  生产备份恢复未执行，因此仍是非生产工程基线。
 - **文件审计**：2026-07-05 完成 Phase 1/2 清理，根目录精简至 7 个文件，文档迁入 `docs/guides/`、`docs/archive/` 与 `quantative_tools/reports/`，详见 [docs/audit_cleanup_20260705.md](docs/audit_cleanup_20260705.md)。
 
 ### 主要功能模块
@@ -70,6 +75,7 @@
 |------|------|
 | [docs/release_checklist_20260719.md](docs/release_checklist_20260719.md) | 当前发布前检查、CI 证据、备份与回滚清单 |
 | [docs/iteration_plan_20260724_follow_up.md](docs/iteration_plan_20260724_follow_up.md) | Phase 4 后续安全回归、数据基础、策略验证与发布队列 |
+| [.trae/specs/add-csp-reporting-observability/spec.md](.trae/specs/add-csp-reporting-observability/spec.md) | R9 CSP Report-Only 观测闭环规格、认证边界和停止条件 |
 | [docs/phase4_private_data_access_boundary.md](docs/phase4_private_data_access_boundary.md) | Agent 通用 SQL 的私有数据访问边界与 owner policy |
 | [docs/r3_raw_contract_market_panel.md](docs/r3_raw_contract_market_panel.md) | 多视图日频研究宽表的 schema、血缘、消费和调度规则 |
 | [docs/r4_dsl_walk_forward_validation.md](docs/r4_dsl_walk_forward_validation.md) | DSL transform 语义、walk-forward 窗口、报告和生命周期查询规则 |

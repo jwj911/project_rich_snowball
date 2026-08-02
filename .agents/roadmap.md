@@ -211,6 +211,22 @@ smoke；完成前不得标记为生产已发布。
 R8 未切换活动表，未导出或删除冷数据，也未执行生产备份恢复；达到容量阈值后必须另立生产
 切换和归档规格。
 
+### R9：CSP Report-Only 观测闭环 — 已启动（2026-08-02）
+
+- 已批准
+  [R9 规格](../.trae/specs/add-csp-reporting-observability/spec.md)，当前只完成文档先行，
+  报告端点、响应头、测试和 CI 尚未实施；
+- S1 计划兼容 legacy CSP 与 Reporting API 报告，限制字节数、批量、结构、采样和每 IP
+  速率，并在持久化前脱敏 URL 与字段；
+- 每条持久化报告将使用独立 `trace_id`，指标仅使用低基数 outcome，不记录完整 URL、用户
+  标识、原始 directive 或报告内容；
+- 前端将保留现有强制 CSP，另加更严格但只上报、不阻断的 Report-Only 候选策略；
+- 登录、并发刷新、退出、SSE、Bearer 写请求与 CSRF 拒绝 cookie-only 写请求必须保持回归；
+- 完整业务周期的真实报告未归类前，不进入 S2 nonce/hash 强制收紧。
+
+R9 不移除 `localStorage` access token，不启用 cookie-only 写请求。S2 强制 CSP 与 S3 内存
+access token 后续分别立项；任何敏感报告泄露或业务阻断都会停止本轮实施。
+
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 
 - `price_levels` / `watchlists` / `workspace` 云端同步闭环

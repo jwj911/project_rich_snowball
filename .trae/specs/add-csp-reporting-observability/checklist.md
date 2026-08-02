@@ -1,0 +1,37 @@
+# R9 验收清单
+
+- [x] R8 最终文档提交存在于 `origin/master`，本地与远端领先/落后均为 0。
+- [x] R9 开始前工作区干净，未混入 benchmark、业务报告、浏览器产物或未脱敏数据。
+- [ ] R9 启动文档提交先于实现提交推送 GitHub，并明确 S1 范围、停止条件和非目标。
+- [ ] 项目文档仍准确声明 R8 未切换活动表、未归档冷数据且不是生产发布。
+- [ ] CSP 报告端点兼容 `application/csp-report`。
+- [ ] CSP 报告端点兼容 `application/reports+json`，并限制单批报告数量。
+- [ ] 不支持的 Content-Type、报告类型、结构和超大请求返回稳定 4xx。
+- [ ] CSP 报告请求体最大 8 KiB，拒绝结果不会持久化原始内容。
+- [ ] 每客户端 IP 使用 CSP 专用限流 action，Redis 不可用时有内存降级。
+- [ ] CSP 采样率配置有范围校验，并可在测试/CI 中确定性覆盖。
+- [ ] 每条持久化 CSP 报告包含独立 `trace_id`。
+- [ ] document URL、blocked URL、source file 和 referrer 已移除 userinfo、query 与 fragment。
+- [ ] URL、directive、disposition、line/column 等允许字段均有长度、枚举或数值边界。
+- [ ] sample、脚本片段、DOM 内容、Cookie、Authorization 和未知字段不会持久化或写日志。
+- [ ] CSP 报告持久化失败会回滚，日志只包含 `trace_id`、异常类型和安全计数。
+- [ ] 收到、接受、采样丢弃、拒绝、限流和持久化失败均有低基数指标。
+- [ ] 指标标签不包含完整 URL、用户标识、原始 directive 或 `trace_id`。
+- [ ] 前端页面同时返回强制 CSP 与 CSP Report-Only 响应头。
+- [ ] R9 保持现有强制 `Content-Security-Policy` 值不变。
+- [ ] Report-Only 候选 `script-src` 比强制策略更严格，并正确指向受控报告端点。
+- [ ] Report-Only 的 connect、img、font、frame、base 和 form 边界不破坏现有运行需求。
+- [ ] 登录、并发 401 单飞刷新、access cookie 轮换和退出清理无回归。
+- [ ] SSE cookie 鉴权和更新重连无回归。
+- [ ] POST/PUT/PATCH/DELETE 仍必须携带 Authorization Bearer，cookie-only 写请求仍被拒绝。
+- [ ] 至少一个详情或工作区写请求通过 Playwright 验证，Report-Only 不阻断业务。
+- [ ] 后端 R9 定向测试、认证/CSRF/SSE 回归、全量 pytest 和 Ruff 全部通过。
+- [ ] 前端 Vitest、TypeScript、ESLint、production build 和 Playwright 全部通过。
+- [ ] Backend CI 与 Frontend CI 均执行 R9 门禁并成功。
+- [ ] `CHANGELOG.md`、README、AGENTS、`.agents/`、当前迭代计划和发布清单已同步。
+- [ ] R5 文档将 S1 更新为 R9 工程实现，并保留真实完整业务周期观测门槛。
+- [ ] R9 发布记录包含提交、测试、CI、回滚点、指标/告警输入和未完成 S2/S3 项。
+- [ ] 文档没有把 Report-Only 描述为强制 CSP 已收紧，也没有把 localStorage token 风险描述为已关闭。
+- [ ] `git diff --check`、pre-commit 和提交范围检查通过。
+- [ ] R9 提交已推送 GitHub，本地与 `origin/master` 一致，最终工作区干净。
+- [ ] `tasks.md` 与本清单全部勾选，`progress.md` 已追加本轮唯一总结。

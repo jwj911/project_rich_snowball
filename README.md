@@ -21,14 +21,21 @@
 - 当前后端工程基线：R8 本地全量 `1157 passed, 18 skipped, 0 failed`，Ruff check/format
   与 diff check 均通过。新增的 3 个 PostgreSQL 专项用例在本机明确跳过，并已在远程
   PostgreSQL 16 门禁中通过。
-- 当前迭代：R8 已完成
-  [K 线分区生命周期准备](docs/releases/20260802_r8_kline_partition_lifecycle.md)的本地工程
-  验证；实现提交为 `41c79f1e`，最终验证提交为 `68386c51`。
+- 当前迭代：R9
+  [CSP Report-Only 观测闭环](.trae/specs/add-csp-reporting-observability/spec.md)已完成规格和
+  启动文档，代码、测试和 CI 尚未实施。R9 只推进 R5 安全迁移的 S1 报告模式，不收紧现有
+  强制 CSP，不移除 `localStorage` access token，不启用 cookie-only 写请求。
+- 上一迭代：R8 已完成
+  [K 线分区生命周期准备](docs/releases/20260802_r8_kline_partition_lifecycle.md)工程验证；
+  实现提交为 `41c79f1e`，最终验证提交为 `68386c51`。
 - [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
   成功：R8 专项 `45 passed`，远程全量 `1174 passed, 1 skipped`，覆盖率 `75.98%`。
 - 前端本轮无变更且未重跑；R6 的 Vitest `202 passed`、Playwright `40 passed`、
   Next.js 15.5.22 build 与 Lighthouse 仅为历史基线。R8 未切换活动表、未归档或删除冷数据，
   也未执行生产恢复演练，当前不是生产已分区或生产已发布状态。
+- 当前强制 CSP 仍包含兼容 Next.js 与图表运行时所需的 `unsafe-inline` / `unsafe-eval`。
+  R9 计划新增只上报、不阻断的候选策略；在取得完整业务周期证据前不得进入 nonce/hash 强制
+  收紧，现有 Bearer 写请求与 CSRF 拒绝 cookie-only 写请求的边界保持不变。
 
 ---
 

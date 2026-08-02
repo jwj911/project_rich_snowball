@@ -19,3 +19,8 @@
 - [20260727_r6_release_candidate.md](20260727_r6_release_candidate.md)：R6 隔离环境发布候选基线，非生产发布。
 - [20260730_r7_release_gates.md](20260730_r7_release_gates.md)：R7 生产发布门禁与 SSE 更新信号工程基线，非生产发布。
 - [20260802_r8_kline_partition_lifecycle.md](20260802_r8_kline_partition_lifecycle.md)：R8 K 线分区生命周期准备工程基线，活动表未切换。
+
+R9 CSP Report-Only 观测闭环当前只有
+[`add-csp-reporting-observability`](../../.trae/specs/add-csp-reporting-observability/spec.md)
+规格和启动文档，代码、测试与 CI 尚未完成，因此暂不创建工程基线记录。最终记录只能在验收后
+新增，并继续明确强制 CSP、`localStorage` token 和 cookie-only 写请求均未在 S1 中改变。
