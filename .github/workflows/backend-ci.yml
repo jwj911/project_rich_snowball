@@ -125,13 +125,16 @@ jobs:
           if-no-files-found: ignore
 
       - name: R8 K-line storage and shadow partition gate
+        # The 0 ms P99 is a contract placeholder for the empty CI database, not production performance evidence.
         env:
           SECRET_KEY: test-secret-key-for-ci-local-development-42
           ENABLE_SCHEDULER: "0"
           DATABASE_URL: postgresql://futures:futures123@localhost:15432/futures_community
         run: |
           report_path="$RUNNER_TEMP/r8-kline-storage-preflight.json"
-          python scripts/kline_storage_preflight.py --report-path "$report_path"
+          python scripts/kline_storage_preflight.py \
+            --minute-query-p99-ms 0 \
+            --report-path "$report_path"
           python - "$report_path" <<'PY'
           import json
           import sys
