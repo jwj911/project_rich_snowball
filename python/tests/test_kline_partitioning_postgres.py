@@ -67,10 +67,11 @@ def pg_partition_sample():
     assert _pg_engine is not None
     assert _PgSessionLocal is not None
 
-    suffix = uuid.uuid4().hex[:8]
+    suffix = uuid.uuid4().hex[:6]
     symbol = f"R8PG{suffix}".upper()
     contract_code = f"{symbol}01"
     ts_code = f"{contract_code}.TST"
+    assert len(symbol) <= FutContractDB.__table__.c.fut_code.type.length
     shadow_tables = {
         "routes": f"kline_data_shadow_routes_{suffix}",
         "rehearsal": f"kline_data_shadow_rehearsal_{suffix}",
