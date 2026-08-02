@@ -69,12 +69,10 @@ describe('MetricsPage', () => {
   it('renders dashboard data on success', async () => {
     render(<MetricsPage />)
 
-    await waitFor(() => {
-      expect(screen.getByText('运营指标面板')).toBeInTheDocument()
-    })
+    await screen.findByText('总用户数')
+    expect(screen.getByText('运营指标面板')).toBeInTheDocument()
 
     // Overview cards
-    expect(screen.getByText('总用户数')).toBeInTheDocument()
     expect(screen.getByText('120')).toBeInTheDocument()
     expect(screen.getByText('评论总数')).toBeInTheDocument()
     expect(screen.getByText('450')).toBeInTheDocument()
