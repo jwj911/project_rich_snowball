@@ -18,11 +18,13 @@
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
 - **测试状态**：R8 本地全量后端为 `1157 passed, 18 skipped, 0 failed`，Ruff
   check/format 与 diff check 均通过。新增的 3 个 PostgreSQL 分区专项用例在本机明确
-  skip，等待 Backend CI PostgreSQL 16 证据。前端本轮无变更且未重跑；R6 的 Vitest
+  skip，并已在远程 PostgreSQL 16 门禁中通过。前端本轮无变更且未重跑；R6 的 Vitest
   `202 passed`、Playwright `40 passed`、TypeScript、ESLint、Next.js 15.5.22 build 与
   Lighthouse 仅为历史基线。
-- **远程验收**：R8 实现提交为 `41c79f1e`。Backend CI 已加入只读容量预检、真实
-  别名/DEFAULT 路由、影子迁移、事务回滚和资源残留门禁；首次 R8 CI 链接在推送后回填。
+- **远程验收**：R8 实现提交为 `41c79f1e`，最终验证提交为 `68386c51`。
+  [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
+  成功，R8 专项 `45 passed`，全量 PostgreSQL `1174 passed, 1 skipped`，覆盖率
+  `75.98%`；影子资源残留断言、API smoke、Ruff 和 `pip-audit` 均通过。
 - **当前迭代**：R8 已完成容量门禁、默认 dry-run 的影子 LIST + RANGE DDL、隔离复制演练、
   benchmark 只读契约和管理员存储概况。活动 `kline_data` 未切换，冷数据未导出/删除，
   生产备份恢复未执行，因此当前只是非生产工程基线。

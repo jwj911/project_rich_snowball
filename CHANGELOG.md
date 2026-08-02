@@ -12,11 +12,15 @@
   演练验证聚合一致性、自然键、序列、外键、冲突写入及分区裁剪，失败由事务回滚。
 - 管理员新增 `/metrics/dashboard/kline-storage` 低成本概况，使用 60 秒 TTL；Prometheus
   常规抓取不执行 K 线容量统计。
-- R8 实现提交为 `41c79f1ed70b90cfe46f163f3e5af80b5f93d3d6`。
+- R8 实现提交为 `41c79f1ed70b90cfe46f163f3e5af80b5f93d3d6`，最终验证提交为
+  `68386c51358a1e6f9a590f5e4e9b3edfea887624`。
 - Backend CI 增加 PostgreSQL 16 的 R8 只读预检、全部周期别名/DEFAULT 路由、幂等 DDL、
   成功清理、失败回滚和影子资源残留门禁。本地全量后端为
   `1157 passed, 18 skipped, 0 failed`，Ruff check/format 和 diff check 通过；新增的 3 个
-  PostgreSQL 用例因本机无隔离 PostgreSQL 而明确跳过，远程结果在实现提交推送后回填。
+  PostgreSQL 用例因本机无隔离 PostgreSQL 而明确跳过。
+- [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
+  成功：R8 专项 `45 passed`，全量 PostgreSQL `1174 passed, 1 skipped`，覆盖率
+  `75.98%`，API smoke、Ruff、`pip-audit` 和影子资源残留断言均通过。
 - 新增
   [`docs/releases/20260802_r8_kline_partition_lifecycle.md`](docs/releases/20260802_r8_kline_partition_lifecycle.md)。
   R8 未替换活动 `kline_data`，未导出或删除冷数据，也未执行生产备份恢复，因此是非生产

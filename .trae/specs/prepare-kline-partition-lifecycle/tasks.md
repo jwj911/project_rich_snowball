@@ -29,24 +29,24 @@
   - [x] SubTask 5.3: 增加管理员只读端点及普通用户 403 回归。
   - [x] SubTask 5.4: 避免将高成本统计接入每次 Prometheus scrape。
 
-- [ ] Task 6: 补齐 PostgreSQL 集成、回归与 CI 门禁。
-  - [ ] SubTask 6.1: 在隔离 PostgreSQL 数据库或 schema 中验证分区 DDL、别名路由、默认分区和幂等维护。
-  - [ ] SubTask 6.2: 验证影子迁移一致性、失败清理、查询裁剪和既有 K 线 API/采集契约。
-  - [ ] SubTask 6.3: 运行 Ruff、后端全量 pytest、Alembic head 和 PostgreSQL API smoke。
+- [x] Task 6: 补齐 PostgreSQL 集成、回归与 CI 门禁。
+  - [x] SubTask 6.1: 在隔离 PostgreSQL 数据库或 schema 中验证分区 DDL、别名路由、默认分区和幂等维护。
+  - [x] SubTask 6.2: 验证影子迁移一致性、失败清理、查询裁剪和既有 K 线 API/采集契约。
+  - [x] SubTask 6.3: 运行 Ruff、后端全量 pytest、Alembic head 和 PostgreSQL API smoke。
   - [x] SubTask 6.4: 将 R8 只读预检和影子分区契约加入 Backend CI，且不在 CI 留存影子资源。
 
-- [ ] Task 7: 维护 R8 迭代和发布文档。
+- [x] Task 7: 维护 R8 迭代和发布文档。
   - [x] SubTask 7.1: 更新 `CHANGELOG.md`、`AGENTS.md`、`.agents/`、README 和当前迭代计划。
   - [x] SubTask 7.2: 修订 `python/docs/kline_partitioning.md`，替换过时字段、周期和约束说明。
   - [x] SubTask 7.3: 更新发布清单并新增 R8 非生产发布记录，保留活动表切换和冷归档未完成项。
-  - [ ] SubTask 7.4: 校验文档链接、测试计数、提交哈希、CI 链接和状态表述。
+  - [x] SubTask 7.4: 校验文档链接、测试计数、提交哈希、CI 链接和状态表述。
 
-- [ ] Task 8: 原子提交并推送本轮迭代。
-  - [ ] SubTask 8.1: 检查工作区，只暂存 R8 代码、测试、规格和文档。
-  - [ ] SubTask 8.2: 运行 pre-commit 与最终差异检查，创建范围单一的迭代提交。
-  - [ ] SubTask 8.3: 推送至 `origin/master`，确认本地/远程提交一致。
-  - [ ] SubTask 8.4: 记录远程 CI；失败时修复、重新验证并以独立提交推送。
-  - [ ] SubTask 8.5: 确认影子数据库/schema、报告、benchmark 数据和临时产物已清理，工作区干净。
+- [x] Task 8: 原子提交并推送本轮迭代。
+  - [x] SubTask 8.1: 检查工作区，只暂存 R8 代码、测试、规格和文档。
+  - [x] SubTask 8.2: 运行 pre-commit 与最终差异检查，创建范围单一的迭代提交。
+  - [x] SubTask 8.3: 推送至 `origin/master`，确认本地/远程提交一致。
+  - [x] SubTask 8.4: 记录远程 CI；失败时修复、重新验证并以独立提交推送。
+  - [x] SubTask 8.5: 确认影子数据库/schema、报告、benchmark 数据和临时产物已清理，工作区干净。
 
 # Task Dependencies
 

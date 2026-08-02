@@ -202,6 +202,9 @@ smoke；完成前不得标记为生产已发布。
 - R8 实现提交为 `41c79f1ed70b90cfe46f163f3e5af80b5f93d3d6`；
 - 本地全量后端 `1157 passed, 18 skipped, 0 failed`，Ruff check/format 与 diff check
   通过；新增的 3 个真实 PostgreSQL 用例由 Backend CI PostgreSQL 16 门禁执行。
+- 最终验证提交为 `68386c51358a1e6f9a590f5e4e9b3edfea887624`；
+  [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
+  成功，R8 专项 `45 passed`，远程全量 `1174 passed, 1 skipped`。
 
 完整记录见
 [`docs/releases/20260802_r8_kline_partition_lifecycle.md`](../docs/releases/20260802_r8_kline_partition_lifecycle.md)。

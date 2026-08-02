@@ -190,7 +190,9 @@ cd python
 - `.github/workflows/backend-ci.yml`：依赖锁检查 + R7 placeholder preflight 契约门禁 +
   Alembic + R8 K 线只读容量预检/影子分区 PostgreSQL 门禁 + PostgreSQL pytest/API smoke +
   Ruff check/format + `pip-audit`，pytest-cov 阈值为 40%。R8 门禁最后断言没有
-  `kline_data_shadow_*` 表或序列残留；首次远程结果在实现提交推送后回填。
+  `kline_data_shadow_*` 表或序列残留；
+  [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
+  已成功，远程全量覆盖率为 `75.98%`。
 - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → Vitest → Lighthouse 基线；独立 job 执行 PostgreSQL/Alembic/backend/Chromium Playwright smoke。R7 无前端变更且未重跑，R6 Frontend CI 结果仅为历史证据。
 - Lighthouse 采集 `home` / `products` 命名路由，记录 commit 和 CI 元数据；workflow 会恢复最近的
   `lighthouse-trend-history` artifact，并上传新的趋势/历史/最新 JSON，保留 90 天。

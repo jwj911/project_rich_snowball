@@ -19,11 +19,13 @@
 - K 线存储：R8 已提供只读容量门禁、默认 dry-run 的影子分区 DDL、隔离迁移演练和管理员
   存储概况；活动 `kline_data` 仍未分区。
 - 当前后端工程基线：R8 本地全量 `1157 passed, 18 skipped, 0 failed`，Ruff check/format
-  与 diff check 均通过。新增的 3 个 PostgreSQL 专项用例因本机没有隔离 PostgreSQL 而
-  明确跳过，等待 Backend CI 的 PostgreSQL 16 证据。
+  与 diff check 均通过。新增的 3 个 PostgreSQL 专项用例在本机明确跳过，并已在远程
+  PostgreSQL 16 门禁中通过。
 - 当前迭代：R8 已完成
   [K 线分区生命周期准备](docs/releases/20260802_r8_kline_partition_lifecycle.md)的本地工程
-  验证；实现提交为 `41c79f1e`，首次远程 CI 链接将在推送后回填。
+  验证；实现提交为 `41c79f1e`，最终验证提交为 `68386c51`。
+- [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
+  成功：R8 专项 `45 passed`，远程全量 `1174 passed, 1 skipped`，覆盖率 `75.98%`。
 - 前端本轮无变更且未重跑；R6 的 Vitest `202 passed`、Playwright `40 passed`、
   Next.js 15.5.22 build 与 Lighthouse 仅为历史基线。R8 未切换活动表、未归档或删除冷数据，
   也未执行生产恢复演练，当前不是生产已分区或生产已发布状态。
@@ -268,8 +270,9 @@ check/format 与 diff check 均通过。
 路由趋势 artifact，并由独立 job 执行 PostgreSQL、Alembic、backend 和 Chromium Playwright
 smoke。R8 未修改前端且本轮未重跑前端门禁；R6 Frontend CI 仅为历史证据。
 Backend CI 现覆盖依赖锁、R7 placeholder preflight、Alembic、R8 K 线只读容量预检与影子
-分区演练、PostgreSQL pytest/API smoke、Ruff 和 `pip-audit`。首次 R8 远程结果将在实现
-提交推送后回填；任何 CI 结果都不替代生产容量、备份恢复或活动表切换验证。
+分区演练、PostgreSQL pytest/API smoke、Ruff 和 `pip-audit`。
+[Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
+已成功，且无影子资源残留；该结果不替代生产容量、备份恢复或活动表切换验证。
 修改前端后至少运行：
 
 ```powershell

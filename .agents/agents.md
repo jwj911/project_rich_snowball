@@ -60,8 +60,9 @@ Agent 系统按「功能能力」拆分，每个 Agent 有清晰边界、稳定�
 
 当前 Agent 相关 pytest 已新增 trader 专项 18 个；项目已补齐 `scikit-learn` lock。R8
 本地全量后端为 `1157 passed, 18 skipped, 0 failed`，Ruff check/format 与 diff check
-通过。R8 新增的 3 个 PostgreSQL 分区专项用例在本机明确 skip，等待 Backend CI
-PostgreSQL 16 证据。R8 未改前端且未重跑前端测试；R6 的 Vitest `202 passed`、
+通过。R8 新增的 3 个 PostgreSQL 分区专项用例在本机明确 skip，并已在
+[Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
+的 PostgreSQL 16 环境通过。R8 未改前端且未重跑前端测试；R6 的 Vitest `202 passed`、
 Playwright `40 passed` 和 Frontend CI 仅作为历史证据。
 
 ## 数据库模型

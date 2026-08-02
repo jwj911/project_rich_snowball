@@ -18,8 +18,9 @@
 
 - 后端：R8 本地全量 `1157 passed, 18 skipped, 0 failed`；
 - Ruff check/format 与 diff check 均通过；
-- Backend CI 已加入 R8 PostgreSQL 16 的只读容量预检、全部周期别名/DEFAULT 路由、影子
-  复制、失败回滚和资源残留门禁；首次结果在实现提交推送后回填；
+- [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
+  成功，覆盖 R8 PostgreSQL 16 只读容量预检、全部周期别名/DEFAULT 路由、影子复制、失败
+  回滚、资源残留、全量 pytest/API smoke、Ruff 和 `pip-audit`；
 - 前端本轮无变更且未重跑。Next.js 15.5.22、Vitest `202 passed, 0 failed`、Playwright
   `40 passed`、TypeScript、ESLint、production build、双路由 Lighthouse 和生产依赖审计
   均为 R6 历史基线；
@@ -283,8 +284,8 @@ R1 与 R2 保持原子化执行：
 | R7 生产发布门禁与 SSE 更新信号 | 工程基线已完成 | `releases/20260730_r7_release_gates.md`；真实生产操作待执行 |
 | R8 K 线分区生命周期准备 | 工程实现已完成 | `releases/20260802_r8_kline_partition_lifecycle.md`；生产切换/归档待执行 |
 
-工程侧下一项是推送 R8 并取得 PostgreSQL 16 CI 证据。生产侧仍需取得真实生产凭据和负责人，
-在真实窗口完成备份恢复、部署与 smoke；K 线达到阈值后另立活动表切换和冷归档规格。
+R8 工程侧已完成并取得 PostgreSQL 16 CI 证据。生产侧仍需取得真实生产凭据和负责人，在真实
+窗口完成备份恢复、部署与 smoke；K 线达到阈值后另立活动表切换和冷归档规格。
 
 ## 7. R1 执行记录（2026-07-24）
 
@@ -407,11 +408,13 @@ R1 与 R2 保持原子化执行：
 ## 16. R8 K 线分区生命周期执行记录（2026-08-02）
 
 - 实现提交：`41c79f1ed70b90cfe46f163f3e5af80b5f93d3d6`；
+- 最终验证提交：`68386c51358a1e6f9a590f5e4e9b3edfea887624`；
 - R8 聚焦回归：`79 passed, 3 skipped, 0 failed`；3 个 skip 均为真实 PostgreSQL 专项；
 - 本地全量后端：`1157 passed, 18 skipped, 0 failed`；
 - Ruff check/format 与 diff check：通过；
-- Backend CI 已增加 PostgreSQL 16 容量预检、分区别名/DEFAULT 路由、影子复制、事务回滚、
-  分区裁剪及资源残留断言，首次运行链接在实现提交推送后回填；
+- [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
+  成功：R8 专项 `45 passed`；远程全量 `1174 passed, 1 skipped`，覆盖率 `75.98%`；
+  Alembic、PostgreSQL API smoke、Ruff、`pip-audit` 和影子资源残留断言均通过；
 - 前端无变更且本轮未重跑；R6 前端基线只作为历史证据；
 - 当前未完成：活动 `kline_data` 切换、真实冷数据导出/删除、对象存储归档、生产备份恢复和
   维护窗口演练。完整边界见

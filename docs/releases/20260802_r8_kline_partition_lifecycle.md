@@ -7,6 +7,7 @@
 ## 发布元数据
 
 - R8 实现提交：`41c79f1ed70b90cfe46f163f3e5af80b5f93d3d6`
+- R8 最终验证提交：`68386c51358a1e6f9a590f5e4e9b3edfea887624`
 - 应用回滚点：`bd2d5737ea33bc312ded9705d631c8e6dfe40c55`
 - 变更范围：K 线容量预检、benchmark 只读契约、影子分区 DDL、隔离复制演练、管理员存储
   概况、PostgreSQL CI 门禁和文档治理
@@ -63,10 +64,12 @@ service 执行。其余 15 个为既有环境跳过。
 
 ## 远程门禁
 
-- R8 Backend CI：首次实现提交推送后回填；
-- 必须通过 Alembic `upgrade head`、R8 K 线门禁、PostgreSQL 全量 pytest/API smoke、
-  Ruff check/format 和 `pip-audit`；
-- CI 最后必须确认当前 schema 不存在 `kline_data_shadow_*` 表或 sequence。
+- [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
+  成功；
+- R8 PostgreSQL 专项：`45 passed`；
+- PostgreSQL 全量：`1174 passed, 1 skipped`，覆盖率 `75.98%`；
+- Alembic `upgrade head`、PostgreSQL API smoke、Ruff check/format 和 `pip-audit` 通过；
+- CI 已确认当前 schema 不存在 `kline_data_shadow_*` 表或 sequence。
 
 CI 数据库是空白隔离环境，只能证明 DDL、迁移演练和清理契约，不能证明真实生产容量达到或
 未达到阈值，也不能替代生产切换证据。

@@ -30,7 +30,7 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 
 - 后端：R8 本地全量 `1157 passed, 18 skipped, 0 failed`，Ruff check/format 与 diff
   check 均通过。新增的 3 个 PostgreSQL 分区专项用例因本机没有隔离 PostgreSQL 而明确
-  skip，等待远程 PostgreSQL 16 门禁。
+  skip，并已在远程 PostgreSQL 16 门禁中通过。
 - 前端：R8 无变更且未重跑。Next.js 15.5.22 production build、Vitest `202 passed`、
   Playwright `40 passed`、双路由 Lighthouse 和 `npm audit --omit=dev` 均为 R6 历史基线。
 - 详细证据见
@@ -80,14 +80,16 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 
 当前远程证据：
 
+- [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)：
+  R8 当前成功门禁，专项 `45 passed`，全量 `1174 passed, 1 skipped`，覆盖率 `75.98%`。
 - [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)：
   R7 历史成功门禁。
 - [Frontend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30233956592)：
   R6 历史基线，本轮未重跑。
 
-R8 Backend CI 已增加只读容量预检、真实 PostgreSQL 分区路由/迁移演练和影子资源残留断言，
-首次链接在实现提交推送后回填。远程 CI 不替代真实生产容量、活动表切换、冷归档、备份恢复
-或负责人确认。
+Backend CI #38 覆盖只读容量预检、真实 PostgreSQL 分区路由/迁移演练、影子资源残留断言、
+Alembic、全量 pytest/API smoke、Ruff 和 `pip-audit`。远程 CI 不替代真实生产容量、活动表
+切换、冷归档、备份恢复或负责人确认。
 
 ## 6. 回滚
 

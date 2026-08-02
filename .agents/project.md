@@ -19,11 +19,12 @@
 - 近期新增：策略工作台（`/strategies`）、策略参数优化（`/strategies/{id}/optimize`）、回测信号可视化（K 线叠加标记）、预警中心（`/alerts`）、Agent 工作台（`/agents`）。
 - **当前质量基线（2026-08-02）**：R8 本地全量后端
   `1157 passed, 18 skipped, 0 failed`，Ruff check/format 与 diff check 均通过。新增的 3 个
-  PostgreSQL 分区专项用例因本机没有隔离 PostgreSQL 而明确 skip。前端无变更且本轮未重跑；
-  R6 的 Vitest `202 passed`、Playwright `40 passed`、Next.js 15.5.22 build 与 Lighthouse
-  仅为历史基线。
-- **远程验收**：R8 实现提交为 `41c79f1e`。Backend CI 已加入 PostgreSQL 16 容量预检、
-  分区路由、隔离演练和资源清理门禁；首次结果在推送后回填。
+  PostgreSQL 分区专项用例因本机没有隔离 PostgreSQL 而明确 skip，并已在远程通过。前端无
+  变更且本轮未重跑；R6 的 Vitest `202 passed`、Playwright `40 passed`、Next.js 15.5.22
+  build 与 Lighthouse 仅为历史基线。
+- **远程验收**：R8 实现提交 `41c79f1e`、最终验证提交 `68386c51` 已推送；
+  [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
+  成功，R8 专项 `45 passed`，全量 `1174 passed, 1 skipped`，覆盖率 `75.98%`。
 - **当前迭代**：R8 已完成只读容量门禁、影子 LIST + RANGE DDL、隔离复制演练、
   benchmark 默认只读和管理员存储概况。完整边界见
   [`docs/releases/20260802_r8_kline_partition_lifecycle.md`](../docs/releases/20260802_r8_kline_partition_lifecycle.md)；
