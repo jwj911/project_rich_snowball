@@ -46,8 +46,15 @@
   原始 directive 或 `trace_id`。
 - 完整业务周期的真实报告未归类前，禁止移除强制策略中的 `unsafe-inline` 或
   `unsafe-eval`。本地和 CI 合成报告不构成生产 SLO、XSS 风险关闭或 S2 准入证据。
-- R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及
-  Backend/Frontend CI 证据仍待补，不得将本地实现状态表述为远端或生产验收完成。
+- R9 实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验证文档提交为
+  `37fc8008a74c1b74c48f74aac5e3267c8a29e5b6`，CI 稳定性修复提交为
+  `c7a721a04f58caa51860be67d870855663186a14`；
+  [Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
+  的 PostgreSQL CSP 专项 `21 passed`、远端全量约 `1195 passed, 1 skipped`，
+  [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
+  的 Vitest、build、R9 E2E `3 passed`、全量 Playwright `43 passed` 和 Lighthouse 均成功。
+  这些结果只闭环非生产工程门禁；R9 未生产部署，完整业务周期观测未完成，S2/S3 未启动，
+  强制 CSP 未收紧，`localStorage` access token 风险未关闭。
 - RSS/新闻源：添加外部 RSS URL 时必须校验协议与主机（拒绝 private/local/link-local/file 等危险目标），抓取时设置显式超时，防止 SSRF 与 worker 阻塞。
 - admin 手动触发抓取接口（`/api/news/fetch`、`/api/news/sources/{id}/fetch`）已通过 `BackgroundTasks` 后台化，不再阻塞 HTTP 请求。
 

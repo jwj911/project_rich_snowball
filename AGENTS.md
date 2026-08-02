@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-08-02（R9 CSP Report-Only S1 本地实现记录）
+> **最后更新**：2026-08-02（R9 CSP Report-Only S1 工程门禁闭环）
 
 ---
 
@@ -19,20 +19,24 @@
 - **测试状态**：独立审查修复前的 R9 后端全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
-  持久化专项，本地无隔离 PostgreSQL，待 Backend CI 的 PostgreSQL 16 环境执行。
+  持久化专项，本地无隔离 PostgreSQL；修复后的完整全量由 Backend CI 复核。
 - **前端验证**：审查增强前的基础版 R9 Playwright 为 `3 passed`。增加并发 401 单飞刷新和
-  SSE 首次断线重连后，增强版已通过 Playwright `--list`、TypeScript 与 ESLint，实际浏览器
-  执行待 Frontend CI；不得将基础版结果表述为增强版已在本地通过。
-- **远程验收**：R9 本地实现提交为
-  `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及 Backend/Frontend CI
-  链接待补/待验证。应用回滚点为 R9 启动文档提交
-  `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
+  SSE 首次断线重连后，增强版在本地通过 Playwright `--list`、TypeScript 与 ESLint；实际
+  浏览器执行由 Frontend CI 完成，不计入本地结果。
+- **远程验收**：R9 实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验证文档
+  提交为 `37fc8008a74c1b74c48f74aac5e3267c8a29e5b6`，CI 稳定性修复提交为
+  `c7a721a04f58caa51860be67d870855663186a14`。
+  [Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
+  成功，PostgreSQL CSP 专项 `21 passed`、完整后端测试约 `1195 passed, 1 skipped`；
+  [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
+  成功，Vitest、build、R9 E2E `3 passed`、全量 Playwright `43 passed` 和 Lighthouse 均通过。
+  应用回滚点为 R9 启动文档提交 `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
 - **当前迭代**：R9 已完成
-  [CSP Report-Only S1 工程实现及审查后聚焦/静态验证](docs/releases/20260802_r9_csp_report_only_observability.md)，
-  增强版浏览器执行和远端 CI 待完成。
+  [CSP Report-Only S1 工程实现、审查修复和工程门禁闭环](docs/releases/20260802_r9_csp_report_only_observability.md)。
   强制 CSP 原值不变；legacy/Reporting API 报告接收具备 8 KiB、批量、采样、限流、脱敏、
   独立 `trace_id` 和低基数指标。`localStorage` access token、Bearer 写请求和 CSRF 拒绝
-  cookie-only 写请求的边界保持不变；真实完整业务周期报告未归类前不得进入 S2。
+  cookie-only 写请求的边界保持不变。R9 尚未生产部署，真实完整业务周期报告未归类，
+  S2/S3 未启动，强制 CSP 未收紧且 `localStorage` token 风险未关闭。
 - **上一迭代边界**：R8 已完成容量门禁、默认 dry-run 的影子 LIST + RANGE DDL、隔离复制
   演练、benchmark 只读契约和管理员存储概况。活动 `kline_data` 未切换，冷数据未导出/删除，
   生产备份恢复未执行，因此仍是非生产工程基线。
@@ -84,7 +88,7 @@
 | [docs/r4_dsl_walk_forward_validation.md](docs/r4_dsl_walk_forward_validation.md) | DSL transform 语义、walk-forward 窗口、报告和生命周期查询规则 |
 | [docs/r5_frontend_quality_observability.md](docs/r5_frontend_quality_observability.md) | Lighthouse 趋势、页面失败态、虚拟滚动决策和 CSP/token 迁移边界 |
 | [docs/releases/README.md](docs/releases/README.md) | 按版本维护的工程基线与生产发布记录 |
-| [docs/releases/20260802_r9_csp_report_only_observability.md](docs/releases/20260802_r9_csp_report_only_observability.md) | R9 CSP Report-Only S1 本地实现记录，增强版浏览器与远端 CI 待验证 |
+| [docs/releases/20260802_r9_csp_report_only_observability.md](docs/releases/20260802_r9_csp_report_only_observability.md) | R9 CSP Report-Only S1 非生产工程基线，增强版浏览器与远端 CI 已通过 |
 | [docs/releases/20260802_r8_kline_partition_lifecycle.md](docs/releases/20260802_r8_kline_partition_lifecycle.md) | R8 K 线分区生命周期准备，非生产发布 |
 | [python/docs/kline_partitioning.md](python/docs/kline_partitioning.md) | K 线容量门禁、影子分区、演练和生产切换边界 |
 | [docs/phase4_sql_ast_readonly.md](docs/phase4_sql_ast_readonly.md) | Phase 4 Agent SQL AST 只读校验实施记录 |
@@ -142,7 +146,7 @@
 | 消息提示 | sonner | ^2.0.7 |
 | 性能采集 | web-vitals | ^5.2.0 |
 | 单元测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，35 个测试文件，223 个测试 |
-| E2E 测试 | Playwright | ^1.60.0，基础版 R9 定向 3 项通过；并发 401/SSE 重连增强版浏览器执行待 Frontend CI |
+| E2E 测试 | Playwright | ^1.60.0，本地基础版 R9 定向 3 项通过；Frontend CI 的增强版 R9 E2E 3 项、全量 43 项通过 |
 | 性能基线 | Lighthouse | `npm run lighthouse`，路由/提交/CI 趋势 artifact |
 
 ### 基础设施
@@ -208,7 +212,7 @@ d:\Code\project_rich_snowball/
 | `lib/` | API 客户端、类型、工具函数、实时 Store、常量 |
 | `lib/api/` | 领域 API 模块与 `client.ts` 统一 `api` 实例 |
 | `tests/` | Vitest 单元/集成测试（R9 全量 35 个文件 / 223 项） |
-| `e2e/` | Playwright E2E 测试（基础版 R9 定向 3 项通过；增强版及完整套件由 Frontend CI 验证） |
+| `e2e/` | Playwright E2E 测试（本地基础版 R9 定向 3 项通过；Frontend CI 的增强版 3 项及全量 43 项通过） |
 | `scripts/` | Lighthouse 基线脚本 |
 | `docs/` | 前端专项文档 |
 

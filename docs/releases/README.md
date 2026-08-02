@@ -20,7 +20,12 @@
 - [20260730_r7_release_gates.md](20260730_r7_release_gates.md)：R7 生产发布门禁与 SSE 更新信号工程基线，非生产发布。
 - [20260802_r8_kline_partition_lifecycle.md](20260802_r8_kline_partition_lifecycle.md)：R8 K 线分区生命周期准备工程基线，活动表未切换。
 - [20260802_r9_csp_report_only_observability.md](20260802_r9_csp_report_only_observability.md)：
-  待远端闭环的 R9 CSP Report-Only S1 本地工程基线；本地实现提交为
-  `723ba9b949bccf7c96798d2f45388731350eacd3`，强制 CSP 与认证边界未改变。最终验证提交、
-  Backend/Frontend CI 和完整业务周期观测待补；上述字段补齐前，该记录不满足最终可追溯
-  发布记录条件。
+  已完成远端工程门禁闭环的 R9 CSP Report-Only S1 非生产工程基线；本地实现提交为
+  `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验证文档提交为
+  `37fc8008a74c1b74c48f74aac5e3267c8a29e5b6`，CI 稳定性修复提交为
+  `c7a721a04f58caa51860be67d870855663186a14`。
+  [Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
+  与
+  [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
+  均成功。该记录不是生产发布：完整业务周期观测、生产责任人及 S2/S3 专项仍未完成，强制
+  CSP 未收紧，`localStorage` access token 风险未关闭。

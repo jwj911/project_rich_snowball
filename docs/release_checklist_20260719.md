@@ -21,23 +21,26 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 
 - [ ] `git status --short` 仅包含预期变更。
 - [ ] 后端使用 `python/requirements.lock` 安装，直接依赖与 lock 无漂移。
-- [ ] `python -m ruff check .` 通过。
-- [ ] `npx tsc --noEmit`、`npm run lint`、`npm run build` 通过。
-- [ ] 后端 pytest 失败数为 `0`，跳过项有明确原因。
-- [ ] 前端 Vitest 失败数为 `0`。
+- [x] `python -m ruff check .` 通过。
+- [x] `npx tsc --noEmit`、`npm run lint`、`npm run build` 通过。
+- [x] 后端 pytest 失败数为 `0`，跳过项有明确原因。
+- [x] 前端 Vitest 失败数为 `0`。
 
 当前工程基线（2026-08-02）：
 
 - 后端：独立审查修复前的 R9 全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
-  持久化专项，待 Backend CI 的 PostgreSQL 16 环境执行；修复后的完整全量由 CI 复核。
+  持久化专项，本地无隔离 PostgreSQL；该专项已在 Backend CI 的 PostgreSQL 16 环境以
+  `21 passed` 通过，远端全量约 `1195 passed, 1 skipped`。
 - 前端：审查增强前的基础版 R9 Playwright 为 `3 passed`。增加并发 401 单飞刷新和 SSE
-  首次断线重连后，增强版已通过 Playwright `--list`、TypeScript 与 ESLint，实际浏览器
-  执行待 Frontend CI；不得将基础版结果表述为增强版已在本地通过。
+  首次断线重连后，增强版已通过 Playwright `--list`、TypeScript 与 ESLint；Frontend CI
+  中增强版 R9 E2E `3 passed`、全量 Playwright `43 passed`，Vitest、production build 与
+  Lighthouse 均成功。不得将审查增强前的基础版结果表述为增强版本地已通过。
 - `git diff --check` 通过。R9 本地实现提交为
-  `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及 Backend/Frontend CI
-  链接待补/待验证。
+  `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验证文档提交为
+  `37fc8008a74c1b74c48f74aac5e3267c8a29e5b6`，CI 稳定性修复提交为
+  `c7a721a04f58caa51860be67d870855663186a14`。
 - 详细证据见
   [`releases/20260802_r9_csp_report_only_observability.md`](releases/20260802_r9_csp_report_only_observability.md)；
   该记录是 CSP Report-Only 非生产工程基线，不是强制 CSP 收紧或生产发布。
@@ -85,19 +88,22 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 
 ## 5. 浏览器与性能
 
-- [ ] Frontend CI 的 PostgreSQL/Alembic/backend/Chromium Playwright smoke 通过。
-- [ ] R9 双 CSP 头、legacy/Reporting API 接收、登录刷新、SSE、Bearer 写请求与
+- [x] Frontend CI 的 PostgreSQL/Alembic/backend/Chromium Playwright smoke 通过。
+- [x] R9 双 CSP 头、legacy/Reporting API 接收、登录刷新、SSE、Bearer 写请求与
   cookie-only 写请求拒绝通过本次 Frontend CI 验证。
-- [ ] 登录、行情中心、品种详情、价位标注、工作区和 metrics smoke 通过。
-- [ ] Lighthouse 路由趋势通过并保留 `lighthouse-trend.json`、`lighthouse-history.json` 与
+- [x] 登录、行情中心、品种详情、价位标注、工作区和 metrics smoke 通过。
+- [x] Lighthouse 路由趋势通过并保留 `lighthouse-trend.json`、`lighthouse-history.json` 与
   `latest.json` artifact；确认 commit、route 和 CI run metadata 可读。
 
 当前远程证据：
 
-- R9 Backend CI：待本轮推送后补记/待验证，链接待补；需执行新增 PostgreSQL 专项并复核
-  审查修复后的完整后端全量。
-- R9 Frontend CI：待本轮推送后补记/待验证，链接待补；增强版及完整 Playwright 结果以该
-  workflow 的实际浏览器步骤为准。
+- [R9 Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)：
+  成功；PostgreSQL CSP 持久化专项 `21 passed`，完整后端测试约
+  `1195 passed, 1 skipped`，Alembic、API smoke、Ruff 与依赖审计均通过。
+- [R9 Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)：
+  成功；Vitest、production build、增强版 R9 E2E `3 passed`、全量 Playwright
+  `43 passed` 与 Lighthouse 均通过。首次 Frontend CI 的 metrics 异步断言竞态由
+  `c7a721a04f58caa51860be67d870855663186a14` 修复，未修改业务代码。
 - [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)：
   R8 历史成功门禁，专项 `45 passed`，全量 `1174 passed, 1 skipped`，覆盖率 `75.98%`。
 - [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)：
@@ -106,8 +112,8 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
   R6 历史基线，本轮未重跑。
 
 Backend CI #38 覆盖只读容量预检、真实 PostgreSQL 分区路由/迁移演练、影子资源残留断言、
-Alembic、全量 pytest/API smoke、Ruff 和 `pip-audit`。远程 CI 不替代真实生产容量、活动表
-切换、冷归档、备份恢复或负责人确认。
+Alembic、全量 pytest/API smoke、Ruff 和 `pip-audit`。R9 远程 CI 也不替代真实生产容量、
+生产部署、活动表切换、冷归档、备份恢复或负责人确认。
 
 本地和 CI synthetic CSP 报告只验证契约，不构成生产 SLO。只有取得并归类真实完整业务周期
 报告后，才允许启动 S2 专项评审；在此之前不得移除强制 CSP 的 `unsafe-inline` /
@@ -118,7 +124,7 @@ Alembic、全量 pytest/API smoke、Ruff 和 `pip-audit`。远程 CI 不替代�
 - [ ] 先停止 worker，再停止 API，保留失败日志和 trace id。
 - [ ] 保存发布前数据库备份与 Alembic 版本。
 - [ ] 应用回滚只使用已验证的提交；数据库 downgrade 必须在演练环境先验证。
-- [ ] R9 应用回滚点为启动文档提交
+- [x] R9 应用回滚点为启动文档提交
   `756ca605613ba2a4f76919e913e1264e3f9d2a1b`；回滚后重新检查强制 CSP、登录、SSE 与
   Bearer 写请求。
 - [ ] 恢复数据库后重新执行 readiness、认证、行情列表和关键页面 smoke。

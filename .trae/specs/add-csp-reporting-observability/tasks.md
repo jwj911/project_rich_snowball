@@ -64,6 +64,16 @@
   - [x] SubTask 9.5: 补齐并发 401 单飞刷新和 SSE 断线重连回归。
   - [x] SubTask 9.6: 重跑 CSP 定向、认证/SSE、Ruff、前端静态检查和 R9 Playwright。
 
+- [x] Task 10: 修复最终验收发现的 R9 文档状态漂移。
+  - [x] SubTask 10.1: 将 README、CHANGELOG、AGENTS、`.agents/`、当前迭代计划、发布清单和
+    发布入口中“增强版浏览器/远端 CI 待验证”的过期表述更新为可追溯的成功结果。
+  - [x] SubTask 10.2: 在相关事实源中记录 Backend CI run `30739553595`、Frontend CI run
+    `30740784839` 和 CI 稳定性修复提交 `c7a721a04f58caa51860be67d870855663186a14`。
+  - [x] SubTask 10.3: 保留 R9 未生产部署、完整业务周期观测未完成、S2/S3 未启动以及
+    `localStorage` access token 风险未关闭的边界。
+  - [x] SubTask 10.4: 全文检索并消除与当前 CI 状态冲突的“待补/待验证”表述，重新校验链接、
+    测试计数、提交哈希和 `git diff --check`。
+
 # Task Dependencies
 
 - Task 2 depends on Task 1.
@@ -73,3 +83,4 @@
 - Task 7 depends on Task 6 的最终验证结果。
 - Task 8 depends on Task 6 and Task 7.
 - Task 9 depends on Task 6，且 Task 7 的最终校验与 Task 8 depend on Task 9.
+- Task 10 depends on Task 9，且 Task 7.5、Task 8 和最终 checklist depend on Task 10.

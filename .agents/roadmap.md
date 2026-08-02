@@ -211,7 +211,7 @@ smoke；完成前不得标记为生产已发布。
 R8 未切换活动表，未导出或删除冷数据，也未执行生产备份恢复；达到容量阈值后必须另立生产
 切换和归档规格。
 
-### R9：CSP Report-Only 观测闭环 — 本地实现完成，增强版浏览器与远端待验证（2026-08-02）
+### R9：CSP Report-Only 观测闭环 — 工程门禁已闭环（2026-08-02）
 
 - 前端同时返回原值不变的强制 CSP、`Content-Security-Policy-Report-Only` 和
   `Reporting-Endpoints`；候选 `script-src` 仅允许 `'self'`，只上报而不阻断；
@@ -225,18 +225,23 @@ R8 未切换活动表，未导出或删除冷数据，也未执行生产备份�
 - 独立审查修复前的 R9 后端全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过；唯一 skip 是新增 PostgreSQL
-  持久化专项，待 Backend CI 的 PostgreSQL 16 环境执行；
+  持久化专项，本地无隔离 PostgreSQL；该专项已在 Backend CI 的 PostgreSQL 16 环境以
+  `21 passed` 通过，远端全量约 `1195 passed, 1 skipped`；
 - 审查增强前的基础版 R9 Playwright 为 `3 passed`；增加并发 401 单飞刷新和 SSE 首次断线
-  重连后，增强版已通过 Playwright `--list`、TypeScript 与 ESLint，实际浏览器执行待
-  Frontend CI；
+  重连后，本地 Playwright `--list`、TypeScript 与 ESLint 通过；Frontend CI 的增强版 R9
+  E2E `3 passed`、全量 Playwright `43 passed`，Vitest、build 与 Lighthouse 均成功；
 - 完整记录见
   [`docs/releases/20260802_r9_csp_report_only_observability.md`](../docs/releases/20260802_r9_csp_report_only_observability.md)。
 
-R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及
-Backend/Frontend CI 链接待补/待验证。审查修复后的完整后端全量由 Backend CI 复核，
-增强版 Playwright 实际浏览器执行及完整套件由 Frontend CI 验证。R9 不移除 `localStorage`
-access token，不启用 cookie-only 写请求；真实完整业务周期报告未归类前不进入 S2，S3
-内存 access token 仍需独立立项。本地和 CI 合成报告不是生产 SLO。
+R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验证文档提交为
+`37fc8008a74c1b74c48f74aac5e3267c8a29e5b6`，CI 稳定性修复提交为
+`c7a721a04f58caa51860be67d870855663186a14`。
+[Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
+与
+[Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
+均成功。R9 尚未生产部署，也未完成真实完整业务周期观测；强制 CSP 未收紧，不移除
+`localStorage` access token，不启用 cookie-only 写请求。真实报告未归类前不进入 S2，S3
+内存 access token 仍需独立立项；本地和 CI 合成报告不是生产 SLO。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 

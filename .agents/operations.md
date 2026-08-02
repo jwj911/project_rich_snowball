@@ -231,16 +231,20 @@ clamp_min(
 
 - `.github/workflows/backend-ci.yml`：依赖锁检查 + R7 placeholder preflight + Alembic +
   R8 K 线 PostgreSQL 门禁 + R9 CSP 接收契约 + PostgreSQL pytest/API smoke + Ruff
-  check/format + `pip-audit`，pytest-cov 阈值为 40%。R9 Backend CI 当前待本轮推送后
-  补记/待验证，链接待补。
+  check/format + `pip-audit`，pytest-cov 阈值为 40%。
+  [R9 Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
+  成功，PostgreSQL CSP 专项 `21 passed`，远端全量约 `1195 passed, 1 skipped`。
 - `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → ESLint → R9 双 CSP
   响应头门禁 → build → Vitest → Lighthouse；独立 job 执行 PostgreSQL/Alembic/backend、
-  R9 认证/刷新/SSE/Bearer 定向浏览器门禁及完整 Chromium Playwright smoke。R9 Frontend
-  CI 当前待本轮推送后补记/待验证，链接待补。
-- R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交、
-  Backend CI 与 Frontend CI 结果及链接仍待补。新增 PostgreSQL CSP 持久化专项待 Backend
-  CI 的 PostgreSQL 16 环境执行；并发 401 单飞刷新与 SSE 首次断线重连增强版 Playwright
-  实际浏览器执行待 Frontend CI。
+  R9 认证/刷新/SSE/Bearer 定向浏览器门禁及完整 Chromium Playwright smoke。
+  [R9 Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
+  成功，Vitest、build、R9 增强版 E2E `3 passed`、全量 Playwright `43 passed` 与
+  Lighthouse 均通过。
+- R9 实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验证文档提交为
+  `37fc8008a74c1b74c48f74aac5e3267c8a29e5b6`，CI 稳定性修复提交为
+  `c7a721a04f58caa51860be67d870855663186a14`。本地验证与远端 CI 分别作为本地和远端
+  工程证据，均不代表生产部署或生产 SLO；完整业务周期观测未完成，S2/S3 未启动，强制 CSP
+  未收紧，`localStorage` access token 风险未关闭。
 - Lighthouse 采集 `home` / `products` 命名路由，记录 commit 和 CI 元数据；workflow 会恢复最近的
   `lighthouse-trend-history` artifact，并上传新的趋势/历史/最新 JSON，保留 90 天。
 - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发。

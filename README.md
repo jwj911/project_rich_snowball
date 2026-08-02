@@ -20,20 +20,27 @@
   存储概况；活动 `kline_data` 仍未分区。
 - 当前迭代：R9
   [CSP Report-Only 观测闭环](docs/releases/20260802_r9_csp_report_only_observability.md)
-  已完成 S1 工程实现及审查后聚焦/静态验证，增强版浏览器执行和远端 CI 待完成。页面同时
-  返回原值不变的强制 CSP 与只上报的候选策略；报告端点支持 legacy/Reporting API、
-  8 KiB 上限、20 条批量、采样、限流、URL 脱敏、独立 `trace_id` 和低基数指标。
+  已完成 S1 工程实现、审查修复、本地验证、增强版浏览器回归和远端 CI 工程门禁。页面同时
+  返回原值不变的强制 CSP 与只上报的候选策略；报告端点支持 legacy/Reporting API、8 KiB
+  上限、20 条批量、采样、限流、URL 脱敏、独立 `trace_id` 和低基数指标。
 - 当前本地质量基线：独立审查修复前的后端全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
-  持久化专项，待 Backend CI 的 PostgreSQL 16 环境执行；修复后的完整全量由 CI 复核。
+  持久化专项，本地无隔离 PostgreSQL；修复后的完整全量和 PostgreSQL 专项由 Backend CI
+  复核。
 - 审查增强前的前端 CSP 配置 `21 passed`、全量 Vitest `35 files / 223 passed`、production
   build 和基础版 R9 Playwright `3 passed` 均通过，最大 First Load JS 为 `157 kB`。增加
-  并发 401 单飞刷新和 SSE 首次断线重连后，增强版仅已通过 Playwright `--list`、TypeScript
-  与 ESLint，实际浏览器执行待 Frontend CI。
-- R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及
-  Backend/Frontend CI 链接待补/待验证。回滚点为 R9 启动文档提交
+  并发 401 单飞刷新和 SSE 首次断线重连后，本地通过 Playwright `--list`、TypeScript 与
+  ESLint；增强版实际浏览器结果以 Frontend CI 为准，不计入本地执行。
+- R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验证文档提交为
+  `37fc8008a74c1b74c48f74aac5e3267c8a29e5b6`，CI 稳定性修复提交为
+  `c7a721a04f58caa51860be67d870855663186a14`。回滚点为 R9 启动文档提交
   `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
+- [Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
+  成功：PostgreSQL CSP 专项 `21 passed`，完整后端测试约 `1195 passed, 1 skipped`。
+- [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
+  成功：Vitest、production build、R9 E2E `3 passed`、全量 Playwright `43 passed` 和
+  Lighthouse 均通过。
 - 上一迭代：R8 已完成
   [K 线分区生命周期准备](docs/releases/20260802_r8_kline_partition_lifecycle.md)工程验证；
   实现提交为 `41c79f1e`，最终验证提交为 `68386c51`。
@@ -286,24 +293,27 @@ $env:ENABLE_SCHEDULER="0"
 R9 独立审查修复前的后端全量为
 `1177 passed, 18 skipped, 0 failed, 103 warnings`。修复后受影响聚焦回归为
 `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过；唯一 skip 是新增 PostgreSQL
-CSP 持久化专项，本地无隔离 PostgreSQL，待 Backend CI 的 PostgreSQL 16 环境执行。审查
-修复后的完整后端全量由 CI 复核。
+CSP 持久化专项，本地无隔离 PostgreSQL。审查修复后的完整后端全量由
+[Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
+复核，PostgreSQL CSP 专项 `21 passed`，完整后端测试约 `1195 passed, 1 skipped`。
 
 前端已配置 Vitest + Playwright 自动化测试。R9 CSP 配置测试为 `21 passed`；全量 Vitest
 为 `35 files / 223 passed`，TypeScript、ESLint 和 production build 通过，最大 First Load JS
 为 `157 kB`；以上浏览器执行中，审查增强前的基础版 R9 Playwright 为 `3 passed`。增加并发
 401 单飞刷新和 SSE 首次断线重连后，增强版已通过 Playwright `--list`、TypeScript 与
-ESLint，但实际浏览器执行待 Frontend CI，不得表述为本地已通过。
+ESLint；增强版实际浏览器执行未计入本地结果，由远端 Frontend CI 验证。
 `.github/workflows/frontend-ci.yml` 在 PR 时执行 lint、type-check、build、Vitest 和 Lighthouse
 路由趋势 artifact，并由独立 job 执行 PostgreSQL、Alembic、backend 和 Chromium Playwright
-smoke。R9 定向浏览器门禁已接入，但当前远端 Frontend CI 尚未执行；完整 Playwright 结果
-必须以本轮推送后的 Frontend CI 全量步骤为准。
+smoke。[Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
+已通过 Vitest、production build、R9 E2E `3 passed`、全量 Playwright `43 passed` 和
+Lighthouse。
 Backend CI 现覆盖依赖锁、R7 placeholder preflight、Alembic、R8 K 线只读容量预检与影子
-分区演练、R9 CSP 接收契约、PostgreSQL pytest/API smoke、Ruff 和 `pip-audit`。R9 远端
-Backend CI 同样待本轮推送后验证。
+分区演练、R9 CSP 接收契约、PostgreSQL pytest/API smoke、Ruff 和 `pip-audit`。
 [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
-是 R8 历史成功证据，不代表 R9 已通过远端门禁。R9 本地/CI 合成报告不是生产 SLO，也不能
-替代真实完整业务周期的 Report-Only 归类。
+仍是 R8 历史成功证据；R9 远端门禁以 run `30739553595` 和 `30740784839` 为准。R9
+本地/CI 合成报告不是生产 SLO，也不能替代真实完整业务周期的 Report-Only 归类。R9 尚未
+生产部署，S2 nonce/hash 强制 CSP 与 S3 内存 access token 均未启动；强制 CSP 未收紧，
+`localStorage` token 风险未关闭。
 修改前端后至少运行：
 
 ```powershell
