@@ -1,7 +1,8 @@
 # R5：前端质量与观测趋势
 
 > 实施日期：2026-07-26
-> 状态：已完成工程实现与本地验证；生产发布验证仍需在 R6 发布窗口执行。
+> 状态：R5 已完成；R9 已完成 S1 本地实现及审查后聚焦/静态验证，增强版浏览器执行、
+> 远端 CI 与完整业务周期观测待完成。
 > 对应计划：[后续迭代计划](iteration_plan_20260724_follow_up.md)
 
 ## 1. 目标与边界
@@ -114,6 +115,10 @@ MARKET_VIRTUALIZATION_REVIEW_THRESHOLD = 100
 - CSP 在 `frontend/next.config.js` 中仍包含
   `script-src 'self' 'unsafe-eval' 'unsafe-inline'` 与
   `style-src 'self' 'unsafe-inline'`；
+- R9 保持上述强制 CSP 原值不变，同时增加只上报的
+  `Content-Security-Policy-Report-Only`；候选 `script-src` 仅允许 `'self'`；
+- 匿名 `/api/log/csp-report` 兼容 legacy/Reporting API，限制 8 KiB 请求体、20 条批量、
+  受校验采样和 `report:csp` 独立 IP 限流；持久化前执行 URL 脱敏并生成独立 `trace_id`；
 - `access_token` 会通过 HttpOnly cookie 支持 SSE 和兼容的只读请求，也仍在
   `localStorage['futures_access_token']` 中保存，供前端为写请求设置 `Authorization: Bearer`；
 - `refresh_token` 仅通过 HttpOnly、`SameSite=Lax` cookie 轮换；
@@ -128,18 +133,45 @@ MARKET_VIRTUALIZATION_REVIEW_THRESHOLD = 100
 
 | 阶段 | 变更 | 验收与停止条件 |
 |---|---|---|
-| S0，当前 | 固化 token/cookie 轮换和 Lighthouse/错误态证据 | refresh、logout、SSE 重连、写请求 Bearer 和 CSRF 回归必须通过 |
-| S1，报告模式 | 在不改变 enforce CSP 的情况下增加 CSP Report-Only endpoint、采样与告警 | 收集完整业务周期报告；任何 Next runtime、图表、SSE、API 或登录违规先修复，不收紧 enforce |
+| S0，已完成 | 固化 token/cookie 轮换和 Lighthouse/错误态证据 | refresh、logout、SSE 重连、写请求 Bearer 和 CSRF 回归必须通过 |
+| S1，R9 工程实现完成 | 在不改变 enforce CSP 的情况下增加 CSP Report-Only endpoint、采样与告警 | 审查后聚焦/静态门禁已通过，增强版浏览器与远端 CI 待验证；仍需收集完整业务周期报告，任何 Next runtime、图表、SSE、API 或登录违规先修复，不收紧 enforce |
 | S2，nonce/hash 收紧 | 为可控 inline 脚本迁移 nonce/hash，移除不再需要的第三方与动态执行来源，逐项收紧 `script-src` | production build、登录、刷新、退出、SSE、详情写操作和全部浏览器 smoke 通过；报告无未知违规 |
 | S3，内存 access token | 登录/刷新只将短 access token 保存在内存，refresh cookie 负责恢复会话；所有写请求继续携带 Bearer | 必须先完成跨刷新恢复、并发 401 单飞、失效处理、SSE cookie 轮换与 CSRF 回归；失败即回退到 S0，不切 cookie-only 写请求 |
 | S4，cookie-only 可行性评审 | 仅在服务端提供 origin/CSRF token、cookie scope、跨子域与 SSE 多实例方案后评审 | 未证明每个状态变更接口的 CSRF 防护前，禁止删除 Bearer 要求或启用 cookie-only 写请求 |
 
-S1 至 S4 需要在独立安全迭代实施。R5 不改变 CSP enforce 策略，也不移除 `localStorage` token，避免把
-未验证的认证迁移伪装成安全修复。
+S1 已由 R9 实施，但只建立非生产工程观测能力。R9 不改变 CSP enforce 策略，也不移除
+`localStorage` token；S2 至 S4 仍需独立安全迭代。真实完整业务周期报告未归类前，不得把
+本地或 CI synthetic 报告解释为生产 SLO、XSS 风险关闭或 S2 准入证据。
 
-## 6. 验证记录
+## 6. R9 S1 更新（2026-08-02）
 
-本地工程验证已通过：
+R9 本地证据：
+
+```text
+pytest full before review fixes             1177 passed, 18 skipped, 0 failed, 103 warnings
+focused pytest after review fixes           85 passed, 1 skipped, 0 failed
+Ruff check / format after review fixes      passed
+frontend CSP config before review           21 passed
+Vitest full before review                   35 files, 223 passed
+production build before review              passed; maximum First Load JS 157 kB
+Playwright R9 before review enhancements    3 passed
+enhanced Playwright --list / TS / ESLint    passed
+enhanced Playwright browser execution       pending Frontend CI
+git diff --check                            passed
+```
+
+聚焦回归的唯一 skip 是新增 PostgreSQL CSP 持久化专项，本地无隔离 PostgreSQL，待
+Backend CI 的 PostgreSQL 16 环境执行；审查修复后的完整后端全量由 CI 复核。增强版增加
+并发 401 单飞刷新和 SSE 首次断线重连，不得把基础版 `3 passed` 解释为增强版本地已通过。
+
+R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及
+Backend/Frontend CI 链接待补/待验证。实际指标与告警建议见
+[`.agents/operations.md`](../.agents/operations.md)，非生产边界、回滚点和其余待补字段见
+[`releases/20260802_r9_csp_report_only_observability.md`](releases/20260802_r9_csp_report_only_observability.md)。
+
+## 7. R5 验证记录
+
+R5 当时的本地工程验证已通过：
 
 ```text
 npx tsc --noEmit                              passed
@@ -161,5 +193,6 @@ Production build 的 First Load JS 为 `/products` 132 kB、`/products/[id]` 147
 两条路由均通过当前阈值。隔离数据库、浏览器测试产物和本地 Lighthouse JSON 已清理；趋势结果不应作为
 源码或 benchmark 文件提交。
 
-生产 CSP、真实浏览器配置、发布前 smoke、Lighthouse 趋势结果和 artifact 可读性仍必须按 R6
-发布窗口重新执行，不能由本地或历史 CI 代替。
+生产 CSP、真实浏览器配置、发布前 smoke、Lighthouse 趋势结果和 artifact 可读性仍必须在
+真实发布窗口重新执行。R9 本地结果不替代远端 CI，也不替代真实完整业务周期的 Report-Only
+报告归类。

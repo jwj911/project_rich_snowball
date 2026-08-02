@@ -28,14 +28,19 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 
 当前工程基线（2026-08-02）：
 
-- 后端：R8 本地全量 `1157 passed, 18 skipped, 0 failed`，Ruff check/format 与 diff
-  check 均通过。新增的 3 个 PostgreSQL 分区专项用例因本机没有隔离 PostgreSQL 而明确
-  skip，并已在远程 PostgreSQL 16 门禁中通过。
-- 前端：R8 无变更且未重跑。Next.js 15.5.22 production build、Vitest `202 passed`、
-  Playwright `40 passed`、双路由 Lighthouse 和 `npm audit --omit=dev` 均为 R6 历史基线。
+- 后端：独立审查修复前的 R9 全量为
+  `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
+  `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
+  持久化专项，待 Backend CI 的 PostgreSQL 16 环境执行；修复后的完整全量由 CI 复核。
+- 前端：审查增强前的基础版 R9 Playwright 为 `3 passed`。增加并发 401 单飞刷新和 SSE
+  首次断线重连后，增强版已通过 Playwright `--list`、TypeScript 与 ESLint，实际浏览器
+  执行待 Frontend CI；不得将基础版结果表述为增强版已在本地通过。
+- `git diff --check` 通过。R9 本地实现提交为
+  `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及 Backend/Frontend CI
+  链接待补/待验证。
 - 详细证据见
-  [`releases/20260802_r8_kline_partition_lifecycle.md`](releases/20260802_r8_kline_partition_lifecycle.md)；
-  该记录是 K 线分区生命周期工程基线，不是生产分区或生产发布。
+  [`releases/20260802_r9_csp_report_only_observability.md`](releases/20260802_r9_csp_report_only_observability.md)；
+  该记录是 CSP Report-Only 非生产工程基线，不是强制 CSP 收紧或生产发布。
 
 ## 3. 数据库与数据
 
@@ -66,6 +71,13 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 - [ ] Redis 中断时 SSE 60 秒有界刷新及恢复路径在目标环境验证。
 - [ ] `/health/ready`、`/health/scheduler` 和关键 API smoke 通过。
 - [ ] 管理页面和普通用户权限各验证一次。
+- [ ] `CSP_REPORT_SAMPLE_RATE` 已按目标流量配置为 `[0, 1]` 内有限数，并记录变更原因。
+- [ ] `CSP_REPORT_URL` 未设置或为受控的绝对 HTTP(S) URL，不含凭据、query、fragment。
+- [ ] 页面同时返回强制 CSP 和 Report-Only CSP，且强制 CSP 原值未变化。
+- [ ] CSP 报告端点的 8 KiB、20 条批量、采样、`report:csp` IP 限流和脱敏边界在目标环境
+  验证。
+- [ ] `csp_reports_total{outcome="persist_failed"}` 在 5 分钟窗口内大于 0 时立即告警；
+  `rejected` / `rate_limited` 异常比例和 `accepted` / 业务 HTTP 流量对比已接入看板。
 
 当前 Redis 标记不包含行情内容，只解决 worker/API 更新感知。Redis Pub/Sub、跨实例连接
 注册、全局连接上限和跨实例旧连接取消尚未实现，不得把 `single|sticky` 表述为完整的
@@ -74,14 +86,20 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 ## 5. 浏览器与性能
 
 - [ ] Frontend CI 的 PostgreSQL/Alembic/backend/Chromium Playwright smoke 通过。
+- [ ] R9 双 CSP 头、legacy/Reporting API 接收、登录刷新、SSE、Bearer 写请求与
+  cookie-only 写请求拒绝通过本次 Frontend CI 验证。
 - [ ] 登录、行情中心、品种详情、价位标注、工作区和 metrics smoke 通过。
 - [ ] Lighthouse 路由趋势通过并保留 `lighthouse-trend.json`、`lighthouse-history.json` 与
   `latest.json` artifact；确认 commit、route 和 CI run metadata 可读。
 
 当前远程证据：
 
+- R9 Backend CI：待本轮推送后补记/待验证，链接待补；需执行新增 PostgreSQL 专项并复核
+  审查修复后的完整后端全量。
+- R9 Frontend CI：待本轮推送后补记/待验证，链接待补；增强版及完整 Playwright 结果以该
+  workflow 的实际浏览器步骤为准。
 - [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)：
-  R8 当前成功门禁，专项 `45 passed`，全量 `1174 passed, 1 skipped`，覆盖率 `75.98%`。
+  R8 历史成功门禁，专项 `45 passed`，全量 `1174 passed, 1 skipped`，覆盖率 `75.98%`。
 - [Backend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30493521137)：
   R7 历史成功门禁。
 - [Frontend CI #33](https://github.com/jwj911/project_rich_snowball/actions/runs/30233956592)：
@@ -91,10 +109,17 @@ Backend CI #38 覆盖只读容量预检、真实 PostgreSQL 分区路由/迁移�
 Alembic、全量 pytest/API smoke、Ruff 和 `pip-audit`。远程 CI 不替代真实生产容量、活动表
 切换、冷归档、备份恢复或负责人确认。
 
+本地和 CI synthetic CSP 报告只验证契约，不构成生产 SLO。只有取得并归类真实完整业务周期
+报告后，才允许启动 S2 专项评审；在此之前不得移除强制 CSP 的 `unsafe-inline` /
+`unsafe-eval`。
+
 ## 6. 回滚
 
 - [ ] 先停止 worker，再停止 API，保留失败日志和 trace id。
 - [ ] 保存发布前数据库备份与 Alembic 版本。
 - [ ] 应用回滚只使用已验证的提交；数据库 downgrade 必须在演练环境先验证。
+- [ ] R9 应用回滚点为启动文档提交
+  `756ca605613ba2a4f76919e913e1264e3f9d2a1b`；回滚后重新检查强制 CSP、登录、SSE 与
+  Bearer 写请求。
 - [ ] 恢复数据库后重新执行 readiness、认证、行情列表和关键页面 smoke。
 - [ ] 将事故原因、影响范围、恢复时间和后续行动写入发布记录。

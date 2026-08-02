@@ -17,18 +17,22 @@
   - 5-6 全量测试 + 提交到 master（历史基线）
 - **Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 8 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理 / 分析流水线 / 回测 / 策略编排 / 因子挖掘），执行过程通过 SSE 流式展示。
 - 近期新增：策略工作台（`/strategies`）、策略参数优化（`/strategies/{id}/optimize`）、回测信号可视化（K 线叠加标记）、预警中心（`/alerts`）、Agent 工作台（`/agents`）。
-- **当前质量基线（2026-08-02）**：R8 本地全量后端
-  `1157 passed, 18 skipped, 0 failed`，Ruff check/format 与 diff check 均通过。新增的 3 个
-  PostgreSQL 分区专项用例因本机没有隔离 PostgreSQL 而明确 skip，并已在远程通过。前端无
-  变更且本轮未重跑；R6 的 Vitest `202 passed`、Playwright `40 passed`、Next.js 15.5.22
-  build 与 Lighthouse 仅为历史基线。
-- **远程验收**：R8 实现提交 `41c79f1e`、最终验证提交 `68386c51` 已推送；
-  [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
-  成功，R8 专项 `45 passed`，全量 `1174 passed, 1 skipped`，覆盖率 `75.98%`。
-- **当前迭代**：R8 已完成只读容量门禁、影子 LIST + RANGE DDL、隔离复制演练、
-  benchmark 默认只读和管理员存储概况。完整边界见
-  [`docs/releases/20260802_r8_kline_partition_lifecycle.md`](../docs/releases/20260802_r8_kline_partition_lifecycle.md)；
-  活动表切换、冷数据导出/删除和生产恢复演练仍未执行。
+- **当前质量基线（2026-08-02）**：独立审查修复前的 R9 后端全量为
+  `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
+  `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
+  持久化专项，本地无隔离 PostgreSQL，待 Backend CI 的 PostgreSQL 16 环境执行。
+- **前端验证**：审查增强前的基础版 R9 Playwright 为 `3 passed`。增加并发 401 单飞刷新和
+  SSE 首次断线重连后，增强版已通过 Playwright `--list`、TypeScript 与 ESLint，实际浏览器
+  执行待 Frontend CI；不得将基础版结果解释为增强版已在本地通过。
+- **远程验收**：R9 本地实现提交为
+  `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及 Backend/Frontend CI
+  链接待补/待验证。应用回滚点为 R9 启动文档提交
+  `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
+- **当前迭代**：R9 已完成 CSP Report-Only S1 工程实现及审查后聚焦/静态验证，增强版
+  浏览器执行和远端 CI 待完成。完整记录见
+  [`docs/releases/20260802_r9_csp_report_only_observability.md`](../docs/releases/20260802_r9_csp_report_only_observability.md)。
+  强制 CSP、`localStorage` token、Bearer 写请求与 CSRF 边界保持不变；真实完整业务周期
+  报告未归类前不进入 S2。R8 的活动表切换、冷数据归档和生产恢复仍未执行。
 
 ## 主要功能模块
 
@@ -60,8 +64,8 @@
 | 表单 | react-hook-form | ^7.76.0 |
 | 消息提示 | sonner | ^2.0.7 |
 | 性能采集 | web-vitals | ^5.2.0 |
-| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，约 35 个测试/辅助文件 |
-| E2E 测试 | Playwright | ^1.60.0，7 个文件（auth.setup.ts + 6 个 spec） |
+| 前端测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，R9 全量 35 个文件 / 223 项 |
+| E2E 测试 | Playwright | ^1.60.0，基础版 R9 定向 3 项通过；并发 401/SSE 重连增强版浏览器执行待 Frontend CI |
 | 性能基线 | Lighthouse | ^13.3.0，`npm run lighthouse` |
 | 后端框架 | Python + FastAPI | Python >=3.11，FastAPI 0.136.3 |
 | 后端服务器 | Uvicorn | 0.30.6 |

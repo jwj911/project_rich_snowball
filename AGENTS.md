@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-08-02（R9 CSP Report-Only 观测闭环启动）
+> **最后更新**：2026-08-02（R9 CSP Report-Only S1 本地实现记录）
 
 ---
 
@@ -16,20 +16,23 @@
 - **Agent 系统 Phase 0~2 已完成**并接入真实 SSE 进度流：DataAgent、DataQualityAgent、TechAnalysisAgent、RiskManagementAgent、AnalysisPipelineAgent、StrategyCompilerAgent、BacktestAgent、FactorMiningAgent、TraderAgent 已上线。
 - **策略进化（Strategy Evolution）已落地**：GA 进化循环、GP 因子生成、Pareto 适应度、贝叶斯优化、策略生命周期追踪。
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
-- **测试状态**：R8 本地全量后端为 `1157 passed, 18 skipped, 0 failed`，Ruff
-  check/format 与 diff check 均通过。新增的 3 个 PostgreSQL 分区专项用例在本机明确
-  skip，并已在远程 PostgreSQL 16 门禁中通过。前端本轮无变更且未重跑；R6 的 Vitest
-  `202 passed`、Playwright `40 passed`、TypeScript、ESLint、Next.js 15.5.22 build 与
-  Lighthouse 仅为历史基线。
-- **远程验收**：R8 实现提交为 `41c79f1e`，最终验证提交为 `68386c51`。
-  [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
-  成功，R8 专项 `45 passed`，全量 PostgreSQL `1174 passed, 1 skipped`，覆盖率
-  `75.98%`；影子资源残留断言、API smoke、Ruff 和 `pip-audit` 均通过。
+- **测试状态**：独立审查修复前的 R9 后端全量为
+  `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
+  `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
+  持久化专项，本地无隔离 PostgreSQL，待 Backend CI 的 PostgreSQL 16 环境执行。
+- **前端验证**：审查增强前的基础版 R9 Playwright 为 `3 passed`。增加并发 401 单飞刷新和
+  SSE 首次断线重连后，增强版已通过 Playwright `--list`、TypeScript 与 ESLint，实际浏览器
+  执行待 Frontend CI；不得将基础版结果表述为增强版已在本地通过。
+- **远程验收**：R9 本地实现提交为
+  `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及 Backend/Frontend CI
+  链接待补/待验证。应用回滚点为 R9 启动文档提交
+  `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
 - **当前迭代**：R9 已完成
-  [CSP Report-Only 观测闭环规格](.trae/specs/add-csp-reporting-observability/spec.md)和启动
-  文档，代码、测试、CI 与最终发布记录尚未完成。本轮只实施 R5 的 S1 报告模式；现有强制
-  CSP、`localStorage` access token、Bearer 写请求和 CSRF 拒绝 cookie-only 写请求的边界
-  保持不变。
+  [CSP Report-Only S1 工程实现及审查后聚焦/静态验证](docs/releases/20260802_r9_csp_report_only_observability.md)，
+  增强版浏览器执行和远端 CI 待完成。
+  强制 CSP 原值不变；legacy/Reporting API 报告接收具备 8 KiB、批量、采样、限流、脱敏、
+  独立 `trace_id` 和低基数指标。`localStorage` access token、Bearer 写请求和 CSRF 拒绝
+  cookie-only 写请求的边界保持不变；真实完整业务周期报告未归类前不得进入 S2。
 - **上一迭代边界**：R8 已完成容量门禁、默认 dry-run 的影子 LIST + RANGE DDL、隔离复制
   演练、benchmark 只读契约和管理员存储概况。活动 `kline_data` 未切换，冷数据未导出/删除，
   生产备份恢复未执行，因此仍是非生产工程基线。
@@ -81,6 +84,7 @@
 | [docs/r4_dsl_walk_forward_validation.md](docs/r4_dsl_walk_forward_validation.md) | DSL transform 语义、walk-forward 窗口、报告和生命周期查询规则 |
 | [docs/r5_frontend_quality_observability.md](docs/r5_frontend_quality_observability.md) | Lighthouse 趋势、页面失败态、虚拟滚动决策和 CSP/token 迁移边界 |
 | [docs/releases/README.md](docs/releases/README.md) | 按版本维护的工程基线与生产发布记录 |
+| [docs/releases/20260802_r9_csp_report_only_observability.md](docs/releases/20260802_r9_csp_report_only_observability.md) | R9 CSP Report-Only S1 本地实现记录，增强版浏览器与远端 CI 待验证 |
 | [docs/releases/20260802_r8_kline_partition_lifecycle.md](docs/releases/20260802_r8_kline_partition_lifecycle.md) | R8 K 线分区生命周期准备，非生产发布 |
 | [python/docs/kline_partitioning.md](python/docs/kline_partitioning.md) | K 线容量门禁、影子分区、演练和生产切换边界 |
 | [docs/phase4_sql_ast_readonly.md](docs/phase4_sql_ast_readonly.md) | Phase 4 Agent SQL AST 只读校验实施记录 |
@@ -137,8 +141,8 @@
 | 表单 | react-hook-form | ^7.76.0 |
 | 消息提示 | sonner | ^2.0.7 |
 | 性能采集 | web-vitals | ^5.2.0 |
-| 单元测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，34 个测试文件，202 个测试 |
-| E2E 测试 | Playwright | ^1.60.0，6 个 spec 文件 + `auth.setup.ts` |
+| 单元测试 | Vitest + @testing-library/react + jsdom | Vitest ^4.1.6，35 个测试文件，223 个测试 |
+| E2E 测试 | Playwright | ^1.60.0，基础版 R9 定向 3 项通过；并发 401/SSE 重连增强版浏览器执行待 Frontend CI |
 | 性能基线 | Lighthouse | `npm run lighthouse`，路由/提交/CI 趋势 artifact |
 
 ### 基础设施
@@ -203,8 +207,8 @@ d:\Code\project_rich_snowball/
 | `hooks/` | 自定义 React Hooks（行情轮询、K 线、实时推送等） |
 | `lib/` | API 客户端、类型、工具函数、实时 Store、常量 |
 | `lib/api/` | 领域 API 模块与 `client.ts` 统一 `api` 实例 |
-| `tests/` | Vitest 单元/集成测试（33 个文件） |
-| `e2e/` | Playwright E2E 测试（6 个 spec + auth.setup.ts） |
+| `tests/` | Vitest 单元/集成测试（R9 全量 35 个文件 / 223 项） |
+| `e2e/` | Playwright E2E 测试（基础版 R9 定向 3 项通过；增强版及完整套件由 Frontend CI 验证） |
 | `scripts/` | Lighthouse 基线脚本 |
 | `docs/` | 前端专项文档 |
 
@@ -410,6 +414,11 @@ npm run lighthouse
 
 - 评论/交易观点 `reason` 通过 Pydantic validator + `html.escape()` 过滤。
 - 前端日志端点 `/api/log/frontend` 必须鉴权、限制 payload 大小/深度/key 数量。
+- CSP 报告端点 `/api/log/csp-report` 为浏览器匿名上报入口，只接受两种 CSP Content-Type，
+  请求体不超过 8 KiB，Reporting API 每批不超过 20 条；必须先限流、校验、采样和脱敏，
+  不得记录原始请求体、query、fragment、Cookie、Authorization、脚本或 DOM 内容。
+- 强制 CSP 仍保留 `unsafe-inline` / `unsafe-eval`；Report-Only `script-src 'self'` 只提供
+  观测，不表示 XSS 风险关闭或已进入 nonce/hash 强制策略。
 - RSS URL 校验协议与主机，拒绝内网/local/link-local/file，抓取显式超时。
 - `/metrics` 仅限可信内网 IP，外网返回 403。
 
@@ -430,8 +439,8 @@ npm run lighthouse
 
 | Workflow | 触发条件 | 内容 |
 |----------|----------|------|
-| `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，依赖锁漂移检查，R7 placeholder preflight、Alembic `upgrade head`、R8 K 线只读预检/影子分区门禁、pytest + coverage（阈值 40%）、PostgreSQL API smoke、Ruff check/format、pip-audit |
-| `.github/workflows/frontend-ci.yml` | `frontend/**`、workflow 本身变更 | Node 20，`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → `npm run test` → Lighthouse 路由趋势 artifact；独立 job 执行 PostgreSQL + Alembic + backend + Playwright Chromium smoke |
+| `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，依赖锁漂移检查，R7/R8 门禁、R9 CSP 接收契约、pytest + coverage（阈值 40%）、PostgreSQL API smoke、Ruff check/format、pip-audit |
+| `.github/workflows/frontend-ci.yml` | `frontend/**`、R9 相关后端契约文件、workflow 本身变更 | Node 20，TypeScript、ESLint、R9 双 CSP 头、build、Vitest、Lighthouse；独立 job 执行 PostgreSQL + Alembic + backend + R9 定向及完整 Playwright Chromium smoke |
 | `.github/workflows/update-calendar.yml` | 每年 1 月 1 日 cron + manual | 更新交易日历 `python/data/trading_calendar.json` 并提交 |
 
 ### Docker

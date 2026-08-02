@@ -1,7 +1,8 @@
 # 后续迭代计划：安全边界、数据基础与发布收口
 
 > 计划日期：2026-07-24
-> 当前状态：R1 至 R8 工程项已完成；R9 CSP Report-Only 观测闭环已启动，尚未实施
+> 当前状态：R1 至 R8 工程项已完成；R9 S1 本地实现及审查后聚焦/静态验证完成，增强版
+> 浏览器执行与远端 CI 待验证
 > 适用范围：Phase 4 后续安全回归、数据基础、策略验证、前端质量和生产发布治理
 > 上一份事实源：[`iteration_plan_20260718_project_audit.md`](iteration_plan_20260718_project_audit.md)
 
@@ -16,18 +17,21 @@
 
 当前可复现工程基线：
 
-- 后端：R8 本地全量 `1157 passed, 18 skipped, 0 failed`；
-- Ruff check/format 与 diff check 均通过；
-- [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
-  成功，覆盖 R8 PostgreSQL 16 只读容量预检、全部周期别名/DEFAULT 路由、影子复制、失败
-  回滚、资源残留、全量 pytest/API smoke、Ruff 和 `pip-audit`；
-- 前端本轮无变更且未重跑。Next.js 15.5.22、Vitest `202 passed, 0 failed`、Playwright
-  `40 passed`、TypeScript、ESLint、production build、双路由 Lighthouse 和生产依赖审计
-  均为 R6 历史基线；
+- 后端：独立审查修复前的 R9 全量为
+  `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
+  `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
+  持久化专项，待 Backend CI 的 PostgreSQL 16 环境执行；修复后的完整全量由 CI 复核；
+- 前端：审查增强前的 CSP 配置 `21 passed`、全量 Vitest `35 files / 223 passed`、
+  production build 和基础版 R9 Playwright `3 passed` 均通过，最大 First Load JS 为
+  `157 kB`；增加并发 401 单飞刷新和 SSE 首次断线重连后，增强版已通过 Playwright
+  `--list`、TypeScript 与 ESLint，实际浏览器执行待 Frontend CI；
+- `git diff --check` 通过；
+- R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及
+  Backend/Frontend CI 链接待补/待验证；
 - 以上均为工程基线，不等同于生产发布。生产发布仍需逐项执行
   [`release_checklist_20260719.md`](release_checklist_20260719.md)。
 - R8 已通过最终文档提交 `57bc6131` 在 GitHub `origin/master` 闭环，仍是非生产工程基线；
-  R9 只启动 R5 安全迁移的 S1 CSP Report-Only 观测闭环，当前没有实现、测试或 CI 结论。
+  R9 不改变 R8 的活动表、冷归档和生产恢复边界。
 
 ## 2. 已完成项与旧清单校正
 
@@ -257,41 +261,48 @@ PostgreSQL 证据。
 R8 的测试、CI、状态和未完成生产项已由最终文档提交 `57bc6131` 完成远端闭环；该提交不改变
 R8 的非生产工程基线属性。
 
-### R9：CSP Report-Only 观测闭环（P2，已启动）
+### R9：CSP Report-Only 观测闭环（P2，本地实现完成，增强版浏览器与远端待验证）
 
 **目标**：实施 R5 分阶段安全迁移的 S1，只建立不会阻断业务的 CSP Report-Only 报告、脱敏、
 限流和低基数观测闭环，为后续 nonce/hash 强制策略提供真实证据。
 
-计划范围：
+实施结果：
 
-1. 兼容 legacy CSP 与 Reporting API 报告格式，并限制请求大小、批量数量、采样率和客户端
-   IP 速率；
-2. 对 URL、字段和持久化失败日志执行严格脱敏，每条持久化报告使用独立 `trace_id`；
-3. 前端保留现有强制 CSP，同时增加更严格但只上报、不阻断的候选策略；
-4. 覆盖登录、刷新、退出、SSE、Bearer 写请求和 CSRF 边界，并增加后端、前端与 CI 门禁；
-5. 取得完整业务周期的真实 Report-Only 数据后，才能评审后续 S2。
+1. 接收端点兼容 legacy CSP 与 Reporting API 报告，限制 8 KiB 请求体、20 条批量、受校验
+   `CSP_REPORT_SAMPLE_RATE` 和每客户端 IP 的 `report:csp` 独立限流；
+2. document URL、blocked URL、source file 和 referrer 在持久化前移除 userinfo、query 与
+   fragment；原始请求体、sample、脚本、DOM、Cookie、Authorization 和未知字段不落库；
+3. 每条持久化报告生成独立 `trace_id`，指标固定为
+   `csp_reports_total{outcome}` 低基数标签，持久化失败日志只保留安全诊断；
+4. 前端保留原值不变的强制 CSP，同时新增候选 `script-src 'self'` 的 Report-Only 策略和
+   Reporting API endpoint；
+5. 登录、刷新恢复、退出、SSE、Bearer 写请求与 cookie-only 写请求拒绝已由 R9
+   Playwright 定向回归覆盖；后端和前端 CI 门禁已加入 workflow。
 
 验收：
 
 - 两种报告格式均可安全接收，非法类型、结构、批量和超大请求稳定拒绝；
 - 持久化和日志不包含原始请求体、敏感 URL 部分、Cookie、Authorization 或页面内容；
 - 强制 CSP 值保持不变，Report-Only 违规只上报而不阻断登录、SSE、页面和写操作；
-- 认证/CSRF 回归、后端与前端全量门禁、远端 CI 全部通过后才建立 R9 工程基线记录。
+- 审查修复后的后端聚焦回归与 Ruff 已通过；新增 PostgreSQL 专项、修复后完整后端全量、
+  增强版实际浏览器执行和远端 CI 仍需在本轮推送后验证并补记链接。
 
 本轮不收紧现有强制 CSP，不移除 `localStorage` access token，不允许 cookie-only 写请求。
 nonce/hash 强制 CSP 属于后续 S2；内存 access token 属于后续 S3，二者必须独立立项和验收。
-R9 当前仅完成规格与启动文档，不得描述为已实现、已测试或已通过 CI。
+真实完整业务周期的 Report-Only 数据尚未归类，因此 R9 只能描述为非生产 S1 工程基线，
+不得描述为强制 CSP 已收紧、XSS 风险已关闭或已具备 S2 准入证据。完整记录见
+[`releases/20260802_r9_csp_report_only_observability.md`](releases/20260802_r9_csp_report_only_observability.md)。
 
 ## 4. 本轮执行拆分
 
 R9 保持文档、实现和验证记录边界清晰：
 
-1. `docs: start R9 CSP reporting iteration`
-2. `feat(security): add CSP report-only observability`
-3. `test(ci): gate R9 CSP reporting contracts`
-4. `docs: close R9 verification`
+1. 启动文档提交：`756ca605613ba2a4f76919e913e1264e3f9d2a1b`；
+2. 本地实现提交：`723ba9b949bccf7c96798d2f45388731350eacd3`；
+3. 最终验证提交：待本轮推送后补记/待验证；
+4. Backend CI 与 Frontend CI：待本轮推送后补记/待验证，链接待补。
 
-启动文档必须先推送；实现提交不得夹带 R8 生产切换、token 迁移或强制 CSP 收紧。
+实现与验证提交不得夹带 R8 生产切换、token 迁移或强制 CSP 收紧。
 
 ## 5. 风险与停止条件
 
@@ -315,11 +326,12 @@ R9 保持文档、实现和验证记录边界清晰：
 | R6 真实发布窗口 | 发布候选已完成 | `releases/20260727_r6_release_candidate.md`；生产部署待执行 |
 | R7 生产发布门禁与 SSE 更新信号 | 工程基线已完成 | `releases/20260730_r7_release_gates.md`；真实生产操作待执行 |
 | R8 K 线分区生命周期准备 | 工程实现已完成 | `releases/20260802_r8_kline_partition_lifecycle.md`；生产切换/归档待执行 |
-| R9 CSP Report-Only 观测闭环 | 已启动 | 仅进入 S1 实施阶段；强制 CSP 和认证/CSRF 边界暂不改变 |
+| R9 CSP Report-Only 观测闭环 | 本地实现及聚焦/静态验证完成，增强版浏览器与远端待验证 | `releases/20260802_r9_csp_report_only_observability.md`；S2/S3 待独立立项 |
 
 R8 工程侧已完成并取得 PostgreSQL 16 CI 证据。生产侧仍需取得真实生产凭据和负责人，在真实
-窗口完成备份恢复、部署与 smoke；K 线达到阈值后另立活动表切换和冷归档规格。R9 必须先完成
-Report-Only 工程验证和完整业务周期观测，后续才能分别评审 S2 强制 CSP 与 S3 内存 token。
+窗口完成备份恢复、部署与 smoke；K 线达到阈值后另立活动表切换和冷归档规格。R9 已完成
+本地实现及审查后聚焦/静态验证，仍需增强版浏览器执行、远端 CI 和完整业务周期观测，后续
+才能分别评审 S2 强制 CSP 与 S3 内存 token。
 
 ## 7. R1 执行记录（2026-07-24）
 
@@ -456,10 +468,25 @@ Report-Only 工程验证和完整业务周期观测，后续才能分别评审 S
 - 最终文档提交 `57bc6131` 已推送至 `origin/master`，用于闭环上述证据和边界，不代表生产
   已分区或已发布。
 
-## 17. R9 CSP Report-Only 启动记录（2026-08-02）
+## 17. R9 CSP Report-Only 执行记录（2026-08-02）
 
-- R9 仅启动 R5 S1 CSP Report-Only 观测闭环；代码、测试、CI 和发布记录尚未完成；
-- 现有强制 CSP 保持不变，仍不把 Report-Only 描述为 nonce/hash 强制策略；
-- `localStorage` access token、HttpOnly refresh/access cookie、Bearer 写请求和 CSRF 拒绝
-  cookie-only 写请求的边界保持不变；
-- S2 nonce/hash 强制 CSP 与 S3 内存 access token 后续分别立项，不与本轮启动文档混合。
+- 启动文档提交及应用回滚点：
+  `756ca605613ba2a4f76919e913e1264e3f9d2a1b`；
+- 本地实现提交：`723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交：
+  待本轮推送后补记/待验证；
+- 独立审查修复前的后端全量：`1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后
+  受影响聚焦回归：`85 passed, 1 skipped, 0 failed`；Ruff check/format：通过；唯一 skip
+  是新增 PostgreSQL CSP 持久化专项，待 Backend CI 的 PostgreSQL 16 环境执行；
+- 审查增强前的基础版 R9 Playwright：`3 passed`；增加并发 401 单飞刷新和 SSE 首次断线
+  重连后，增强版 Playwright `--list`、TypeScript 与 ESLint：通过；实际浏览器执行待
+  Frontend CI；
+- `git diff --check`：通过；
+- Backend CI 与 Frontend CI 当前尚未执行，待本轮推送后补记/待验证，链接待补；修复后
+  完整后端全量由 Backend CI 复核，增强版和完整 Playwright 由 Frontend CI 验证；
+- `csp_reports_total{outcome}` 告警与业务流量对比见
+  [`.agents/operations.md`](../.agents/operations.md)；本地和 CI synthetic 报告不是生产 SLO；
+- 现有强制 CSP、`localStorage` access token、HttpOnly refresh/access cookie、Bearer 写请求
+  和 CSRF 拒绝 cookie-only 写请求的边界保持不变；
+- 真实完整业务周期报告未归类，S2 nonce/hash 强制 CSP 与 S3 内存 access token 后续分别
+  立项。非生产边界、回滚和待补字段见
+  [`releases/20260802_r9_csp_report_only_observability.md`](releases/20260802_r9_csp_report_only_observability.md)。

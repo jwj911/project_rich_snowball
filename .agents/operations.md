@@ -127,6 +127,46 @@ cd python
 命令，完整边界见
 [`python/docs/kline_partitioning.md`](../python/docs/kline_partitioning.md)。
 
+### CSP Report-Only 观测
+
+R9 实际暴露的计数器为 `csp_reports_total{outcome}`，固定 outcome 为 `received`、
+`accepted`、`sampled`、`rejected`、`rate_limited`、`persist_failed`。初始 PromQL
+建议：
+
+```promql
+increase(csp_reports_total{outcome="persist_failed"}[5m]) > 0
+```
+
+任一持久化失败立即告警，并用安全日志中的 `trace_id` 和异常类型排障，不查询或输出原始报告。
+拒绝与限流异常上升可从以下 15 分钟比例开始，业务基线形成后再调整 `10%` 和 `20` 的初始阈值：
+
+```promql
+(
+  sum(increase(csp_reports_total{outcome=~"rejected|rate_limited"}[15m]))
+  /
+  clamp_min(sum(increase(csp_reports_total{outcome="received"}[15m])), 1)
+  > 0.10
+)
+and
+sum(increase(csp_reports_total{outcome="received"}[15m])) > 20
+```
+
+Dashboard 同时展示接受量与非报告业务 HTTP 流量的比例：
+
+```promql
+sum(increase(csp_reports_total{outcome="accepted"}[30m]))
+/
+clamp_min(
+  sum(increase(http_requests_total{endpoint!="/api/log/csp-report"}[30m])),
+  1
+)
+```
+
+`accepted` 按报告条目计数，`http_requests_total` 按 HTTP 请求计数，Reporting API 批量会使
+二者不具备一一对应关系；该比值只用于同部署、同窗口的趋势对比。接受量突增必须结合部署、
+页面流量和 directive 归类排查，不能仅凭绝对报告数判断策略可收紧。本地和 CI synthetic 报告
+只验证接收契约，不是生产 SLO；真实完整业务周期报告未归类前不得进入 S2。
+
 ## 关键环境变量
 
 | 变量 | 必需 | 默认值 | 说明 |
@@ -157,6 +197,8 @@ cd python
 | `ROLLBACK_OWNER` | 发布预检必填 | — | 回滚负责人 |
 | `RELEASE_PREFLIGHT_REPORT_PATH` | 否 | `release_preflight_report.json` | 脱敏预检报告输出路径 |
 | `NEXT_PUBLIC_API_BASE` | 前端可选 | `http://127.0.0.1:8401` | 前端请求后端地址 |
+| `CSP_REPORT_URL` | 前端可选 | API origin + `/api/log/csp-report` | Report-Only 上报地址；只允许无凭据、query、fragment 的绝对 HTTP(S) URL |
+| `CSP_REPORT_SAMPLE_RATE` | 否 | `1` | 合法 CSP 报告确定性采样率，必须为 `[0, 1]` 内有限数 |
 | `OPENAI_API_KEY` | AI 可选 | — | OpenAI 兼容 API Key |
 | `OPENAI_BASE_URL` | AI 可选 | `https://api.openai.com/v1` | OpenAI 兼容 Base URL |
 | `OPENAI_MODEL` | AI 可选 | `gpt-4o-mini` | 对话模型 |
@@ -187,13 +229,18 @@ cd python
 
 ### GitHub Actions
 
-- `.github/workflows/backend-ci.yml`：依赖锁检查 + R7 placeholder preflight 契约门禁 +
-  Alembic + R8 K 线只读容量预检/影子分区 PostgreSQL 门禁 + PostgreSQL pytest/API smoke +
-  Ruff check/format + `pip-audit`，pytest-cov 阈值为 40%。R8 门禁最后断言没有
-  `kline_data_shadow_*` 表或序列残留；
-  [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
-  已成功，远程全量覆盖率为 `75.98%`。
-- `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → `npm run lint` → `npm run build` → Vitest → Lighthouse 基线；独立 job 执行 PostgreSQL/Alembic/backend/Chromium Playwright smoke。R7 无前端变更且未重跑，R6 Frontend CI 结果仅为历史证据。
+- `.github/workflows/backend-ci.yml`：依赖锁检查 + R7 placeholder preflight + Alembic +
+  R8 K 线 PostgreSQL 门禁 + R9 CSP 接收契约 + PostgreSQL pytest/API smoke + Ruff
+  check/format + `pip-audit`，pytest-cov 阈值为 40%。R9 Backend CI 当前待本轮推送后
+  补记/待验证，链接待补。
+- `.github/workflows/frontend-ci.yml`：`npm ci` → `tsc --noEmit` → ESLint → R9 双 CSP
+  响应头门禁 → build → Vitest → Lighthouse；独立 job 执行 PostgreSQL/Alembic/backend、
+  R9 认证/刷新/SSE/Bearer 定向浏览器门禁及完整 Chromium Playwright smoke。R9 Frontend
+  CI 当前待本轮推送后补记/待验证，链接待补。
+- R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交、
+  Backend CI 与 Frontend CI 结果及链接仍待补。新增 PostgreSQL CSP 持久化专项待 Backend
+  CI 的 PostgreSQL 16 环境执行；并发 401 单飞刷新与 SSE 首次断线重连增强版 Playwright
+  实际浏览器执行待 Frontend CI。
 - Lighthouse 采集 `home` / `products` 命名路由，记录 commit 和 CI 元数据；workflow 会恢复最近的
   `lighthouse-trend-history` artifact，并上传新的趋势/历史/最新 JSON，保留 90 天。
 - `.github/workflows/update-calendar.yml`：每年 1 月 1 日自动更新交易日历（cron），也支持手动触发。

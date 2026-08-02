@@ -211,21 +211,32 @@ smoke；完成前不得标记为生产已发布。
 R8 未切换活动表，未导出或删除冷数据，也未执行生产备份恢复；达到容量阈值后必须另立生产
 切换和归档规格。
 
-### R9：CSP Report-Only 观测闭环 — 已启动（2026-08-02）
+### R9：CSP Report-Only 观测闭环 — 本地实现完成，增强版浏览器与远端待验证（2026-08-02）
 
-- 已批准
-  [R9 规格](../.trae/specs/add-csp-reporting-observability/spec.md)，当前只完成文档先行，
-  报告端点、响应头、测试和 CI 尚未实施；
-- S1 计划兼容 legacy CSP 与 Reporting API 报告，限制字节数、批量、结构、采样和每 IP
-  速率，并在持久化前脱敏 URL 与字段；
-- 每条持久化报告将使用独立 `trace_id`，指标仅使用低基数 outcome，不记录完整 URL、用户
-  标识、原始 directive 或报告内容；
-- 前端将保留现有强制 CSP，另加更严格但只上报、不阻断的 Report-Only 候选策略；
-- 登录、并发刷新、退出、SSE、Bearer 写请求与 CSRF 拒绝 cookie-only 写请求必须保持回归；
-- 完整业务周期的真实报告未归类前，不进入 S2 nonce/hash 强制收紧。
+- 前端同时返回原值不变的强制 CSP、`Content-Security-Policy-Report-Only` 和
+  `Reporting-Endpoints`；候选 `script-src` 仅允许 `'self'`，只上报而不阻断；
+- 匿名接收端点兼容 legacy CSP 与 Reporting API，限制 8 KiB 请求体、20 条批量、受校验
+  `CSP_REPORT_SAMPLE_RATE` 和 `report:csp` 独立 IP 限流；
+- document URL、blocked URL、source file 与 referrer 在持久化前移除 userinfo、query 和
+  fragment；sample、脚本、DOM、Cookie、Authorization、原始请求体和未知字段不落库；
+- 每条持久化报告使用独立 `trace_id`，实际指标为 `csp_reports_total{outcome}`，outcome
+  固定为 `received`、`accepted`、`sampled`、`rejected`、`rate_limited`、
+  `persist_failed`；
+- 独立审查修复前的 R9 后端全量为
+  `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
+  `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过；唯一 skip 是新增 PostgreSQL
+  持久化专项，待 Backend CI 的 PostgreSQL 16 环境执行；
+- 审查增强前的基础版 R9 Playwright 为 `3 passed`；增加并发 401 单飞刷新和 SSE 首次断线
+  重连后，增强版已通过 Playwright `--list`、TypeScript 与 ESLint，实际浏览器执行待
+  Frontend CI；
+- 完整记录见
+  [`docs/releases/20260802_r9_csp_report_only_observability.md`](../docs/releases/20260802_r9_csp_report_only_observability.md)。
 
-R9 不移除 `localStorage` access token，不启用 cookie-only 写请求。S2 强制 CSP 与 S3 内存
-access token 后续分别立项；任何敏感报告泄露或业务阻断都会停止本轮实施。
+R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及
+Backend/Frontend CI 链接待补/待验证。审查修复后的完整后端全量由 Backend CI 复核，
+增强版 Playwright 实际浏览器执行及完整套件由 Frontend CI 验证。R9 不移除 `localStorage`
+access token，不启用 cookie-only 写请求；真实完整业务周期报告未归类前不进入 S2，S3
+内存 access token 仍需独立立项。本地和 CI 合成报告不是生产 SLO。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 

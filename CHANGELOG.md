@@ -2,6 +2,29 @@
 
 ## 2026-08-02
 
+- R9 完成 CSP Report-Only S1 工程实现：前端保留原值不变的强制
+  `Content-Security-Policy`，同时新增 `Content-Security-Policy-Report-Only` 与
+  `Reporting-Endpoints`；候选 `script-src` 仅允许 `'self'`，违规只上报、不阻断业务。
+- 新增匿名 CSP 报告接收端点，兼容 legacy `application/csp-report` 与 Reporting API
+  `application/reports+json`，限制 8 KiB 请求体、20 条批量、受校验采样和独立 IP 限流；
+  URL 在持久化前移除 userinfo、query 与 fragment，未知字段和敏感内容不落库。
+- 每条持久化报告生成独立 `trace_id`，新增低基数
+  `csp_reports_total{outcome}` 指标；`CSP_REPORT_SAMPLE_RATE` 默认 `1`，可在 `[0, 1]`
+  范围配置。现有 `localStorage` access token、HttpOnly cookie、Bearer 写请求和 CSRF
+  拒绝 cookie-only 写请求的边界保持不变。
+- R9 独立审查修复前的后端全量为
+  `1177 passed, 18 skipped, 0 failed, 103 warnings`；审查修复后受影响聚焦回归为
+  `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
+  持久化专项，本地无隔离 PostgreSQL，待 Backend CI 的 PostgreSQL 16 环境执行；修复后的
+  完整后端全量由 CI 复核。
+- 审查增强前的基础版 R9 Playwright 为 `3 passed`。增加并发 401 单飞刷新和 SSE 首次断线
+  重连后，增强版已通过 Playwright `--list`、TypeScript 与 ESLint，实际浏览器执行待
+  Frontend CI；不得将基础版结果解释为增强版已在本地通过。
+- 新增
+  [`docs/releases/20260802_r9_csp_report_only_observability.md`](docs/releases/20260802_r9_csp_report_only_observability.md)。
+  R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及
+  Backend/Frontend CI 链接待补/待验证。本地和 CI 合成报告不是生产 SLO，也不能作为进入
+  S2 强制 CSP 收紧的证据。
 - R8 新增 K 线存储容量预检，固定使用 1 亿行、100 GiB 和分钟查询 P99 500 ms 阈值；
   PostgreSQL 报告覆盖容量、周期分布、时间边界、分区状态和查询计划，SQLite 明确返回
   `unsupported_for_partitioning`，每次生成脱敏 `trace_id` JSON。

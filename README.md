@@ -18,24 +18,33 @@
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
 - K 线存储：R8 已提供只读容量门禁、默认 dry-run 的影子分区 DDL、隔离迁移演练和管理员
   存储概况；活动 `kline_data` 仍未分区。
-- 当前后端工程基线：R8 本地全量 `1157 passed, 18 skipped, 0 failed`，Ruff check/format
-  与 diff check 均通过。新增的 3 个 PostgreSQL 专项用例在本机明确跳过，并已在远程
-  PostgreSQL 16 门禁中通过。
 - 当前迭代：R9
-  [CSP Report-Only 观测闭环](.trae/specs/add-csp-reporting-observability/spec.md)已完成规格和
-  启动文档，代码、测试和 CI 尚未实施。R9 只推进 R5 安全迁移的 S1 报告模式，不收紧现有
-  强制 CSP，不移除 `localStorage` access token，不启用 cookie-only 写请求。
+  [CSP Report-Only 观测闭环](docs/releases/20260802_r9_csp_report_only_observability.md)
+  已完成 S1 工程实现及审查后聚焦/静态验证，增强版浏览器执行和远端 CI 待完成。页面同时
+  返回原值不变的强制 CSP 与只上报的候选策略；报告端点支持 legacy/Reporting API、
+  8 KiB 上限、20 条批量、采样、限流、URL 脱敏、独立 `trace_id` 和低基数指标。
+- 当前本地质量基线：独立审查修复前的后端全量为
+  `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
+  `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
+  持久化专项，待 Backend CI 的 PostgreSQL 16 环境执行；修复后的完整全量由 CI 复核。
+- 审查增强前的前端 CSP 配置 `21 passed`、全量 Vitest `35 files / 223 passed`、production
+  build 和基础版 R9 Playwright `3 passed` 均通过，最大 First Load JS 为 `157 kB`。增加
+  并发 401 单飞刷新和 SSE 首次断线重连后，增强版仅已通过 Playwright `--list`、TypeScript
+  与 ESLint，实际浏览器执行待 Frontend CI。
+- R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及
+  Backend/Frontend CI 链接待补/待验证。回滚点为 R9 启动文档提交
+  `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
 - 上一迭代：R8 已完成
   [K 线分区生命周期准备](docs/releases/20260802_r8_kline_partition_lifecycle.md)工程验证；
   实现提交为 `41c79f1e`，最终验证提交为 `68386c51`。
 - [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
   成功：R8 专项 `45 passed`，远程全量 `1174 passed, 1 skipped`，覆盖率 `75.98%`。
-- 前端本轮无变更且未重跑；R6 的 Vitest `202 passed`、Playwright `40 passed`、
-  Next.js 15.5.22 build 与 Lighthouse 仅为历史基线。R8 未切换活动表、未归档或删除冷数据，
-  也未执行生产恢复演练，当前不是生产已分区或生产已发布状态。
+- R8 未切换活动表、未归档或删除冷数据，也未执行生产恢复演练，当前不是生产已分区或生产
+  已发布状态；R9 不改变该非生产边界。
 - 当前强制 CSP 仍包含兼容 Next.js 与图表运行时所需的 `unsafe-inline` / `unsafe-eval`。
-  R9 计划新增只上报、不阻断的候选策略；在取得完整业务周期证据前不得进入 nonce/hash 强制
-  收紧，现有 Bearer 写请求与 CSRF 拒绝 cookie-only 写请求的边界保持不变。
+  R9 的 Report-Only `script-src 'self'` 只收集违规；在取得并归类真实完整业务周期报告前
+  不得进入 S2 nonce/hash 强制收紧。现有 `localStorage` token、Bearer 写请求与 CSRF 拒绝
+  cookie-only 写请求的边界保持不变。
 
 ---
 
@@ -76,7 +85,7 @@ project_rich_snowball/
 │   ├── data_collector/           # 数据采集流水线与调度器
 │   ├── middleware/               # 中间件（限流、API 版本映射）
 │   ├── scripts/                  # 工具脚本（回填、迁移、验收）
-│   ├── tests/                    # pytest 测试（R8 全量：1157 passed, 18 skipped）
+│   ├── tests/                    # pytest 测试（R9 审查修复前全量：1177 passed, 18 skipped）
 │   └── alembic/                  # 数据库迁移
 │
 ├── quantative_tools/             # 量化分析工具集
@@ -119,6 +128,8 @@ ENABLE_SCHEDULER=1
 REDIS_URL=redis://localhost:6379/0
 SSE_DEPLOYMENT_MODE=single
 ENV=development
+NEXT_PUBLIC_API_BASE=http://127.0.0.1:8401
+CSP_REPORT_SAMPLE_RATE=1
 HOST=127.0.0.1
 PORT=8401
 ```
@@ -127,6 +138,10 @@ PORT=8401
 - 生产环境必须使用长度至少 32 的 `SECRET_KEY`，且不能使用 SQLite。
 - 后端优先读取 `CORS_ORIGINS`，也兼容旧变量 `ALLOW_ORIGINS`。
 - 前端 API 地址由 `NEXT_PUBLIC_API_BASE` 控制，代码默认是 `http://127.0.0.1:8401`。
+- `CSP_REPORT_SAMPLE_RATE` 控制合法 CSP 报告的确定性采样，取值必须在 `[0, 1]`，默认
+  `1`；`0` 表示全部采样丢弃，`1` 表示全部进入持久化尝试。
+- `CSP_REPORT_URL` 可选；未设置时使用 `NEXT_PUBLIC_API_BASE` 的 origin 加
+  `/api/log/csp-report`。覆盖值必须是无凭据、query、fragment 的绝对 HTTP(S) URL。
 - 若使用 `DATA_SOURCE=tushare`，需要提供 `TUSHARE_TOKEN`。
 - 生产必须显式提供 `REDIS_URL` 和 `SSE_DEPLOYMENT_MODE=single|sticky`。Redis 只共享
   realtime quotes 更新时间戳；本轮未实现 Pub/Sub 或跨实例连接管理。
@@ -221,6 +236,7 @@ npx tsc --noEmit
 | `GET /api/settings` / `PUT /api/settings` | 用户偏好设置 |
 | `GET /api/news/sources` / `GET /api/news/articles` | 新闻源与文章 |
 | `POST /api/log/frontend` | 前端日志与 Web Vitals 上报 |
+| `POST /api/log/csp-report` | 匿名 CSP 违规报告；8 KiB、批量、采样、限流和脱敏边界 |
 | `GET /health` / `/health/ready` / `/health/scheduler` | 存活、就绪、调度器状态 |
 
 ---
@@ -267,19 +283,27 @@ $env:ENABLE_SCHEDULER="0"
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-R8 本地全量后端为 `1157 passed, 18 skipped, 0 failed`。其中新增的 3 个 PostgreSQL
-分区专项用例在本机明确 skip，由 Backend CI 的 PostgreSQL 16 service 执行；Ruff
-check/format 与 diff check 均通过。
+R9 独立审查修复前的后端全量为
+`1177 passed, 18 skipped, 0 failed, 103 warnings`。修复后受影响聚焦回归为
+`85 passed, 1 skipped, 0 failed`，Ruff check/format 通过；唯一 skip 是新增 PostgreSQL
+CSP 持久化专项，本地无隔离 PostgreSQL，待 Backend CI 的 PostgreSQL 16 环境执行。审查
+修复后的完整后端全量由 CI 复核。
 
-前端已配置 Vitest + Playwright 自动化测试（R6 历史基线：34 个 Vitest 文件 / 202 个测试，
-6 个 Playwright spec）。
+前端已配置 Vitest + Playwright 自动化测试。R9 CSP 配置测试为 `21 passed`；全量 Vitest
+为 `35 files / 223 passed`，TypeScript、ESLint 和 production build 通过，最大 First Load JS
+为 `157 kB`；以上浏览器执行中，审查增强前的基础版 R9 Playwright 为 `3 passed`。增加并发
+401 单飞刷新和 SSE 首次断线重连后，增强版已通过 Playwright `--list`、TypeScript 与
+ESLint，但实际浏览器执行待 Frontend CI，不得表述为本地已通过。
 `.github/workflows/frontend-ci.yml` 在 PR 时执行 lint、type-check、build、Vitest 和 Lighthouse
 路由趋势 artifact，并由独立 job 执行 PostgreSQL、Alembic、backend 和 Chromium Playwright
-smoke。R8 未修改前端且本轮未重跑前端门禁；R6 Frontend CI 仅为历史证据。
+smoke。R9 定向浏览器门禁已接入，但当前远端 Frontend CI 尚未执行；完整 Playwright 结果
+必须以本轮推送后的 Frontend CI 全量步骤为准。
 Backend CI 现覆盖依赖锁、R7 placeholder preflight、Alembic、R8 K 线只读容量预检与影子
-分区演练、PostgreSQL pytest/API smoke、Ruff 和 `pip-audit`。
+分区演练、R9 CSP 接收契约、PostgreSQL pytest/API smoke、Ruff 和 `pip-audit`。R9 远端
+Backend CI 同样待本轮推送后验证。
 [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
-已成功，且无影子资源残留；该结果不替代生产容量、备份恢复或活动表切换验证。
+是 R8 历史成功证据，不代表 R9 已通过远端门禁。R9 本地/CI 合成报告不是生产 SLO，也不能
+替代真实完整业务周期的 Report-Only 归类。
 修改前端后至少运行：
 
 ```powershell

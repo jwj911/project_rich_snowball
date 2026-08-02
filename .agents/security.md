@@ -17,8 +17,9 @@
   HttpOnly access cookie，logout 必须清理两者。
 - access token 当前仍保存于 localStorage 以支持写请求的 Bearer header。cookie-only 写请求需要
   独立验证 CSRF token/origin、防重放、SSE 和跨域边界，未完成前不得改变 Bearer 要求。
-- R9 不迁移 token：S1 只增加 CSP Report-Only 观测。内存 access token 属于后续 S3，
-  cookie-only 写请求不在当前范围。
+- R9 不迁移 token：S1 已增加 CSP Report-Only 观测，但 `localStorage`、HttpOnly
+  access/refresh cookie、Bearer 写请求和 CSRF 拒绝 cookie-only 写请求的边界不变。内存
+  access token 属于后续 S3。
 
 ## XSS 与输入安全
 
@@ -28,15 +29,25 @@
 
 ## 内容安全与 SSRF
 
-- CSP：前端有 Content-Security-Policy 响应头，但当前允许 `unsafe-eval` 和 `unsafe-inline`
-  （为兼容 lightweight-charts 和 Next.js）。R9 已启动 S1 规格，计划保留该强制策略并增加
-  更严格但只上报、不阻断的 Report-Only 候选策略；代码尚未实施。
-- CSP 报告接收必须限制 8 KiB 请求体、Reporting API 批量数量、允许字段、采样率和每 IP
-  速率。document URL、blocked URL、source file 和 referrer 必须在持久化前移除 userinfo、
-  query 与 fragment；sample、脚本片段、DOM 内容、Cookie 和 Authorization 一律丢弃。
-- 每条持久化 CSP 报告必须使用独立 `trace_id`；失败日志只允许异常类型和安全计数，指标标签
-  只允许低基数 outcome。完整业务周期的真实报告未归类前，禁止移除强制策略中的
-  `unsafe-inline` 或 `unsafe-eval`。
+- CSP：强制 `Content-Security-Policy` 继续允许 `unsafe-eval` 和 `unsafe-inline`，R9
+  保持其原值不变；新增的 Report-Only 候选策略仅将 `script-src` 收紧到 `'self'`，并通过
+  `report-uri`、`report-to` 和 `Reporting-Endpoints` 上报，不阻断页面执行。
+- `POST /api/log/csp-report` 是浏览器匿名上报端点，只接受 `application/csp-report` 和
+  `application/reports+json`。请求体最大 8 KiB，Reporting API 每批最多 20 条；使用
+  `report:csp` 独立 action 按客户端 IP 限流，每 60 秒最多 60 次，Redis 优先、内存降级。
+- `CSP_REPORT_SAMPLE_RATE` 必须是 `[0, 1]` 内有限数，默认 `1`；采样发生在结构校验和 URL
+  规范化之后、持久化之前。`CSP_REPORT_URL` 只能是无凭据、query、fragment 的绝对
+  HTTP(S) URL，未设置时从受控 API origin 生成。
+- document URL、blocked URL、source file 和 referrer 在持久化前移除 userinfo、query 与
+  fragment；sample、脚本片段、DOM 内容、Cookie、Authorization、原始请求体和未知字段
+  一律丢弃。
+- 每条持久化 CSP 报告使用独立 `trace_id`；失败日志只包含 `trace_id`、异常类型和安全计数。
+  指标只使用 `csp_reports_total{outcome}` 固定低基数标签，不得加入完整 URL、用户标识、
+  原始 directive 或 `trace_id`。
+- 完整业务周期的真实报告未归类前，禁止移除强制策略中的 `unsafe-inline` 或
+  `unsafe-eval`。本地和 CI 合成报告不构成生产 SLO、XSS 风险关闭或 S2 准入证据。
+- R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`；最终验证提交及
+  Backend/Frontend CI 证据仍待补，不得将本地实现状态表述为远端或生产验收完成。
 - RSS/新闻源：添加外部 RSS URL 时必须校验协议与主机（拒绝 private/local/link-local/file 等危险目标），抓取时设置显式超时，防止 SSRF 与 worker 阻塞。
 - admin 手动触发抓取接口（`/api/news/fetch`、`/api/news/sources/{id}/fetch`）已通过 `BackgroundTasks` 后台化，不再阻塞 HTTP 请求。
 
@@ -45,6 +56,7 @@
 - Metrics：`/metrics` 端点限制为可信内网 IP，外网返回 403。
 - 实时行情批量：`/api/realtime/batch` 应对 symbol 数量做上限控制（建议 ≤50/100），避免超大数据库查询。
 - 登录/注册限流：当前使用 Redis 优先 + 内存降级的 `check_rate_limit`，action key 独立为 `auth:register` / `auth:login`。
+- CSP 报告限流 action 固定为 `report:csp`，不得与登录、注册或全局写入限流共用计数。
 
 ## 部署安全
 
