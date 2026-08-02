@@ -42,27 +42,27 @@
   - [x] SubTask 6.3: 运行 `git diff --check`，确认无报告、浏览器产物、原始 URL 或敏感数据进入版本控制。
   - [x] SubTask 6.4: 对失败项做最小修复并重新运行受影响门禁。
 
-- [ ] Task 7: 维护 R9 发布、状态和运维文档。
+- [x] Task 7: 维护 R9 发布、状态和运维文档。
   - [x] SubTask 7.1: 更新 `CHANGELOG.md`、README、AGENTS、`.agents/`、当前迭代计划和发布清单。
   - [x] SubTask 7.2: 更新 R5 安全文档，将 S1 标为 R9 工程实现，并保留完整业务周期观测要求。
-  - [ ] SubTask 7.3: 新增 R9 非生产工程基线记录，包含提交、测试、CI、回滚点和未完成 S2/S3 项。
+  - [x] SubTask 7.3: 新增 R9 非生产工程基线记录，包含提交、测试、CI、回滚点和未完成 S2/S3 项。
   - [x] SubTask 7.4: 记录指标与告警输入，明确 CI/本地报告不构成生产 SLO 或强制 CSP 收紧证据。
-  - [ ] SubTask 7.5: 校验文档链接、测试计数、提交哈希、状态表述和非生产边界。
+  - [x] SubTask 7.5: 校验文档链接、测试计数、提交哈希、状态表述和非生产边界。
 
 - [ ] Task 8: 原子提交并推送 R9 实现与最终验证。
-  - [ ] SubTask 8.1: 检查工作区，只暂存 R9 相关代码、测试、CI、规格和文档。
-  - [ ] SubTask 8.2: 运行 pre-commit 与最终差异检查，按实现和验证/文档边界创建原子提交。
-  - [ ] SubTask 8.3: 推送至 `origin/master`，确认本地与远端提交一致。
-  - [ ] SubTask 8.4: 核对 Backend CI 与 Frontend CI；失败时以独立修复提交处理并重新验证。
+  - [x] SubTask 8.1: 检查工作区，只暂存 R9 相关代码、测试、CI、规格和文档。
+  - [x] SubTask 8.2: 运行 pre-commit 与最终差异检查，按实现和验证/文档边界创建原子提交。
+  - [x] SubTask 8.3: 推送至 `origin/master`，确认本地与远端提交一致。
+  - [x] SubTask 8.4: 核对 Backend CI 与 Frontend CI；失败时以独立修复提交处理并重新验证。
   - [ ] SubTask 8.5: 确认临时报告、测试数据库、浏览器产物和日志已清理，最终工作区干净。
 
-- [ ] Task 9: 修复独立安全与 CI 审查发现，并重新验证受影响边界。
-  - [ ] SubTask 9.1: 将同步限流和批量数据库持久化移出异步事件循环，并避免逐条提交。
-  - [ ] SubTask 9.2: 对 document URL 强制 HTTP(S) 绝对地址，拒绝 NaN/Infinity JSON 常量并补测试。
-  - [ ] SubTask 9.3: 增加 PostgreSQL CSP 持久化专项或等价真实 PostgreSQL CI 证据。
-  - [ ] SubTask 9.4: 扩大 Frontend CI 后端路径触发范围，避免相关后端变更跳过浏览器门禁。
-  - [ ] SubTask 9.5: 补齐并发 401 单飞刷新和 SSE 断线重连回归。
-  - [ ] SubTask 9.6: 重跑 CSP 定向、认证/SSE、Ruff、前端静态检查和 R9 Playwright。
+- [x] Task 9: 修复独立安全与 CI 审查发现，并重新验证受影响边界。
+  - [x] SubTask 9.1: 将同步限流和批量数据库持久化移出异步事件循环，并避免逐条提交。
+  - [x] SubTask 9.2: 对 document URL 强制 HTTP(S) 绝对地址，拒绝 NaN/Infinity JSON 常量并补测试。
+  - [x] SubTask 9.3: 增加 PostgreSQL CSP 持久化专项或等价真实 PostgreSQL CI 证据。
+  - [x] SubTask 9.4: 扩大 Frontend CI 后端路径触发范围，避免相关后端变更跳过浏览器门禁。
+  - [x] SubTask 9.5: 补齐并发 401 单飞刷新和 SSE 断线重连回归。
+  - [x] SubTask 9.6: 重跑 CSP 定向、认证/SSE、Ruff、前端静态检查和 R9 Playwright。
 
 # Task Dependencies
 

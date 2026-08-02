@@ -1,8 +1,8 @@
 # R9 CSP Report-Only 观测工程基线（2026-08-02）
 
-> 类型：待远端闭环的 `engineering baseline`，不是生产发布或强制 CSP 收紧。
-> 当前状态：本地实现、审查修复后聚焦回归与前端静态检查完成；增强版浏览器执行、远端 CI、
-> 生产部署和完整业务周期观测待完成。
+> 类型：已完成工程门禁闭环的 `engineering baseline`，不是生产发布或强制 CSP 收紧。
+> 当前状态：实现、独立审查修复、本地验证、增强版浏览器回归和远端 CI 已完成；生产部署、
+> 完整业务周期观测、S2/S3 专项评审和生产责任人指定待完成。
 > 对应规格：
 > [`add-csp-reporting-observability`](../../.trae/specs/add-csp-reporting-observability/spec.md)
 > 对应清单：[`../release_checklist_20260719.md`](../release_checklist_20260719.md)
@@ -12,10 +12,13 @@
 
 - R9 启动文档提交：`756ca605613ba2a4f76919e913e1264e3f9d2a1b`
 - R9 本地实现提交：`723ba9b949bccf7c96798d2f45388731350eacd3`
-- R9 最终验证提交：待本轮推送后补记/待验证
+- R9 本地验证文档提交：`37fc8008a74c1b74c48f74aac5e3267c8a29e5b6`
+- R9 CI 稳定性修复提交：`c7a721a04f58caa51860be67d870855663186a14`
 - 应用回滚点：`756ca605613ba2a4f76919e913e1264e3f9d2a1b`
-- Backend CI：待本轮推送后补记/待验证，链接待补
-- Frontend CI：待本轮推送后补记/待验证，链接待补
+- Backend CI：[run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)，
+  成功
+- Frontend CI：[run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)，
+  成功
 - 变更范围：双 CSP 响应头、安全报告接收、采样、限流、脱敏、`trace_id`、低基数指标、
   后端/前端/浏览器回归和 CI 门禁
 - 生产发布窗口：未指定
@@ -133,26 +136,34 @@ clamp_min(
 独立审查修复后的验证：
 
 - 受影响后端聚焦回归：`85 passed, 1 skipped, 0 failed`；
-- 唯一 skip 是新增 PostgreSQL CSP 持久化专项，本地无隔离 PostgreSQL，待 Backend CI 的
-  PostgreSQL 16 环境执行；
+- 唯一 skip 是新增 PostgreSQL CSP 持久化专项，本地无隔离 PostgreSQL；该专项已在
+  Backend CI 的 PostgreSQL 16 环境通过；
 - Ruff check 与 format check：通过；
 - 增强版增加并发 401 单飞刷新和 SSE 首次断线重连，Playwright `--list`、TypeScript 与
   ESLint：通过；
-- 增强版 Playwright 实际浏览器执行：未在本地运行，待 Frontend CI；
+- CI 稳定性修复本地单文件 Vitest：`6 passed`；
+- CI 稳定性修复本地全量 Vitest：`35 files / 223 passed`；
+- CI 稳定性修复后的 pre-commit 与 `git diff --check`：通过；
+- 增强版 Playwright 实际浏览器执行由 Frontend CI 完成并通过；
 - `git diff --check`：通过。
 
-审查修复后的完整后端全量未在本地重跑，由 Backend CI 复核。基础版 `3 passed` 不代表增强版
-已在本地通过。本次文档维护没有重新运行代码测试、构建或 CI。
+审查修复后的完整后端全量未在本地重跑，由 Backend CI 复核。基础版 `3 passed` 不作为增强版
+浏览器回归证据；增强版和全量浏览器结果以远端 Frontend CI 为准。本次文档维护没有重新运行
+代码测试、构建或 CI。
 
 ## 远程门禁
 
-- Backend CI 已加入 R9 CSP 接收契约定向步骤；
-- Frontend CI 已加入双 CSP 响应头门禁和 R9 认证/刷新/SSE/Bearer 浏览器定向步骤；
-- Backend CI 需执行新增 PostgreSQL CSP 持久化专项，并复核审查修复后的完整后端全量；
-- Frontend CI 需实际执行并发 401 单飞刷新、SSE 首次断线重连增强版与完整 Chromium
-  Playwright smoke，不以基础版 R9 `3 passed` 替代增强版或全量浏览器验证；
-- 当前代码尚未在本轮推送，因此 Backend CI 与 Frontend CI 均未执行；
-- CI 链接、运行编号和最终结果必须在推送后补记，失败时不得把本记录改写为已通过。
+- Backend CI [run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
+  成功：R9 PostgreSQL 16 CSP 持久化专项 `21 passed`，完整后端测试约
+  `1195 passed, 1 skipped`，Alembic、API smoke、Ruff 与依赖审计均通过；
+- Frontend CI 首次运行
+  [run 30739553574](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553574)
+  因既有 metrics 页面测试未等待异步数据而失败；`c7a721a04f58caa51860be67d870855663186a14`
+  以 `findByText` 修复竞态，没有修改业务代码；
+- Frontend CI [run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
+  成功：Vitest、production build、R9 增强版 E2E、完整 Playwright 与 Lighthouse 均通过；
+- R9 工程门禁已闭环。上述 synthetic 报告和 CI 结果只证明工程契约，不构成生产 SLO、真实
+  违规率、生产部署完成或 S2 强制 CSP 收紧依据。
 
 ## 回滚
 
@@ -169,10 +180,11 @@ R9 没有新增 Alembic 迁移。应用回滚时停止前端和 API，保留脱�
 
 ## 待完成项
 
-- [ ] R9 本地实现提交 `723ba9b949bccf7c96798d2f45388731350eacd3` 已推送。
-- [ ] R9 最终验证提交已推送并补记完整哈希。
-- [ ] Backend CI 成功并补记可追溯链接。
-- [ ] Frontend CI 成功并补记可追溯链接，完整 Playwright 全量步骤通过。
+- [x] R9 本地实现提交 `723ba9b949bccf7c96798d2f45388731350eacd3` 已推送。
+- [x] R9 本地验证文档提交 `37fc8008a74c1b74c48f74aac5e3267c8a29e5b6` 已推送。
+- [x] R9 CI 稳定性修复提交 `c7a721a04f58caa51860be67d870855663186a14` 已推送。
+- [x] Backend CI 成功并补记可追溯链接。
+- [x] Frontend CI 成功并补记可追溯链接，完整 Playwright 与 Lighthouse 通过。
 - [ ] 在真实业务环境覆盖完整业务周期采集 Report-Only 报告。
 - [ ] 已按 directive、页面、浏览器和版本归类全部已知违规。
 - [ ] 已建立生产流量基线并调整 `rejected` / `rate_limited` 告警阈值。
@@ -182,6 +194,9 @@ R9 没有新增 Alembic 迁移。应用回滚时停止前端和 API，保留脱�
 
 ## 非生产边界
 
-R9 是本地实现且审查后聚焦/静态检查已通过、增强版浏览器与远端待验证的非生产工程基线，
-不是生产发布。真实完整业务周期报告未归类前不得进入 S2。R8 也继续保持非生产边界：活动
-`kline_data` 未切换，冷数据未导出或删除，生产备份恢复未执行。R9 不改变这些事实。
+R9 是实现、审查修复、本地验证、增强版浏览器回归和远端 CI 均已通过的非生产工程基线，不是
+生产发布。尚未部署生产，未取得真实完整业务周期报告，也未指定生产窗口、发布负责人或回滚
+负责人；在真实报告完成归类并通过专项评审前不得进入 S2。强制 CSP 仍保留
+`unsafe-inline` / `unsafe-eval`，`localStorage` access token 风险仍未关闭。R8 也继续保持
+非生产边界：活动 `kline_data` 未切换，冷数据未导出或删除，生产备份恢复未执行。R9 不改变
+这些事实。
