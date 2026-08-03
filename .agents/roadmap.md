@@ -1,10 +1,11 @@
 <!-- .agents/roadmap.md — 模块演进状态与待处理事项 -->
 
-> 当前状态：R1 至 R9 工程项已闭环，当前处于
-> [`Post-R9` 规划](../docs/iteration_plan_20260802_post_r9.md)，R10 待建立独立规格。R9 尚未
-> 生产部署，也未完成真实完整业务周期观测。R10 仅做 evidence-only 归类与准入报告；R11
-> 受生产操作者门禁约束；R12 才实施 S2 nonce/hash；R13 才实施 S3 内存 access token，且
-> Bearer 写请求保持不变。R8 生产分区/冷归档与 R7 分布式 SSE 均为未触发、未排期的条件轨道。
+> 当前状态：R1 至 R9 工程项已闭环；R10 已完成本地实施与验证，远端 Backend CI 待验证，
+> 当前仍为非生产状态。R10 仅提供 evidence-only 服务与离线 CLI；R11、R12/S2、R13/S3 均未
+> 开始。治理顺序见
+> [`Post-R9` 计划](../docs/iteration_plan_20260802_post_r9.md)，实现边界见
+> [R10 spec](../.trae/specs/classify-csp-evidence-readiness/spec.md)。R8 生产分区/冷归档与
+> R7 分布式 SSE 均为未触发、未排期的条件轨道。
 >
 > R1 至 R9 历史执行证据见
 > [`docs/iteration_plan_20260724_follow_up.md`](../docs/iteration_plan_20260724_follow_up.md)。
@@ -254,6 +255,27 @@ R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验�
 均成功。R9 尚未生产部署，也未完成真实完整业务周期观测；强制 CSP 未收紧，不移除
 `localStorage` access token，不启用 cookie-only 写请求。真实报告未归类前不进入 S2，S3
 内存 access token 仍需独立立项；本地和 CI 合成报告不是生产 SLO。
+
+### R10：CSP 证据归类与 S2 准入报告 — 本地实施验证完成（2026-08-03）
+
+- 新增后端 `csp_evidence` 有界只读服务和 `scripts/csp_evidence_report.py` 离线 CLI；没有
+  新增管理员 HTTP API、数据库表或 Alembic 迁移；
+- 新 CSP 记录使用服务端 `ENV` 和可选 `RELEASE_COMMIT` 归属。后者非空时必须是完整 40 位
+  Git SHA；缺失不阻止 S1 接收，但对应记录不能形成 `ready_for_review`；
+- Compose 对 backend 和 worker 均安全传递可选 `RELEASE_COMMIT`，空值不会变成生产启动
+  必填；
+- context、catalog 和 report 按运维约束存放在仓库外且不得提交；CLI 强制 report path
+  位于仓库外；
+- 单次执行限制为最长 31 天、最多 50,000 条记录、500 个聚合组、30 秒和 256 KiB 报告；
+  退出码 `0/1/2/3/4` 分别对应 ready/insufficient/blocked/failed/write-failed，synthetic
+  的预期结果是 `insufficient_evidence` 和退出码 `1`；
+- 本地聚焦测试 `375 passed, 5 skipped, 1 warning`，后端全量
+  `1421 passed, 22 skipped, 103 warnings`；本地 PostgreSQL 不可用，相关集成用例保持明确
+  skip；
+- 远端 Backend CI 待验证，因此尚未形成 R10 远程工程闭环，更不是生产发布或 S2 准入。
+
+R10 不修改强制 CSP、Report-Only 策略、`localStorage` token、Bearer 写请求或 cookie-only
+写请求拒绝边界。R11 生产操作者与完整业务周期、R12/S2、R13/S3 均未开始。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 

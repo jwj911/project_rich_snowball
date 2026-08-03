@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-08-02（Post-R9 规划，R10 待立项）
+> **最后更新**：2026-08-03（R10 本地实施验证完成，远端 Backend CI 待验证）
 
 ---
 
@@ -16,14 +16,17 @@
 - **Agent 系统 Phase 0~2 已完成**并接入真实 SSE 进度流：DataAgent、DataQualityAgent、TechAnalysisAgent、RiskManagementAgent、AnalysisPipelineAgent、StrategyCompilerAgent、BacktestAgent、FactorMiningAgent、TraderAgent 已上线。
 - **策略进化（Strategy Evolution）已落地**：GA 进化循环、GP 因子生成、Pareto 适应度、贝叶斯优化、策略生命周期追踪。
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
-- **测试状态**：独立审查修复前的 R9 后端全量为
+- **R10 本地验证**：聚焦测试 `375 passed, 5 skipped, 1 warning`，后端全量
+  `1421 passed, 22 skipped, 103 warnings`。本地 PostgreSQL 不可用，相关集成用例保持明确
+  skip；远端 Backend CI 待验证。
+- **R9 历史测试状态**：独立审查修复前的后端全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
   持久化专项，本地无隔离 PostgreSQL；修复后的完整全量由 Backend CI 复核。
 - **前端验证**：审查增强前的基础版 R9 Playwright 为 `3 passed`。增加并发 401 单飞刷新和
   SSE 首次断线重连后，增强版在本地通过 Playwright `--list`、TypeScript 与 ESLint；实际
   浏览器执行由 Frontend CI 完成，不计入本地结果。
-- **远程验收**：R9 实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验证文档
+- **R9 历史远程验收**：R9 实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验证文档
   提交为 `37fc8008a74c1b74c48f74aac5e3267c8a29e5b6`，CI 稳定性修复提交为
   `c7a721a04f58caa51860be67d870855663186a14`。
   [Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
@@ -32,9 +35,11 @@
   [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
   成功，Vitest、build、R9 E2E `3 passed`、全量 Playwright `43 passed` 和 Lighthouse 均通过。
   应用回滚点为 R9 启动文档提交 `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
-- **当前迭代**：处于
-  [Post-R9 规划](docs/iteration_plan_20260802_post_r9.md)，R10“CSP 脱敏证据归类与 S2
-  准入报告”待建立独立规格，尚无 Post-R9 工程项进入实施。R9 已完成
+- **当前迭代**：R10“CSP 证据归类与 S2 准入报告”已完成本地实施与验证，远端 Backend CI
+  待验证。实现只包含后端 evidence-only 服务和离线只读 CLI，无管理员 HTTP API、数据库表或
+  Alembic 迁移；仍为非生产状态，R11、R12/S2、R13/S3 均未开始。治理顺序见
+  [Post-R9 计划](docs/iteration_plan_20260802_post_r9.md)，实现边界见
+  [R10 spec](.trae/specs/classify-csp-evidence-readiness/spec.md)。R9 已完成
   [CSP Report-Only S1 工程实现、审查修复和工程门禁闭环](docs/releases/20260802_r9_csp_report_only_observability.md)。
   强制 CSP 原值不变；legacy/Reporting API 报告接收具备 8 KiB、批量、采样、限流、脱敏、
   独立 `trace_id` 和低基数指标。`localStorage` access token、Bearer 写请求和 CSRF 拒绝
@@ -84,7 +89,8 @@
 | 文档 | 说明 |
 |------|------|
 | [docs/release_checklist_20260719.md](docs/release_checklist_20260719.md) | 当前发布前检查、CI 证据、备份与回滚清单 |
-| [docs/iteration_plan_20260802_post_r9.md](docs/iteration_plan_20260802_post_r9.md) | Post-R9 唯一当前迭代事实源；R10 待立项 |
+| [docs/iteration_plan_20260802_post_r9.md](docs/iteration_plan_20260802_post_r9.md) | Post-R9 治理顺序、准入与停止条件 |
+| [.trae/specs/classify-csp-evidence-readiness/spec.md](.trae/specs/classify-csp-evidence-readiness/spec.md) | R10 evidence-only 服务与离线 CLI 规格 |
 | [docs/iteration_plan_20260724_follow_up.md](docs/iteration_plan_20260724_follow_up.md) | R1 至 R9 已完成历史事实源 |
 | [.trae/specs/add-csp-reporting-observability/spec.md](.trae/specs/add-csp-reporting-observability/spec.md) | R9 CSP Report-Only 观测闭环规格、认证边界和停止条件 |
 | [docs/phase4_private_data_access_boundary.md](docs/phase4_private_data_access_boundary.md) | Agent 通用 SQL 的私有数据访问边界与 owner policy |
@@ -195,12 +201,12 @@ d:\Code\project_rich_snowball/
 | `utils.py` | bcrypt、JWT、refresh token、UTC 时间工具 |
 | `worker.py` | 独立 scheduler worker 入口 |
 | `routers/` | 25 个 FastAPI 领域路由模块 |
-| `services/` | 业务服务层：agent/、backtest/、domain/、cache、metrics、news_fetcher 等 |
+| `services/` | 业务服务层：agent/、backtest/、domain/、cache、metrics、`csp_evidence.py` 等 |
 | `services/agent/` | Agent 系统核心：core.py、executor.py、llm_client.py、各功能 Agent、trader/、factor_engine/、risk_management/、analysis/、evolution/ |
 | `data_collector/` | 采集器注册、pipeline、scheduler、adapter、cleaner、upsert、mock/akshare/tushare 采集器 |
 | `lib/` | 纯 numpy/pandas 技术指标库 `technical_indicators.py` |
 | `middleware/` | `api_version.py`（`/api/v1/*` 映射）、`rate_limit.py` |
-| `scripts/` | 运维/回填/迁移/验收脚本 |
+| `scripts/` | 运维/回填/迁移/验收脚本；含 R10 `csp_evidence_report.py` 离线入口 |
 | `tests/` | 89 个 pytest 测试文件 + `conftest.py` |
 | `alembic/` | 60 个 Alembic 迁移版本 |
 | `tushare_pg_ingest/` | Tushare 历史数据回填脚本体系 |
@@ -278,6 +284,14 @@ $env:SECRET_KEY='change-this-to-a-real-secret'
 cd python
 .venv\Scripts\python.exe worker.py
 ```
+
+### R10 离线证据 CLI
+
+从 `python/` 运行 `scripts/csp_evidence_report.py`，显式传入 database/context/catalog/report；
+只有 database 可回退到 `DATABASE_URL`。context、catalog 和 report 均放在仓库外，禁止提交。
+单次执行上限为 31 天、50,000 条、500 个聚合组、30 秒和 256 KiB 报告。退出码 `0/1/2/3/4`
+分别表示 ready/insufficient/blocked/failed/write-failed；synthetic 的预期退出码是 `1`。
+完整命令见 [.agents/operations.md](.agents/operations.md)。该能力没有 HTTP API 或迁移。
 
 ### 启动前端
 
@@ -425,6 +439,8 @@ npm run lighthouse
 - CSP 报告端点 `/api/log/csp-report` 为浏览器匿名上报入口，只接受两种 CSP Content-Type，
   请求体不超过 8 KiB，Reporting API 每批不超过 20 条；必须先限流、校验、采样和脱敏，
   不得记录原始请求体、query、fragment、Cookie、Authorization、脚本或 DOM 内容。
+- API 运行时 `RELEASE_COMMIT` 可选，非空时必须是完整 40 位 Git SHA，用于新 CSP 记录的服务端
+  可信归属；缺失不阻止 S1 接收，但不能形成 R10 `ready_for_review`。
 - 强制 CSP 仍保留 `unsafe-inline` / `unsafe-eval`；Report-Only `script-src 'self'` 只提供
   观测，不表示 XSS 风险关闭或已进入 nonce/hash 强制策略。
 - RSS URL 校验协议与主机，拒绝内网/local/link-local/file，抓取显式超时。
@@ -447,7 +463,7 @@ npm run lighthouse
 
 | Workflow | 触发条件 | 内容 |
 |----------|----------|------|
-| `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，依赖锁漂移检查，R7/R8 门禁、R9 CSP 接收契约、pytest + coverage（阈值 40%）、PostgreSQL API smoke、Ruff check/format、pip-audit |
+| `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，依赖锁漂移检查，R7/R8 门禁、R9/R10 CSP 契约、pytest + coverage（阈值 40%）、PostgreSQL API smoke、Ruff check/format、pip-audit；R10 远端运行待验证 |
 | `.github/workflows/frontend-ci.yml` | `frontend/**`、R9 相关后端契约文件、workflow 本身变更 | Node 20，TypeScript、ESLint、R9 双 CSP 头、build、Vitest、Lighthouse；独立 job 执行 PostgreSQL + Alembic + backend + R9 定向及完整 Playwright Chromium smoke |
 | `.github/workflows/update-calendar.yml` | 每年 1 月 1 日 cron + manual | 更新交易日历 `python/data/trading_calendar.json` 并提交 |
 
@@ -455,7 +471,8 @@ npm run lighthouse
 
 - **`python/Dockerfile`**：基于 `python:3.11-slim`，非 root `app` 用户，健康检查 `curl -f http://localhost:8401/health`，默认 `uvicorn main:app --host 0.0.0.0 --port 8401`。
 - **`docker-compose.yml`**：PG + Redis + backend + worker；backend 关闭 scheduler，worker 独占定时采集，
-  两者显式共享 `REDIS_URL` 和 `SSE_DEPLOYMENT_MODE`，backend 带健康检查与依赖条件。
+  两者显式共享 `REDIS_URL`、`SSE_DEPLOYMENT_MODE` 和可选 `RELEASE_COMMIT`，backend 带健康
+  检查与依赖条件。空 `RELEASE_COMMIT` 不会把启动变成生产必填。
 
 ---
 

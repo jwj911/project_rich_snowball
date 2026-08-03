@@ -49,6 +49,7 @@ services:
       - DATA_SOURCE=${DATA_SOURCE:?DATA_SOURCE must be set}
       - SSE_DEPLOYMENT_MODE=${SSE_DEPLOYMENT_MODE:?SSE_DEPLOYMENT_MODE must be set}
       - ENV=production
+      - RELEASE_COMMIT=${RELEASE_COMMIT:-}
       - ENABLE_SCHEDULER=0
       - HOST=0.0.0.0
       - PORT=8401
@@ -80,6 +81,7 @@ services:
       - DATA_SOURCE=${DATA_SOURCE:?DATA_SOURCE must be set}
       - SSE_DEPLOYMENT_MODE=${SSE_DEPLOYMENT_MODE:?SSE_DEPLOYMENT_MODE must be set}
       - ENV=production
+      - RELEASE_COMMIT=${RELEASE_COMMIT:-}
       - ENABLE_SCHEDULER=1
       - HOST=0.0.0.0
       - PORT=8401

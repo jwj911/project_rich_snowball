@@ -1,8 +1,28 @@
 import math
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+_RELEASE_COMMIT_PATTERN = re.compile(r"[0-9a-fA-F]{40}")
+_CSP_REPORT_ENVIRONMENTS = frozenset({"development", "ci", "staging", "production"})
+
+
+def _parse_release_commit(raw_value: str | None) -> str | None:
+    """Parse an optional full Git commit for trusted CSP attribution."""
+    if raw_value is None or not raw_value.strip():
+        return None
+
+    if _RELEASE_COMMIT_PATTERN.fullmatch(raw_value) is None:
+        raise ValueError("RELEASE_COMMIT must be a full 40-character hexadecimal Git commit")
+    return raw_value.lower()
+
+
+def _trusted_csp_environment(raw_value: str | None) -> str | None:
+    """Accept only exact environment names covered by the evidence contract."""
+    return raw_value if raw_value in _CSP_REPORT_ENVIRONMENTS else None
+
 
 # .env is at project root, config.py is in python/ subdirectory
 # Allow overriding via DOTENV_PATH for testing
@@ -23,6 +43,8 @@ REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
 # 环境控制
 ENV = os.getenv("ENV", "development")
+CSP_REPORT_ENVIRONMENT = _trusted_csp_environment(ENV)
+RELEASE_COMMIT = _parse_release_commit(os.getenv("RELEASE_COMMIT"))
 ENABLE_SCHEDULER = os.getenv("ENABLE_SCHEDULER", "0") == "1"
 
 # SECRET_KEY 强度检查（必须在 ENV 定义之后）

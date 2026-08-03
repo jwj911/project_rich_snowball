@@ -1,4 +1,4 @@
-"""PostgreSQL integration coverage for R9 CSP report persistence."""
+"""PostgreSQL integration coverage for R9/R10 CSP report persistence."""
 
 from __future__ import annotations
 
@@ -67,8 +67,14 @@ def pg_csp_batch():
 
 def test_postgres_persists_csp_batch_and_independent_trace_ids(pg_csp_batch):
     db, urls, prepared_reports = pg_csp_batch
+    trusted_release = "0123456789abcdef0123456789abcdef01234567"
 
-    error_type = _persist_csp_reports(db, prepared_reports)
+    error_type = _persist_csp_reports(
+        db,
+        prepared_reports,
+        trusted_environment="production",
+        trusted_release=trusted_release,
+    )
 
     assert error_type is None
     assert db.bind.dialect.name == "postgresql"
@@ -78,3 +84,16 @@ def test_postgres_persists_csp_batch_and_independent_trace_ids(pg_csp_batch):
     payloads = [json.loads(row.payload_json) for row in rows]
     assert {payload["trace_id"] for payload in payloads} == {trace_id for trace_id, _ in prepared_reports}
     assert all(row.log_type == "csp-violation" and row.user_id is None for row in rows)
+    assert all(row.environment == "production" and row.release == trusted_release for row in rows)
+    assert all("environment" not in payload and "release" not in payload for payload in payloads)
+
+
+def test_postgres_persist_helper_remains_compatible_without_trusted_metadata(pg_csp_batch):
+    db, urls, prepared_reports = pg_csp_batch
+
+    error_type = _persist_csp_reports(db, prepared_reports)
+
+    assert error_type is None
+    rows = db.query(FrontendLogDB).filter(FrontendLogDB.url.in_(urls)).all()
+    assert len(rows) == 2
+    assert all(row.environment is None and row.release is None for row in rows)

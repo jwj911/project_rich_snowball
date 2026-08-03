@@ -127,12 +127,54 @@ cd python
 命令，完整边界见
 [`python/docs/kline_partitioning.md`](../python/docs/kline_partitioning.md)。
 
+### R10 CSP 证据离线报告
+
+R10 只有后端服务层和离线只读 CLI，没有管理员 HTTP API。API 运行时应传入可选
+`RELEASE_COMMIT`，为新 CSP 记录写入服务端可信 release；非空时必须是完整 40 位十六进制 Git
+SHA。缺失不会阻止 S1 报告接收，但记录不能进入 `ready_for_review` 证据。Compose 对 backend
+和 worker 都使用空值可接受的可选传递，不把该变量硬变为生产启动必填。
+
+生产 context、known-violation catalog 和 report 均放在仓库外并禁止提交。CLI 会硬拒绝仓库内
+report path；context/catalog 也按运维策略放在仓库外并显式传入：
+
+```powershell
+cd python
+$evidenceRoot = Join-Path $env:TEMP "rich-snowball-r10"
+New-Item -ItemType Directory -Force $evidenceRoot | Out-Null
+$contextPath = Join-Path $evidenceRoot "context.json"
+$catalogPath = Join-Path $evidenceRoot "catalog.json"
+$reportPath = Join-Path $evidenceRoot "report.json"
+
+.\.venv\Scripts\python.exe scripts/csp_evidence_report.py `
+  --database-url $env:DATABASE_URL `
+  --context-path $contextPath `
+  --catalog-path $catalogPath `
+  --report-path $reportPath
+$LASTEXITCODE
+```
+
+只有 database 可回退到 `DATABASE_URL`；其余路径没有默认值。单次执行固定为最长 31 天、
+最多 50,000 条记录、最多 500 个聚合组、最多 30 秒，JSON 报告不超过 256 KiB。退出码：
+
+| 退出码 | 状态 |
+|---:|---|
+| `0` | `ready_for_review`，仅可发起人工 S2 评审 |
+| `1` | `insufficient_evidence`；本地/CI synthetic 的预期结果 |
+| `2` | `blocked` |
+| `3` | `failed` |
+| `4` | 报告写入失败 |
+
+stdout/stderr 只允许安全摘要、稳定码和异常类型。R10 不新增迁移，不改变强制 CSP、
+Report-Only、`localStorage` token、Bearer 写请求或 cookie-only 写请求拒绝边界。
+
 ### Post-R9 执行门禁
 
-当前处于 Post-R9 规划，R10 待建立独立规格；唯一当前迭代事实源为
-[`docs/iteration_plan_20260802_post_r9.md`](../docs/iteration_plan_20260802_post_r9.md)。
+R10 已完成本地实施与验证，远端 Backend CI 待验证，当前仍为非生产状态。治理顺序见
+[`docs/iteration_plan_20260802_post_r9.md`](../docs/iteration_plan_20260802_post_r9.md)，
+实现边界见
+[R10 spec](../.trae/specs/classify-csp-evidence-readiness/spec.md)。
 
-- R10 是 evidence-only：只用 R9 已脱敏记录生成有界只读归类和 S2 准入报告，不修改 CSP，
+- R10 是 evidence-only：只用 R9 已脱敏记录生成有界只读归类和 S2 人工评审输入，不修改 CSP，
   不部署到生产；只有本地或 CI synthetic 流量时只能判定 `insufficient_evidence`。
 - R11 是 operator gate：真实目标环境、凭据、发布窗口、发布/回滚负责人和发布清单任一缺失
   即阻塞，不得用历史 CI 替代完整业务周期观测。
@@ -207,7 +249,7 @@ clamp_min(
 | `PIPELINE_COMMIT_BATCH_SIZE` | 否 | `50` | Pipeline 批量提交大小 |
 | `CIRCUIT_FAILURE_THRESHOLD` | 否 | `0.5` | 熔断器失败阈值比例 |
 | `REDIS_URL` | 生产必填 | — | 缓存及 realtime UTC 时间戳共享标记；运行中不可用时 SSE 每 60 秒有界刷新 |
-| `RELEASE_COMMIT` | 发布预检必填 | — | 待发布 Git 提交 |
+| `RELEASE_COMMIT` | API 运行时可选；发布预检必填 | — | 完整 40 位 Git SHA；API 用于新 CSP 记录可信归属，缺失不阻止 S1 接收 |
 | `RELEASE_WINDOW_UTC` | 发布预检必填 | — | UTC 时间点或 `start/end` 区间 |
 | `RELEASE_OWNER` | 发布预检必填 | — | 发布负责人 |
 | `ROLLBACK_OWNER` | 发布预检必填 | — | 回滚负责人 |
@@ -246,8 +288,11 @@ clamp_min(
 ### GitHub Actions
 
 - `.github/workflows/backend-ci.yml`：依赖锁检查 + R7 placeholder preflight + Alembic +
-  R8 K 线 PostgreSQL 门禁 + R9 CSP 接收契约 + PostgreSQL pytest/API smoke + Ruff
-  check/format + `pip-audit`，pytest-cov 阈值为 40%。
+  R8 K 线 PostgreSQL 门禁 + R9/R10 CSP 契约 + PostgreSQL pytest/API smoke + Ruff
+  check/format + `pip-audit`，pytest-cov 阈值为 40%。R10 本地聚焦测试为
+  `375 passed, 5 skipped, 1 warning`，后端全量为
+  `1421 passed, 22 skipped, 103 warnings`；本地 PostgreSQL 不可用，相关集成用例明确
+  skip，本轮远端 Backend CI 待验证。
   [R9 Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
   成功，`R9 CSP contract gate 39 passed`，包含 PostgreSQL 持久化集成测试；远端全量约
   `1195 passed, 1 skipped`。
@@ -285,8 +330,10 @@ clamp_min(
 
 - `postgres`：PostgreSQL 16-alpine，端口 15432，用户 `futures`/`futures123`
 - `redis`：Redis 7-alpine，端口 6379，AOF 持久化
-- `backend`：FastAPI 服务，端口 8401，依赖 postgres 和 redis，带健康检查，scheduler 关闭
-- `worker`：唯一 scheduler owner；与 backend 显式共享 `REDIS_URL` 和 `SSE_DEPLOYMENT_MODE`
+- `backend`：FastAPI 服务，端口 8401，依赖 postgres 和 redis，带健康检查，scheduler 关闭；
+  接收可选 `RELEASE_COMMIT`
+- `worker`：唯一 scheduler owner；与 backend 显式共享 `REDIS_URL`、`SSE_DEPLOYMENT_MODE`
+  和可选 `RELEASE_COMMIT`
 
 ## 代码风格
 

@@ -189,17 +189,138 @@ jobs:
               engine.dispose()
           PY
 
-      - name: R9 CSP reporting contract gate
+      - name: R9/R10 CSP reporting and evidence contract gate
+        # Synthetic CI evidence only validates the contract; it is not production evidence or S2 admission.
         env:
-          SECRET_KEY: test-secret-key-for-ci-local-development-42
+          SECRET_KEY: ci-r10-csp-contract-secret-not-for-production-use-42
           ENABLE_SCHEDULER: "0"
+          ENV: ci
+          RELEASE_COMMIT: ${{ github.sha }}
           CSP_REPORT_SAMPLE_RATE: "1"
           DATABASE_URL: postgresql://futures:futures123@localhost:15432/futures_community
         run: |
+          set -euo pipefail
           pytest \
             tests/test_csp_reports.py \
             tests/test_csp_reports_postgres.py \
+            tests/test_csp_evidence.py \
+            tests/test_csp_evidence_cli.py \
+            tests/test_csp_evidence_postgres.py \
             -q
+
+          evidence_dir="$(mktemp -d -- "$RUNNER_TEMP/r10-csp-evidence.XXXXXX")"
+          cleanup_evidence() {
+            rm -rf -- "$evidence_dir"
+          }
+          trap cleanup_evidence EXIT
+
+          context_path="$evidence_dir/context.json"
+          catalog_path="$evidence_dir/catalog.json"
+          report_path="$evidence_dir/report.json"
+          stdout_path="$evidence_dir/stdout.json"
+          stderr_path="$evidence_dir/stderr.json"
+          python - "$context_path" "$catalog_path" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          workflows = (
+              "login",
+              "refresh_recovery",
+              "concurrent_401_singleflight",
+              "logout",
+              "sse_initial_connect",
+              "sse_reconnect",
+              "products",
+              "product_detail",
+              "workspace",
+              "strategies",
+              "agents",
+              "bearer_write",
+              "cookie_only_write_rejected",
+              "csp_reporting_canary",
+          )
+          context = {
+              "schema_version": 1,
+              "evidence_source": "synthetic",
+              "environment": "ci",
+              "release": os.environ["RELEASE_COMMIT"].lower(),
+              "window_start": "2099-01-01T00:00:00Z",
+              "window_end": "2099-01-01T01:00:00Z",
+              "sample_rate": 1,
+              "complete_business_cycle": True,
+              "workflows": {name: "passed" for name in workflows},
+              "metrics": {
+                  "business_http_requests": 1,
+                  "csp_outcomes": {
+                      "received": 1,
+                      "accepted": 0,
+                      "sampled": 0,
+                      "rejected": 0,
+                      "rate_limited": 0,
+                      "persist_failed": 0,
+                  },
+              },
+              "expected_document_origins": ["https://ci.invalid"],
+              "trusted_source_origins": [],
+          }
+          Path(sys.argv[1]).write_text(
+              json.dumps(context, ensure_ascii=True, separators=(",", ":")),
+              encoding="utf-8",
+          )
+          Path(sys.argv[2]).write_text(
+              json.dumps({"schema_version": 1, "entries": []}, separators=(",", ":")),
+              encoding="utf-8",
+          )
+          PY
+          chmod 600 "$context_path" "$catalog_path"
+
+          set +e
+          python scripts/csp_evidence_report.py \
+            --context-path "$context_path" \
+            --catalog-path "$catalog_path" \
+            --report-path "$report_path" \
+            >"$stdout_path" 2>"$stderr_path"
+          evidence_exit=$?
+          set -e
+          if [ "$evidence_exit" -ne 1 ]; then
+            echo "::error title=R10 synthetic evidence contract failed::unexpected exit code ${evidence_exit}"
+            exit 1
+          fi
+
+          python - "$report_path" "$stdout_path" "$stderr_path" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          try:
+              report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+              summary = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          except (OSError, json.JSONDecodeError):
+              raise SystemExit("R10 synthetic report or summary could not be validated") from None
+          if Path(sys.argv[3]).read_bytes():
+              raise SystemExit("R10 synthetic CLI wrote unexpected stderr")
+          status = report.get("status")
+          if status != "insufficient_evidence" or status == "ready_for_review":
+              raise SystemExit("R10 synthetic report returned an unexpected readiness status")
+          if report.get("scope", {}).get("evidence_source") != "synthetic":
+              raise SystemExit("R10 synthetic report returned an unexpected evidence source")
+          if set(summary) != {"trace_id", "status", "counts"}:
+              raise SystemExit("R10 synthetic CLI returned an unsafe summary shape")
+          if (
+              summary["trace_id"] != report.get("trace_id")
+              or summary["status"] != status
+              or summary["counts"] != report.get("counts")
+          ):
+              raise SystemExit("R10 synthetic CLI summary did not match the report")
+          print(
+              "R10 synthetic contract passed; this is not production evidence "
+              "or S2 admission."
+          )
+          PY
+          cleanup_evidence
+          trap - EXIT
 
       - name: Run tests with coverage
         env:

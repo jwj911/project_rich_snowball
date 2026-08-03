@@ -17,7 +17,7 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from config import CSP_REPORT_SAMPLE_RATE
+from config import CSP_REPORT_ENVIRONMENT, CSP_REPORT_SAMPLE_RATE, RELEASE_COMMIT
 from dependencies import (
     get_current_user_dependency,
     get_db,
@@ -53,6 +53,10 @@ _CSP_BLOCKED_SOURCE_TOKENS = {
     "data",
     "eval",
     "inline",
+}
+_CSP_BROWSER_EXTENSION_SCHEMES = {
+    "chrome-extension",
+    "moz-extension",
 }
 _CSP_URL_MAX_LENGTH = 500
 _CSP_URL_PATH_MAX_LENGTH = 300
@@ -141,10 +145,18 @@ def _sanitize_csp_blocked_url(value: str | None) -> str | None:
     if not value:
         return None
 
-    token = value.strip().removesuffix(":").casefold()
+    compact_value = value.strip()
+    try:
+        scheme = urlsplit(compact_value).scheme.casefold()
+    except ValueError:
+        return None
+    if scheme in _CSP_BROWSER_EXTENSION_SCHEMES:
+        return "browser-extension"
+
+    token = compact_value.removesuffix(":").casefold()
     if token in _CSP_BLOCKED_SOURCE_TOKENS:
         return token
-    return _sanitize_csp_http_url(value)
+    return _sanitize_csp_http_url(compact_value)
 
 
 def _normalize_csp_report(report: CSPViolationReport) -> dict[str, object]:
@@ -195,6 +207,9 @@ def _reject_non_finite_json_constant(value: str):
 def _persist_csp_reports(
     db: Session,
     prepared_reports: list[tuple[str, dict[str, object]]],
+    *,
+    trusted_environment: str | None = None,
+    trusted_release: str | None = None,
 ) -> str | None:
     try:
         db.add_all(
@@ -204,6 +219,8 @@ def _persist_csp_reports(
                     log_type="csp-violation",
                     level="warning",
                     url=str(normalized["document_url"]),
+                    environment=trusted_environment,
+                    release=trusted_release,
                     payload_json=json.dumps(
                         {"trace_id": trace_id, **normalized},
                         ensure_ascii=True,
@@ -281,7 +298,13 @@ async def create_csp_report(
         prepared_reports.append((uuid.uuid4().hex, normalized))
 
     if prepared_reports:
-        error_type = await run_in_threadpool(_persist_csp_reports, db, prepared_reports)
+        error_type = await run_in_threadpool(
+            _persist_csp_reports,
+            db,
+            prepared_reports,
+            trusted_environment=CSP_REPORT_ENVIRONMENT,
+            trusted_release=RELEASE_COMMIT,
+        )
         if error_type is not None:
             persist_failed = len(prepared_reports)
             csp_reports_total.labels(outcome="persist_failed").inc(persist_failed)

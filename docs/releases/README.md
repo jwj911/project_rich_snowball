@@ -6,15 +6,18 @@
 
 当前处于
 [`Post-R9` 规划](../iteration_plan_20260802_post_r9.md)：R9 工程门禁已闭环但尚未生产部署，
-R10 待建立独立规格，尚无 Post-R9 工程项或生产发布进入实施。R1 至 R9 历史执行证据见
-[`../iteration_plan_20260724_follow_up.md`](../iteration_plan_20260724_follow_up.md)。R8
-生产分区/冷归档与 R7 分布式 SSE 仍是阈值触发、未排期的条件轨道。
+R10 独立规格已批准，本地实现与验证完成，远端 Backend CI 待验证；当前记录是
+`non-production engineering baseline` 且 `CI pending`，不是生产发布。R11 operator gate
+尚未启动，R12/S2 与 R13/S3 均未启动。R1 至 R9 历史执行证据见
+[`../iteration_plan_20260724_follow_up.md`](../iteration_plan_20260724_follow_up.md)。
+R8 生产分区/冷归档与 R7 分布式 SSE 仍是阈值触发、未排期的条件轨道。
 
 ## 记录规则
 
 - 文件名使用 `YYYYMMDD_<short-slug>.md`，日期按发布窗口的 UTC 日期。
 - 明确标注 `engineering baseline` 或 `production release`，工程基线不得表述为生产已发布。
-- 发布提交必须是已推送且可回滚的 Git 提交；测试和 CI 证据使用可追溯链接。
+- 已完成发布的提交必须是已推送且可回滚的 Git 提交；CI pending 记录必须将尚未产生的提交
+  哈希和 CI 链接明确标为待填，不得推断或虚构。
 - 未执行的生产检查保持未勾选，并在“阻塞项”中说明原因，不用历史 CI 结果代替本次发布验证。
 
 当前记录：
@@ -35,3 +38,9 @@ R10 待建立独立规格，尚无 Post-R9 工程项或生产发布进入实施�
   [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
   均成功。该记录不是生产发布：完整业务周期观测、生产责任人及 S2/S3 专项仍未完成，强制
   CSP 未收紧，`localStorage` access token 风险未关闭。
+- [20260803_r10_csp_evidence_qualification.md](20260803_r10_csp_evidence_qualification.md)：
+  R10 CSP 证据归类与 S2 准入报告非生产工程基线；本地聚焦
+  `375 passed, 5 skipped, 1 warning`，全量 `1421 passed, 22 skipped, 103 warnings`，
+  synthetic CLI 正确返回退出码 `1` / `insufficient_evidence`，安全报告为 `1707 B`。
+  本地 PostgreSQL 不可用，3 个 PostgreSQL 专项明确 skip；最终实现提交与远端 Backend CI
+  均待填/待验证。未生成生产 context、catalog 或 report，R11/R12/R13 均未启动。

@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import text
 
 import routers.frontend_logs as frontend_logs_router
-from config import _parse_unit_interval
+from config import _parse_release_commit, _parse_unit_interval, _trusted_csp_environment
 from models import FrontendLogDB
 from services.metrics import csp_reports_total
 
@@ -71,9 +71,50 @@ def _metric_value(outcome):
     return csp_reports_total.labels(outcome=outcome)._value.get()
 
 
-def test_legacy_report_is_redacted_allowlisted_and_persisted(client, csp_db):
+@pytest.mark.parametrize(
+    ("raw_value", "expected"),
+    [
+        (None, None),
+        ("", None),
+        ("   ", None),
+        ("0123456789ABCDEF0123456789ABCDEF01234567", "0123456789abcdef0123456789abcdef01234567"),
+    ],
+)
+def test_release_commit_configuration_is_optional_and_normalized(raw_value, expected):
+    assert _parse_release_commit(raw_value) == expected
+
+
+@pytest.mark.parametrize(
+    "raw_value",
+    [
+        "0" * 39,
+        "0" * 41,
+        ("0" * 39) + "g",
+        "release-0123456789abcdef0123456789abcdef",
+        f" {'0' * 40} ",
+    ],
+)
+def test_release_commit_configuration_requires_full_hex_sha(raw_value):
+    with pytest.raises(ValueError, match="RELEASE_COMMIT"):
+        _parse_release_commit(raw_value)
+
+
+@pytest.mark.parametrize("environment", ["development", "ci", "staging", "production"])
+def test_csp_environment_accepts_only_exact_controlled_values(environment):
+    assert _trusted_csp_environment(environment) == environment
+
+
+@pytest.mark.parametrize("environment", [None, "", "test", "Production", " production "])
+def test_csp_environment_rejects_uncontrolled_values(environment):
+    assert _trusted_csp_environment(environment) is None
+
+
+def test_legacy_report_is_redacted_allowlisted_and_persisted(client, csp_db, monkeypatch):
     received_before = _metric_value("received")
     accepted_before = _metric_value("accepted")
+    trusted_release = "0123456789abcdef0123456789abcdef01234567"
+    monkeypatch.setattr(frontend_logs_router, "CSP_REPORT_ENVIRONMENT", "production")
+    monkeypatch.setattr(frontend_logs_router, "RELEASE_COMMIT", trusted_release)
     payload = _legacy_report(
         **{
             "document-uri": "https://user:password@example.com/products/AU?token=document-secret#private",
@@ -85,6 +126,8 @@ def test_legacy_report_is_redacted_allowlisted_and_persisted(client, csp_db):
             "cookie": "session=secret-cookie",
             "authorization": "Bearer secret-authorization",
             "unknown": {"dom": "<main>secret-dom</main>"},
+            "environment": "client-controlled",
+            "release": "f" * 40,
         }
     )
 
@@ -104,6 +147,8 @@ def test_legacy_report_is_redacted_allowlisted_and_persisted(client, csp_db):
     assert log.level == "warning"
     assert log.url == "https://example.com/products/AU"
     assert log.user_agent is None
+    assert log.environment == "production"
+    assert log.release == trusted_release
 
     stored = json.loads(log.payload_json)
     assert set(stored) == {
@@ -128,6 +173,28 @@ def test_legacy_report_is_redacted_allowlisted_and_persisted(client, csp_db):
     assert "secret" not in log.payload_json
     assert "sample" not in stored
     assert "unknown" not in stored
+    assert "environment" not in stored
+    assert "release" not in stored
+
+
+def test_client_attribution_is_ignored_when_server_metadata_is_unavailable(
+    client,
+    csp_db,
+    monkeypatch,
+):
+    monkeypatch.setattr(frontend_logs_router, "CSP_REPORT_ENVIRONMENT", None)
+    monkeypatch.setattr(frontend_logs_router, "RELEASE_COMMIT", None)
+    payload = _legacy_report(environment="production", release="f" * 40)
+
+    response = _post_json(client, payload, LEGACY_CONTENT_TYPE)
+
+    assert response.status_code == 202
+    log = csp_db.query(FrontendLogDB).one()
+    assert log.environment is None
+    assert log.release is None
+    stored = json.loads(log.payload_json)
+    assert "environment" not in stored
+    assert "release" not in stored
 
 
 def test_reporting_api_batch_has_independent_trace_ids_and_single_commit(
@@ -137,6 +204,9 @@ def test_reporting_api_batch_has_independent_trace_ids_and_single_commit(
 ):
     commit_calls = 0
     original_commit = csp_db.commit
+    trusted_release = "89abcdef0123456789abcdef0123456789abcdef"
+    monkeypatch.setattr(frontend_logs_router, "CSP_REPORT_ENVIRONMENT", "staging")
+    monkeypatch.setattr(frontend_logs_router, "RELEASE_COMMIT", trusted_release)
 
     def track_commit():
         nonlocal commit_calls
@@ -156,12 +226,36 @@ def test_reporting_api_batch_has_independent_trace_ids_and_single_commit(
     assert commit_calls == 1
     logs = csp_db.query(FrontendLogDB).order_by(FrontendLogDB.id).all()
     assert len(logs) == 2
+    assert all(log.environment == "staging" and log.release == trusted_release for log in logs)
     stored = [json.loads(log.payload_json) for log in logs]
     assert {item["document_url"] for item in stored} == {
         "https://example.com/products/AU",
         "https://example.com/products/AG",
     }
     assert len({item["trace_id"] for item in stored}) == 2
+
+
+def test_persist_helper_remains_compatible_without_trusted_metadata(csp_db):
+    trace_id = "0123456789abcdef0123456789abcdef"
+    prepared_reports = [
+        (
+            trace_id,
+            {
+                "document_url": "https://example.com/products/AU",
+                "blocked_url": "inline",
+                "effective_directive": "script-src-elem",
+                "disposition": "report",
+            },
+        )
+    ]
+
+    error_type = frontend_logs_router._persist_csp_reports(csp_db, prepared_reports)
+
+    assert error_type is None
+    log = csp_db.query(FrontendLogDB).one()
+    assert log.environment is None
+    assert log.release is None
+    assert json.loads(log.payload_json)["trace_id"] == trace_id
 
 
 @pytest.mark.parametrize(
@@ -285,6 +379,32 @@ def test_optional_url_fields_apply_field_specific_source_token_policy(client, cs
     assert stored["blocked_url"] == "data"
     assert "source_file" not in stored
     assert "referrer" not in stored
+
+
+@pytest.mark.parametrize(
+    "blocked_url",
+    [
+        "chrome-extension://abcdefghijklmnopabcdefghijklmnop/scripts/injected.js?token=secret#private",
+        "moz-extension://01234567-89ab-cdef-0123-456789abcdef/content/main.js?token=secret#private",
+    ],
+)
+def test_browser_extension_blocked_url_is_reduced_to_fixed_category(
+    client,
+    csp_db,
+    blocked_url,
+):
+    payload = _legacy_report(**{"blocked-uri": blocked_url})
+
+    response = _post_json(client, payload, LEGACY_CONTENT_TYPE)
+
+    assert response.status_code == 202
+    stored_json = csp_db.query(FrontendLogDB).one().payload_json
+    assert json.loads(stored_json)["blocked_url"] == "browser-extension"
+    assert "chrome-extension" not in stored_json
+    assert "moz-extension" not in stored_json
+    assert "injected.js" not in stored_json
+    assert "content/main.js" not in stored_json
+    assert "secret" not in stored_json
 
 
 def test_sanitized_url_path_is_bounded(client, csp_db):

@@ -18,16 +18,23 @@
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
 - K 线存储：R8 已提供只读容量门禁、默认 dry-run 的影子分区 DDL、隔离迁移演练和管理员
   存储概况；活动 `kline_data` 仍未分区。
-- 当前迭代：处于
-  [Post-R9 规划](docs/iteration_plan_20260802_post_r9.md)，R10“CSP 脱敏证据归类与 S2
-  准入报告”待建立独立规格，尚无 Post-R9 工程项进入实施。
+- 当前迭代：R10“CSP 证据归类与 S2 准入报告”已完成本地实施与验证，远端 Backend CI
+  待验证。R10 只新增后端 evidence-only 服务和
+  [离线只读 CLI](python/scripts/csp_evidence_report.py)，不提供 HTTP API；当前仍是非生产
+  工程状态，R11 生产操作者阶段、R12/S2 与 R13/S3 均未开始。治理顺序见
+  [Post-R9 计划](docs/iteration_plan_20260802_post_r9.md)，实现边界见
+  [R10 spec](.trae/specs/classify-csp-evidence-readiness/spec.md)。
 - R9 工程状态：
   [CSP Report-Only 观测闭环](docs/releases/20260802_r9_csp_report_only_observability.md)
   已完成 S1 工程实现、审查修复、本地验证、增强版浏览器回归和远端 CI 工程门禁。页面同时
   返回原值不变的强制 CSP 与只上报的候选策略；报告端点支持 legacy/Reporting API、8 KiB
   上限、20 条批量、采样、限流、URL 脱敏、独立 `trace_id` 和低基数指标。R9 尚未生产
   部署，也未完成真实完整业务周期观测。
-- 当前本地质量基线：独立审查修复前的后端全量为
+- R10 本地验证：聚焦测试
+  `375 passed, 5 skipped, 1 warning`，后端全量
+  `1421 passed, 22 skipped, 103 warnings`；本地 PostgreSQL 不可用，相关集成用例保持明确
+  skip。远端 Backend CI 仍待验证，这些结果不构成生产证据或 S2 准入。
+- R9 历史本地质量基线：独立审查修复前的后端全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
   持久化专项，本地无隔离 PostgreSQL；修复后的完整全量和 PostgreSQL 专项由 Backend CI
@@ -93,10 +100,10 @@ project_rich_snowball/
 │   ├── config.py                 # 环境配置
 │   ├── models.py / schemas.py    # ORM 模型 / Pydantic Schema
 │   ├── routers/                  # API 路由（auth/varieties/kline/realtime/agents/…）
-│   ├── services/                 # 业务逻辑（Agent 系统、回测、因子挖掘）
+│   ├── services/                 # 业务逻辑（Agent、回测、因子挖掘、R10 CSP 证据）
 │   ├── data_collector/           # 数据采集流水线与调度器
 │   ├── middleware/               # 中间件（限流、API 版本映射）
-│   ├── scripts/                  # 工具脚本（回填、迁移、验收）
+│   ├── scripts/                  # 工具脚本（回填、迁移、验收、离线证据报告）
 │   ├── tests/                    # pytest 测试（R9 审查修复前全量：1177 passed, 18 skipped）
 │   └── alembic/                  # 数据库迁移
 │
@@ -108,7 +115,7 @@ project_rich_snowball/
 │
 ├── docs/                         # 项目文档
 │   ├── release_checklist_20260719.md # 当前发布检查与回滚清单
-│   ├── iteration_plan_20260802_post_r9.md # Post-R9 唯一当前迭代事实源
+│   ├── iteration_plan_20260802_post_r9.md # Post-R9 治理顺序与准入门禁
 │   ├── iteration_plan_20260724_follow_up.md # R1-R9 已完成历史事实源
 │   ├── phase4_private_data_access_boundary.md # Agent 私有数据访问边界
 │   ├── r3_raw_contract_market_panel.md # 多视图日频研究宽表
@@ -141,6 +148,7 @@ ENABLE_SCHEDULER=1
 REDIS_URL=redis://localhost:6379/0
 SSE_DEPLOYMENT_MODE=single
 ENV=development
+RELEASE_COMMIT=
 NEXT_PUBLIC_API_BASE=http://127.0.0.1:8401
 CSP_REPORT_SAMPLE_RATE=1
 HOST=127.0.0.1
@@ -155,6 +163,9 @@ PORT=8401
   `1`；`0` 表示全部采样丢弃，`1` 表示全部进入持久化尝试。
 - `CSP_REPORT_URL` 可选；未设置时使用 `NEXT_PUBLIC_API_BASE` 的 origin 加
   `/api/log/csp-report`。覆盖值必须是无凭据、query、fragment 的绝对 HTTP(S) URL。
+- `RELEASE_COMMIT` 是 API 运行时 CSP 证据归属，可选；非空时必须是完整 40 位十六进制 Git
+  SHA。缺失不会阻止 S1 报告接收，但新记录的 release 为空，R10 不能据此形成
+  `ready_for_review`。Compose 对 backend 和 worker 均按可选值传递。
 - 若使用 `DATA_SOURCE=tushare`，需要提供 `TUSHARE_TOKEN`。
 - 生产必须显式提供 `REDIS_URL` 和 `SSE_DEPLOYMENT_MODE=single|sticky`。Redis 只共享
   realtime quotes 更新时间戳；本轮未实现 Pub/Sub 或跨实例连接管理。
@@ -182,6 +193,40 @@ python main.py
 - `init_varieties()`：初始化/更新品种元数据
 - `init_mock_data()`：非生产环境插入开发账号和示例评论
 - `start_scheduler()`：按配置启动实时行情、K 线与扩展数据采集
+
+---
+
+## R10 CSP 证据离线 CLI
+
+R10 通过后端服务层读取 R9 已脱敏的 `csp-violation` 记录，并由
+[`python/scripts/csp_evidence_report.py`](python/scripts/csp_evidence_report.py) 生成低敏
+JSON；没有新增管理员或其他 HTTP API。生产操作者应在仓库外准备 context、catalog 和 report
+路径，且不得把这些文件提交到版本控制。CLI 强制 report path 位于仓库外；context/catalog
+也按运维约束放在仓库外并显式传入。
+
+```powershell
+cd D:\Code\project_rich_snowball\python
+$evidenceRoot = Join-Path $env:TEMP "rich-snowball-r10"
+New-Item -ItemType Directory -Force $evidenceRoot | Out-Null
+$contextPath = Join-Path $evidenceRoot "context.json"
+$catalogPath = Join-Path $evidenceRoot "catalog.json"
+$reportPath = Join-Path $evidenceRoot "report.json"
+
+.\.venv\Scripts\python.exe scripts/csp_evidence_report.py `
+  --database-url $env:DATABASE_URL `
+  --context-path $contextPath `
+  --catalog-path $catalogPath `
+  --report-path $reportPath
+$LASTEXITCODE
+```
+
+`DATABASE_URL` 是 `--database-url` 的唯一回退。单次执行固定为最长 31 天、最多 50,000 条记录、
+最多 500 个聚合组、最多 30 秒，报告不超过 256 KiB。退出码 `0` 至 `4` 依次表示
+`ready_for_review`、`insufficient_evidence`、`blocked`、`failed` 和报告写入失败；本地/CI
+synthetic 证据的预期结果是 `insufficient_evidence` 和退出码 `1`，不是生产成功。
+
+R10 没有新增数据库表或 Alembic 迁移，也没有改变强制 CSP、Report-Only 策略、认证、
+`localStorage` token、Bearer 写请求或 cookie-only 写请求拒绝边界。
 
 ---
 
@@ -296,7 +341,11 @@ $env:ENABLE_SCHEDULER="0"
 - `test_postgres_upsert_integration.py`：PostgreSQL upsert 集成
 - `test_production_config.py`：生产环境安全约束
 
-R9 独立审查修复前的后端全量为
+R10 本地聚焦测试为 `375 passed, 5 skipped, 1 warning`，后端全量为
+`1421 passed, 22 skipped, 103 warnings`。本地 PostgreSQL 不可用，R10/R9 PostgreSQL 集成
+用例保持明确 skip；远端 Backend CI 待验证。
+
+R9 独立审查修复前的历史后端全量为
 `1177 passed, 18 skipped, 0 failed, 103 warnings`。修复后受影响聚焦回归为
 `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过；唯一 skip 是新增 PostgreSQL
 CSP 持久化专项，本地无隔离 PostgreSQL。审查修复后的完整后端全量由
@@ -314,7 +363,8 @@ ESLint；增强版实际浏览器执行未计入本地结果，由远端 Fronten
 smoke。[Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
 已通过 Vitest、production build、R9 E2E `3 passed`、全量 Playwright `43 passed` 和
 Lighthouse。
-Backend CI 现覆盖依赖锁、R7 placeholder preflight、Alembic、R8 K 线只读容量预检与影子
+Backend CI 工作流已加入 R10 synthetic evidence 契约，但本轮远端运行仍待验证；既有成功
+门禁继续覆盖依赖锁、R7 placeholder preflight、Alembic、R8 K 线只读容量预检与影子
 分区演练、R9 CSP 接收契约、PostgreSQL pytest/API smoke、Ruff 和 `pip-audit`。
 [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
 仍是 R8 历史成功证据；R9 远端门禁以 run `30739553595` 和 `30740784839` 为准。R9

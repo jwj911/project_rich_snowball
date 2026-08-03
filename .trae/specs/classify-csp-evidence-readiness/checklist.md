@@ -1,0 +1,63 @@
+# R10 CSP 证据归类与 S2 准入报告验收清单
+
+- [x] R10 只新增后端服务和离线只读 CLI，没有新增管理员 HTTP API。
+- [x] R10 没有新增数据库表或 Alembic 迁移，也没有回填/重写既有 CSP 记录。
+- [x] 强制 CSP 与 Report-Only 响应头值均未改变。
+- [x] `localStorage` token、HttpOnly cookie、Bearer 写请求和 cookie-only 写请求拒绝均未改变。
+- [x] `RELEASE_COMMIT` 非空时只接受并规范化 40 位 Git SHA，缺失时不阻止 S1 报告接收。
+- [x] 新 CSP 记录的 environment/release 只来自服务端，客户端不能覆盖。
+- [x] 无受控 environment 或 release 的记录不能形成 `ready_for_review`。
+- [x] 浏览器扩展 blocked URL 只保存 `browser-extension`，不含扩展 ID、path、query 或 fragment。
+- [x] R9 的 8 KiB、20 条批量、采样、限流、URL 脱敏、allowlist、记录 trace 和指标契约无回归。
+- [x] context 文件显式必填、UTF-8、`schema_version=1` 且不超过 64 KiB。
+- [x] context 校验 evidence source、受控 environment、完整 release、UTC 窗口和有限 sample rate。
+- [x] context 固定 14 个核心流程，每项只接受 `passed` / `failed` / `not_run`。
+- [x] context 的 HTTP/CSP 窗口指标只接受非负有限整数，`persist_failed` 能阻断准入。
+- [x] expected/trusted origins 各不超过 20 个，生产只接受无敏感部分的 HTTPS origin。
+- [x] origin 仅参与分类，不写入报告、日志或 stdout/stderr。
+- [x] catalog 文件显式必填、UTF-8、`schema_version=1`、不超过 64 KiB 且不超过 500 条。
+- [x] catalog ID 和 owner role 为有界 ASCII slug，不允许个人/用户标识或自由文本证据。
+- [x] catalog 分类三元组唯一，decision/retest 组合受固定枚举校验。
+- [x] catalog 不接受 URL、脚本、DOM、User-Agent、凭据、记录 trace、payload 或文件路径。
+- [x] 未命中 catalog、`pending` 或 `failed` 复验均返回 `blocked`。
+- [x] 路由类别使用固定枚举，并正确区分 home、product detail、agent detail 和 strategy evolution。
+- [x] directive 类别使用固定枚举，未知值只映射为 `unknown`。
+- [x] blocked source 只映射为 9 个固定类别，HTTP(S) 来源不会输出 host/path。
+- [x] 非 expected document origin 只产生稳定问题码和计数，不输出 origin。
+- [x] 查询只选择 `id/payload_json/environment/release/created_at`，不选择 URL、UA 或 user ID。
+- [x] 查询只读取 `type=csp-violation` 且使用 start-inclusive/end-exclusive UTC 窗口。
+- [x] 单次窗口最长 31 天，最多读取 50,000 条，使用 500 条 keyset page。
+- [x] 聚合组最多 500 个，运行时间最多 30 秒。
+- [x] PostgreSQL 使用 read-only transaction 和不超过 30 秒的 statement timeout。
+- [x] SQLite 使用 `PRAGMA query_only=ON`，R10 路径不 add/delete/flush/commit。
+- [x] 第 50,001 条、501 个聚合组或超时会标记截断，不能返回 `ready_for_review`。
+- [x] 无 environment/release 的窗口记录以安全计数进入证据缺口，不读取或输出其 URL/payload。
+- [x] 每条记录再次验证 JSON object、R9 allowlist、记录 trace、URL、directive、disposition 和数值边界。
+- [x] malformed、额外 key、敏感 key、scope 不一致、非 report disposition 或计数不一致返回
+  `blocked`。
+- [x] 报告使用新独立 trace，不输出任一记录 trace。
+- [x] 报告 JSON `schema_version=1`、确定性排序且不超过 256 KiB。
+- [x] 报告只含受控 scope、计数、limits、问题码、aggregates、known 和 unknown violations。
+- [x] 报告、日志、stdout/stderr 不含完整 URL、origin、host、path 参数、source file、referrer、
+  用户信息、UA、凭据、payload、数据库 URL 或文件路径。
+- [x] 状态优先级严格为 `failed`、`blocked`、`insufficient_evidence`、`ready_for_review`。
+- [x] synthetic、非生产、sample rate 0、周期/流程/指标缺口、无归属或截断只能返回
+  `insufficient_evidence`。
+- [x] 完整 production 证据也只返回 `ready_for_review`，不会自动批准或实施 S2。
+- [x] CLI 明确要求 database/context/catalog/report 参数，仅 DATABASE_URL 可作为数据库回退。
+- [x] CLI 在查询前拒绝超大/非法输入和仓库内 report path。
+- [x] CLI 使用同目录临时文件、受限权限与原子 replace，失败时清理临时文件。
+- [x] CLI 退出码 0/1/2/3/4 分别对应 ready/insufficient/blocked/failed/write-failed。
+- [x] CLI stdout/stderr 只输出安全摘要、固定码和异常类型，不输出报告正文或异常文本。
+- [x] context/catalog、分类、状态机、限额、敏感记录和报告结构单元测试通过。
+- [x] CLI 路径、原子写入、权限、退出码、失败清理和写入失败测试通过。
+- [x] SQLite query-only 与 PostgreSQL read-only/statement timeout 集成测试通过或有明确环境 skip。
+- [ ] R9 CSP 接收、采样、限流、脱敏、批量提交、失败回滚和 PostgreSQL 持久化回归通过。
+- [ ] Backend CI 执行 R10 门禁，并断言 synthetic 不能返回 `ready_for_review`。
+- [x] 后端聚焦测试、全量 pytest、Ruff check/format 和 `git diff --check` 全部通过。
+- [x] `.env.example`、Compose、README、AGENTS、`.agents/`、Post-R9 计划和发布清单已同步。
+- [ ] R10 发布记录包含提交、测试、CI、回滚点、限额、退出码和未完成 R11/R12/R13。
+- [x] 文档明确 R10 是非生产 evidence-only 工程基线，synthetic 不是生产 SLO 或 S2 准入。
+- [x] 生产 context/catalog/report、临时文件、测试数据库、日志和 CI 产物未进入版本控制。
+- [ ] R10 相关变更已原子提交并推送，本地与 `origin/master` 一致，工作区干净。
+- [ ] `tasks.md` 与本 checklist 全部勾选，下一阶段仍为受生产操作者门禁的 R11。

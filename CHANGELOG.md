@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-08-03
+
+- R10 完成本地 CSP evidence-only 工程实现与验证：新 CSP 记录使用服务端受控 environment 和
+  可选完整 40 位 `RELEASE_COMMIT` 归属，浏览器扩展 blocked URL 只保留固定
+  `browser-extension` 类别；既有记录不回填、不重写。
+- 新增有界只读 CSP 证据服务和离线 CLI，按固定路由、directive、blocked source 类别生成
+  脱敏 JSON，并以 `failed`、`blocked`、`insufficient_evidence`、`ready_for_review` 的固定
+  优先级判定。CLI 退出码 `0/1/2/3/4` 分别对应 ready、insufficient、blocked、failed 和
+  report-write-failed。
+- 固定 context/catalog 各 64 KiB、31 天、50,000 行、500 条 keyset page、500 聚合组、
+  500 条 catalog、每个 origin 列表 20 项、30 秒运行时间、30 秒 PostgreSQL statement
+  timeout 和 256 KiB 报告限额；PostgreSQL 使用只读事务，SQLite 使用 query-only。
+- 本地聚焦 pytest 为 `375 passed, 5 skipped, 1 warning`，后端全量为
+  `1421 passed, 22 skipped, 103 warnings`；本地 PostgreSQL 不可用，3 个 PostgreSQL 专项
+  明确 skip，远端 PostgreSQL CI 待验证。Ruff、diff 和安全检查通过。
+- synthetic CLI 按契约返回退出码 `1` / `insufficient_evidence`，安全报告为 `1707 B`。
+  该结果不是生产 SLO、真实违规率、生产部署证据或 S2 准入证据。
+- R10 没有新增管理员 HTTP API、数据库表或 Alembic 迁移，没有修改强制 CSP、Report-Only、
+  `localStorage` token、HttpOnly cookie、Bearer 写请求或 cookie-only 写请求拒绝边界。
+- 新增
+  [`docs/releases/20260803_r10_csp_evidence_qualification.md`](docs/releases/20260803_r10_csp_evidence_qualification.md)。
+  当前是 `non-production engineering baseline` 且 `CI pending`；最终实现提交与真实 CI
+  链接待产生后补记，暂定回滚点为 Post-R9 提交
+  `b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`。
+- 未生成生产 context、catalog 或 report，`python/dev.db` 保持保留。R11 operator gate
+  尚未启动，R12/S2 与 R13/S3 均未启动。
+
 ## 2026-08-02
 
 - R9 完成 CSP Report-Only S1 工程实现：前端保留原值不变的强制

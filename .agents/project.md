@@ -17,7 +17,11 @@
   - 5-6 全量测试 + 提交到 master（历史基线）
 - **Agent 系统 Phase 0~2 已完成**（2026-07-04）：DataAgent、TechAnalysisAgent、RiskManagementAgent 已上线，前端 Chat 页支持 8 种模式切换（AI 助手 / 数据助手 / 技术分析 / 风控管理 / 分析流水线 / 回测 / 策略编排 / 因子挖掘），执行过程通过 SSE 流式展示。
 - 近期新增：策略工作台（`/strategies`）、策略参数优化（`/strategies/{id}/optimize`）、回测信号可视化（K 线叠加标记）、预警中心（`/alerts`）、Agent 工作台（`/agents`）。
-- **当前质量基线（2026-08-02）**：独立审查修复前的 R9 后端全量为
+- **R10 本地质量基线（2026-08-03）**：聚焦测试
+  `375 passed, 5 skipped, 1 warning`，后端全量
+  `1421 passed, 22 skipped, 103 warnings`。本地 PostgreSQL 不可用，相关集成用例保持明确
+  skip；远端 Backend CI 待验证。
+- **R9 历史质量基线（2026-08-02）**：独立审查修复前的后端全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
   持久化专项，本地无隔离 PostgreSQL；Backend CI 的 PostgreSQL 16
@@ -27,17 +31,19 @@
   SSE 首次断线重连后，本地 Playwright `--list`、TypeScript 与 ESLint 通过；Frontend CI
   的增强版 R9 E2E `3 passed`、全量 Playwright `43 passed`，Vitest、build 与 Lighthouse
   均成功。基础版结果仍不作为增强版的本地执行证据。
-- **远程验收**：R9 实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验证文档
+- **R9 历史远程验收**：R9 实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验证文档
   提交为 `37fc8008a74c1b74c48f74aac5e3267c8a29e5b6`，CI 稳定性修复提交为
   `c7a721a04f58caa51860be67d870855663186a14`；
   [Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
   与
   [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
   均成功。应用回滚点为 R9 启动文档提交 `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
-- **当前迭代**：处于
-  [`Post-R9` 规划](../docs/iteration_plan_20260802_post_r9.md)，R10“CSP 脱敏证据归类与 S2
-  准入报告”待建立独立规格，尚无 Post-R9 工程项进入实施。R9 已完成 CSP Report-Only S1
-  工程实现、审查修复、本地验证、增强版浏览器回归和远端 CI；完整记录见
+- **当前迭代**：R10“CSP 证据归类与 S2 准入报告”已完成本地实施与验证，远端 Backend CI
+  待验证。R10 只提供后端 evidence-only 服务和离线只读 CLI，没有 HTTP API、数据库表或
+  Alembic 迁移；当前仍非生产，R11、R12/S2、R13/S3 均未开始。治理顺序见
+  [`Post-R9` 计划](../docs/iteration_plan_20260802_post_r9.md)，实现边界见
+  [`R10 spec`](../.trae/specs/classify-csp-evidence-readiness/spec.md)。R9 已完成 CSP
+  Report-Only S1 工程实现、审查修复、本地验证、增强版浏览器回归和远端 CI；完整记录见
   [`docs/releases/20260802_r9_csp_report_only_observability.md`](../docs/releases/20260802_r9_csp_report_only_observability.md)。
   R9 尚未生产部署，真实完整业务周期观测未完成，S2/S3 未启动；强制 CSP 未收紧，
   `localStorage` token 风险未关闭，Bearer 写请求与 CSRF 边界保持不变。R8 的活动表切换、
@@ -132,6 +138,7 @@ project_rich_snowball/
 │   ├── services/                   # 业务服务层
 │   │   ├── agent/                  # Agent 系统核心模块
 │   │   ├── backtest/               # 回测引擎
+│   │   ├── csp_evidence.py          # R10 有界只读 CSP 证据分类服务
 │   │   ├── release_preflight.py    # 11 项只读生产发布预检与脱敏 JSON
 │   │   ├── realtime_state.py       # 本地/Redis realtime 更新时间戳标记
 │   │   ├── kline_storage.py        # K 线容量预检、管理员低成本摘要与 TTL 缓存
@@ -141,6 +148,7 @@ project_rich_snowball/
 │   ├── data_collector/             # 在线采集、清洗、upsert、调度器
 │   ├── lib/                        # 技术指标库
 │   ├── middleware/                 # 限流、API 版本映射
+│   ├── scripts/                    # 运维脚本，含 R10 离线证据 CLI
 │   ├── tests/                      # pytest 测试
 │   ├── alembic/                    # 数据库迁移
 │   └── docs/                       # 架构决策、运维手册、API 契约
