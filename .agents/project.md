@@ -45,11 +45,15 @@
   与
   [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
   均成功。应用回滚点为 R9 启动文档提交 `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
-- **当前迭代**：R10“CSP 证据归类与 S2 准入报告”的非生产工程基线与远端工程门禁已完成。
-  R10 只提供后端 evidence-only 服务和离线只读 CLI，没有 HTTP API、数据库表或 Alembic
-  迁移；当前仍非生产，R11 受生产操作者门禁阻塞，R12/S2、R13/S3 均未开始。治理顺序见
-  [`Post-R9` 计划](../docs/iteration_plan_20260802_post_r9.md)，实现边界见
-  [`R10 spec`](../.trae/specs/classify-csp-evidence-readiness/spec.md)。R9 已完成 CSP
+- **当前迭代**：R11“目标环境 S1 部署与完整业务周期观测”独立规格已完成并批准，但
+  operator gate 仍为 `blocked`。当前
+  [`R11 记录`](../docs/releases/20260803_r11_s1_production_observation.md)是
+  `blocked planning record`，不是工程基线或生产发布。真实 production 环境、四类责任人、
+  deploy/rollback SHA、镜像 digest、UTC 窗口和仓库外证据目录均未提供；preflight、备份、
+  恢复、部署、canary、完整窗口和 production R10 report 均未执行。R10 非生产工程基线保持
+  不变，R12/S2、R13/S3 均未启动。治理顺序见
+  [`Post-R9` 计划](../docs/iteration_plan_20260802_post_r9.md)，执行边界见
+  [`R11 spec`](../.trae/specs/conduct-r11-production-observation/spec.md)。R9 已完成 CSP
   Report-Only S1 工程实现、审查修复、本地验证、增强版浏览器回归和远端 CI；完整记录见
   [`docs/releases/20260802_r9_csp_report_only_observability.md`](../docs/releases/20260802_r9_csp_report_only_observability.md)。
   R9 尚未生产部署，真实完整业务周期观测未完成，S2/S3 未启动；强制 CSP 未收紧，

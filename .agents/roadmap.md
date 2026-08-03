@@ -1,10 +1,11 @@
 <!-- .agents/roadmap.md — 模块演进状态与待处理事项 -->
 
 > 当前状态：R1 至 R9 工程项已闭环；R10 `non-production engineering baseline` 与远端
-> Backend CI 已闭环，当前仍为非生产状态。R10 仅提供 evidence-only 服务与离线 CLI；R11
-> 受生产操作者门禁阻塞，R12/S2、R13/S3 均未开始。治理顺序见
+> Backend CI 已闭环，当前仍为非生产状态。R11 独立规格已完成并批准，但 operator gate
+> 仍为 `blocked`；对应记录是 `blocked planning record`，不是工程基线或生产发布。R12/S2、
+> R13/S3 均未开始。治理顺序见
 > [`Post-R9` 计划](../docs/iteration_plan_20260802_post_r9.md)，实现边界见
-> [R10 spec](../.trae/specs/classify-csp-evidence-readiness/spec.md)。R8 生产分区/冷归档与
+> [R11 spec](../.trae/specs/conduct-r11-production-observation/spec.md)。R8 生产分区/冷归档与
 > R7 分布式 SSE 均为未触发、未排期的条件轨道。
 >
 > R1 至 R9 历史执行证据见
@@ -267,8 +268,9 @@ R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验�
 - context、catalog 和 report 按运维约束存放在仓库外且不得提交；CLI 强制 report path
   位于仓库外；
 - 单次执行限制为最长 31 天、最多 50,000 条记录、500 个聚合组、30 秒和 256 KiB 报告；
-  退出码 `0/1/2/3/4` 分别对应 ready/insufficient/blocked/failed/write-failed，synthetic
-  的预期结果是 `insufficient_evidence` 和退出码 `1`；
+  退出码 `0/1/2/3/4` 分别对应 `ready_for_review`、`insufficient_evidence`、`blocked`、
+  `failed` 和 `report_write_failed`，synthetic 的预期结果是 `insufficient_evidence` 和
+  退出码 `1`；
 - 本地聚焦测试 `375 passed, 5 skipped, 1 warning`，后端全量
   `1421 passed, 22 skipped, 103 warnings`；本地 PostgreSQL 不可用，相关集成用例保持明确
   skip；
@@ -280,8 +282,51 @@ R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验�
   smoke、Ruff check/format（122 files）和 `pip-audit` 均成功，且没有修复提交。
 
 R10 不修改强制 CSP、Report-Only 策略、`localStorage` token、Bearer 写请求或 cookie-only
-写请求拒绝边界。未生成生产 context、catalog 或 report；R11 生产操作者与完整业务周期门禁
-仍阻塞，R12/S2、R13/S3 均未开始。
+写请求拒绝边界。未生成生产 context、catalog 或 report；该非生产工程基线保持不变。
+
+### R11：S1 目标环境部署与完整业务周期观测 — 规格已批准，operator gate 阻塞（2026-08-03）
+
+- 独立规格、tasks 和 checklist 已完成并批准，但生产执行未启动；R11 tasks/checklist 的生产
+  项继续保持未勾选；
+- 当前记录见
+  [`docs/releases/20260803_r11_s1_production_observation.md`](../docs/releases/20260803_r11_s1_production_observation.md)，
+  类型固定为 `blocked planning record`，不是 `engineering baseline` 或
+  `production release`；
+- 真实 production 环境、发布/回滚/证据保管/安全评审四类责任人、deploy/rollback SHA、
+  镜像 digest、UTC 窗口和仓库外证据目录均未提供；
+- `CSP_REPORT_SAMPLE_RATE`、`single|sticky` SSE 模式和拓扑证据也未批准；
+- 未执行真实 preflight、备份、隔离恢复、迁移、部署、canary、完整窗口、生产指标采集或
+  production R10 report。
+
+R11 operator gate 必须同时取得真实 PostgreSQL、Redis、HTTPS CORS、非 Mock 数据源、CSP
+报告 endpoint、四类责任角色、完整 deploy/rollback SHA、镜像 digest、UTC 发布/观测窗口、
+冻结 sample rate、SSE 模式与仓库外受限证据存储。任一输入缺失时不得用 placeholder、
+staging、本地、历史 CI 或 synthetic 数据替代。
+
+有效观测必须覆盖至少 5 个实际交易日、连续至少 7 个自然日、一个周末或完整休市段，并覆盖
+日盘、夜盘、调度周期和非交易时段。窗口内 release、镜像、sample rate、双 CSP、认证、SSE、
+origins 和指标口径必须冻结；任何变更、无法解释的重启/reset、证据缺口、敏感数据或 R10
+截断都会使窗口 `invalidated`，修复后必须重新部署并从新窗口完整重跑。
+
+固定 14 项流程为 `login`、`refresh_recovery`、`concurrent_401_singleflight`、`logout`、
+`sse_initial_connect`、`sse_reconnect`、`products`、`product_detail`、`workspace`、
+`strategies`、`agents`、`bearer_write`、`cookie_only_write_rejected` 和
+`csp_reporting_canary`。任何 `failed` / `not_run` 都阻止 `ready_for_review`。
+
+同一窗口必须核对非 CSP 业务 `http_requests_total`、六类 `csp_reports_total` outcome、
+`FrontendLogDB` 已接受记录、重启/reset 与 readiness/scheduler/Redis/CSP 告警。
+`persist_failed` 必须为 0，`accepted` 必须与完整且未截断的目标记录一致，所有非零
+`rejected` / `rate_limited` 都必须闭环原因和复验。
+
+preflight、backup、restore、deploy、smoke、metrics、context、catalog、report 和 rollback
+artifact 必须保存在仓库外受限加密存储，使用低敏 ID 并记录 SHA-256、时间、schema version、
+至少 90 天保留期和保管角色。敏感数据会立即停止 R11。回滚顺序固定为停止 worker/API、保留
+低敏 trace、恢复已批准应用提交、按需恢复数据库，再验证 readiness、认证、行情、SSE 和 CSP；
+正常 R11 应用回滚不执行 Alembic downgrade。
+
+下一步仅是由授权人员在仓库外补齐并批准 operator gate 输入；输入齐备后先冻结不可变发布计划，
+再执行真实只读 preflight。R11 全部退出条件满足后也只允许发起 R12/S2 人工专项评审；
+R12/S2 与 R13/S3 当前均未启动。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 

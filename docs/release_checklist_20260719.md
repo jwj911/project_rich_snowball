@@ -8,8 +8,10 @@
 >
 > 当前状态：R9 工程门禁已闭环但尚未生产部署；R10
 > `non-production engineering baseline` 与远端 Backend CI 已完成。
-> R11 仍受真实生产凭据、窗口和发布/回滚负责人门禁约束；下列真实生产项在实际执行前必须
-> 保持未勾选。
+> R11 独立规格已完成并批准，但真实 production 环境、四类责任人、deploy/rollback SHA、
+> 镜像 digest、UTC 窗口和仓库外证据目录均未提供，operator gate 仍为 `blocked`。R11
+> `blocked planning record` 不是工程基线或生产发布；下列真实生产项在实际执行前必须保持
+> 未勾选。
 
 ## 1. 发布元数据
 
@@ -155,8 +157,8 @@ R12 S2 专项评审；在此之前不得移除强制 CSP 的 `unsafe-inline` / `
 - [x] synthetic CLI 返回退出码 `1` / `insufficient_evidence`，安全报告大小为 `1707 B`。
 - [x] context/catalog 各 64 KiB、31 天、50,000 行、500 条 keyset page、500 聚合组、
   500 条 catalog、每个 origin 列表 20 项、30 秒和 256 KiB 限额已记录。
-- [x] CLI 退出码 `0/1/2/3/4` 分别对应 ready、insufficient、blocked、failed 和
-  report-write-failed。
+- [x] CLI 退出码 `0/1/2/3/4` 分别对应 `ready_for_review`、`insufficient_evidence`、
+  `blocked`、`failed` 和 `report_write_failed`。
 - [x] 未新增管理员 HTTP API、数据库表或 Alembic 迁移，未改变强制 CSP、Report-Only 和
   认证边界。
 - [x] 未生成生产 context、catalog 或 report；`python/dev.db` 已保留。
@@ -177,7 +179,49 @@ R12 S2 专项评审；在此之前不得移除强制 CSP 的 `unsafe-inline` / `
 R10 非生产工程基线已完成。以上未勾选项均为目标环境或生产事项，不得由 synthetic 报告、
 工程 CI 或本地 SQLite 结果代替。
 
-## 7. 回滚
+## 7. R11 S1 生产观测执行项
+
+R11 专属受阻规划记录见
+[`releases/20260803_r11_s1_production_observation.md`](releases/20260803_r11_s1_production_observation.md)。
+本节所有项目都是尚未执行的生产项，不得用 R9/R10 工程基线勾选。
+
+- [ ] 真实 production PostgreSQL、Redis、HTTPS CORS、非 Mock 数据源和 CSP 报告 endpoint
+  已确认。
+- [ ] 发布负责人、回滚负责人、证据保管人和安全评审人四类角色已确认。
+- [ ] 完整 deploy/rollback SHA、镜像 digest、UTC 发布/观测窗口、sample rate 和
+  `single|sticky` SSE 模式已批准。
+- [ ] 仓库外受限加密证据目录、至少 90 天保留策略和双人销毁审批已确认。
+- [ ] 已冻结 Alembic head、双 CSP hash、认证边界、拓扑和低敏 artifact 清单。
+- [ ] 已使用真实输入执行 R7 的 11 项只读 preflight，脱敏报告和 trace 已安全归档。
+- [ ] 已完成 PostgreSQL 逻辑备份、SHA-256 记录、隔离恢复、核心计数、约束、readiness
+  和 RTO 核对。
+- [ ] 已部署冻结镜像，并核对运行时 `RELEASE_COMMIT`、deploy SHA 和镜像 digest 一致。
+- [ ] 已确认 API scheduler 关闭、独立 worker 唯一启用、Redis/真实数据源共享和 SSE 拓扑。
+- [ ] 已确认强制 CSP、Report-Only、认证、Bearer 写请求和 cookie-only 拒绝边界未漂移。
+- [ ] 已在正式窗口前完成 CSP canary，并将 canary 排除出正式窗口。
+- [ ] `login`、`refresh_recovery`、`concurrent_401_singleflight`、`logout`、
+  `sse_initial_connect`、`sse_reconnect`、`products`、`product_detail`、`workspace`、
+  `strategies`、`agents`、`bearer_write`、`cookie_only_write_rejected` 和
+  `csp_reporting_canary` 14 项流程全部 `passed`。
+- [ ] 有效窗口覆盖至少 5 个实际交易日、连续至少 7 个自然日、周末/休市段、日盘、夜盘、
+  调度周期和非交易时段。
+- [ ] 窗口内 release、镜像、sample rate、双 CSP、认证、SSE、origins 和指标口径保持冻结。
+- [ ] 同窗非 CSP 业务 HTTP、六类 CSP outcome、`FrontendLogDB` 记录、重启/reset 和告警
+  已采集并核对。
+- [ ] `persist_failed=0`，`accepted` 与完整目标记录一致，所有 `rejected` /
+  `rate_limited` 均已解释并复验。
+- [ ] production context、catalog 和 R10 report 已在仓库外生成，且 report 为
+  `ready_for_review`，无 unknown、pending、failed、sensitive 或 truncated 项。
+- [ ] 所有 artifact 使用低敏 ID，并记录 SHA-256、时间、schema version、保留期、保管角色
+  和状态，且未进入 Git、CI artifact、聊天、工单正文或公开日志。
+- [ ] 停止/回滚顺序已经验证；正常 R11 应用回滚不执行 Alembic downgrade，也不删除既有
+  脱敏 `frontend_logs`。
+- [ ] 四类责任角色已完成退出签字；R11 生产记录准确标记 completed / blocked /
+  invalidated / rolled_back。
+
+当前以上项目全部未执行。R12/S2 与 R13/S3 均未启动。
+
+## 8. 回滚
 
 - [ ] 先停止 worker，再停止 API，保留失败日志和 trace id。
 - [ ] 保存发布前数据库备份与 Alembic 版本。

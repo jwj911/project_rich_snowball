@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-08-03（R10 非生产工程基线与远端 Backend CI 已闭环）
+> **最后更新**：2026-08-03（R11 规格已批准，operator gate 仍阻塞）
 
 ---
 
@@ -41,11 +41,15 @@
   [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
   成功，Vitest、build、R9 E2E `3 passed`、全量 Playwright `43 passed` 和 Lighthouse 均通过。
   应用回滚点为 R9 启动文档提交 `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
-- **当前迭代**：R10“CSP 证据归类与 S2 准入报告”的非生产工程基线与远端工程门禁已完成。
-  实现只包含后端 evidence-only 服务和离线只读 CLI，无管理员 HTTP API、数据库表或
-  Alembic 迁移；仍为非生产状态，R11 受生产操作者门禁阻塞，R12/S2、R13/S3 均未开始。治理顺序见
-  [Post-R9 计划](docs/iteration_plan_20260802_post_r9.md)，实现边界见
-  [R10 spec](.trae/specs/classify-csp-evidence-readiness/spec.md)。R9 已完成
+- **当前迭代**：R11“目标环境 S1 部署与完整业务周期观测”独立规格已完成并批准，但
+  operator gate 仍为 `blocked`。当前
+  [R11 记录](docs/releases/20260803_r11_s1_production_observation.md)是
+  `blocked planning record`，不是工程基线或生产发布；真实 production 环境、四类责任人、
+  deploy/rollback SHA、镜像 digest、UTC 窗口和仓库外证据目录均未提供，未执行 preflight、
+  备份、恢复、部署、canary、完整窗口或 production R10 report。R10 非生产工程基线保持
+  不变，R12/S2、R13/S3 均未启动。治理顺序见
+  [Post-R9 计划](docs/iteration_plan_20260802_post_r9.md)，执行边界见
+  [R11 spec](.trae/specs/conduct-r11-production-observation/spec.md)。R9 已完成
   [CSP Report-Only S1 工程实现、审查修复和工程门禁闭环](docs/releases/20260802_r9_csp_report_only_observability.md)。
   强制 CSP 原值不变；legacy/Reporting API 报告接收具备 8 KiB、批量、采样、限流、脱敏、
   独立 `trace_id` 和低基数指标。`localStorage` access token、Bearer 写请求和 CSRF 拒绝
@@ -96,6 +100,8 @@
 |------|------|
 | [docs/release_checklist_20260719.md](docs/release_checklist_20260719.md) | 当前发布前检查、CI 证据、备份与回滚清单 |
 | [docs/iteration_plan_20260802_post_r9.md](docs/iteration_plan_20260802_post_r9.md) | Post-R9 治理顺序、准入与停止条件 |
+| [.trae/specs/conduct-r11-production-observation/spec.md](.trae/specs/conduct-r11-production-observation/spec.md) | R11 生产操作者门禁、完整周期与退出规则 |
+| [docs/releases/20260803_r11_s1_production_observation.md](docs/releases/20260803_r11_s1_production_observation.md) | R11 `blocked planning record`，所有生产项未执行 |
 | [.trae/specs/classify-csp-evidence-readiness/spec.md](.trae/specs/classify-csp-evidence-readiness/spec.md) | R10 evidence-only 服务与离线 CLI 规格 |
 | [docs/iteration_plan_20260724_follow_up.md](docs/iteration_plan_20260724_follow_up.md) | R1 至 R9 已完成历史事实源 |
 | [.trae/specs/add-csp-reporting-observability/spec.md](.trae/specs/add-csp-reporting-observability/spec.md) | R9 CSP Report-Only 观测闭环规格、认证边界和停止条件 |
@@ -296,7 +302,8 @@ cd python
 从 `python/` 运行 `scripts/csp_evidence_report.py`，显式传入 database/context/catalog/report；
 只有 database 可回退到 `DATABASE_URL`。context、catalog 和 report 均放在仓库外，禁止提交。
 单次执行上限为 31 天、50,000 条、500 个聚合组、30 秒和 256 KiB 报告。退出码 `0/1/2/3/4`
-分别表示 ready/insufficient/blocked/failed/write-failed；synthetic 的预期退出码是 `1`。
+分别表示 `ready_for_review`、`insufficient_evidence`、`blocked`、`failed` 和
+`report_write_failed`；synthetic 的预期退出码是 `1`。
 完整命令见 [.agents/operations.md](.agents/operations.md)。该能力没有 HTTP API 或迁移。
 
 ### 启动前端

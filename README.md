@@ -18,13 +18,15 @@
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
 - K 线存储：R8 已提供只读容量门禁、默认 dry-run 的影子分区 DDL、隔离迁移演练和管理员
   存储概况；活动 `kline_data` 仍未分区。
-- 当前迭代：R10“CSP 证据归类与 S2 准入报告”的 `non-production engineering baseline`
-  已完成；实现提交为 `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`，应用回滚点为
-  `b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`。R10 只新增后端 evidence-only 服务和
-  [离线只读 CLI](python/scripts/csp_evidence_report.py)，不提供 HTTP API；当前仍是非生产
-  工程状态，R11 仍受生产操作者门禁阻塞，R12/S2 与 R13/S3 均未开始。治理顺序见
-  [Post-R9 计划](docs/iteration_plan_20260802_post_r9.md)，实现边界见
-  [R10 spec](.trae/specs/classify-csp-evidence-readiness/spec.md)。
+- 当前迭代：R11“目标环境 S1 部署与完整业务周期观测”独立规格已完成并批准，但 operator
+  gate 仍为 `blocked`。当前
+  [R11 记录](docs/releases/20260803_r11_s1_production_observation.md)类型为
+  `blocked planning record`，不是工程基线或生产发布；真实 production 环境、四类责任人、
+  deploy/rollback SHA、镜像 digest、UTC 窗口和仓库外证据目录均未提供，未执行 preflight、
+  备份、恢复、部署、canary、完整窗口或 production R10 report。R10
+  `non-production engineering baseline` 保持不变；R12/S2 与 R13/S3 均未启动。治理顺序见
+  [Post-R9 计划](docs/iteration_plan_20260802_post_r9.md)，R11 边界见
+  [R11 spec](.trae/specs/conduct-r11-production-observation/spec.md)。
 - R9 工程状态：
   [CSP Report-Only 观测闭环](docs/releases/20260802_r9_csp_report_only_observability.md)
   已完成 S1 工程实现、审查修复、本地验证、增强版浏览器回归和远端 CI 工程门禁。页面同时
@@ -123,6 +125,7 @@ project_rich_snowball/
 ├── docs/                         # 项目文档
 │   ├── release_checklist_20260719.md # 当前发布检查与回滚清单
 │   ├── iteration_plan_20260802_post_r9.md # Post-R9 治理顺序与准入门禁
+│   ├── releases/20260803_r11_s1_production_observation.md # R11 受阻规划记录
 │   ├── iteration_plan_20260724_follow_up.md # R1-R9 已完成历史事实源
 │   ├── phase4_private_data_access_boundary.md # Agent 私有数据访问边界
 │   ├── r3_raw_contract_market_panel.md # 多视图日频研究宽表
@@ -229,11 +232,17 @@ $LASTEXITCODE
 
 `DATABASE_URL` 是 `--database-url` 的唯一回退。单次执行固定为最长 31 天、最多 50,000 条记录、
 最多 500 个聚合组、最多 30 秒，报告不超过 256 KiB。退出码 `0` 至 `4` 依次表示
-`ready_for_review`、`insufficient_evidence`、`blocked`、`failed` 和报告写入失败；本地/CI
-synthetic 证据的预期结果是 `insufficient_evidence` 和退出码 `1`，不是生产成功。
+`ready_for_review`、`insufficient_evidence`、`blocked`、`failed` 和
+`report_write_failed`；本地/CI synthetic 证据的预期结果是 `insufficient_evidence` 和
+退出码 `1`，不是生产成功。
 
 R10 没有新增数据库表或 Alembic 迁移，也没有改变强制 CSP、Report-Only 策略、认证、
 `localStorage` token、Bearer 写请求或 cookie-only 写请求拒绝边界。
+
+R11 当前只完成规格和文档规划。有效观测必须覆盖至少 5 个实际交易日、连续至少 7 个自然日，
+并完成固定 14 项核心流程、同窗业务 HTTP 与六类 CSP outcome 核对、仓库外 artifact 安全
+保管及回滚验证。operator gate 输入未齐备前不得运行上述 CLI 生成 production report，也不得
+执行任何生产 preflight、备份、恢复、迁移或部署。
 
 ---
 

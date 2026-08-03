@@ -162,7 +162,7 @@ $LASTEXITCODE
 | `1` | `insufficient_evidence`；本地/CI synthetic 的预期结果 |
 | `2` | `blocked` |
 | `3` | `failed` |
-| `4` | 报告写入失败 |
+| `4` | `report_write_failed` |
 
 stdout/stderr 只允许安全摘要、稳定码和异常类型。R10 不新增迁移，不改变强制 CSP、
 Report-Only、`localStorage` token、Bearer 写请求或 cookie-only 写请求拒绝边界。
@@ -178,14 +178,31 @@ R10 `non-production engineering baseline` 与远端 Backend CI 已完成，当�
 
 - R10 是 evidence-only：只用 R9 已脱敏记录生成有界只读归类和 S2 人工评审输入，不修改 CSP，
   不部署到生产；只有本地或 CI synthetic 流量时只能判定 `insufficient_evidence`。
-- R11 是 operator gate：真实目标环境、凭据、发布窗口、发布/回滚负责人和发布清单任一缺失
-  即阻塞，不得用历史 CI 替代完整业务周期观测。
+- R11 独立规格已完成并批准，但 operator gate 仍为 `blocked`；对应
+  [`R11 记录`](../docs/releases/20260803_r11_s1_production_observation.md)是
+  `blocked planning record`，不是工程基线或生产发布。
 - R12 才实施 S2 nonce/hash 与 `script-src` 收紧，必须具备 R10/R11 证据、无未知违规并经
   人工批准。
 - R13 才实施 S3 内存 access token，必须在 R12 稳定退出后另立认证专项；POST/PUT/PATCH/
   DELETE 继续要求 `Authorization: Bearer`，不启用 cookie-only 写请求。
 - R8 生产分区/冷归档和 R7 Redis Pub/Sub/跨实例连接管理继续按容量、并发或高可用阈值触发，
   当前均未触发、未排期。
+
+R11 当前缺少真实 production 环境、发布/回滚/证据保管/安全评审四类责任人、
+deploy/rollback SHA、镜像 digest、UTC 窗口、冻结 sample rate、`single|sticky` 拓扑证据和
+仓库外证据目录。未执行真实 preflight、备份、隔离恢复、迁移、部署、canary、完整观测窗口、
+生产指标采集或 production R10 report；所有 R11 生产项保持未勾选。
+
+门禁齐备后仍须按顺序执行：冻结不可变发布计划；真实 11 项只读 preflight；逻辑备份与隔离
+恢复；冻结镜像部署；窗口前 canary 与 14 项核心流程 smoke；至少 5 个实际交易日且连续至少
+7 个自然日的冻结窗口；同窗业务 HTTP、六类 CSP outcome、持久化记录、重启/reset 和告警
+核对；仓库外 production context/catalog/report；四类角色签字。任一失败、漂移、敏感数据或
+证据缺口均停止并回滚，不得拼接窗口。
+
+全部 artifact 必须使用仓库外受限加密存储、低敏 ID、SHA-256、生成时间、schema version、
+至少 90 天保留期和保管角色；不得记录生产 host、origin、连接串、个人账号、凭据、绝对路径、
+报告正文或业务数据。下一步仅是由授权人员在仓库外补齐并批准 operator gate 输入，批准前
+不得运行本节生产命令。
 
 ### CSP Report-Only 观测
 

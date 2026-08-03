@@ -2,13 +2,25 @@
 
 ## 2026-08-03
 
+- 完成 R11“目标环境 S1 部署与完整业务周期观测”独立规格的文档集成；规格已批准，但
+  operator gate 仍为 `blocked`。新增
+  [`docs/releases/20260803_r11_s1_production_observation.md`](docs/releases/20260803_r11_s1_production_observation.md)，
+  类型为 `blocked planning record`，不是工程基线或生产发布。
+- R11 规划固定了真实环境与四类责任人门禁、deploy/rollback SHA、镜像 digest、UTC 窗口、
+  至少 5 个交易日/7 个自然日、14 项核心流程、同窗业务 HTTP 与六类 CSP outcome、
+  仓库外 artifact 安全和停止/回滚规则。
+- 真实 production 环境、四类责任人、deploy/rollback SHA、镜像 digest、UTC 窗口和仓库外
+  证据目录均未提供；未执行 preflight、备份、恢复、迁移、部署、canary、完整窗口或
+  production R10 report，所有生产项保持未勾选。
+- 本次只更新规划、规格与导航文档，不修改代码或配置，不勾选 R11 tasks/checklist。R10
+  `non-production engineering baseline` 保持不变；R12/S2 与 R13/S3 均未启动。
 - R10 完成本地 CSP evidence-only 工程实现与验证：新 CSP 记录使用服务端受控 environment 和
   可选完整 40 位 `RELEASE_COMMIT` 归属，浏览器扩展 blocked URL 只保留固定
   `browser-extension` 类别；既有记录不回填、不重写。
 - 新增有界只读 CSP 证据服务和离线 CLI，按固定路由、directive、blocked source 类别生成
   脱敏 JSON，并以 `failed`、`blocked`、`insufficient_evidence`、`ready_for_review` 的固定
-  优先级判定。CLI 退出码 `0/1/2/3/4` 分别对应 ready、insufficient、blocked、failed 和
-  report-write-failed。
+  优先级判定。CLI 退出码 `0/1/2/3/4` 分别对应 `ready_for_review`、
+  `insufficient_evidence`、`blocked`、`failed` 和 `report_write_failed`。
 - 固定 context/catalog 各 64 KiB、31 天、50,000 行、500 条 keyset page、500 聚合组、
   500 条 catalog、每个 origin 列表 20 项、30 秒运行时间、30 秒 PostgreSQL statement
   timeout 和 256 KiB 报告限额；PostgreSQL 使用只读事务，SQLite 使用 query-only。

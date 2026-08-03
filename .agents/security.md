@@ -35,8 +35,24 @@
 - context、catalog 和 report 必须作为仓库外运维输入/产物管理，不得提交；单次执行限制为
   31 天、50,000 条、500 个聚合组、30 秒和 256 KiB 报告。synthetic 只能返回
   `insufficient_evidence`，CLI 预期退出码为 `1`。
-- R11 受生产操作者门禁约束：只有具备真实目标环境、凭据、窗口、发布/回滚负责人和发布清单，
-  才能部署 S1 并完成至少一个真实完整业务周期观测。
+- R11 独立规格已完成并批准，但 operator gate 仍为 `blocked`。当前
+  [`R11 记录`](../docs/releases/20260803_r11_s1_production_observation.md)类型为
+  `blocked planning record`，不是工程基线或生产发布。
+- 真实 production 环境、发布/回滚/证据保管/安全评审四类责任人、deploy/rollback SHA、
+  镜像 digest、UTC 窗口和仓库外证据目录均未提供；未执行 preflight、备份、恢复、部署、
+  canary、完整窗口或 production R10 report。
+- R11 只有在真实 PostgreSQL、Redis、HTTPS CORS、非 Mock 数据源、CSP endpoint、
+  `single|sticky` 拓扑、冻结 sample rate、完整提交/镜像、UTC 窗口、四类角色和至少
+  90 天受限证据存储全部确认后，才能进入只读 preflight。
+- 有效窗口必须覆盖至少 5 个实际交易日和连续至少 7 个自然日。14 项核心流程必须全部
+  `passed`，`persist_failed` 必须为 0，`accepted` 必须与完整目标记录一致；任何敏感数据、
+  变更、无法解释的 reset 或证据缺口都会使窗口失效并要求重新开始。
+- R11 的 preflight、backup、restore、smoke、metrics、context、catalog、report 和 rollback
+  artifact 只能保存在仓库外受限加密存储，使用低敏 ID、SHA-256、保留期和保管角色管理，
+  不得进入 Git、CI artifact、聊天、工单正文或公开日志。
+- R11 停止时按已批准顺序停止 worker/API、保留低敏 trace、恢复应用、按需恢复数据库并重验
+  readiness、认证、行情、SSE 和 CSP。R11 不新增 migration，正常应用回滚不执行 Alembic
+  downgrade。
 - R12 才实施 S2 nonce/hash 与 `script-src` 收紧，前提是 R10/R11 证据完整、无未知违规且
   经过人工安全评审；证据不足时继续运行 S1 Report-Only。
 - R13 才实施 S3 内存 access token，且必须在 R12 稳定退出后另立认证专项。所有写请求继续

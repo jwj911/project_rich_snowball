@@ -1,0 +1,75 @@
+# R11 目标环境 S1 部署与完整业务周期观测验收清单
+
+- [ ] 真实 production 环境、PostgreSQL、Redis、HTTPS CORS 和非 Mock 数据源已确认。
+- [ ] 发布负责人、回滚负责人、证据保管人和安全评审人均已确认。
+- [ ] deploy SHA、rollback SHA 和镜像 digest 已冻结并可相互核对。
+- [ ] UTC 发布窗口、CSP sample rate 和 `single|sticky` SSE 模式已批准。
+- [ ] 仓库外证据目录具备加密、受限访问、至少 90 天保留和双人销毁审批。
+- [ ] 仓库未记录生产 host、连接串、凭据、个人账号、证据路径或审批 ID。
+- [ ] 任一 operator gate 输入缺失时 R11 保持 blocked，没有使用 placeholder 或历史 CI 替代。
+- [ ] 已创建 R11 专属发布记录，通用生产清单未预先勾选。
+- [ ] 发布记录固定 Alembic head、sample rate、SSE 模式和强制/Report-Only CSP hash。
+- [ ] 所有证据使用低敏 artifact ID，并记录 SHA-256、时间、schema version、保留期、保管
+  角色和状态。
+- [ ] artifact 清单不包含路径、host、URL、用户名、业务数据或凭据。
+- [ ] 真实 `release_preflight.py` 11 项检查全部通过。
+- [ ] preflight 报告具有独立 trace，stdout/stderr 和文档无敏感输入。
+- [ ] CI placeholder preflight 未被计作 R11 生产证据。
+- [ ] 部署前 PostgreSQL 逻辑备份完成，并记录工具版本、时间、大小和 hash。
+- [ ] 备份已在隔离 PostgreSQL 恢复，未覆盖生产或用户开发数据库。
+- [ ] 恢复库的 Alembic head、核心表、聚合计数、约束和 readiness 均通过。
+- [ ] 恢复 RTO 符合批准目标，回滚负责人已验证备份可访问和可恢复。
+- [ ] 预检、备份或恢复失败时没有继续生产部署。
+- [ ] 生产运行时 `RELEASE_COMMIT` 与 deploy SHA 和镜像 digest 一致。
+- [ ] 生产数据库 `alembic upgrade head` 成功，R11 没有新增 migration。
+- [ ] API scheduler 关闭，只有独立 worker 启用 scheduler。
+- [ ] API/worker 使用相同 Redis、真实数据源和受控运行配置。
+- [ ] `single` 仅有一个 SSE 实例，或 `sticky` 会话亲和已在负载均衡验证。
+- [ ] 强制 CSP hash 与 R9 基线完全一致。
+- [ ] Report-Only hash 与 R9/R10 基线完全一致。
+- [ ] `localStorage`、HttpOnly cookie、Bearer 写请求和 cookie-only 拒绝边界均未变化。
+- [ ] liveness、readiness、scheduler、权限和关键 API smoke 通过。
+- [ ] CSP reporting canary 在正式窗口前执行并从正式窗口排除。
+- [ ] canary 验证 legacy/Reporting API、可信 release/environment、指标和脱敏持久化。
+- [ ] 窗口前 14 项核心流程 smoke 全部通过。
+- [ ] `window_start` 由发布负责人和安全评审人共同确认。
+- [ ] 有效窗口覆盖至少 5 个实际交易日。
+- [ ] 有效窗口连续至少 7 个自然日并跨一个周末或完整休市段。
+- [ ] 有效窗口覆盖日盘、夜盘、调度周期和非交易时段。
+- [ ] 法定休市导致交易日不足时，窗口顺延到第 5 个实际交易日结束。
+- [ ] 窗口内 release、镜像、sample rate、双 CSP、认证、SSE、origins 和指标口径保持冻结。
+- [ ] 窗口内没有无法解释的重启、counter reset、时钟异常或证据缺口。
+- [ ] 发生代码/配置/部署变更时旧窗口已标记 invalidated，未拼接新旧证据。
+- [ ] 14 项 production 流程全部为 passed，没有 failed 或 not_run。
+- [ ] 每项流程只记录时间、角色、release 和低敏 artifact ID。
+- [ ] 流程证据不含账号、token、payload、完整 URL、用户截图或响应正文。
+- [ ] 非 CSP 业务 HTTP 窗口增量已记录且大于 0。
+- [ ] 六类 `csp_reports_total` outcome 使用同一窗口和 release 采集。
+- [ ] `persist_failed=0`。
+- [ ] accepted 与同 environment/release/window 的完整目标记录数一致。
+- [ ] 所有 rejected/rate_limited 均有原因、责任角色和复验结论。
+- [ ] readiness、scheduler、Redis 降级和 CSP 告警事件均有低敏记录。
+- [ ] production context 为 `target_environment / production` 且 release/window 与 R11 一致。
+- [ ] context 的 14 项流程、sample rate、业务 HTTP、CSP outcomes 和 origins 均完整。
+- [ ] known-violation catalog 只使用受控分类、owner role、decision 和 retest status。
+- [ ] catalog 不含 URL、脚本、DOM、UA、凭据、用户标识、路径或自由文本证据。
+- [ ] R10 CLI 使用仓库外 database/context/catalog/report 输入完成。
+- [ ] 最终 R10 report 为 `ready_for_review`。
+- [ ] 最终 report 无 unknown、pending、failed、sensitive 或 truncated 项。
+- [ ] R10 report trace、status、artifact ID 和 hash 摘要已记录，正文和路径未进入仓库。
+- [ ] preflight、backup、restore、deploy、smoke、metrics、context、catalog、report 和
+  rollback 均在受限存储。
+- [ ] 所有生产 artifact 具有 hash、schema version、保留期和保管角色。
+- [ ] 生产 artifact 未进入 Git、CI artifact、聊天、工单正文或公开日志。
+- [ ] 敏感数据检测失败会隔离 artifact 并停止 R11。
+- [ ] 停止与回滚触发器覆盖预检/恢复/健康/CSP/认证/SSE/持久化/敏感数据/证据完整性。
+- [ ] 回滚流程覆盖停止 worker/API、保留低敏 trace、应用恢复和关键 smoke。
+- [ ] 正常 R11 应用回滚不执行 Alembic downgrade，也不删除既有脱敏 CSP 记录。
+- [ ] 回滚事件只记录稳定码、影响、SHA、时间、角色和 artifact ID。
+- [ ] 发布、回滚、证据保管和安全评审四类角色已完成退出签字。
+- [ ] R11 发布记录准确标记 completed / blocked / invalidated / rolled_back。
+- [ ] Post-R9 计划、发布清单、README、AGENTS 和 `.agents/` 已同步。
+- [ ] 仓库文档不含生产凭据、host、origin、绝对路径、个人账号、报告正文或业务数据。
+- [ ] R11 规格与脱敏文档已提交推送，本地与 `origin/master` 一致且工作区干净。
+- [ ] R11 完成只把 R12 标记为待人工专项评审，没有自动修改 CSP 或启动 S2/S3。
+- [ ] `tasks.md` 与本 checklist 全部勾选，所有证据可追溯且没有未说明例外。

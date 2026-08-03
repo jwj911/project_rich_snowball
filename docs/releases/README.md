@@ -7,14 +7,18 @@
 当前处于
 [`Post-R9` 规划](../iteration_plan_20260802_post_r9.md)：R9 工程门禁已闭环但尚未生产部署，
 R10 `non-production engineering baseline` 与远端 Backend CI 已完成，不是生产发布。
-R11 operator gate 仍阻塞，R12/S2 与 R13/S3 均未启动。R1 至 R9 历史执行证据见
+R11 独立规格已完成并批准，但 operator gate 仍阻塞；当前 R11 记录是
+`blocked planning record`，不是工程基线或生产发布。真实 production 环境、四类责任人、
+deploy/rollback SHA、镜像 digest、UTC 窗口和仓库外证据目录均未提供，未执行任何生产项。
+R12/S2 与 R13/S3 均未启动。R1 至 R9 历史执行证据见
 [`../iteration_plan_20260724_follow_up.md`](../iteration_plan_20260724_follow_up.md)。
 R8 生产分区/冷归档与 R7 分布式 SSE 仍是阈值触发、未排期的条件轨道。
 
 ## 记录规则
 
 - 文件名使用 `YYYYMMDD_<short-slug>.md`，日期按发布窗口的 UTC 日期。
-- 明确标注 `engineering baseline` 或 `production release`，工程基线不得表述为生产已发布。
+- 明确标注 `engineering baseline`、`production release` 或 `blocked planning record`；
+  工程基线和受阻规划记录均不得表述为生产已发布。
 - 已完成发布的提交必须是已推送且可回滚的 Git 提交；CI pending 记录必须将尚未产生的提交
   哈希和 CI 链接明确标为待填，不得推断或虚构。
 - 未执行的生产检查保持未勾选，并在“阻塞项”中说明原因，不用历史 CI 结果代替本次发布验证。
@@ -48,3 +52,8 @@ R8 生产分区/冷归档与 R7 分布式 SSE 仍是阈值触发、未排期的�
   `1442 passed, 1 skipped, 103 warnings`，coverage `77.38%`；Alembic、PostgreSQL API
   smoke、Ruff check/format（122 files）和 `pip-audit` 均成功，没有修复提交。未生成生产
   context、catalog 或 report，R11 仍阻塞，R12/S2 与 R13/S3 均未启动。
+- [20260803_r11_s1_production_observation.md](20260803_r11_s1_production_observation.md)：
+  R11 S1 目标环境生产观测的 `blocked planning record`。独立规格已完成并批准，但真实
+  production 环境、四类责任人、deploy/rollback SHA、镜像 digest、UTC 窗口和仓库外证据
+  目录均未提供；preflight、备份、恢复、部署、canary、完整窗口和 production R10 report
+  均未执行，所有生产项保持未勾选。R10 基线不变，R12/S2 与 R13/S3 未启动。

@@ -2,7 +2,7 @@
 
 > 计划日期：2026-08-02
 > 当前状态：Post-R9 唯一当前迭代事实源；R10 `non-production engineering baseline` 与
-> 远端 Backend CI 已完成，R11 受生产操作者门禁阻塞
+> 远端 Backend CI 已完成；R11 独立规格已完成并批准，但 operator gate 仍为 `blocked`
 > 适用范围：R9 之后的 CSP 与认证迁移、生产观测、K 线生命周期、SSE 扩展和产品候选治理
 > 历史事实源：
 > [`iteration_plan_20260724_follow_up.md`](iteration_plan_20260724_follow_up.md)，仅保留 R1 至 R9
@@ -19,8 +19,8 @@
 本路线图按实际可执行门禁组织工作，不用版本号顺序掩盖生产凭据、操作者、观测证据或容量阈值
 等外部依赖。没有满足门禁且没有独立规格批准的事项，不得标记为“进行中”或“已排期”。
 
-本文定义后续工作，并记录 R10 本地与远端工程闭环事实；本次事实源更新不新增业务代码、数据库
-迁移或生产操作，也不生成生产报告。Post-R9 决策由本文件统一管理。
+本文定义后续工作，并记录 R10 本地与远端工程闭环事实及 R11 已批准的受阻规划；本次事实源
+更新不新增业务代码、数据库迁移或生产操作，也不生成生产报告。Post-R9 决策由本文件统一管理。
 
 ## 2. R9 已验证基线
 
@@ -130,7 +130,7 @@ Pub/Sub 或分布式连接管理。
 | ID | 事项 | 可执行状态 | 优先级 | 当前结论 | 关键依赖或触发 | 退出证据 |
 |---|---|---|---|---|---|---|
 | R10 | CSP 脱敏证据归类与 S2 准入报告 | 可立即实施 | P0 | 非生产工程基线已完成 | R9 已脱敏记录和受控发布元数据 | 有界只读能力、脱敏 JSON、正确三状态判定和成功远端门禁 |
-| R11 | 目标环境 S1 部署与完整业务周期 | 需要生产操作者 | P0 | 阻塞 | 凭据、窗口、发布/回滚负责人、清单、R10 报告能力 | 完整周期、核心流程、告警基线、回滚和可归类证据 |
+| R11 | 目标环境 S1 部署与完整业务周期 | 需要生产操作者 | P0 | 规格已批准，operator gate 阻塞 | 真实环境、四类责任人、提交/镜像、UTC 窗口、证据目录 | 5 个交易日/7 个自然日、14 流程、指标、回滚和 production R10 报告 |
 | R12 | S2 nonce/hash 与 `script-src` 收紧 | 需要观测证据 | P1 | 未准入 | R11 退出，R10 为 `ready_for_review` 且人工批准 | 强制策略专项回归、无未知违规和可验证回滚 |
 | R13 | S3 内存 access token | 需要观测证据 | P1 | 未准入 | R12 稳定退出和认证独立规格 | 恢复、401、跨标签、logout、SSE、Bearer 写请求均通过 |
 | R8 轨道 | 生产分区与冷归档 | 需要容量/并发阈值 | P2 | 未触发 | 生产只读预检达到固定阈值，且有维护/恢复门禁 | 独立规格规定的切换、恢复、归档和审计证据 |
@@ -344,23 +344,37 @@ R10 本地与远端工程门禁已完成。当前发布记录是
   策略、`localStorage` token、HttpOnly cookie、Bearer 写请求或 cookie-only 写请求拒绝边界；
 - 未生成生产 context、catalog 或 report，包含用户数据的 `python/dev.db` 保持保留；
 
-R11 仍受生产操作者、凭据、窗口和发布/回滚负责人门禁约束，尚未启动；R12/S2 与 R13/S3
-均未启动。
+R11 独立规格已完成并批准，但真实 production 环境、四类责任人、deploy/rollback SHA、
+镜像 digest、UTC 窗口和仓库外证据目录均未提供，operator gate 仍为 `blocked`。真实
+preflight、备份、隔离恢复、部署、canary、完整窗口和 production R10 report 均未执行；
+R12/S2 与 R13/S3 均未启动。
 
 ## 7. R11：生产操作者门禁与完整业务周期
 
 ### 7.1 目标
 
-R11 负责把 R9 S1 部署到真实目标环境，并在不收紧强制 CSP 的前提下采集至少一个完整业务
-周期的真实观测。完整业务周期的起止、业务日历、计划任务和核心用户活动必须在 R11 独立规格
-和发布记录中预先定义，执行后不得为迎合结果缩短窗口。
+R11 负责把 R9/R10 S1 基线部署到真实目标环境，并在不收紧强制 CSP 的前提下采集一个不可
+缩短的完整业务周期。独立规格
+[`conduct-r11-production-observation`](../.trae/specs/conduct-r11-production-observation/spec.md)
+已完成并批准；当前
+[`R11 记录`](releases/20260803_r11_s1_production_observation.md)类型为
+`blocked planning record`，不是 `engineering baseline` 或 `production release`。
+
+规格批准不解除 operator gate。当前未提供真实 production 环境、四类责任人、
+deploy/rollback SHA、镜像 digest、UTC 窗口或仓库外证据目录，因此执行状态仍为
+`blocked`，所有生产项保持未勾选。
 
 ### 7.2 准入
 
 以下条件全部满足后才能排期：
 
-- 真实目标环境、生产凭据和受信任待发布版本已确定；
-- 发布窗口、发布负责人和回滚负责人已明确指定；
+- 真实 production PostgreSQL、Redis、HTTPS CORS、非 Mock 数据源和 CSP 报告 endpoint
+  已确定；
+- 发布负责人、回滚负责人、证据保管人和安全评审人四类角色均已确认；
+- 完整 40 位 deploy SHA、已验证的完整 40 位 rollback SHA 和镜像 digest 已冻结并可核对；
+- UTC 发布与观测窗口、`CSP_REPORT_SAMPLE_RATE`、`SSE_DEPLOYMENT_MODE=single|sticky`
+  及对应拓扑证据已批准；
+- 仓库外受限、加密的证据根目录和至少 90 天保留策略已确认；
 - 从
   [`release_checklist_20260719.md`](release_checklist_20260719.md)
   复制本次发布记录，未执行项保持未勾选；
@@ -370,21 +384,32 @@ R11 负责把 R9 S1 部署到真实目标环境，并在不收紧强制 CSP 的�
 - R10 有界归类能力可用于窗口内证据；
 - 强制 CSP、Bearer 写请求和 cookie-only 写请求拒绝保持 R9 基线。
 
-缺少任一真实输入时，R11 保持阻塞。历史 CI、候选环境或 synthetic 报告不能替代。
+缺少任一真实输入时，R11 保持阻塞。仓库不得记录生产 host、origin、连接串、凭据、个人账号、
+审批 ID 或证据绝对路径；历史 CI、候选环境、staging、本地或 synthetic 报告不能替代。
 
 ### 7.3 完整周期与核心流程矩阵
 
-观测窗口至少覆盖预先定义的一个完整业务周期，并记录：
+有效观测窗口必须：
 
-- 发布版本、环境、窗口、采样率、负责人和回滚点；
-- 登录、刷新恢复、并发 401 单飞、退出；
-- SSE 首连、首次断线重连、cookie 轮换和降级路径；
-- 关键页面、实时行情、详情读取和既有写操作；
-- Bearer 写请求成功与 cookie-only 写请求继续拒绝；
-- Report-Only 报告接收、采样、拒绝、限流和持久化失败；
-- `csp_reports_total{outcome}` 与同窗口业务 HTTP 流量的趋势对比；
-- 已知违规分类、负责人、处理决策、复验结果和未覆盖流程；
-- 告警基线、值班响应和应用回滚演练。
+- 覆盖至少 5 个实际交易日；
+- 从 `window_start` 到 `window_end` 连续至少 7 个自然日；
+- 跨越至少一个周末或完整休市段；
+- 覆盖日盘、夜盘、一次行情刷新/宽表调度周期和一个非交易时段；
+- 法定休市导致 7 日内不足 5 个交易日时，顺延至第 5 个实际交易日结束；
+- 全程使用 UTC，并冻结 deploy SHA、镜像 digest、release、sample rate、双 CSP、认证、
+  SSE 模式、expected/trusted origins 和指标口径。
+
+固定 14 项生产流程为 `login`、`refresh_recovery`、`concurrent_401_singleflight`、
+`logout`、`sse_initial_connect`、`sse_reconnect`、`products`、`product_detail`、
+`workspace`、`strategies`、`agents`、`bearer_write`、`cookie_only_write_rejected` 和
+`csp_reporting_canary`。每项必须记录 `passed` / `failed` / `not_run`、时间、执行角色、
+release 和低敏 artifact ID；任何 `failed` / `not_run` 都阻止 `ready_for_review`。
+
+同一窗口必须核对非 CSP 业务 `http_requests_total`、`csp_reports_total` 的 `received`、
+`accepted`、`sampled`、`rejected`、`rate_limited`、`persist_failed` 六类增量、
+`FrontendLogDB` 已接受记录数、sample rate、重启/reset 和 readiness/scheduler/Redis/CSP
+告警。`persist_failed` 必须为 0，`accepted` 必须与完整且未截断的目标记录一致；所有非零
+`rejected` / `rate_limited` 必须有原因分类、责任角色和复验结论。
 
 观测和报告继续遵守 R9 脱敏边界，不保存生产请求样本、凭据、完整 URL、脚本或页面内容。
 
@@ -392,11 +417,23 @@ R11 负责把 R9 S1 部署到真实目标环境，并在不收紧强制 CSP 的�
 
 退出：
 
-- 目标环境发布清单逐项保留真实执行证据；
-- 完整业务周期无窗口缺口，核心流程矩阵有明确覆盖结论；
-- 发布、回滚、告警和责任人记录完整；
-- R10 使用该窗口重新生成报告，所有证据缺口和违规均可审计；
-- 目标环境回滚演练证明可恢复到 R9 S1 已验证行为。
+- 真实 preflight、备份恢复、部署、canary 和发布清单全部通过；
+- 有效窗口满足至少 5 个交易日和 7 个自然日，14 项流程全部 `passed`；
+- 指标完整，`persist_failed=0`，`accepted` 与目标记录一致；
+- 所有 unknown / pending / failed 分类闭环，production R10 report 为
+  `ready_for_review`，且无敏感或截断问题；
+- 发布、回滚、证据保管和安全评审四类角色完成签字；
+- 回滚步骤已验证，生产发布记录完成。
+
+artifact：
+
+- preflight、backup、restore、deploy、smoke、metrics、context、catalog、report 和 rollback
+  证据只存放在仓库外受限加密存储；
+- 使用 1 至 64 位低敏 ASCII slug，并记录 SHA-256、生成时间、schema version、至少 90 天
+  保留期、保管角色和状态；
+- 不进入 Git、CI artifact、聊天、工单正文或公开日志；
+- 检测到密钥、Token、连接串、完整 URL、query、fragment、脚本、DOM、用户标识或业务数据
+  时立即隔离并停止 R11。
 
 非目标：
 
@@ -414,6 +451,14 @@ R11 负责把 R9 S1 部署到真实目标环境，并在不收紧强制 CSP 的�
 - 发现敏感 CSP 数据落库、日志或报告；
 - Report-Only 被误配为 enforce，或现有强制 CSP 值发生未经批准的变化；
 - 持久化失败、拒绝或限流异常无法解释且影响证据完整性。
+
+代码、镜像、配置、CSP、sample rate、认证或关键拓扑变化，以及无法解释的重启、counter
+reset、证据缺口、时钟异常、敏感数据或 R10 截断，都会使当前窗口 `invalidated`。修复后必须
+重新部署并从新的 `window_start` 完整重跑，不得拼接窗口。
+
+回滚顺序固定为停止 worker/API、保留低敏日志和 trace、恢复已批准应用提交、按需恢复数据库，
+再验证 readiness、认证、行情、SSE 和 CSP。R11 不新增 migration，正常应用回滚不执行
+Alembic downgrade，也不删除既有脱敏 `frontend_logs`。
 
 ## 8. R12：S2 nonce/hash 收紧
 
@@ -691,8 +736,12 @@ R13 必须在 R12 稳定退出后另立认证专项规格。范围仅为：
 
 ## 15. 唯一下一步
 
-R10 非生产工程基线已闭环。下一生产门禁仍是 R11，但当前因缺少真实目标环境、生产凭据、
-发布窗口及发布/回滚负责人而阻塞，不得用 R10 CI 或 synthetic 报告绕过。
+R10 非生产工程基线已闭环且保持不变。R11 独立规格已完成并批准，但当前因缺少真实 production
+环境、四类责任人、deploy/rollback SHA、镜像 digest、UTC 窗口和仓库外证据目录而阻塞，不得
+用 R10 CI 或 synthetic 报告绕过。
+
+唯一下一步是由授权人员在仓库外补齐并批准全部 operator gate 输入；输入齐备后先冻结不可变
+发布计划，再执行真实只读 preflight。preflight 通过前不得开始备份、恢复、迁移或部署。
 
 在 R11 完整周期证据经 R10 生成 `ready_for_review` 并通过人工评审前不实施 R12，在 R12
 稳定退出前不实施 R13。R8、R7 和三个产品候选继续保持未触发或未排期状态。
