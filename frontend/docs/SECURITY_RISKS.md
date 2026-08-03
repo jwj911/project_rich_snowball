@@ -1,7 +1,7 @@
 # 前端安全风险记录
 
 > 记录当前前端已知安全风险和已接受的折中方案。
-> 最后更新：2026-08-02（Post-R9 规划，R10 待立项）
+> 最后更新：2026-08-03（R10 非生产工程基线已完成）
 
 ---
 
@@ -32,10 +32,13 @@
 
 ### 分阶段迁移
 
-1. **R10（evidence-only，待立项）**：只对 R9 已脱敏记录做有界只读归类并生成 S2 准入
-   报告，不修改 CSP；只有本地或 CI synthetic 流量时必须判定 `insufficient_evidence`。
+1. **R10（evidence-only，非生产工程基线已完成）**：只对 R9 已脱敏记录做有界只读归类并
+   生成 S2 人工评审输入，不修改 CSP；只有本地或 CI synthetic 流量时必须判定
+   `insufficient_evidence`。实现提交为 `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`，
+   [Backend CI run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+   已成功；未生成生产 context、catalog 或 report。
 2. **R11（operator gate）**：只有具备真实目标环境、凭据、发布窗口、发布/回滚负责人和
-   发布清单，才部署 S1 并完成至少一个真实完整业务周期观测。
+   发布清单，才部署 S1 并完成至少一个真实完整业务周期观测；当前仍阻塞。
 3. **R12（S2）**：R10/R11 证据完整、无未知违规并经人工批准后，才使用 nonce/hash 收紧
    `script-src`，并验证 Next runtime、图表、登录、API、SSE 和详情页写操作。
 4. **R13（S3）**：R12 稳定退出后才将 access token 收敛到内存，使用 HttpOnly refresh

@@ -6,9 +6,8 @@
 
 当前处于
 [`Post-R9` 规划](../iteration_plan_20260802_post_r9.md)：R9 工程门禁已闭环但尚未生产部署，
-R10 独立规格已批准，本地实现与验证完成，远端 Backend CI 待验证；当前记录是
-`non-production engineering baseline` 且 `CI pending`，不是生产发布。R11 operator gate
-尚未启动，R12/S2 与 R13/S3 均未启动。R1 至 R9 历史执行证据见
+R10 `non-production engineering baseline` 与远端 Backend CI 已完成，不是生产发布。
+R11 operator gate 仍阻塞，R12/S2 与 R13/S3 均未启动。R1 至 R9 历史执行证据见
 [`../iteration_plan_20260724_follow_up.md`](../iteration_plan_20260724_follow_up.md)。
 R8 生产分区/冷归档与 R7 分布式 SSE 仍是阈值触发、未排期的条件轨道。
 
@@ -42,5 +41,10 @@ R8 生产分区/冷归档与 R7 分布式 SSE 仍是阈值触发、未排期的�
   R10 CSP 证据归类与 S2 准入报告非生产工程基线；本地聚焦
   `375 passed, 5 skipped, 1 warning`，全量 `1421 passed, 22 skipped, 103 warnings`，
   synthetic CLI 正确返回退出码 `1` / `insufficient_evidence`，安全报告为 `1707 B`。
-  本地 PostgreSQL 不可用，3 个 PostgreSQL 专项明确 skip；最终实现提交与远端 Backend CI
-  均待填/待验证。未生成生产 context、catalog 或 report，R11/R12/R13 均未启动。
+  本地 PostgreSQL 不可用，3 个 PostgreSQL 专项明确 skip。实现提交为
+  `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`；
+  [Backend CI run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+  成功，R9/R10 gate `268 passed, 1 warning`，远端全量
+  `1442 passed, 1 skipped, 103 warnings`，coverage `77.38%`；Alembic、PostgreSQL API
+  smoke、Ruff check/format（122 files）和 `pip-audit` 均成功，没有修复提交。未生成生产
+  context、catalog 或 report，R11 仍阻塞，R12/S2 与 R13/S3 均未启动。

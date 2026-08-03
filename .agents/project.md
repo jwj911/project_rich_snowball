@@ -20,7 +20,14 @@
 - **R10 本地质量基线（2026-08-03）**：聚焦测试
   `375 passed, 5 skipped, 1 warning`，后端全量
   `1421 passed, 22 skipped, 103 warnings`。本地 PostgreSQL 不可用，相关集成用例保持明确
-  skip；远端 Backend CI 待验证。
+  skip。
+- **R10 远程验收（2026-08-03）**：实现提交为
+  `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`，应用回滚点为
+  `b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`。
+  [Backend CI run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+  成功；R9/R10 gate `268 passed, 1 warning`，全量
+  `1442 passed, 1 skipped, 103 warnings`，coverage `77.38%`；Alembic、PostgreSQL API
+  smoke、Ruff check/format（122 files）和 `pip-audit` 均成功。没有修复提交。
 - **R9 历史质量基线（2026-08-02）**：独立审查修复前的后端全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
@@ -38,9 +45,9 @@
   与
   [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
   均成功。应用回滚点为 R9 启动文档提交 `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
-- **当前迭代**：R10“CSP 证据归类与 S2 准入报告”已完成本地实施与验证，远端 Backend CI
-  待验证。R10 只提供后端 evidence-only 服务和离线只读 CLI，没有 HTTP API、数据库表或
-  Alembic 迁移；当前仍非生产，R11、R12/S2、R13/S3 均未开始。治理顺序见
+- **当前迭代**：R10“CSP 证据归类与 S2 准入报告”的非生产工程基线与远端工程门禁已完成。
+  R10 只提供后端 evidence-only 服务和离线只读 CLI，没有 HTTP API、数据库表或 Alembic
+  迁移；当前仍非生产，R11 受生产操作者门禁阻塞，R12/S2、R13/S3 均未开始。治理顺序见
   [`Post-R9` 计划](../docs/iteration_plan_20260802_post_r9.md)，实现边界见
   [`R10 spec`](../.trae/specs/classify-csp-evidence-readiness/spec.md)。R9 已完成 CSP
   Report-Only S1 工程实现、审查修复、本地验证、增强版浏览器回归和远端 CI；完整记录见

@@ -18,10 +18,11 @@
 - AI 助手：用户与大模型对话，自动检索实时行情和交易观点作为上下文
 - K 线存储：R8 已提供只读容量门禁、默认 dry-run 的影子分区 DDL、隔离迁移演练和管理员
   存储概况；活动 `kline_data` 仍未分区。
-- 当前迭代：R10“CSP 证据归类与 S2 准入报告”已完成本地实施与验证，远端 Backend CI
-  待验证。R10 只新增后端 evidence-only 服务和
+- 当前迭代：R10“CSP 证据归类与 S2 准入报告”的 `non-production engineering baseline`
+  已完成；实现提交为 `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`，应用回滚点为
+  `b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`。R10 只新增后端 evidence-only 服务和
   [离线只读 CLI](python/scripts/csp_evidence_report.py)，不提供 HTTP API；当前仍是非生产
-  工程状态，R11 生产操作者阶段、R12/S2 与 R13/S3 均未开始。治理顺序见
+  工程状态，R11 仍受生产操作者门禁阻塞，R12/S2 与 R13/S3 均未开始。治理顺序见
   [Post-R9 计划](docs/iteration_plan_20260802_post_r9.md)，实现边界见
   [R10 spec](.trae/specs/classify-csp-evidence-readiness/spec.md)。
 - R9 工程状态：
@@ -33,7 +34,13 @@
 - R10 本地验证：聚焦测试
   `375 passed, 5 skipped, 1 warning`，后端全量
   `1421 passed, 22 skipped, 103 warnings`；本地 PostgreSQL 不可用，相关集成用例保持明确
-  skip。远端 Backend CI 仍待验证，这些结果不构成生产证据或 S2 准入。
+  skip。
+- R10 远端验证：
+  [Backend CI run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+  成功；R9/R10 gate 为 `268 passed, 1 warning`，全量为
+  `1442 passed, 1 skipped, 103 warnings`，coverage `77.38%`。Alembic、PostgreSQL API
+  smoke、Ruff check/format（122 files）和 `pip-audit` 均成功；首次运行即通过，没有修复
+  提交。这些远端工程结果与上述本地结果分列，均不构成生产证据或 S2 准入。
 - R9 历史本地质量基线：独立审查修复前的后端全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
@@ -343,7 +350,11 @@ $env:ENABLE_SCHEDULER="0"
 
 R10 本地聚焦测试为 `375 passed, 5 skipped, 1 warning`，后端全量为
 `1421 passed, 22 skipped, 103 warnings`。本地 PostgreSQL 不可用，R10/R9 PostgreSQL 集成
-用例保持明确 skip；远端 Backend CI 待验证。
+用例保持明确 skip。远端
+[Backend CI run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+已成功：R9/R10 gate `268 passed, 1 warning`；全量
+`1442 passed, 1 skipped, 103 warnings`，coverage `77.38%`；Alembic、PostgreSQL API
+smoke、Ruff check/format（122 files）和 `pip-audit` 均成功，且没有修复提交。
 
 R9 独立审查修复前的历史后端全量为
 `1177 passed, 18 skipped, 0 failed, 103 warnings`。修复后受影响聚焦回归为
@@ -363,9 +374,10 @@ ESLint；增强版实际浏览器执行未计入本地结果，由远端 Fronten
 smoke。[Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
 已通过 Vitest、production build、R9 E2E `3 passed`、全量 Playwright `43 passed` 和
 Lighthouse。
-Backend CI 工作流已加入 R10 synthetic evidence 契约，但本轮远端运行仍待验证；既有成功
-门禁继续覆盖依赖锁、R7 placeholder preflight、Alembic、R8 K 线只读容量预检与影子
-分区演练、R9 CSP 接收契约、PostgreSQL pytest/API smoke、Ruff 和 `pip-audit`。
+Backend CI 工作流已加入 R10 synthetic evidence 契约；
+[run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+已成功覆盖依赖锁、R7 placeholder preflight、Alembic、R8 K 线只读容量预检与影子分区
+演练、R9/R10 CSP gate、PostgreSQL pytest/API smoke、Ruff 和 `pip-audit`，没有修复提交。
 [Backend CI #38](https://github.com/jwj911/project_rich_snowball/actions/runs/30732688519)
 仍是 R8 历史成功证据；R9 远端门禁以 run `30739553595` 和 `30740784839` 为准。R9
 本地/CI 合成报告不是生产 SLO，也不能替代真实完整业务周期的 Report-Only 归类。R9 尚未

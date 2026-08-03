@@ -1,7 +1,7 @@
 # R10 CSP 证据归类与 S2 准入报告工程基线（2026-08-03）
 
 > 类型：`non-production engineering baseline`，不是生产发布或 S2 批准。
-> 当前状态：本地实现与验证完成；远端 Backend CI 待验证（`CI pending`）。
+> 当前状态：本地实现、远端 Backend/Frontend CI 与非生产工程证据闭环已完成。
 > 对应规格：
 > [`classify-csp-evidence-readiness`](../../.trae/specs/classify-csp-evidence-readiness/spec.md)
 > 对应清单：[`../release_checklist_20260719.md`](../release_checklist_20260719.md)
@@ -10,10 +10,15 @@
 
 ## 发布元数据
 
-- Post-R9 基线及暂定应用回滚点：
-  `b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`
-- R10 最终实现提交：待填；当前尚未创建提交，不得推断或虚构哈希
-- Backend CI：待验证；当前没有可记录的 R10 CI 运行链接
+- R10 实现提交：`e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`
+- 应用回滚点：`b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`
+- Backend CI：
+  [run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)，
+  成功
+- Frontend CI：
+  [run 30791923961（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923961)，
+  成功
+- 修复提交：无；attempt 1 一次通过
 - 变更范围：可信 CSP environment/release 归属、有界只读证据归类、脱敏准入 JSON、安全离线
   CLI、定向测试和 Backend CI 契约门禁
 - 生产发布窗口：未指定
@@ -76,7 +81,7 @@
 - 聚焦 pytest：`375 passed, 5 skipped, 1 warning`；
 - 后端全量 pytest：`1421 passed, 22 skipped, 103 warnings`；
 - 本地 PostgreSQL 不可用，3 个 PostgreSQL 专项明确 skip；这些专项仍需远端 PostgreSQL CI
-  验证，SQLite 结果不替代 PostgreSQL 证据；
+  验证，SQLite 结果不替代 PostgreSQL 证据；远端验证结果见下一节；
 - Ruff：通过；
 - `git diff --check`：通过；
 - 安全检查：通过；
@@ -88,10 +93,19 @@
 本地验证没有生成生产 context、catalog 或 report。包含用户数据的 `python/dev.db` 已保留，
 未作为测试数据库清理或纳入本次发布记录。
 
-## 远端与生产状态
+## 远端验证与生产状态
 
-- R10 Backend CI 尚未运行或尚未形成可记录的成功证据，状态保持 `pending`；
-- 不记录虚构的 CI URL、运行号或实现提交；
+- [Backend CI run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+  成功，对应实现提交 `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`；
+- R9/R10 gate：`268 passed, 1 warning`；
+- 后端全量：`1442 passed, 1 skipped, 103 warnings`，coverage `77.38%`；
+- Alembic、PostgreSQL API smoke、Ruff check/format（122 files）和 `pip-audit` 均成功；
+- [Frontend CI run 30791923961（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923961)
+  成功，对应同一实现提交；Vitest `223 passed`，R9 E2E `3 passed`，完整 Playwright
+  `43 passed`，Lighthouse `home=92`、`products=100`；
+- 该 Frontend CI 是 `frontend/docs` 文档变更触发的远端回归，只补充非生产工程回归证据，
+  不构成生产部署、生产 SLO、真实完整业务周期或 S2 准入证据；
+- attempt 1 一次通过，没有修复提交；
 - R11 生产操作者门禁尚未启动，生产凭据、窗口、发布负责人和回滚负责人均未确认；
 - 未覆盖真实目标环境完整业务周期，未生成生产 context、catalog 或 report；
 - R12/S2 nonce/hash 与 `script-src` 收紧未启动；
@@ -107,9 +121,8 @@ cookie-only 写请求拒绝边界均保持 R9 基线。
 
 ## 回滚
 
-在 R10 最终实现提交产生前，暂定应用回滚点为 Post-R9 提交
-`b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`。最终实现提交创建后应补记真实哈希，并继续保留
-该提交作为回退到 Post-R9 状态的基点。
+R10 实现提交为 `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`。应用回滚到 Post-R9
+提交 `b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`。
 
 R10 无数据库迁移，回滚不需要 Alembic downgrade，也不得删除既有 `frontend_logs`、
 脱敏 CSP 记录或 `python/dev.db`。回滚后应重新确认：
@@ -127,8 +140,13 @@ R10 无数据库迁移，回滚不需要 Alembic downgrade，也不得删除既�
 - [x] Ruff、diff 和安全检查通过。
 - [x] 生产 context、catalog 和 report 未生成。
 - [x] `python/dev.db` 已保留。
-- [ ] R10 最终实现提交已创建并补记。
-- [ ] Backend CI 在 PostgreSQL 环境通过并补记真实链接。
+- [x] R10 实现提交 `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4` 已创建并推送。
+- [x] Backend CI
+  [`30791923945`（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+  已在 PostgreSQL 环境通过。
+- [x] 文档触发的 Frontend CI
+  [`30791923961`（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923961)
+  已完成 Vitest、R9 E2E、完整 Playwright 与 Lighthouse 远端回归；该结果不是生产证据。
 - [ ] R11 operator gate、生产窗口和责任人已满足。
 - [ ] 真实完整业务周期已覆盖并生成生产 R10 报告。
 - [ ] 生产报告达到 `ready_for_review` 并通过人工 S2 专项评审。
@@ -137,7 +155,7 @@ R10 无数据库迁移，回滚不需要 Alembic downgrade，也不得删除既�
 
 ## 非生产边界
 
-R10 当前只是一项本地实现与验证完成、远端 CI 待验证的 evidence-only 非生产工程基线。它没有
-部署 R9/R10，没有生成生产事实文件，没有关闭强制 CSP 中的 `unsafe-inline` /
-`unsafe-eval`，也没有关闭 `localStorage` access token 风险。下一工程门禁是完成真实 R10
-提交和远端 Backend CI；下一生产门禁仍是 R11 operator gate。
+R10 是本地与远端工程门禁均已闭环的 evidence-only 非生产工程基线。它没有部署 R9/R10，
+没有生成生产 context、catalog 或 report，没有关闭强制 CSP 中的 `unsafe-inline` /
+`unsafe-eval`，也没有关闭 `localStorage` access token 风险。下一生产门禁仍是受真实凭据、
+窗口及发布/回滚负责人约束且当前阻塞的 R11 operator gate；R12/S2 与 R13/S3 均未启动。

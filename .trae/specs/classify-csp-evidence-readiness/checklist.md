@@ -52,12 +52,12 @@
 - [x] context/catalog、分类、状态机、限额、敏感记录和报告结构单元测试通过。
 - [x] CLI 路径、原子写入、权限、退出码、失败清理和写入失败测试通过。
 - [x] SQLite query-only 与 PostgreSQL read-only/statement timeout 集成测试通过或有明确环境 skip。
-- [ ] R9 CSP 接收、采样、限流、脱敏、批量提交、失败回滚和 PostgreSQL 持久化回归通过。
-- [ ] Backend CI 执行 R10 门禁，并断言 synthetic 不能返回 `ready_for_review`。
+- [x] R9 CSP 接收、采样、限流、脱敏、批量提交、失败回滚和 PostgreSQL 持久化回归通过。
+- [x] Backend CI 执行 R10 门禁，并断言 synthetic 不能返回 `ready_for_review`。
 - [x] 后端聚焦测试、全量 pytest、Ruff check/format 和 `git diff --check` 全部通过。
 - [x] `.env.example`、Compose、README、AGENTS、`.agents/`、Post-R9 计划和发布清单已同步。
-- [ ] R10 发布记录包含提交、测试、CI、回滚点、限额、退出码和未完成 R11/R12/R13。
+- [x] R10 发布记录包含提交、测试、CI、回滚点、限额、退出码和未完成 R11/R12/R13。
 - [x] 文档明确 R10 是非生产 evidence-only 工程基线，synthetic 不是生产 SLO 或 S2 准入。
 - [x] 生产 context/catalog/report、临时文件、测试数据库、日志和 CI 产物未进入版本控制。
-- [ ] R10 相关变更已原子提交并推送，本地与 `origin/master` 一致，工作区干净。
-- [ ] `tasks.md` 与本 checklist 全部勾选，下一阶段仍为受生产操作者门禁的 R11。
+- [x] R10 相关变更已原子提交并推送，本地与 `origin/master` 一致，工作区干净。
+- [x] `tasks.md` 与本 checklist 全部勾选，下一阶段仍为受生产操作者门禁的 R11。

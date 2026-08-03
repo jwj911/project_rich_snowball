@@ -169,7 +169,9 @@ Report-Only、`localStorage` token、Bearer 写请求或 cookie-only 写请求�
 
 ### Post-R9 执行门禁
 
-R10 已完成本地实施与验证，远端 Backend CI 待验证，当前仍为非生产状态。治理顺序见
+R10 `non-production engineering baseline` 与远端 Backend CI 已完成，当前仍为非生产状态。
+实现提交为 `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`，应用回滚点为
+`b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`。治理顺序见
 [`docs/iteration_plan_20260802_post_r9.md`](../docs/iteration_plan_20260802_post_r9.md)，
 实现边界见
 [R10 spec](../.trae/specs/classify-csp-evidence-readiness/spec.md)。
@@ -292,7 +294,11 @@ clamp_min(
   check/format + `pip-audit`，pytest-cov 阈值为 40%。R10 本地聚焦测试为
   `375 passed, 5 skipped, 1 warning`，后端全量为
   `1421 passed, 22 skipped, 103 warnings`；本地 PostgreSQL 不可用，相关集成用例明确
-  skip，本轮远端 Backend CI 待验证。
+  skip。远端
+  [Backend CI run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+  成功：R9/R10 gate `268 passed, 1 warning`；全量
+  `1442 passed, 1 skipped, 103 warnings`，coverage `77.38%`；Alembic、PostgreSQL API
+  smoke、Ruff check/format（122 files）和 `pip-audit` 均成功。首次运行即通过，没有修复提交。
   [R9 Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)
   成功，`R9 CSP contract gate 39 passed`，包含 PostgreSQL 持久化集成测试；远端全量约
   `1195 passed, 1 skipped`。

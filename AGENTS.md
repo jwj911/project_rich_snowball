@@ -2,7 +2,7 @@
 
 > 本文档面向 AI 编程助手。进入本仓库后，先读这里，再动代码。
 >
-> **最后更新**：2026-08-03（R10 本地实施验证完成，远端 Backend CI 待验证）
+> **最后更新**：2026-08-03（R10 非生产工程基线与远端 Backend CI 已闭环）
 
 ---
 
@@ -18,7 +18,13 @@
 - **近期新增功能**：策略工作台 `/strategies`、策略参数优化、回测信号可视化、预警中心 `/alerts`、Agent 工作台 `/agents`、交易员 Agent `trader`。
 - **R10 本地验证**：聚焦测试 `375 passed, 5 skipped, 1 warning`，后端全量
   `1421 passed, 22 skipped, 103 warnings`。本地 PostgreSQL 不可用，相关集成用例保持明确
-  skip；远端 Backend CI 待验证。
+  skip。
+- **R10 远程验收**：实现提交为 `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`，应用回滚点为
+  `b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`。
+  [Backend CI run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+  成功：R9/R10 gate `268 passed, 1 warning`；全量
+  `1442 passed, 1 skipped, 103 warnings`，coverage `77.38%`；Alembic、PostgreSQL API
+  smoke、Ruff check/format（122 files）和 `pip-audit` 均成功。首次运行即通过，没有修复提交。
 - **R9 历史测试状态**：独立审查修复前的后端全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
@@ -35,9 +41,9 @@
   [Frontend CI run 30740784839](https://github.com/jwj911/project_rich_snowball/actions/runs/30740784839)
   成功，Vitest、build、R9 E2E `3 passed`、全量 Playwright `43 passed` 和 Lighthouse 均通过。
   应用回滚点为 R9 启动文档提交 `756ca605613ba2a4f76919e913e1264e3f9d2a1b`。
-- **当前迭代**：R10“CSP 证据归类与 S2 准入报告”已完成本地实施与验证，远端 Backend CI
-  待验证。实现只包含后端 evidence-only 服务和离线只读 CLI，无管理员 HTTP API、数据库表或
-  Alembic 迁移；仍为非生产状态，R11、R12/S2、R13/S3 均未开始。治理顺序见
+- **当前迭代**：R10“CSP 证据归类与 S2 准入报告”的非生产工程基线与远端工程门禁已完成。
+  实现只包含后端 evidence-only 服务和离线只读 CLI，无管理员 HTTP API、数据库表或
+  Alembic 迁移；仍为非生产状态，R11 受生产操作者门禁阻塞，R12/S2、R13/S3 均未开始。治理顺序见
   [Post-R9 计划](docs/iteration_plan_20260802_post_r9.md)，实现边界见
   [R10 spec](.trae/specs/classify-csp-evidence-readiness/spec.md)。R9 已完成
   [CSP Report-Only S1 工程实现、审查修复和工程门禁闭环](docs/releases/20260802_r9_csp_report_only_observability.md)。
@@ -463,7 +469,7 @@ npm run lighthouse
 
 | Workflow | 触发条件 | 内容 |
 |----------|----------|------|
-| `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，依赖锁漂移检查，R7/R8 门禁、R9/R10 CSP 契约、pytest + coverage（阈值 40%）、PostgreSQL API smoke、Ruff check/format、pip-audit；R10 远端运行待验证 |
+| `.github/workflows/backend-ci.yml` | `python/**`、`docker-compose.yml`、workflow 本身变更 | Python 3.12，内嵌 PG service，依赖锁漂移检查，R7/R8 门禁、R9/R10 CSP 契约、pytest + coverage（阈值 40%）、PostgreSQL API smoke、Ruff check/format、pip-audit；R10 run `30791923945` attempt 1 已成功 |
 | `.github/workflows/frontend-ci.yml` | `frontend/**`、R9 相关后端契约文件、workflow 本身变更 | Node 20，TypeScript、ESLint、R9 双 CSP 头、build、Vitest、Lighthouse；独立 job 执行 PostgreSQL + Alembic + backend + R9 定向及完整 Playwright Chromium smoke |
 | `.github/workflows/update-calendar.yml` | 每年 1 月 1 日 cron + manual | 更新交易日历 `python/data/trading_calendar.json` 并提交 |
 

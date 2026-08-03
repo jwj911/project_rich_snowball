@@ -23,7 +23,9 @@
 
 ## Post-R9 安全顺序
 
-- R10 已完成本地实施与验证，远端 Backend CI 待验证；当前仍为非生产工程状态。治理顺序见
+- R10 `non-production engineering baseline` 与远端 Backend CI 已完成；当前仍为非生产
+  工程状态。实现提交为 `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`，应用回滚点为
+  `b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`。治理顺序见
   [`docs/iteration_plan_20260802_post_r9.md`](../docs/iteration_plan_20260802_post_r9.md)，
   实现边界见
   [R10 spec](../.trae/specs/classify-csp-evidence-readiness/spec.md)。
@@ -82,7 +84,12 @@
   强制 CSP 未收紧，`localStorage` access token 风险未关闭。
 - R10 本地聚焦测试为 `375 passed, 5 skipped, 1 warning`，后端全量为
   `1421 passed, 22 skipped, 103 warnings`；本地 PostgreSQL 不可用，相关集成用例保持明确
-  skip，远端 Backend CI 待验证。该状态不改变上述 R9 历史事实或认证/CSP 边界。
+  skip。远端
+  [Backend CI run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+  成功；R9/R10 gate `268 passed, 1 warning`，全量
+  `1442 passed, 1 skipped, 103 warnings`，coverage `77.38%`；Alembic、PostgreSQL API
+  smoke、Ruff check/format（122 files）和 `pip-audit` 均成功，没有修复提交。未生成生产
+  context、catalog 或 report；该状态不改变上述 R9 历史事实或认证/CSP 边界。
 - RSS/新闻源：添加外部 RSS URL 时必须校验协议与主机（拒绝 private/local/link-local/file 等危险目标），抓取时设置显式超时，防止 SSRF 与 worker 阻塞。
 - admin 手动触发抓取接口（`/api/news/fetch`、`/api/news/sources/{id}/fetch`）已通过 `BackgroundTasks` 后台化，不再阻塞 HTTP 请求。
 

@@ -1,8 +1,8 @@
 <!-- .agents/roadmap.md — 模块演进状态与待处理事项 -->
 
-> 当前状态：R1 至 R9 工程项已闭环；R10 已完成本地实施与验证，远端 Backend CI 待验证，
-> 当前仍为非生产状态。R10 仅提供 evidence-only 服务与离线 CLI；R11、R12/S2、R13/S3 均未
-> 开始。治理顺序见
+> 当前状态：R1 至 R9 工程项已闭环；R10 `non-production engineering baseline` 与远端
+> Backend CI 已闭环，当前仍为非生产状态。R10 仅提供 evidence-only 服务与离线 CLI；R11
+> 受生产操作者门禁阻塞，R12/S2、R13/S3 均未开始。治理顺序见
 > [`Post-R9` 计划](../docs/iteration_plan_20260802_post_r9.md)，实现边界见
 > [R10 spec](../.trae/specs/classify-csp-evidence-readiness/spec.md)。R8 生产分区/冷归档与
 > R7 分布式 SSE 均为未触发、未排期的条件轨道。
@@ -256,7 +256,7 @@ R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验�
 `localStorage` access token，不启用 cookie-only 写请求。真实报告未归类前不进入 S2，S3
 内存 access token 仍需独立立项；本地和 CI 合成报告不是生产 SLO。
 
-### R10：CSP 证据归类与 S2 准入报告 — 本地实施验证完成（2026-08-03）
+### R10：CSP 证据归类与 S2 准入报告 — 非生产工程基线已完成（2026-08-03）
 
 - 新增后端 `csp_evidence` 有界只读服务和 `scripts/csp_evidence_report.py` 离线 CLI；没有
   新增管理员 HTTP API、数据库表或 Alembic 迁移；
@@ -272,10 +272,16 @@ R9 本地实现提交为 `723ba9b949bccf7c96798d2f45388731350eacd3`，本地验�
 - 本地聚焦测试 `375 passed, 5 skipped, 1 warning`，后端全量
   `1421 passed, 22 skipped, 103 warnings`；本地 PostgreSQL 不可用，相关集成用例保持明确
   skip；
-- 远端 Backend CI 待验证，因此尚未形成 R10 远程工程闭环，更不是生产发布或 S2 准入。
+- 实现提交为 `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`，应用回滚点为
+  `b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`；
+- [Backend CI run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+  成功；R9/R10 gate `268 passed, 1 warning`，全量
+  `1442 passed, 1 skipped, 103 warnings`，coverage `77.38%`；Alembic、PostgreSQL API
+  smoke、Ruff check/format（122 files）和 `pip-audit` 均成功，且没有修复提交。
 
 R10 不修改强制 CSP、Report-Only 策略、`localStorage` token、Bearer 写请求或 cookie-only
-写请求拒绝边界。R11 生产操作者与完整业务周期、R12/S2、R13/S3 均未开始。
+写请求拒绝边界。未生成生产 context、catalog 或 report；R11 生产操作者与完整业务周期门禁
+仍阻塞，R12/S2、R13/S3 均未开始。
 
 ### Phase 1~3：用户工作区、合约 K 线、生产边界 — 已完成
 

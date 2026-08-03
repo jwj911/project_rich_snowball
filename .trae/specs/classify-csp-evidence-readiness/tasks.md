@@ -69,7 +69,7 @@
   - [x] SubTask 6.5: 确认没有生产 context/catalog/report、测试数据库、临时文件、日志或 CI
     产物进入版本控制。
 
-- [ ] Task 7: 更新文档、形成非生产工程基线并远程闭环。
+- [x] Task 7: 更新文档、形成非生产工程基线并远程闭环。
   - [x] SubTask 7.1: 更新 `.env.example`、Compose、README、AGENTS、`.agents/`、Post-R9
     计划和发布清单，说明 `RELEASE_COMMIT` 与 R10 使用方式。
   - [x] SubTask 7.2: 新增 R10 非生产发布记录，分别记录本地/CI 证据、回滚点、限额、退出码和
@@ -78,8 +78,8 @@
     CSP、Report-Only、token 和 Bearer/CSRF 边界不变。
   - [x] SubTask 7.4: 只暂存 R10 相关代码、测试、CI、规格和文档，运行 pre-commit 并创建原子
     提交。
-  - [ ] SubTask 7.5: 推送 `origin/master`，核对 Backend CI；失败时以独立修复提交处理。
-  - [ ] SubTask 7.6: 确认本地/远端 0/0、工作区干净、规格任务和 checklist 全部勾选，下一阶段
+  - [x] SubTask 7.5: 推送 `origin/master`，核对 Backend CI；失败时以独立修复提交处理。
+  - [x] SubTask 7.6: 确认本地/远端 0/0、工作区干净、规格任务和 checklist 全部勾选，下一阶段
     仍为受生产操作者门禁的 R11。
 
 # Task Dependencies

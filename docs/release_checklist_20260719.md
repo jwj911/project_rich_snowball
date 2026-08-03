@@ -6,8 +6,8 @@
 > [iteration_plan_20260724_follow_up.md](iteration_plan_20260724_follow_up.md)。本文件只记录
 > 发布前后可执行的检查项。
 >
-> 当前状态：R9 工程门禁已闭环但尚未生产部署；R10 本地实现与验证已完成，远端 Backend CI
-> 待验证，当前是 `non-production engineering baseline` 且 `CI pending`。
+> 当前状态：R9 工程门禁已闭环但尚未生产部署；R10
+> `non-production engineering baseline` 与远端 Backend CI 已完成。
 > R11 仍受真实生产凭据、窗口和发布/回滚负责人门禁约束；下列真实生产项在实际执行前必须
 > 保持未勾选。
 
@@ -37,9 +37,10 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 
 - R10：聚焦测试 `375 passed, 5 skipped, 1 warning`；后端全量
   `1421 passed, 22 skipped, 103 warnings`；本地 PostgreSQL 不可用，3 个 PostgreSQL 专项
-  明确 skip，远端 PostgreSQL CI 待验证。Ruff、diff 和安全复核通过。synthetic CLI 按契约
-  返回退出码 `1` / `insufficient_evidence`，安全报告为 `1707 B`，不是生产 SLO 或 S2
-  准入证据。
+  明确 skip。远端 Backend CI 的 R9/R10 gate 为 `268 passed, 1 warning`，全量为
+  `1442 passed, 1 skipped, 103 warnings`，coverage `77.38%`；Alembic、PostgreSQL API
+  smoke、Ruff check/format（122 files）和 `pip-audit` 均成功。synthetic CLI 按契约返回
+  退出码 `1` / `insufficient_evidence`，安全报告为 `1707 B`，不是生产 SLO 或 S2 准入证据。
 - 后端：独立审查修复前的 R9 全量为
   `1177 passed, 18 skipped, 0 failed, 103 warnings`；修复后受影响聚焦回归为
   `85 passed, 1 skipped, 0 failed`，Ruff check/format 通过。唯一 skip 是新增 PostgreSQL
@@ -56,7 +57,7 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
   `c7a721a04f58caa51860be67d870855663186a14`。
 - R10 详细证据见
   [`releases/20260803_r10_csp_evidence_qualification.md`](releases/20260803_r10_csp_evidence_qualification.md)；
-  当前是 CI 待验证的非生产工程基线。
+  当前是已完成远端工程门禁的非生产工程基线。
 - R9 详细证据见
   [`releases/20260802_r9_csp_report_only_observability.md`](releases/20260802_r9_csp_report_only_observability.md)；
   该记录是 CSP Report-Only 非生产工程基线，不是强制 CSP 收紧或生产发布。
@@ -113,6 +114,15 @@ placeholder preflight 只验证 CLI/报告契约，不能勾选以上生产项�
 
 当前远程证据：
 
+- [R10 Backend CI run 30791923945（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)：
+  成功；R9/R10 gate `268 passed, 1 warning`，全量
+  `1442 passed, 1 skipped, 103 warnings`，coverage `77.38%`；Alembic、PostgreSQL API
+  smoke、Ruff check/format（122 files）与 `pip-audit` 均成功。对应实现提交为
+  `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`；attempt 1 一次通过，没有修复提交。
+- [R10 Frontend CI run 30791923961（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923961)：
+  成功；Vitest `223 passed`、R9 E2E `3 passed`、完整 Playwright `43 passed`，
+  Lighthouse `home=92`、`products=100`。这是同一实现提交中 `frontend/docs` 文档变更触发的
+  远端回归，不构成生产部署、生产 SLO、完整业务周期或 S2 准入证据。
 - [R9 Backend CI run 30739553595](https://github.com/jwj911/project_rich_snowball/actions/runs/30739553595)：
   成功；`R9 CSP contract gate 39 passed`，包含 PostgreSQL 持久化集成测试；完整后端测试约
   `1195 passed, 1 skipped`，Alembic、API smoke、Ruff 与依赖审计均通过。
@@ -150,10 +160,13 @@ R12 S2 专项评审；在此之前不得移除强制 CSP 的 `unsafe-inline` / `
 - [x] 未新增管理员 HTTP API、数据库表或 Alembic 迁移，未改变强制 CSP、Report-Only 和
   认证边界。
 - [x] 未生成生产 context、catalog 或 report；`python/dev.db` 已保留。
-- [x] 暂定应用回滚点为 Post-R9 提交
+- [x] 应用回滚点为 Post-R9 提交
   `b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`。
-- [ ] R10 最终实现提交已创建并补记真实哈希。
-- [ ] 远端 Backend CI 已在 PostgreSQL 环境通过并补记真实运行链接。
+- [x] R10 实现提交
+  `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4` 已创建并推送。
+- [x] 远端 Backend CI run
+  [`30791923945`（attempt 1）](https://github.com/jwj911/project_rich_snowball/actions/runs/30791923945)
+  已在 PostgreSQL 环境通过。
 - [ ] 目标环境已配置可信 `RELEASE_COMMIT`，并由生产操作者生成本次 context 与 catalog。
 - [ ] 目标环境已覆盖完整业务周期和全部核心流程，生产指标与报告记录完整。
 - [ ] 生产 R10 report 已在仓库外生成并达到 `ready_for_review`。
@@ -161,8 +174,8 @@ R12 S2 专项评审；在此之前不得移除强制 CSP 的 `unsafe-inline` / `
 - [ ] R12/S2 已另立规格并获人工安全评审批准。
 - [ ] R13/S3 已在 R12 稳定退出后另立规格并获批准。
 
-R10 当前仅完成本地工程实现与验证，远端 CI 仍待验证。以上未勾选项不得由 synthetic 报告、
-历史 CI 或本地 SQLite 结果代替。
+R10 非生产工程基线已完成。以上未勾选项均为目标环境或生产事项，不得由 synthetic 报告、
+工程 CI 或本地 SQLite 结果代替。
 
 ## 7. 回滚
 
@@ -172,8 +185,8 @@ R10 当前仅完成本地工程实现与验证，远端 CI 仍待验证。以上
 - [x] R9 应用回滚点为启动文档提交
   `756ca605613ba2a4f76919e913e1264e3f9d2a1b`；回滚后重新检查强制 CSP、登录、SSE 与
   Bearer 写请求。
-- [x] R10 暂定应用回滚点为 Post-R9 提交
-  `b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`；最终实现提交待填，回滚不删除既有
-  `frontend_logs` 或 `python/dev.db`。
+- [x] R10 实现提交为 `e5dc94ccb6f18a44e15ba4b09ee2e2c97ff62de4`，应用回滚点为
+  `b8f92f1d87a8dfe2304ba7dd621ed5d031d77672`；回滚不删除既有 `frontend_logs` 或
+  `python/dev.db`。
 - [ ] 恢复数据库后重新执行 readiness、认证、行情列表和关键页面 smoke。
 - [ ] 将事故原因、影响范围、恢复时间和后续行动写入发布记录。

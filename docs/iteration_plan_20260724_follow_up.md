@@ -5,8 +5,8 @@
 > 历史状态：R1 至 R9 工程项已完成；R9 S1 已通过增强版浏览器回归与远端 CI，生产部署、
 > 完整业务周期观测及 S2/S3 专项评审未在本计划内完成
 > 当前事实源：
-> [`iteration_plan_20260802_post_r9.md`](iteration_plan_20260802_post_r9.md)；当前处于 Post-R9
-> 规划，R10 待立项
+> [`iteration_plan_20260802_post_r9.md`](iteration_plan_20260802_post_r9.md)；R10 非生产
+> 工程基线已完成，R11 受生产操作者门禁阻塞
 > 适用范围：Phase 4 后续安全回归、数据基础、策略验证、前端质量和生产发布治理
 > 上一份事实源：[`iteration_plan_20260718_project_audit.md`](iteration_plan_20260718_project_audit.md)
 
